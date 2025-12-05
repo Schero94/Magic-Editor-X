@@ -139,6 +139,27 @@ module.exports = ({ strapi }) => {
     },
 
     /**
+     * Checks if a new collaborator can be added based on license limits
+     * @returns {Promise<object>} Result with canAdd, current, max, and unlimited flags
+     */
+    async checkCollaboratorLimit() {
+      try {
+        const licenseService = strapi.plugin('magic-editor-x').service('licenseService');
+        return await licenseService.canAddCollaborator();
+      } catch (error) {
+        strapi.log.error('[Access Service] Error checking collaborator limit:', error);
+        // Default to allowing in case of error (fail open for free tier)
+        return {
+          canAdd: true,
+          current: 0,
+          max: 2,
+          unlimited: false,
+          error: true,
+        };
+      }
+    },
+
+    /**
      * Prüft ob User Zugriff auf einen bestimmten Room hat
      */
     async canAccessRoom(userId, roomId, action = 'view') {

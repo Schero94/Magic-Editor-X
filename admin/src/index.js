@@ -114,6 +114,35 @@ export default {
       permissions: [],
     });
 
+    // Add Settings section (License & Upgrade)
+    app.createSettingSection(
+      {
+        intlLabel: { id: `${PLUGIN_ID}.settings.section`, defaultMessage: 'Magic Editor X' },
+        id: PLUGIN_ID,
+        to: `/settings/${PLUGIN_ID}`,
+      },
+      [
+        {
+          intlLabel: {
+            id: `${PLUGIN_ID}.settings.upgrade`,
+            defaultMessage: 'Upgrade',
+          },
+          id: 'upgrade',
+          to: `/settings/${PLUGIN_ID}/upgrade`,
+          Component: () => import('./pages/LicensePage'),
+        },
+        {
+          intlLabel: {
+            id: `${PLUGIN_ID}.settings.license`,
+            defaultMessage: 'License Details',
+          },
+          id: 'license',
+          to: `/settings/${PLUGIN_ID}/license`,
+          Component: () => import('./pages/Settings'),
+        },
+      ]
+    );
+
     console.log('[Magic Editor X] Custom field registered in admin panel');
   },
 

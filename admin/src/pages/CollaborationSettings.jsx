@@ -618,11 +618,27 @@ const CollaborationSettings = () => {
   const [selectedRole, setSelectedRole] = useState('editor');
   const [contentType, setContentType] = useState('');
   const [saving, setSaving] = useState(false);
+  const [limits, setLimits] = useState({ current: 0, max: 2, unlimited: false, canAdd: true });
 
   // Load permissions, users and content types
   useEffect(() => {
     loadData();
+    loadLimits();
   }, []);
+
+  /**
+   * Load collaborator limits
+   */
+  const loadLimits = async () => {
+    try {
+      const response = await get('/magic-editor-x/license/limits');
+      if (response.data?.limits?.collaborators) {
+        setLimits(response.data.limits.collaborators);
+      }
+    } catch (error) {
+      console.error('[Collab Settings] Error loading limits:', error);
+    }
+  };
 
   const loadData = async () => {
     setLoading(true);
@@ -717,16 +733,33 @@ const CollaborationSettings = () => {
       });
 
       await loadData();
+      await loadLimits(); // Refresh limits after adding
       setShowAddModal(false);
       setSelectedUser('');
       setSelectedRole('editor');
       setContentType('');
     } catch (error) {
       console.error('[Collab Settings] Add error:', error);
-      alert('Fehler beim Hinzufügen der Berechtigung');
+      // Check if it's a limit error
+      if (error.response?.data?.upgradeRequired) {
+        alert(`Limit erreicht: ${error.response.data.message}\n\nUpgrade auf https://store.magicdx.dev/`);
+      } else {
+        alert('Fehler beim Hinzufuegen der Berechtigung');
+      }
     } finally {
       setSaving(false);
     }
+  };
+
+  /**
+   * Handle opening add modal - check limits first
+   */
+  const handleOpenAddModal = () => {
+    if (!limits.canAdd && !limits.unlimited) {
+      alert(`Collaborator-Limit erreicht (${limits.current}/${limits.max}).\n\nUpgrade auf https://store.magicdx.dev/ fuer mehr Collaborators.`);
+      return;
+    }
+    setShowAddModal(true);
   };
 
   const handleUpdateRole = async (permissionId, newRole) => {
@@ -761,9 +794,10 @@ const CollaborationSettings = () => {
     try {
       await del(`/magic-editor-x/collaboration/permissions/${permissionId}`);
       await loadData();
+      await loadLimits(); // Refresh limits after deleting
     } catch (error) {
       console.error('[Collab Settings] Delete error:', error);
-      alert('Fehler beim Löschen der Berechtigung');
+      alert('Fehler beim Loeschen der Berechtigung');
     }
   };
 
@@ -796,12 +830,38 @@ const CollaborationSettings = () => {
         </Subtitle>
       </Header>
 
+      {/* Limit Info Banner */}
+      {!limits.unlimited && (
+        <Card style={{ marginBottom: '16px', background: limits.canAdd ? '#f0fdf4' : '#fef2f2', borderColor: limits.canAdd ? '#bbf7d0' : '#fecaca' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+            <div>
+              <div style={{ fontWeight: 600, marginBottom: '4px' }}>
+                Collaborators: {limits.current} / {limits.max}
+              </div>
+              <div style={{ fontSize: '13px', color: '#6b7280' }}>
+                {limits.canAdd 
+                  ? `Du kannst noch ${limits.max - limits.current} Collaborator${limits.max - limits.current !== 1 ? 's' : ''} hinzufuegen.`
+                  : 'Limit erreicht. Upgrade fuer mehr Collaborators.'}
+              </div>
+            </div>
+            {!limits.canAdd && (
+              <Button 
+                onClick={() => window.open('https://store.magicdx.dev/', '_blank')}
+                style={{ background: 'linear-gradient(135deg, #7C3AED, #6d28d9)', color: 'white' }}
+              >
+                Upgrade
+              </Button>
+            )}
+          </div>
+        </Card>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle>Berechtigte Benutzer ({permissions.length})</CardTitle>
-          <Button onClick={() => setShowAddModal(true)}>
+          <Button onClick={handleOpenAddModal} disabled={!limits.canAdd && !limits.unlimited}>
             <UserPlusIcon />
-            Benutzer hinzufügen
+            Benutzer hinzufuegen
           </Button>
         </CardHeader>
 

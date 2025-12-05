@@ -43,6 +43,7 @@ module.exports = ({ strapi }) => ({
 
   /**
    * Create collaboration permission
+   * Checks license limits before creating
    */
   async createPermission(ctx) {
     try {
@@ -53,6 +54,21 @@ module.exports = ({ strapi }) => ({
       if (!userId || !role) {
         strapi.log.warn('[Collab] Missing userId or role');
         return ctx.badRequest('userId and role are required');
+      }
+
+      // Check collaborator limit before creating
+      const accessService = strapi.plugin('magic-editor-x').service('accessService');
+      const limitCheck = await accessService.checkCollaboratorLimit();
+      
+      if (!limitCheck.canAdd) {
+        strapi.log.warn('[Collab] Collaborator limit reached:', limitCheck);
+        return ctx.forbidden({
+          error: 'Collaborator limit reached',
+          message: `You have reached the maximum of ${limitCheck.max} collaborators for your plan. Upgrade to add more.`,
+          current: limitCheck.current,
+          max: limitCheck.max,
+          upgradeRequired: true,
+        });
       }
 
       // Validiere dass User existiert

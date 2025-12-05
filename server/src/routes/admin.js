@@ -3,6 +3,7 @@
 module.exports = {
   type: 'admin',
   routes: [
+    // Collaboration Session
     {
       method: 'POST',
       path: '/collab/session',
@@ -11,6 +12,7 @@ module.exports = {
         policies: [],
       },
     },
+    // Collaboration Users & Permissions
     {
       method: 'GET',
       path: '/collaboration/users',
@@ -55,6 +57,47 @@ module.exports = {
       method: 'GET',
       path: '/collaboration/check-access',
       handler: 'collaboration.checkAccess',
+      config: {
+        policies: ['admin::isAuthenticatedAdmin'],
+      },
+    },
+    // License Management
+    {
+      method: 'GET',
+      path: '/license/status',
+      handler: 'license.getStatus',
+      config: {
+        policies: ['admin::isAuthenticatedAdmin'],
+      },
+    },
+    {
+      method: 'POST',
+      path: '/license/auto-create',
+      handler: 'license.autoCreate',
+      config: {
+        policies: ['admin::isAuthenticatedAdmin'],
+      },
+    },
+    {
+      method: 'POST',
+      path: '/license/store-key',
+      handler: 'license.storeKey',
+      config: {
+        policies: ['admin::isAuthenticatedAdmin'],
+      },
+    },
+    {
+      method: 'GET',
+      path: '/license/limits',
+      handler: 'license.getLimits',
+      config: {
+        policies: ['admin::isAuthenticatedAdmin'],
+      },
+    },
+    {
+      method: 'GET',
+      path: '/license/can-add-collaborator',
+      handler: 'license.canAddCollaborator',
       config: {
         policies: ['admin::isAuthenticatedAdmin'],
       },

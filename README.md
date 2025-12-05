@@ -1,6 +1,6 @@
-# ✒️ Magic Editor X
+# Magic Editor X
 
-> **Advanced block-based Custom Field for Strapi v5 powered by Editor.js**
+> **Advanced block-based Custom Field for Strapi v5 powered by Editor.js with Real-Time Collaboration**
 
 [![NPM Version](https://img.shields.io/npm/v/magic-editor-x.svg)](https://www.npmjs.com/package/magic-editor-x)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -9,26 +9,44 @@
 
 ---
 
-## 🌟 Overview
+## Overview
 
 **Magic Editor X** is a Strapi v5 **Custom Field** that provides a powerful block-based editor using [Editor.js](https://editorjs.io/). Unlike regular WYSIWYG replacements, this plugin registers as a proper Custom Field, making it available in the Content-Type Builder.
 
 ### Key Features
 
-- ✅ **Custom Field** - Proper Strapi v5 Custom Field (not WYSIWYG replacement)
-- ✅ **18+ Block Types** - Headers, paragraphs, lists, quotes, code, tables, and more
-- ✅ **Media Library Integration** - Use Strapi's built-in Media Library
-- ✅ **Image Upload** - Upload by file or URL
-- ✅ **Link Previews** - OpenGraph metadata for rich link embeds
-- ✅ **Inline Formatting** - Bold, italic, underline, highlight, code
-- ✅ **Keyboard Shortcuts** - Fast editing with keyboard commands
-- ✅ **Clean Output** - JSON-based structured content
-- ✅ **Editor.js 2.31.0** - Latest Editor.js version
-- ✅ **Heroicons** - Beautiful icons throughout
+- **Custom Field** - Proper Strapi v5 Custom Field (not WYSIWYG replacement)
+- **18+ Block Types** - Headers, paragraphs, lists, quotes, code, tables, and more
+- **Real-Time Collaboration** - Multiple users can edit simultaneously with live cursors
+- **Media Library Integration** - Use Strapi's built-in Media Library
+- **Image Upload** - Upload by file or URL
+- **Link Previews** - OpenGraph metadata for rich link embeds
+- **Inline Formatting** - Bold, italic, underline, highlight, code
+- **Keyboard Shortcuts** - Fast editing with keyboard commands
+- **Clean Output** - JSON-based structured content
+- **Y.js Powered** - Conflict-free real-time sync using CRDT technology
 
 ---
 
-## 🚀 Quick Start
+## Pricing
+
+Magic Editor X offers a freemium model. **The editor itself is completely FREE** - you only pay for extended collaboration features.
+
+| Feature | FREE | PREMIUM ($9.90/mo) | ADVANCED ($24.90/mo) |
+|---------|------|---------------------|----------------------|
+| Full Editor Access | Yes | Yes | Yes |
+| All Editor Tools | Yes | Yes | Yes |
+| Real-Time Sync | Yes | Yes | Yes |
+| Collaborators | 2 | 10 | Unlimited |
+| Version History | - | Yes | Yes |
+| AI Assistant | - | Usage-based | Full Access |
+| Priority Support | - | Yes | Yes |
+
+**Upgrade at:** https://store.magicdx.dev/
+
+---
+
+## Quick Start
 
 ### Installation
 
@@ -46,6 +64,11 @@ Add to `config/plugins.ts`:
 export default () => ({
   'magic-editor-x': {
     enabled: true,
+    config: {
+      collaboration: {
+        enabled: true, // Enable real-time collaboration
+      },
+    },
   },
 });
 ```
@@ -67,47 +90,36 @@ npm run develop
 
 ---
 
-## 📋 How It Works
+## Real-Time Collaboration
 
-Magic Editor X registers as a **Custom Field** in Strapi v5:
+Magic Editor X includes built-in real-time collaboration powered by Y.js and Socket.io.
 
-```
-Content-Type Builder → Add Field → Custom → Magic Editor X
-```
+### How it Works
 
-This follows the official Strapi Custom Fields API:
-- [Strapi Custom Fields Documentation](https://docs.strapi.io/cms/features/custom-fields)
+1. When a user opens a content entry with a Magic Editor X field, they automatically join a collaboration room
+2. Changes are synced in real-time using Y.js CRDT (Conflict-free Replicated Data Types)
+3. Remote cursors show where other users are editing
+4. Presence indicators show who is currently in the document
 
-### Server Registration
+### Managing Collaborators
 
-```javascript
-// server/src/register.js
-strapi.customFields.register({
-  name: 'richtext',
-  plugin: 'magic-editor-x',
-  type: 'text',
-  inputSize: { default: 12, isResizable: true },
-});
-```
+Navigate to **Plugins > Magic Editor X > Collaboration** in the Strapi admin panel to:
 
-### Admin Registration
+- Add collaborators with different roles (Viewer, Editor, Owner)
+- Set permissions per content type
+- View current collaborator usage vs. your plan limit
 
-```javascript
-// admin/src/index.js
-app.customFields.register({
-  name: 'richtext',
-  pluginId: 'magic-editor-x',
-  type: 'text',
-  intlLabel: { id: '...', defaultMessage: 'Magic Editor X' },
-  components: {
-    Input: async () => import('./components/EditorJS'),
-  },
-});
-```
+### Collaboration Roles
+
+| Role | View | Edit | Manage Permissions |
+|------|------|------|-------------------|
+| Viewer | Yes | No | No |
+| Editor | Yes | Yes | No |
+| Owner | Yes | Yes | Yes |
 
 ---
 
-## 🛠️ Available Tools
+## Available Tools
 
 ### Block Tools
 
@@ -141,7 +153,7 @@ app.customFields.register({
 
 ---
 
-## ⚙️ Custom Field Options
+## Custom Field Options
 
 When adding the field in Content-Type Builder, you can configure:
 
@@ -153,7 +165,7 @@ When adding the field in Content-Type Builder, you can configure:
 
 ---
 
-## 📊 Output Format
+## Output Format
 
 Magic Editor X outputs clean JSON:
 
@@ -162,6 +174,7 @@ Magic Editor X outputs clean JSON:
   "time": 1699999999999,
   "blocks": [
     {
+      "id": "abc123",
       "type": "header",
       "data": {
         "text": "Hello World",
@@ -169,6 +182,7 @@ Magic Editor X outputs clean JSON:
       }
     },
     {
+      "id": "def456",
       "type": "paragraph",
       "data": {
         "text": "This is a paragraph with <b>bold</b> text."
@@ -181,7 +195,9 @@ Magic Editor X outputs clean JSON:
 
 ---
 
-## 🔧 API Endpoints
+## API Endpoints
+
+### Editor Endpoints
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
@@ -189,9 +205,27 @@ Magic Editor X outputs clean JSON:
 | POST | `/api/magic-editor-x/image/byFile` | Upload image by file |
 | POST | `/api/magic-editor-x/image/byUrl` | Upload image by URL |
 
+### License Endpoints (Admin)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/magic-editor-x/license/status` | Get license status |
+| GET | `/magic-editor-x/license/limits` | Get current limits |
+| POST | `/magic-editor-x/license/auto-create` | Auto-create FREE license |
+| POST | `/magic-editor-x/license/store-key` | Activate existing license |
+
+### Collaboration Endpoints (Admin)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/magic-editor-x/collaboration/permissions` | List all permissions |
+| POST | `/magic-editor-x/collaboration/permissions` | Add collaborator |
+| PUT | `/magic-editor-x/collaboration/permissions/:id` | Update permission |
+| DELETE | `/magic-editor-x/collaboration/permissions/:id` | Remove collaborator |
+
 ---
 
-## 🛡️ Security
+## Security
 
 For link previews to display images, update CSP in `config/middlewares.js`:
 
@@ -212,29 +246,30 @@ module.exports = [
 
 ---
 
-## 🔮 Roadmap
+## Roadmap
 
-- [ ] **Collaboration** - Real-time collaborative editing with Socket.io
-- [ ] **AI Integration** - AI-powered content suggestions
+- [x] **Collaboration** - Real-time collaborative editing with Socket.io
+- [ ] **AI Integration** - AI-powered content suggestions (coming soon)
 - [ ] **Custom Blocks** - Create your own custom block types
 - [ ] **Version History** - Track content changes
 
 ---
 
-## 📚 Resources
+## Resources
 
 - [Strapi Custom Fields Documentation](https://docs.strapi.io/cms/features/custom-fields)
 - [Editor.js Documentation](https://editorjs.io/)
-- [Editor.js Plugins](https://github.com/editor-js)
+- [Y.js Documentation](https://docs.yjs.dev/)
+- [MagicDX Store](https://store.magicdx.dev/)
 
 ---
 
-## 📝 License
+## License
 
 MIT License - see [LICENSE](LICENSE)
 
 ---
 
-**Made with ❤️ by [Schero D.](https://github.com/Schero94)**
+**Made by [Schero D.](https://github.com/Schero94)**
 
 *Part of the MagicDX Plugin Suite*
