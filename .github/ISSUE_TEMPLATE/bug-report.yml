@@ -1,39 +1,159 @@
-name: Bug Report
-description: File a bug report
+name: 🐛 Bug Report
+description: Report a bug or issue with Magic Editor X
 title: '[Bug]: '
+labels: ['bug', 'needs-triage']
 body:
   - type: markdown
     attributes:
       value: |
-        Thanks for taking the time to fill out this bug report!
+        ## Thanks for taking the time to report a bug! 
+        
+        Please fill out the information below to help us reproduce and fix the issue.
+        
   - type: textarea
-    id: issue-experiencing
+    id: bug-description
     attributes:
-      label: What issue are you experiencing?
-      description: A detailed explanation of the issue
+      label: 🐛 Bug Description
+      description: A clear and concise description of what the bug is
+      placeholder: Describe the bug you're experiencing...
     validations:
       required: true
+      
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: ✅ Expected Behavior
+      description: What did you expect to happen?
+      placeholder: Describe what should happen...
+    validations:
+      required: true
+      
+  - type: textarea
+    id: actual-behavior
+    attributes:
+      label: ❌ Actual Behavior
+      description: What actually happened?
+      placeholder: Describe what actually happened...
+    validations:
+      required: true
+      
   - type: textarea
     id: reproduction-steps
     attributes:
-      label: Steps To Reproduce
-      description: Steps to reproduce the behavior.
+      label: 🔄 Steps To Reproduce
+      description: Steps to reproduce the behavior
       placeholder: |
-        1. In this environment...
-        2. With this config...
-        3. Run '...'
+        1. Open the editor...
+        2. Add a block/tool...
+        3. Perform action...
         4. See error...
     validations:
-      required: false
+      required: true
+      
+  - type: dropdown
+    id: feature-area
+    attributes:
+      label: 📦 Feature Area
+      description: Which feature is affected?
+      options:
+        - Editor.js Core
+        - Editor Tools (Header, List, Image, etc.)
+        - Media Library Integration
+        - Live Collaboration
+        - AI Assistant
+        - Custom Tools/Buttons
+        - Saving/Loading Content
+        - Other
+    validations:
+      required: true
+      
   - type: input
     id: plugin-version
     attributes:
-      label: What version of the plugin are you using?
+      label: 📦 Plugin Version
+      description: Which version of magic-editor-x are you using?
+      placeholder: e.g. 1.0.0
     validations:
       required: true
+      
   - type: input
     id: strapi-version
     attributes:
-      label: What strapi version are you using?
+      label: 🚀 Strapi Version
+      description: Which version of Strapi are you using?
+      placeholder: e.g. 5.31.2
     validations:
       required: true
+      
+  - type: input
+    id: node-version
+    attributes:
+      label: 🟢 Node Version
+      description: Which version of Node.js are you using?
+      placeholder: e.g. 20.19.4
+    validations:
+      required: true
+      
+  - type: dropdown
+    id: browser
+    attributes:
+      label: 🌐 Browser
+      description: Which browser are you using?
+      options:
+        - Chrome
+        - Firefox
+        - Safari
+        - Edge
+        - Other
+    validations:
+      required: false
+      
+  - type: textarea
+    id: error-logs
+    attributes:
+      label: 📋 Error Logs
+      description: Please paste any relevant error logs (check browser console)
+      placeholder: Paste error logs here...
+      render: shell
+    validations:
+      required: false
+      
+  - type: textarea
+    id: editor-config
+    attributes:
+      label: ⚙️ Editor Configuration
+      description: Your editor configuration (if relevant)
+      placeholder: |
+        // Custom field configuration
+        {
+          type: 'customField',
+          name: 'magic-editor-x',
+          options: {
+            // your config here
+          }
+        }
+      render: javascript
+    validations:
+      required: false
+      
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: 📝 Additional Context
+      description: Add any other context, screenshots, or videos
+      placeholder: Any additional information that might help...
+    validations:
+      required: false
+      
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: ✔️ Checklist
+      description: Please confirm the following
+      options:
+        - label: I have searched for similar issues before creating this one
+          required: true
+        - label: I have provided all the required information above
+          required: true
+        - label: I have removed any sensitive information from logs
+          required: true

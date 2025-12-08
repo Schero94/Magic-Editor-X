@@ -1,0 +1,85 @@
+name: 💡 Feature Request
+description: Suggest a new feature or enhancement for Magic Editor X
+title: '[Feature]: '
+labels: ['enhancement', 'needs-triage']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Thanks for suggesting a feature! 
+        
+        Please describe your idea in detail below.
+        
+  - type: dropdown
+    id: feature-area
+    attributes:
+      label: 📦 Feature Area
+      description: Which part of the plugin does this feature relate to?
+      options:
+        - New Editor Tool/Block
+        - Existing Editor Tool Enhancement
+        - Media Library Integration
+        - Live Collaboration
+        - AI Assistant
+        - Custom Field Configuration
+        - Admin UI
+        - API / Backend
+        - Documentation
+        - Other
+    validations:
+      required: true
+      
+  - type: textarea
+    id: problem
+    attributes:
+      label: 🤔 Problem / Use Case
+      description: What problem does this feature solve? Or what use case does it enable?
+      placeholder: Describe the problem or use case...
+    validations:
+      required: true
+      
+  - type: textarea
+    id: solution
+    attributes:
+      label: 💡 Proposed Solution
+      description: How would you like to see this feature implemented?
+      placeholder: Describe your proposed solution...
+    validations:
+      required: true
+      
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 🔄 Alternatives Considered
+      description: Have you considered any alternative solutions or workarounds?
+      placeholder: Describe any alternatives you've considered...
+    validations:
+      required: false
+      
+  - type: textarea
+    id: example
+    attributes:
+      label: 📝 Example / Mockup
+      description: Provide code examples, mockups, or screenshots if applicable
+      placeholder: Provide visual examples or code snippets...
+    validations:
+      required: false
+      
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: 📚 Additional Context
+      description: Add any other context, screenshots, or links
+      placeholder: Any additional information...
+    validations:
+      required: false
+      
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: ✔️ Checklist
+      options:
+        - label: I have searched for similar feature requests before creating this one
+          required: true
+        - label: This feature would benefit the broader community
+          required: false
