@@ -3,8 +3,10 @@
  * Fullscreen support, resizable, beautiful UI
  */
 import React, { useState, useCallback, useRef, useEffect, useMemo, forwardRef } from 'react';
+import { useIntl } from 'react-intl';
 import { Field, Loader } from '@strapi/design-system';
 import styled, { css, createGlobalStyle } from 'styled-components';
+import { getTranslation } from '../../utils/getTranslation';
 import { 
   Bars3BottomLeftIcon,
   PhotoIcon,
@@ -31,6 +33,8 @@ import MediaLibComponent from '../MediaLib/MediaLibComponent';
 import { getToggleFunc, changeFunc } from '../MediaLib/utils';
 import { PLUGIN_ID } from '../../pluginId';
 import { useMagicCollaboration } from '../../hooks/useMagicCollaboration';
+import { useLicense } from '../../hooks/useLicense';
+import AIAssistantPopup from '../AIAssistantPopup';
 
 /* ============================================
    STYLED COMPONENTS
@@ -157,7 +161,7 @@ const EditorContainer = styled.div`
   right: ${props => props.$isFullscreen ? '0' : 'auto'};
   bottom: ${props => props.$isFullscreen ? '0' : 'auto'};
   z-index: ${props => props.$isFullscreen ? '9999' : '1'};
-  background: ${props => props.$isFullscreen ? '#f8fafc' : 'transparent'};
+  background: ${props => props.$isFullscreen ? props.theme.colors.neutral100 : 'transparent'};
   display: flex;
   flex-direction: column;
   min-height: ${props => props.$isFullscreen ? '100vh' : `${props.$minHeight}px`};
@@ -174,8 +178,8 @@ const EditorContainer = styled.div`
 `;
 
 const EditorCard = styled.div`
-  background: white;
-  border: 1px solid ${props => props.$hasError ? '#dc2626' : props.$isFocused ? '#7C3AED' : '#e2e8f0'};
+  background: ${props => props.theme.colors.neutral0};
+  border: 1px solid ${props => props.$hasError ? '#dc2626' : props.$isFocused ? '#7C3AED' : props.theme.colors.neutral200};
   border-radius: 16px;
   display: flex;
   flex-direction: column;
@@ -189,14 +193,14 @@ const EditorCard = styled.div`
   overflow: visible; /* Allow dropdowns to escape container bounds */
   
   &:hover {
-    border-color: ${props => props.$hasError ? '#dc2626' : '#a78bfa'};
+    border-color: ${props => props.$hasError ? '#dc2626' : props.theme.colors.primary200};
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
   }
   
   ${props => props.$disabled && css`
     opacity: 0.6;
     pointer-events: none;
-    background: #f9fafb;
+    background: ${props => props.theme.colors.neutral100};
   `}
 `;
 
@@ -205,8 +209,8 @@ const EditorHeader = styled.div`
   align-items: center;
   justify-content: space-between;
   padding: 12px 16px;
-  background: linear-gradient(180deg, #fafbff 0%, #f5f7ff 100%);
-  border-bottom: 1px solid #eef0f6;
+  background: ${props => props.theme.colors.neutral100};
+  border-bottom: 1px solid ${props => props.theme.colors.neutral200};
   flex-shrink: 0;
   border-radius: 16px 16px 0 0;
   gap: 8px;
@@ -687,7 +691,7 @@ const Toolbar = styled.div`
 const ToolbarDivider = styled.div`
   width: 1px;
   height: 24px;
-  background: #e2e8f0;
+  background: ${props => props.theme.colors.neutral200};
   margin: 0 8px;
   
   @media (max-width: 768px) {
@@ -708,7 +712,7 @@ const ToolButton = styled.button`
   height: 34px;
   border: none;
   background: ${props => props.$active ? '#7C3AED' : 'transparent'};
-  color: ${props => props.$active ? 'white' : '#64748b'};
+  color: ${props => props.$active ? 'white' : props.theme.colors.neutral600};
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.15s ease;
@@ -721,7 +725,7 @@ const ToolButton = styled.button`
   }
   
   &:hover {
-    background: ${props => props.$active ? '#6d28d9' : '#f1f5f9'};
+    background: ${props => props.$active ? '#6d28d9' : props.theme.colors.neutral150};
     color: ${props => props.$active ? 'white' : '#7C3AED'};
     transform: translateY(-1px);
   }
@@ -787,7 +791,7 @@ const QuickActions = styled.div`
   align-items: center;
   gap: 2px;
   padding: 4px;
-  background: white;
+  background: ${props => props.theme.colors.neutral0};
   border-radius: 10px;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
   flex-wrap: wrap;
@@ -836,7 +840,7 @@ const EditorWrapper = styled.div`
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   font-size: 15px;
   line-height: 1.7;
-  color: #1e293b;
+  color: ${props => props.theme.colors.neutral800};
   position: relative;
   
   /* ============================================
@@ -1367,8 +1371,8 @@ const EditorFooter = styled.div`
   align-items: center;
   justify-content: space-between;
   padding: 10px 16px;
-  background: #fafbfc;
-  border-top: 1px solid #f1f5f9;
+  background: ${props => props.theme.colors.neutral100};
+  border-top: 1px solid ${props => props.theme.colors.neutral150};
   flex-shrink: 0;
   border-radius: 0 0 16px 16px;
   gap: 8px;
@@ -1400,11 +1404,11 @@ const FooterLeft = styled.div`
 
 const FooterStat = styled.span`
   font-size: 12px;
-  color: #94a3b8;
+  color: ${props => props.theme.colors.neutral500};
   white-space: nowrap;
   
   strong {
-    color: #64748b;
+    color: ${props => props.theme.colors.neutral700};
     font-weight: 600;
   }
   
@@ -1432,12 +1436,12 @@ const FooterButton = styled.button`
   align-items: center;
   gap: 6px;
   padding: 6px 14px;
-  background: ${props => props.$primary ? 'linear-gradient(135deg, #7C3AED 0%, #6d28d9 100%)' : 'white'};
-  border: 1px solid ${props => props.$primary ? 'transparent' : '#e2e8f0'};
+  background: ${props => props.$primary ? 'linear-gradient(135deg, #7C3AED 0%, #6d28d9 100%)' : props.theme.colors.neutral0};
+  border: 1px solid ${props => props.$primary ? 'transparent' : props.theme.colors.neutral200};
   border-radius: 8px;
   font-size: 12px;
   font-weight: 500;
-  color: ${props => props.$primary ? 'white' : '#64748b'};
+  color: ${props => props.$primary ? 'white' : props.theme.colors.neutral600};
   cursor: pointer;
   transition: all 0.15s ease;
   white-space: nowrap;
@@ -1753,6 +1757,23 @@ const Editor = forwardRef(({
   placeholder,
   ...props
 }, ref) => {
+  const { formatMessage } = useIntl();
+  const t = (id, defaultMessage) => formatMessage({ id: getTranslation(id), defaultMessage });
+  
+  // Get license for AI Assistant
+  const { licenseData } = useLicense();
+  
+  // Make license key globally available for AI Assistant Tool
+  useEffect(() => {
+    if (licenseData?.licenseKey) {
+      window.__MAGIC_EDITOR_LICENSE_KEY__ = licenseData.licenseKey;
+    }
+    return () => {
+      // Clean up on unmount
+      delete window.__MAGIC_EDITOR_LICENSE_KEY__;
+    };
+  }, [licenseData?.licenseKey]);
+  
   const editorRef = useRef(null);
   const editorInstanceRef = useRef(null);
   const containerRef = useRef(null);
@@ -1766,6 +1787,9 @@ const Editor = forwardRef(({
   const [editorHeight, setEditorHeight] = useState(400);
   const [mediaLibBlockIndex, setMediaLibBlockIndex] = useState(-1);
   const [isMediaLibOpen, setIsMediaLibOpen] = useState(false);
+  const [showAIPopup, setShowAIPopup] = useState(false);
+  const [aiSelectedText, setAISelectedText] = useState('');
+  const aiSelectionRangeRef = useRef(null);
 
   const serializedInitialValue = useMemo(() => {
     if (!value) {
@@ -2478,6 +2502,26 @@ const Editor = forwardRef(({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isFullscreen, toggleFullscreen]);
 
+  // AI Assistant - open popup with selected text
+  const handleAIAssistant = useCallback(() => {
+    const selection = window.getSelection();
+    const text = selection?.toString().trim();
+    
+    if (!text) {
+      // No text selected - show hint
+      alert('Bitte markiere zuerst Text im Editor, um die KI-Korrektur zu nutzen.');
+      return;
+    }
+    
+    // Save the selection range for later restoration
+    if (selection.rangeCount > 0) {
+      aiSelectionRangeRef.current = selection.getRangeAt(0).cloneRange();
+    }
+    
+    setAISelectedText(text);
+    setShowAIPopup(true);
+  }, []);
+
   // Insert block
   const handleInsertBlock = useCallback((blockType) => {
     if (!editorInstanceRef.current || !isReady) return;
@@ -2771,6 +2815,22 @@ const Editor = forwardRef(({
               
               <ToolButton
                 type="button"
+                data-tooltip="KI-Assistent (Text markieren)"
+                onClick={handleAIAssistant}
+                disabled={collabEnabled && collabCanEdit === false}
+                style={{
+                  background: 'linear-gradient(135deg, #7C3AED 0%, #6d28d9 100%)',
+                  color: 'white',
+                  ...(collabEnabled && collabCanEdit === false ? { opacity: 0.4, cursor: 'not-allowed' } : {})
+                }}
+              >
+                <SparklesIcon />
+              </ToolButton>
+              
+              <ToolbarDivider />
+              
+              <ToolButton
+                type="button"
                 data-tooltip="Copy JSON"
                 onClick={handleCopy}
               >
@@ -2874,8 +2934,8 @@ const Editor = forwardRef(({
           {/* Footer */}
           <EditorFooter>
             <FooterLeft>
-              <FooterStat><strong>{wordCount}</strong> words</FooterStat>
-              <FooterStat><strong>{charCount}</strong> characters</FooterStat>
+              <FooterStat><strong>{wordCount}</strong> {t('editor.words', 'Wörter')}</FooterStat>
+              <FooterStat><strong>{charCount}</strong> {t('editor.characters', 'Zeichen')}</FooterStat>
             </FooterLeft>
             
             <FooterRight>
@@ -2883,7 +2943,7 @@ const Editor = forwardRef(({
               {!(collabEnabled && collabCanEdit === false) && (
               <FooterButton type="button" onClick={() => handleInsertBlock('mediaLib')}>
                 <PhotoIcon />
-                Media Library
+                {t('editor.mediaLibrary', 'Media Library')}
               </FooterButton>
               )}
               {isFullscreen && (
@@ -2912,6 +2972,31 @@ const Editor = forwardRef(({
         onChange={handleMediaLibChange}
         onToggle={mediaLibToggleFunc}
       />
+      
+      {showAIPopup && (
+        <AIAssistantPopup
+          selectedText={aiSelectedText}
+          licenseKey={licenseData?.licenseKey}
+          onClose={() => {
+            setShowAIPopup(false);
+            aiSelectionRangeRef.current = null;
+          }}
+          onApply={(correctedText) => {
+            // Restore the saved selection range
+            if (aiSelectionRangeRef.current) {
+              const selection = window.getSelection();
+              selection.removeAllRanges();
+              selection.addRange(aiSelectionRangeRef.current);
+              
+              // Replace the selected text with the corrected text
+              document.execCommand('insertText', false, correctedText);
+              
+              aiSelectionRangeRef.current = null;
+            }
+            setShowAIPopup(false);
+          }}
+        />
+      )}
     </Field.Root>
   );
 });

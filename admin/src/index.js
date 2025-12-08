@@ -7,6 +7,15 @@ import { PLUGIN_ID } from './pluginId';
 import { Initializer } from './components/Initializer';
 import { PluginIcon } from './components/PluginIcon';
 
+// Prefix translation keys with pluginId (required for Strapi)
+const prefixPluginTranslations = (data, pluginId) => {
+  const prefixed = {};
+  Object.keys(data).forEach((key) => {
+    prefixed[`${pluginId}.${key}`] = data[key];
+  });
+  return prefixed;
+};
+
 export default {
   /**
    * Register the plugin and custom field
@@ -174,13 +183,13 @@ export default {
       locales.map(async (locale) => {
         try {
           const { default: data } = await import(`./translations/${locale}.json`);
-          return { data, locale };
+          return { data: prefixPluginTranslations(data, PLUGIN_ID), locale };
         } catch {
           try {
             const { default: data } = await import('./translations/en.json');
-          return { data, locale };
-        } catch {
-          return { data: {}, locale };
+            return { data: prefixPluginTranslations(data, PLUGIN_ID), locale };
+          } catch {
+            return { data: {}, locale };
           }
         }
       })

@@ -4,6 +4,8 @@
  */
 import { useState, useEffect } from 'react';
 import { useFetchClient, useNotification } from '@strapi/strapi/admin';
+import { useIntl } from 'react-intl';
+import { getTranslation } from '../utils/getTranslation';
 import styled from 'styled-components';
 import {
   Box,
@@ -48,7 +50,7 @@ const Title = styled(Typography)`
 
 const Subtitle = styled(Typography)`
   font-size: 1.125rem;
-  color: #6B7280;
+  color: ${props => props.theme.colors.neutral600};
   line-height: 1.6;
   display: block;
 `;
@@ -59,24 +61,29 @@ const TierGrid = styled(Flex)`
   max-width: 1080px;
   justify-content: center;
   flex-wrap: wrap;
+  align-items: stretch;
 `;
 
 const TierWrapper = styled(Box)`
   flex: 1;
   min-width: 280px;
   max-width: 340px;
+  display: flex;
 `;
 
 const TierCard = styled(Box)`
-  background: white;
+  background: ${props => props.theme.colors.neutral0};
   border-radius: 16px;
   padding: 32px;
-  border: 2px solid ${props => props.$featured ? '#7C3AED' : '#E5E7EB'};
+  border: 2px solid ${props => props.$featured ? '#7C3AED' : props.theme.colors.neutral200};
   position: relative;
   transition: all 0.3s ease;
   box-shadow: ${props => props.$featured
     ? '0 20px 25px -5px rgba(124, 58, 237, 0.25), 0 8px 10px -6px rgba(124, 58, 237, 0.2)'
     : '0 10px 15px -3px rgba(15, 23, 42, 0.08), 0 4px 6px -4px rgba(15, 23, 42, 0.05)'};
+  display: flex;
+  flex-direction: column;
+  width: 100%;
 
   &:hover {
     transform: translateY(-4px);
@@ -125,12 +132,13 @@ const TierPrice = styled(Typography)`
 `;
 
 const TierDescription = styled(Typography)`
-  color: #6B7280;
+  color: ${props => props.theme.colors.neutral600};
   margin-bottom: 24px;
 `;
 
 const FeatureList = styled(Box)`
   margin-bottom: 24px;
+  flex: 1;
 `;
 
 const Feature = styled(Flex)`
@@ -179,15 +187,15 @@ const CurrentPlanBadge = styled(Badge)`
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #F3F4F6;
-  color: #6B7280;
+  background: ${props => props.theme.colors.neutral100};
+  color: ${props => props.theme.colors.neutral600};
   font-weight: 600;
   font-size: 15px;
 `;
 
 const UsageBox = styled(Box)`
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  background: ${props => props.theme.colors.neutral100};
+  border: 1px solid ${props => props.theme.colors.neutral200};
   border-radius: 12px;
   padding: 20px;
   margin-bottom: 32px;
@@ -195,7 +203,7 @@ const UsageBox = styled(Box)`
 
 const UsageBar = styled.div`
   height: 8px;
-  background: #e2e8f0;
+  background: ${props => props.theme.colors.neutral200};
   border-radius: 4px;
   overflow: hidden;
   margin-top: 8px;
@@ -212,6 +220,8 @@ const UsageProgress = styled.div`
  * License Page Component
  */
 const LicensePage = () => {
+  const { formatMessage } = useIntl();
+  const t = (id, defaultMessage, values) => formatMessage({ id: getTranslation(id), defaultMessage }, values);
   const { get } = useFetchClient();
   const { toggleNotification } = useNotification();
   const [currentTier, setCurrentTier] = useState('free');
@@ -260,11 +270,11 @@ const LicensePage = () => {
     const targetRank = getTierRank(tierId);
     
     if (currentRank === targetRank) {
-      return 'Current Plan';
+      return t('upgradePage.currentPlan', 'Current Plan');
     } else if (targetRank > currentRank) {
-      return 'Upgrade Now';
+      return t('upgradePage.upgradeNow', 'Upgrade Now');
     } else {
-      return 'Downgrade';
+      return t('upgradePage.downgrade', 'Downgrade');
     }
   };
 
@@ -283,8 +293,9 @@ const LicensePage = () => {
         { name: 'All Editor Tools', included: true },
         { name: '2 Collaborators', included: true },
         { name: 'Real-time Sync', included: true },
+        { name: 'AI Grammar Check (3/day)', included: true },
+        { name: 'AI Style + Rewrite', included: false },
         { name: 'Version History', included: false },
-        { name: 'AI Assistant', included: false },
         { name: 'Priority Support', included: false },
       ],
       limits: {
@@ -305,8 +316,8 @@ const LicensePage = () => {
         { name: 'All Editor Tools', included: true },
         { name: '10 Collaborators', included: true },
         { name: 'Real-time Sync', included: true },
+        { name: 'AI Grammar + Style (10/day)', included: true },
         { name: 'Version History', included: true },
-        { name: 'AI Assistant (Usage-based)', included: true },
         { name: 'Priority Support', included: true },
       ],
       limits: {
@@ -326,8 +337,8 @@ const LicensePage = () => {
         { name: 'All Editor Tools', included: true },
         { name: 'Unlimited Collaborators', included: true },
         { name: 'Real-time Sync', included: true },
+        { name: 'AI All Types (Unlimited)', included: true },
         { name: 'Version History', included: true },
-        { name: 'AI Assistant (Full Access)', included: true },
         { name: 'Priority Support', included: true },
       ],
       limits: {
@@ -347,7 +358,7 @@ const LicensePage = () => {
     return (
       <Container>
         <Flex justifyContent="center" alignItems="center" style={{ minHeight: '400px' }}>
-          <Loader>Loading license information...</Loader>
+          <Loader>{t('license.loading', 'Loading license information...')}</Loader>
         </Flex>
       </Container>
     );
@@ -364,16 +375,16 @@ const LicensePage = () => {
   return (
     <Container>
       <Header>
-        <Title variant="alpha">Magic Editor X</Title>
+        <Title variant="alpha">{t('upgradePage.title', 'Magic Editor X')}</Title>
         <Subtitle variant="omega">
-          Choose your plan for collaborative editing
+          {t('upgradePage.subtitle', 'Choose your plan for collaborative editing')}
         </Subtitle>
       </Header>
 
       {/* Current Usage */}
       <UsageBox>
         <Flex justifyContent="space-between" alignItems="center">
-          <Typography variant="beta" fontWeight="bold">Current Usage</Typography>
+          <Typography variant="beta" fontWeight="bold">{t('upgradePage.currentUsage', 'Current Usage')}</Typography>
           <Badge style={{ background: currentTier === 'free' ? '#6B7280' : '#7C3AED', color: 'white' }}>
             {currentTier.toUpperCase()}
           </Badge>
@@ -381,9 +392,9 @@ const LicensePage = () => {
         
         <Box marginTop={4}>
           <Flex justifyContent="space-between">
-            <Typography variant="omega">Collaborators</Typography>
+            <Typography variant="omega">{t('upgradePage.collaborators', 'Collaborators')}</Typography>
             <Typography variant="omega" fontWeight="bold">
-              {collaboratorUsage.current} / {collaboratorUsage.unlimited ? 'Unlimited' : collaboratorUsage.max}
+              {collaboratorUsage.current} / {collaboratorUsage.unlimited ? t('license.unlimited', 'Unlimited') : collaboratorUsage.max}
             </Typography>
           </Flex>
           {!collaboratorUsage.unlimited && (
@@ -398,7 +409,7 @@ const LicensePage = () => {
         {tiers.map((tier) => (
           <TierWrapper key={tier.id}>
             <TierCard $featured={tier.featured}>
-              {tier.featured && <PopularBadge>MOST POPULAR</PopularBadge>}
+              {tier.featured && <PopularBadge>{t('upgradePage.mostPopular', 'MOST POPULAR')}</PopularBadge>}
               
               <TierIcon $color={tier.color}>
                 {tier.icon}
@@ -418,12 +429,12 @@ const LicensePage = () => {
               </TierDescription>
               
               {/* Limits Summary */}
-              <Box style={{ 
-                background: '#F9FAFB', 
-                borderRadius: '8px', 
-                padding: '12px', 
-                marginBottom: '20px' 
-              }}>
+              <Box 
+                background="neutral100" 
+                hasRadius 
+                padding={3} 
+                marginBottom={5}
+              >
                 <Typography variant="pi" style={{ fontSize: '13px' }}>
                   <strong>Collaborators:</strong> {tier.limits.collaborators}
                 </Typography>
@@ -441,9 +452,9 @@ const LicensePage = () => {
                     </FeatureIcon>
                     <Typography 
                       variant="omega" 
+                      textColor={feature.included ? 'neutral800' : 'neutral500'}
                       style={{ 
                         fontSize: '14px',
-                        color: feature.included ? '#374151' : '#9CA3AF',
                         textDecoration: feature.included ? 'none' : 'line-through'
                       }}
                     >
@@ -454,7 +465,7 @@ const LicensePage = () => {
               </FeatureList>
               
               {currentTier === tier.id ? (
-                <CurrentPlanBadge>Current Plan</CurrentPlanBadge>
+                <CurrentPlanBadge>{t('upgradePage.currentPlan', 'Current Plan')}</CurrentPlanBadge>
               ) : (
                 <UpgradeButton
                   $gradient={tier.color}

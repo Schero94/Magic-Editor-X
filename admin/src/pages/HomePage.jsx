@@ -5,6 +5,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled, { keyframes, css } from 'styled-components';
+import { theme } from '../utils/theme';
 import { 
   SparklesIcon,
   DocumentTextIcon,
@@ -32,8 +33,10 @@ import {
   Cog6ToothIcon,
 } from '@heroicons/react/24/outline';
 import EditorJS from '@editorjs/editorjs';
+import { useIntl } from 'react-intl';
 import { getTools } from '../config/tools';
 import { PLUGIN_ID } from '../pluginId';
+import { getTranslation } from '../utils/getTranslation';
 
 /* ============================================
    ANIMATIONS
@@ -65,7 +68,7 @@ const spin = keyframes`
 
 const PageWrapper = styled.div`
   min-height: 100vh;
-  background: #f8fafc;
+  background: ${props => props.theme.colors.neutral100};
 `;
 
 const Container = styled.div`
@@ -80,7 +83,7 @@ const Header = styled.header`
   justify-content: space-between;
   margin-bottom: 32px;
   padding-bottom: 24px;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid ${props => props.theme.colors.neutral200};
 `;
 
 const HeaderLeft = styled.div`
@@ -110,13 +113,13 @@ const HeaderTitle = styled.div`
   h1 {
     font-size: 24px;
     font-weight: 700;
-    color: #1e293b;
+    color: ${props => props.theme.colors.neutral800};
     margin: 0 0 4px 0;
   }
   
   p {
     font-size: 14px;
-    color: #64748b;
+    color: ${props => props.theme.colors.neutral600};
     margin: 0;
   }
 `;
@@ -172,8 +175,8 @@ const Sidebar = styled.aside`
 `;
 
 const Card = styled.div`
-  background: white;
-  border: 1px solid #e2e8f0;
+  background: ${props => props.theme.colors.neutral0};
+  border: 1px solid ${props => props.theme.colors.neutral200};
   border-radius: 16px;
   overflow: hidden;
   animation: ${fadeInUp} 0.5s ease ${props => props.$delay || 0}s both;
@@ -184,8 +187,8 @@ const CardHeader = styled.div`
   align-items: center;
   justify-content: space-between;
   padding: 20px 24px;
-  border-bottom: 1px solid #f1f5f9;
-  background: linear-gradient(180deg, #fafbff 0%, #ffffff 100%);
+  border-bottom: 1px solid ${props => props.theme.colors.neutral200};
+  background: ${props => props.theme.colors.neutral100};
 `;
 
 const CardTitle = styled.h2`
@@ -194,7 +197,7 @@ const CardTitle = styled.h2`
   gap: 10px;
   font-size: 16px;
   font-weight: 600;
-  color: #1e293b;
+  color: ${props => props.theme.colors.neutral800};
   margin: 0;
   
   svg {
@@ -216,10 +219,10 @@ const CardActions = styled.div`
 const IconButton = styled.button`
   width: 36px;
   height: 36px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid ${props => props.theme.colors.neutral200};
   border-radius: 10px;
-  background: white;
-  color: #64748b;
+  background: ${props => props.theme.colors.neutral0};
+  color: ${props => props.theme.colors.neutral600};
   display: flex;
   align-items: center;
   justify-content: center;
@@ -232,7 +235,7 @@ const IconButton = styled.button`
   }
   
   &:hover {
-    background: #f1f5f9;
+    background: ${props => props.theme.colors.neutral100};
     border-color: #7C3AED;
     color: #7C3AED;
   }
@@ -251,12 +254,12 @@ const Button = styled.button`
   padding: 10px 20px;
   background: ${props => props.$primary 
     ? 'linear-gradient(135deg, #7C3AED 0%, #6366f1 100%)' 
-    : 'white'};
-  border: 1px solid ${props => props.$primary ? 'transparent' : '#e2e8f0'};
+    : props.theme.colors.neutral0};
+  border: 1px solid ${props => props.$primary ? 'transparent' : props.theme.colors.neutral200};
   border-radius: 10px;
   font-size: 14px;
   font-weight: 600;
-  color: ${props => props.$primary ? 'white' : '#334155'};
+  color: ${props => props.$primary ? 'white' : props.theme.colors.neutral800};
   cursor: pointer;
   transition: all 0.2s ease;
   
@@ -282,7 +285,7 @@ const Button = styled.button`
 /* Playground Editor */
 const PlaygroundWrapper = styled.div`
   min-height: 400px;
-  border: 2px dashed #e2e8f0;
+  border: 2px dashed ${props => props.theme.colors.neutral300};
   border-radius: 12px;
   margin: 16px;
   position: relative;
@@ -309,7 +312,7 @@ const PlaygroundEmpty = styled.div`
   left: 50%;
   transform: translate(-50%, -50%);
   text-align: center;
-  color: #94a3b8;
+  color: ${props => props.theme.colors.neutral500};
   pointer-events: none;
   
   svg {
@@ -382,7 +385,7 @@ const ToolItem = styled.div`
   align-items: center;
   gap: 10px;
   padding: 12px;
-  background: ${props => props.$active ? 'rgba(124, 58, 237, 0.08)' : '#f8fafc'};
+  background: ${props => props.$active ? 'rgba(124, 58, 237, 0.08)' : props.theme.colors.neutral100};
   border: 1px solid ${props => props.$active ? 'rgba(124, 58, 237, 0.2)' : 'transparent'};
   border-radius: 10px;
   cursor: pointer;
@@ -416,13 +419,13 @@ const ToolInfo = styled.div`
   h4 {
     font-size: 13px;
     font-weight: 600;
-    color: #334155;
+    color: ${props => props.theme.colors.neutral800};
     margin: 0 0 2px 0;
   }
   
   p {
     font-size: 11px;
-    color: #64748b;
+    color: ${props => props.theme.colors.neutral600};
     margin: 0;
     white-space: nowrap;
     overflow: hidden;
@@ -443,13 +446,13 @@ const ShortcutItem = styled.div`
   align-items: center;
   justify-content: space-between;
   padding: 10px 12px;
-  background: #f8fafc;
+  background: ${props => props.theme.colors.neutral100};
   border-radius: 8px;
 `;
 
 const ShortcutLabel = styled.span`
   font-size: 13px;
-  color: #334155;
+  color: ${props => props.theme.colors.neutral800};
 `;
 
 const ShortcutKeys = styled.div`
@@ -464,13 +467,13 @@ const Kbd = styled.kbd`
   min-width: 24px;
   height: 24px;
   padding: 0 8px;
-  background: white;
-  border: 1px solid #e2e8f0;
+  background: ${props => props.theme.colors.neutral0};
+  border: 1px solid ${props => props.theme.colors.neutral200};
   border-radius: 6px;
   font-family: 'SF Mono', Monaco, monospace;
   font-size: 11px;
   font-weight: 600;
-  color: #64748b;
+  color: ${props => props.theme.colors.neutral600};
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 `;
 
@@ -507,25 +510,25 @@ const TabsContainer = styled.div`
   display: flex;
   gap: 4px;
   padding: 4px;
-  background: #f1f5f9;
+  background: ${props => props.theme.colors.neutral150};
   border-radius: 10px;
 `;
 
 const Tab = styled.button`
   flex: 1;
   padding: 8px 16px;
-  background: ${props => props.$active ? 'white' : 'transparent'};
+  background: ${props => props.$active ? props.theme.colors.neutral0 : 'transparent'};
   border: none;
   border-radius: 8px;
   font-size: 13px;
   font-weight: 500;
-  color: ${props => props.$active ? '#334155' : '#64748b'};
+  color: ${props => props.$active ? props.theme.colors.neutral800 : props.theme.colors.neutral600};
   cursor: pointer;
   transition: all 0.15s ease;
   box-shadow: ${props => props.$active ? '0 1px 3px rgba(0, 0, 0, 0.1)' : 'none'};
     
     &:hover {
-    color: #334155;
+    color: ${props => props.theme.colors.neutral800};
   }
 `;
 
@@ -546,7 +549,7 @@ const QuickLinkItem = styled.button`
   align-items: center;
   gap: 12px;
   padding: 14px 16px;
-  background: ${props => props.$active ? 'rgba(124, 58, 237, 0.08)' : '#f8fafc'};
+  background: ${props => props.$active ? 'rgba(124, 58, 237, 0.08)' : props.theme.colors.neutral100};
   border: 1px solid ${props => props.$active ? 'rgba(124, 58, 237, 0.2)' : 'transparent'};
   border-radius: 12px;
   cursor: pointer;
@@ -585,19 +588,19 @@ const QuickLinkInfo = styled.div`
   h4 {
     font-size: 14px;
     font-weight: 600;
-    color: #334155;
+    color: ${props => props.theme.colors.neutral800};
     margin: 0 0 2px 0;
   }
   
   p {
     font-size: 12px;
-    color: #64748b;
+    color: ${props => props.theme.colors.neutral600};
     margin: 0;
   }
 `;
 
 const QuickLinkArrow = styled.div`
-  color: #94a3b8;
+  color: ${props => props.theme.colors.neutral500};
   
   svg {
     width: 16px;
@@ -607,6 +610,9 @@ const QuickLinkArrow = styled.div`
 
 const HomePage = () => {
   const navigate = useNavigate();
+  const { formatMessage } = useIntl();
+  const t = (id, defaultMessage, values) => formatMessage({ id: getTranslation(id), defaultMessage }, values);
+  
   const [activeTab, setActiveTab] = useState('playground');
   const [editorData, setEditorData] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -615,29 +621,29 @@ const HomePage = () => {
   const editorInstanceRef = useRef(null);
 
   const toolsData = [
-    { name: 'Header', desc: 'H1-H6 Überschriften', icon: HashtagIcon, color: 'linear-gradient(135deg, #7C3AED, #6366f1)' },
-    { name: 'Paragraph', desc: 'Text-Absätze', icon: DocumentTextIcon, color: 'linear-gradient(135deg, #334155, #475569)' },
-    { name: 'List', desc: 'Verschachtelte Listen', icon: ListBulletIcon, color: 'linear-gradient(135deg, #14b8a6, #2dd4bf)' },
-    { name: 'Checklist', desc: 'Interaktive Checkboxen', icon: CheckIcon, color: 'linear-gradient(135deg, #22c55e, #4ade80)' },
-    { name: 'Quote', desc: 'Zitate mit Autor', icon: ChatBubbleBottomCenterTextIcon, color: 'linear-gradient(135deg, #f59e0b, #fbbf24)' },
-    { name: 'Code', desc: 'Code-Blöcke', icon: CodeBracketIcon, color: 'linear-gradient(135deg, #06b6d4, #22d3ee)' },
-    { name: 'Image', desc: 'Bilder hochladen', icon: PhotoIcon, color: 'linear-gradient(135deg, #ec4899, #f472b6)' },
-    { name: 'Table', desc: 'Tabellen erstellen', icon: TableCellsIcon, color: 'linear-gradient(135deg, #8b5cf6, #a78bfa)' },
-    { name: 'Link', desc: 'Link-Vorschau', icon: LinkIcon, color: 'linear-gradient(135deg, #3b82f6, #60a5fa)' },
-    { name: 'Warning', desc: 'Warnhinweise', icon: ExclamationTriangleIcon, color: 'linear-gradient(135deg, #ef4444, #f87171)' },
-    { name: 'Attaches', desc: 'Datei-Anhänge', icon: PaperClipIcon, color: 'linear-gradient(135deg, #64748b, #94a3b8)' },
-    { name: 'Alert', desc: 'Farbige Alerts', icon: BellAlertIcon, color: 'linear-gradient(135deg, #f97316, #fb923c)' },
+    { name: t('tools.header', 'Header'), desc: t('tools.header.desc', 'H1-H6 Headings'), icon: HashtagIcon, color: 'linear-gradient(135deg, #7C3AED, #6366f1)' },
+    { name: t('tools.paragraph', 'Paragraph'), desc: t('tools.paragraph.desc', 'Text paragraphs'), icon: DocumentTextIcon, color: 'linear-gradient(135deg, #334155, #475569)' },
+    { name: t('tools.list', 'List'), desc: t('tools.list.desc', 'Nested lists'), icon: ListBulletIcon, color: 'linear-gradient(135deg, #14b8a6, #2dd4bf)' },
+    { name: t('tools.checklist', 'Checklist'), desc: t('tools.checklist.desc', 'Interactive checkboxes'), icon: CheckIcon, color: 'linear-gradient(135deg, #22c55e, #4ade80)' },
+    { name: t('tools.quote', 'Quote'), desc: t('tools.quote.desc', 'Quotes with author'), icon: ChatBubbleBottomCenterTextIcon, color: 'linear-gradient(135deg, #f59e0b, #fbbf24)' },
+    { name: t('tools.code', 'Code'), desc: t('tools.code.desc', 'Code blocks'), icon: CodeBracketIcon, color: 'linear-gradient(135deg, #06b6d4, #22d3ee)' },
+    { name: t('tools.image', 'Image'), desc: t('tools.image.desc', 'Upload images'), icon: PhotoIcon, color: 'linear-gradient(135deg, #ec4899, #f472b6)' },
+    { name: t('tools.table', 'Table'), desc: t('tools.table.desc', 'Create tables'), icon: TableCellsIcon, color: 'linear-gradient(135deg, #8b5cf6, #a78bfa)' },
+    { name: t('tools.link', 'Link'), desc: t('tools.link.desc', 'Link preview'), icon: LinkIcon, color: 'linear-gradient(135deg, #3b82f6, #60a5fa)' },
+    { name: t('tools.warning', 'Warning'), desc: t('tools.warning.desc', 'Warning notices'), icon: ExclamationTriangleIcon, color: 'linear-gradient(135deg, #ef4444, #f87171)' },
+    { name: t('tools.attaches', 'Attaches'), desc: t('tools.attaches.desc', 'File attachments'), icon: PaperClipIcon, color: 'linear-gradient(135deg, #64748b, #94a3b8)' },
+    { name: t('tools.alert', 'Alert'), desc: t('tools.alert.desc', 'Colored alerts'), icon: BellAlertIcon, color: 'linear-gradient(135deg, #f97316, #fb923c)' },
   ];
 
   const shortcuts = [
-    { keys: ['⌘', 'B'], label: 'Fett' },
-    { keys: ['⌘', 'I'], label: 'Kursiv' },
-    { keys: ['⌘', 'U'], label: 'Unterstreichen' },
-    { keys: ['⌘', '⇧', 'H'], label: 'Überschrift' },
-    { keys: ['⌘', '⇧', 'L'], label: 'Liste' },
-    { keys: ['⌘', '⇧', 'M'], label: 'Markieren' },
-    { keys: ['Tab'], label: 'Block-Menü' },
-    { keys: ['⌘', 'Z'], label: 'Rückgängig' },
+    { keys: ['⌘', 'B'], label: t('shortcuts.bold', 'Bold') },
+    { keys: ['⌘', 'I'], label: t('shortcuts.italic', 'Italic') },
+    { keys: ['⌘', 'U'], label: t('shortcuts.underline', 'Underline') },
+    { keys: ['⌘', '⇧', 'H'], label: t('shortcuts.heading', 'Heading') },
+    { keys: ['⌘', '⇧', 'L'], label: t('shortcuts.list', 'List') },
+    { keys: ['⌘', '⇧', 'M'], label: t('shortcuts.highlight', 'Highlight') },
+    { keys: ['Tab'], label: t('shortcuts.blockMenu', 'Block Menu') },
+    { keys: ['⌘', 'Z'], label: t('shortcuts.undo', 'Undo') },
   ];
 
   // Initialize playground editor
@@ -659,7 +665,7 @@ const HomePage = () => {
       editorInstanceRef.current = new EditorJS({
         holder: editorRef.current,
         tools: playgroundTools,
-        placeholder: 'Tippe / für Block-Menü oder beginne zu schreiben...',
+        placeholder: t('homepage.playground.placeholder', 'Type / for block menu or start writing...'),
         onChange: async () => {
           try {
             const data = await editorInstanceRef.current.save();
@@ -715,13 +721,13 @@ const HomePage = () => {
             <SparklesIcon />
             </Logo>
             <HeaderTitle>
-              <h1>Magic Editor X</h1>
-              <p>Block-Editor Dashboard für Strapi v5</p>
+              <h1>{t('homepage.title', 'Magic Editor X')}</h1>
+              <p>{t('homepage.subtitle', 'Block Editor Dashboard for Strapi v5')}</p>
             </HeaderTitle>
           </HeaderLeft>
           <HeaderRight>
             <StatusBadge $active={true}>
-              Realtime Ready
+              {t('homepage.status.ready', 'Realtime Ready')}
             </StatusBadge>
           </HeaderRight>
         </Header>
@@ -734,15 +740,15 @@ const HomePage = () => {
               <CardHeader>
                 <CardTitle>
                   <BeakerIcon />
-                  Editor Playground
+                  {t('homepage.playground', 'Editor Playground')}
                 </CardTitle>
                 <CardActions>
                   <TabsContainer>
                     <Tab $active={activeTab === 'playground'} onClick={() => setActiveTab('playground')}>
-                      Editor
+                      {t('homepage.tabs.editor', 'Editor')}
                     </Tab>
                     <Tab $active={activeTab === 'output'} onClick={() => setActiveTab('output')}>
-                      JSON Output
+                      {t('homepage.tabs.output', 'JSON Output')}
                     </Tab>
                   </TabsContainer>
                 </CardActions>
@@ -755,19 +761,19 @@ const HomePage = () => {
                     {!hasContent && (
                       <PlaygroundEmpty>
                         <PlayCircleIcon />
-                        <p>Tippe hier, um den Editor auszuprobieren</p>
+                        <p>{t('homepage.playground.empty', 'Type here to try the editor')}</p>
                       </PlaygroundEmpty>
                     )}
                   </PlaygroundWrapper>
                   <div style={{ padding: '0 16px 16px', display: 'flex', gap: '8px' }}>
                     <Button onClick={clearPlayground}>
                       <ArrowPathIcon />
-                      Leeren
+                      {t('homepage.button.clear', 'Clear')}
                     </Button>
                     {hasContent && (
                       <Button $primary onClick={() => setActiveTab('output')}>
                         <EyeIcon />
-                        JSON anzeigen
+                        {t('homepage.button.showJson', 'Show JSON')}
                       </Button>
                     )}
                   </div>
@@ -776,8 +782,8 @@ const HomePage = () => {
                 <CardContent $noPadding>
                   <OutputPreview>
                     <OutputHeader>
-                      <OutputTitle>Editor.js JSON Output</OutputTitle>
-                      <IconButton onClick={copyJSON} title="JSON kopieren">
+                      <OutputTitle>{t('homepage.output.title', 'Editor.js JSON Output')}</OutputTitle>
+                      <IconButton onClick={copyJSON} title={t('homepage.button.copyJson', 'Copy JSON')}>
                         <DocumentDuplicateIcon />
                       </IconButton>
                     </OutputHeader>
@@ -785,14 +791,14 @@ const HomePage = () => {
                       dangerouslySetInnerHTML={{ 
                         __html: editorData 
                           ? formatJSON(editorData) 
-                          : '<span class="null">// Kein Inhalt - erstelle Blöcke im Editor</span>' 
+                          : `<span class="null">${t('homepage.output.empty', '// No content - create blocks in the editor')}</span>` 
                       }} 
                     />
                   </OutputPreview>
                   <div style={{ padding: '0 16px 16px' }}>
                     <Button onClick={() => setActiveTab('playground')}>
                       <ChevronRightIcon style={{ transform: 'rotate(180deg)' }} />
-                      Zurück zum Editor
+                      {t('homepage.button.backToEditor', 'Back to Editor')}
                     </Button>
                   </div>
                 </CardContent>
@@ -804,26 +810,26 @@ const HomePage = () => {
               <CardHeader>
                 <CardTitle>
                   <CubeTransparentIcon />
-                  Editor Features
+                  {t('homepage.features.title', 'Editor Features')}
                 </CardTitle>
               </CardHeader>
               <CardContent $noPadding>
           <StatsGrid>
                   <StatCard $bg="rgba(124, 58, 237, 0.08)">
                     <StatNumber $color="#7C3AED">21+</StatNumber>
-              <StatLabel>Block Tools</StatLabel>
+              <StatLabel>{t('homepage.stats.blockTools', 'Block Tools')}</StatLabel>
             </StatCard>
                   <StatCard $bg="rgba(236, 72, 153, 0.08)">
                     <StatNumber $color="#ec4899">6</StatNumber>
-              <StatLabel>Inline Tools</StatLabel>
+              <StatLabel>{t('homepage.stats.inlineTools', 'Inline Tools')}</StatLabel>
             </StatCard>
                   <StatCard $bg="rgba(34, 197, 94, 0.08)">
                     <StatNumber $color="#22c55e">✓</StatNumber>
-                    <StatLabel>Realtime Collab</StatLabel>
+                    <StatLabel>{t('homepage.stats.realtimeCollab', 'Realtime Collab')}</StatLabel>
             </StatCard>
                   <StatCard $bg="rgba(59, 130, 246, 0.08)">
                     <StatNumber $color="#3b82f6">v5</StatNumber>
-              <StatLabel>Strapi Ready</StatLabel>
+              <StatLabel>{t('homepage.stats.strapiReady', 'Strapi Ready')}</StatLabel>
             </StatCard>
           </StatsGrid>
               </CardContent>
@@ -837,7 +843,7 @@ const HomePage = () => {
               <CardHeader>
                 <CardTitle>
                   <Cog6ToothIcon />
-                  Schnellzugriff
+                  {t('homepage.quickLinks.title', 'Quick Access')}
                 </CardTitle>
               </CardHeader>
               <CardContent $noPadding>
@@ -847,8 +853,8 @@ const HomePage = () => {
                       <UserGroupIcon />
                     </QuickLinkIcon>
                     <QuickLinkInfo>
-                      <h4>Zusammenarbeit</h4>
-                      <p>Benutzer & Berechtigungen verwalten</p>
+                      <h4>{t('homepage.quickLinks.collaboration', 'Collaboration')}</h4>
+                      <p>{t('homepage.quickLinks.collaboration.desc', 'Manage users & permissions')}</p>
                     </QuickLinkInfo>
                     <QuickLinkArrow>
                       <ChevronRightIcon />
@@ -860,8 +866,8 @@ const HomePage = () => {
                       <BookOpenIcon />
                     </QuickLinkIcon>
                     <QuickLinkInfo>
-                      <h4>Editor.js Docs</h4>
-                      <p>Offizielle Dokumentation</p>
+                      <h4>{t('homepage.quickLinks.docs', 'Editor.js Docs')}</h4>
+                      <p>{t('homepage.quickLinks.docs.desc', 'Official documentation')}</p>
                     </QuickLinkInfo>
                     <QuickLinkArrow>
                       <ChevronRightIcon />
@@ -876,7 +882,7 @@ const HomePage = () => {
               <CardHeader>
                 <CardTitle>
                   <BookOpenIcon />
-                  Verfügbare Tools
+                  {t('homepage.tools.title', 'Available Tools')}
                 </CardTitle>
               </CardHeader>
               <CardContent $noPadding>
@@ -901,7 +907,7 @@ const HomePage = () => {
               <CardHeader>
                 <CardTitle>
             <CommandLineIcon />
-                  Tastenkürzel
+                  {t('homepage.shortcuts.title', 'Keyboard Shortcuts')}
                 </CardTitle>
               </CardHeader>
               <CardContent $noPadding>

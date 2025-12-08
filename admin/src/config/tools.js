@@ -34,7 +34,7 @@ import CodeFlask from '@calumk/editorjs-codeflask';
 // ============================================
 // CUSTOM TOOLS (Secure implementations without eval)
 // ============================================
-import { ButtonTool, HyperlinkTool } from '../components/EditorTools';
+import { ButtonTool, HyperlinkTool, AIAssistantTool } from '../components/EditorTools';
 
 // ============================================
 // OFFICIAL INLINE TOOLS
@@ -499,6 +499,19 @@ export const getTools = ({ mediaLibToggleFunc, pluginId }) => {
       },
     },
 
+    /**
+     * AI Assistant Tool (Custom Implementation)
+     * AI-powered text corrections (grammar, style, rewrite)
+     */
+    aiAssistant: {
+      class: AIAssistantTool,
+      config: {
+        apiBaseUrl: 'https://magicapi.fitlex.me/api/magic-editor',
+        getLicenseKey: () => window.__MAGIC_EDITOR_LICENSE_KEY__,
+      },
+      shortcut: 'CMD+SHIFT+G',
+    },
+
     // ============================================
     // TUNES (3 Tunes)
     // ============================================
@@ -592,6 +605,8 @@ export const defaultTools = [
   'strikethrough',
   'tooltip',
   'hyperlink',
+  // AI Tools
+  'aiAssistant',
   // Tunes
   'textVariant',
   'alignmentTune',
@@ -632,6 +647,7 @@ export const toolCategories = {
     { name: 'strikethrough', label: 'Strikethrough', description: 'Strike through text', official: false },
     { name: 'tooltip', label: 'Tooltip', description: 'Add tooltips to text', official: false },
     { name: 'hyperlink', label: 'Hyperlink', description: 'Links with target/rel', official: false },
+    { name: 'aiAssistant', label: 'KI-Assistent', description: 'AI-powered text corrections', official: false },
   ],
   tunes: [
     { name: 'textVariant', label: 'Text Variant', description: 'Call-out, citation, details', official: true },

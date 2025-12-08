@@ -13,8 +13,10 @@ import {
   Loader,
 } from '@strapi/design-system';
 import { useFetchClient, useNotification } from '@strapi/strapi/admin';
+import { useIntl } from 'react-intl';
 import { CheckIcon, KeyIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { useNavigate } from 'react-router-dom';
+import { getTranslation } from '../utils/getTranslation';
 
 // Animations
 const fadeIn = keyframes`
@@ -162,6 +164,8 @@ const InfoBox = styled(Box)`
  * The editor is FREE, this is just for tracking
  */
 const LicenseGuard = ({ children }) => {
+  const { formatMessage } = useIntl();
+  const t = (id, defaultMessage, values) => formatMessage({ id: getTranslation(id), defaultMessage }, values);
   const { get, post } = useFetchClient();
   const { toggleNotification } = useNotification();
   const navigate = useNavigate();
@@ -231,7 +235,7 @@ const LicenseGuard = ({ children }) => {
       if (response.data && response.data.success) {
         toggleNotification({
           type: 'success',
-          message: 'License created! Reloading...',
+          message: t('licenseGuard.success.created', 'License created! Reloading...'),
         });
         
         setNeedsLicense(false);
@@ -246,7 +250,7 @@ const LicenseGuard = ({ children }) => {
       console.error('[Magic Editor X] Error:', error);
       toggleNotification({
         type: 'danger',
-        message: 'Failed to create license. Try manual entry.',
+        message: t('licenseGuard.error.create', 'Failed to create license. Try manual entry.'),
       });
       setIsCreating(false);
       setUseExistingKey(true);
@@ -262,7 +266,7 @@ const LicenseGuard = ({ children }) => {
     if (!existingLicenseKey.trim() || !existingEmail.trim()) {
       toggleNotification({
         type: 'warning',
-        message: 'Please enter both license key and email address',
+        message: t('licenseGuard.error.required', 'Please enter both license key and email address'),
       });
       return;
     }
@@ -278,7 +282,7 @@ const LicenseGuard = ({ children }) => {
       if (response.data && response.data.success) {
         toggleNotification({
           type: 'success',
-          message: 'License activated! Reloading...',
+          message: t('licenseGuard.success.activated', 'License activated! Reloading...'),
         });
         
         setNeedsLicense(false);
@@ -292,7 +296,7 @@ const LicenseGuard = ({ children }) => {
     } catch (error) {
       toggleNotification({
         type: 'danger',
-        message: 'Invalid license key or email address',
+        message: t('licenseGuard.error.invalid', 'Invalid license key or email address'),
       });
       setIsCreating(false);
     }
@@ -315,7 +319,7 @@ const LicenseGuard = ({ children }) => {
   if (isChecking) {
     return (
       <Box padding={8} style={{ textAlign: 'center' }}>
-        <Loader>Checking license...</Loader>
+        <Loader>{t('license.checking', 'Checking license...')}</Loader>
       </Box>
     );
   }
@@ -342,7 +346,7 @@ const LicenseGuard = ({ children }) => {
                   display: 'block',
                 }}
               >
-                Activate Magic Editor X
+                {t('licenseGuard.title', 'Activate Magic Editor X')}
               </Typography>
               <Typography
                 variant="epsilon"
@@ -352,7 +356,7 @@ const LicenseGuard = ({ children }) => {
                   display: 'block',
                 }}
               >
-                {useExistingKey ? 'Enter your existing license key' : 'Create a FREE license to start using the editor'}
+                {useExistingKey ? t('licenseGuard.subtitle.existing', 'Enter your existing license key') : t('licenseGuard.subtitle.new', 'Create a FREE license to start using the editor')}
               </Typography>
             </Box>
           </GradientHeader>
@@ -362,7 +366,7 @@ const LicenseGuard = ({ children }) => {
               <Flex direction="column" gap={5} style={{ width: '100%' }}>
                 <InfoBox>
                   <Typography variant="omega" style={{ fontSize: '13px', lineHeight: '1.6' }}>
-                    [FREE] The editor is completely FREE to use! Creating a license helps us track usage and provide better support. You get 2 collaborators included.
+                    [FREE] {t('licenseGuard.info', 'The editor is completely FREE to use! Creating a license helps us track usage and provide better support. You get 2 collaborators included.')}
                   </Typography>
                 </InfoBox>
 
@@ -372,7 +376,7 @@ const LicenseGuard = ({ children }) => {
                     onClick={() => setUseExistingKey(!useExistingKey)}
                     disabled={isCreating}
                   >
-                    {useExistingKey ? 'Create new license' : 'Have a license key?'}
+                    {useExistingKey ? t('licenseGuard.toggleNew', 'Create new license') : t('licenseGuard.toggleExisting', 'Have a license key?')}
                   </ToggleButton>
                 </Box>
 
@@ -384,10 +388,10 @@ const LicenseGuard = ({ children }) => {
                         fontWeight="bold"
                         style={{ marginBottom: '8px', display: 'block' }}
                       >
-                        Email Address *
+                        {t('licenseGuard.email', 'Email Address')} *
                       </Typography>
                       <TextInput
-                        placeholder="admin@example.com"
+                        placeholder={t('licenseGuard.email.placeholder', 'admin@example.com')}
                         type="email"
                         value={existingEmail}
                         onChange={(e) => setExistingEmail(e.target.value)}
@@ -402,10 +406,10 @@ const LicenseGuard = ({ children }) => {
                         fontWeight="bold"
                         style={{ marginBottom: '8px', display: 'block' }}
                       >
-                        License Key *
+                        {t('licenseGuard.licenseKey', 'License Key')} *
                       </Typography>
                       <TextInput
-                        placeholder="MAGIC-EDITOR-XXXX-XXXX-XXXX"
+                        placeholder={t('licenseGuard.licenseKey.placeholder', 'MAGIC-EDITOR-XXXX-XXXX-XXXX')}
                         value={existingLicenseKey}
                         onChange={(e) => setExistingLicenseKey(e.target.value)}
                         required
@@ -424,7 +428,7 @@ const LicenseGuard = ({ children }) => {
                     }}
                   >
                     <Typography variant="omega" fontWeight="bold" style={{ marginBottom: '12px', display: 'block' }}>
-                      Ready to activate with your account:
+                      {t('licenseGuard.readyToActivate', 'Ready to activate with your account:')}
                     </Typography>
                     <Typography variant="pi" style={{ marginBottom: '4px', display: 'block' }}>
                       {adminUser.firstname || 'Admin'} {adminUser.lastname || 'User'}
@@ -436,7 +440,7 @@ const LicenseGuard = ({ children }) => {
                 ) : (
                   <Box padding={4} background="neutral100" hasRadius style={{ textAlign: 'center' }}>
                     <Loader small />
-                    <Typography variant="pi" marginTop={2}>Loading admin user data...</Typography>
+                    <Typography variant="pi" marginTop={2}>{t('licenseGuard.loadingUser', 'Loading admin user data...')}</Typography>
                   </Box>
                 )}
 
@@ -446,7 +450,7 @@ const LicenseGuard = ({ children }) => {
                     onClick={handleSkip}
                     disabled={isCreating}
                   >
-                    Skip for now
+                    {t('licenseGuard.skip', 'Skip for now')}
                   </Button>
                   
                   {useExistingKey ? (
@@ -463,7 +467,7 @@ const LicenseGuard = ({ children }) => {
                         border: 'none',
                       }}
                     >
-                      Validate License
+                      {t('licenseGuard.validate', 'Validate License')}
                     </Button>
                   ) : (
                     <Button
@@ -479,7 +483,7 @@ const LicenseGuard = ({ children }) => {
                         border: 'none',
                       }}
                     >
-                      Activate FREE License
+                      {t('licenseGuard.activate', 'Activate FREE License')}
                     </Button>
                   )}
                 </Flex>

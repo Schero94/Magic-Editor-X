@@ -4,6 +4,8 @@
  */
 import React, { useState, useEffect } from 'react';
 import { useFetchClient } from '@strapi/strapi/admin';
+import { useIntl } from 'react-intl';
+import { getTranslation } from '../utils/getTranslation';
 import styled from 'styled-components';
 import {
   UserGroupIcon,
@@ -32,7 +34,7 @@ const Header = styled.div`
 const Title = styled.h1`
   font-size: clamp(22px, 4vw, 32px);
   font-weight: 700;
-  color: #0f172a;
+  color: ${props => props.theme.colors.neutral800};
   margin: 0 0 8px 0;
   display: flex;
   align-items: center;
@@ -49,13 +51,13 @@ const Title = styled.h1`
 
 const Subtitle = styled.p`
   font-size: clamp(13px, 2vw, 15px);
-  color: #64748b;
+  color: ${props => props.theme.colors.neutral600};
   margin: 0;
 `;
 
 const Card = styled.div`
-  background: white;
-  border: 1px solid #e2e8f0;
+  background: ${props => props.theme.colors.neutral0};
+  border: 1px solid ${props => props.theme.colors.neutral200};
   border-radius: clamp(12px, 2vw, 16px);
   padding: clamp(16px, 3vw, 24px);
   margin-bottom: 24px;
@@ -80,7 +82,7 @@ const CardHeader = styled.div`
 const CardTitle = styled.h2`
   font-size: clamp(16px, 2.5vw, 18px);
   font-weight: 600;
-  color: #0f172a;
+  color: ${props => props.theme.colors.neutral800};
   margin: 0;
 `;
 
@@ -90,10 +92,10 @@ const Button = styled.button`
   justify-content: center;
   gap: 8px;
   padding: clamp(8px, 1.5vw, 10px) clamp(14px, 2vw, 20px);
-  background: ${props => props.$danger ? '#ef4444' : props.$secondary ? 'white' : 'linear-gradient(135deg, #7C3AED 0%, #6d28d9 100%)'};
-  border: 1px solid ${props => props.$danger ? '#ef4444' : props.$secondary ? '#e2e8f0' : 'transparent'};
+  background: ${props => props.$danger ? '#ef4444' : props.$secondary ? props.theme.colors.neutral0 : 'linear-gradient(135deg, #7C3AED 0%, #6d28d9 100%)'};
+  border: 1px solid ${props => props.$danger ? '#ef4444' : props.$secondary ? props.theme.colors.neutral200 : 'transparent'};
   border-radius: 10px;
-  color: ${props => props.$secondary ? '#64748b' : 'white'};
+  color: ${props => props.$secondary ? props.theme.colors.neutral600 : 'white'};
   font-size: clamp(13px, 2vw, 14px);
   font-weight: 500;
   cursor: pointer;
@@ -139,8 +141,8 @@ const PermissionsList = styled.div`
 `;
 
 const PermissionCard = styled.div`
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  background: ${props => props.theme.colors.neutral100};
+  border: 1px solid ${props => props.theme.colors.neutral200};
   border-radius: 12px;
   padding: 16px;
 `;
@@ -168,7 +170,7 @@ const PermissionRow = styled.div`
 const PermissionLabel = styled.span`
   font-size: 12px;
   font-weight: 600;
-  color: #64748b;
+  color: ${props => props.theme.colors.neutral600};
   text-transform: uppercase;
 `;
 
@@ -187,18 +189,18 @@ const Th = styled.th`
   padding: 12px 16px;
   font-size: 13px;
   font-weight: 600;
-  color: #64748b;
+  color: ${props => props.theme.colors.neutral600};
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  border-bottom: 2px solid #f1f5f9;
+  border-bottom: 2px solid ${props => props.theme.colors.neutral150};
   white-space: nowrap;
 `;
 
 const Td = styled.td`
   padding: 16px;
-  border-bottom: 1px solid #f1f5f9;
+  border-bottom: 1px solid ${props => props.theme.colors.neutral150};
   font-size: 14px;
-  color: #0f172a;
+  color: ${props => props.theme.colors.neutral800};
 `;
 
 const UserInfo = styled.div`
@@ -229,13 +231,13 @@ const UserDetails = styled.div`
 
 const UserName = styled.div`
   font-weight: 600;
-  color: #0f172a;
+  color: ${props => props.theme.colors.neutral800};
   font-size: clamp(13px, 2vw, 14px);
 `;
 
 const UserEmail = styled.div`
   font-size: clamp(11px, 1.5vw, 13px);
-  color: #64748b;
+  color: ${props => props.theme.colors.neutral600};
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -269,11 +271,11 @@ const Badge = styled.span`
 
 const Select = styled.select`
   padding: clamp(6px, 1vw, 8px) clamp(10px, 1.5vw, 12px);
-  border: 1px solid #e2e8f0;
+  border: 1px solid ${props => props.theme.colors.neutral200};
   border-radius: 8px;
   font-size: clamp(12px, 2vw, 14px);
-  color: #0f172a;
-  background: white;
+  color: ${props => props.theme.colors.neutral800};
+  background: ${props => props.theme.colors.neutral0};
   cursor: pointer;
   max-width: 100%;
 
@@ -286,12 +288,12 @@ const Select = styled.select`
 const EmptyState = styled.div`
   text-align: center;
   padding: clamp(40px, 6vw, 60px) 20px;
-  color: #94a3b8;
+  color: ${props => props.theme.colors.neutral500};
 
   h3 {
     font-size: clamp(16px, 2.5vw, 18px);
     margin: 0 0 8px;
-    color: #64748b;
+    color: ${props => props.theme.colors.neutral600};
   }
 
   p {
@@ -304,7 +306,7 @@ const EmptyIcon = styled.div`
   width: clamp(60px, 10vw, 80px);
   height: clamp(60px, 10vw, 80px);
   margin: 0 auto 20px;
-  background: #f8fafc;
+  background: ${props => props.theme.colors.neutral100};
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -313,7 +315,7 @@ const EmptyIcon = styled.div`
   svg {
     width: clamp(30px, 5vw, 40px);
     height: clamp(30px, 5vw, 40px);
-    color: #cbd5e1;
+    color: ${props => props.theme.colors.neutral400};
   }
 `;
 
@@ -346,7 +348,7 @@ const Modal = styled.div`
 `;
 
 const ModalContent = styled.div`
-  background: white;
+  background: ${props => props.theme.colors.neutral0};
   border-radius: clamp(16px, 3vw, 24px);
   padding: 0;
   max-width: 580px;
@@ -428,7 +430,7 @@ const Label = styled.label`
   display: block;
   font-size: clamp(13px, 2vw, 14px);
   font-weight: 600;
-  color: #0f172a;
+  color: ${props => props.theme.colors.neutral800};
   margin-bottom: 10px;
 `;
 
@@ -439,11 +441,11 @@ const SelectWrapper = styled.div`
 const StyledSelect = styled.select`
   width: 100%;
   padding: clamp(12px, 2vw, 14px) clamp(14px, 2vw, 16px);
-  border: 2px solid #e2e8f0;
+  border: 2px solid ${props => props.theme.colors.neutral200};
   border-radius: 12px;
   font-size: clamp(14px, 2vw, 15px);
-  color: #0f172a;
-  background: white;
+  color: ${props => props.theme.colors.neutral800};
+  background: ${props => props.theme.colors.neutral0};
   cursor: pointer;
   transition: all 0.2s ease;
   appearance: none;
@@ -471,10 +473,11 @@ const StyledSelect = styled.select`
 const Input = styled.input`
   width: 100%;
   padding: clamp(12px, 2vw, 14px) clamp(14px, 2vw, 16px);
-  border: 2px solid #e2e8f0;
+  border: 2px solid ${props => props.theme.colors.neutral200};
   border-radius: 12px;
   font-size: clamp(14px, 2vw, 15px);
-  color: #0f172a;
+  color: ${props => props.theme.colors.neutral800};
+  background: ${props => props.theme.colors.neutral0};
   transition: all 0.2s ease;
   box-sizing: border-box;
 
@@ -489,7 +492,7 @@ const Input = styled.input`
   }
 
   &::placeholder {
-    color: #94a3b8;
+    color: ${props => props.theme.colors.neutral500};
   }
 `;
 
@@ -498,11 +501,11 @@ const RoleOption = styled.div`
   align-items: center;
   gap: clamp(10px, 2vw, 12px);
   padding: clamp(12px, 2vw, 16px);
-  border: 2px solid ${props => props.$selected ? '#7C3AED' : '#e2e8f0'};
+  border: 2px solid ${props => props.$selected ? '#7C3AED' : props.theme.colors.neutral200};
   border-radius: 12px;
   cursor: pointer;
   transition: all 0.2s ease;
-  background: ${props => props.$selected ? 'rgba(124, 58, 237, 0.05)' : 'white'};
+  background: ${props => props.$selected ? 'rgba(124, 58, 237, 0.05)' : props.theme.colors.neutral0};
 
   &:hover {
     border-color: #7C3AED;
@@ -538,14 +541,14 @@ const RoleInfo = styled.div`
 
 const RoleName = styled.div`
   font-weight: 600;
-  color: #0f172a;
+  color: ${props => props.theme.colors.neutral800};
   font-size: clamp(14px, 2vw, 16px);
   margin-bottom: 4px;
 `;
 
 const RoleDescription = styled.div`
   font-size: clamp(11px, 1.5vw, 13px);
-  color: #64748b;
+  color: ${props => props.theme.colors.neutral600};
   line-height: 1.4;
 `;
 
@@ -581,13 +584,13 @@ const HelpText = styled.small`
   display: block;
   margin-top: 8px;
   font-size: clamp(11px, 1.5vw, 12px);
-  color: ${props => props.$warning ? '#f59e0b' : '#64748b'};
+  color: ${props => props.$warning ? '#f59e0b' : props.theme.colors.neutral600};
   line-height: 1.4;
 `;
 
 const ContentTypeTag = styled.span`
   display: inline-block;
-  background: #f0f4ff;
+  background: ${props => props.theme.colors.neutral100};
   color: #7C3AED;
   padding: 4px 10px;
   border-radius: 6px;
@@ -608,6 +611,8 @@ const ContentTypeTag = styled.span`
    ============================================ */
 
 const CollaborationSettings = () => {
+  const { formatMessage } = useIntl();
+  const t = (id, defaultMessage, values) => formatMessage({ id: getTranslation(id), defaultMessage }, values);
   const { get, post, put, del } = useFetchClient();
   const [loading, setLoading] = useState(true);
   const [permissions, setPermissions] = useState([]);
@@ -713,7 +718,7 @@ const CollaborationSettings = () => {
       console.log('[Collab] Loaded content types:', filteredTypes);
     } catch (error) {
       console.error('[Collab Settings] Load error:', error);
-      alert('Fehler beim Laden: ' + (error.message || 'Unbekannter Fehler'));
+      alert(t('collaboration.errorLoading', 'Error loading: {error}', { error: error.message || 'Unknown error' }));
     } finally {
       setLoading(false);
     }
@@ -742,9 +747,9 @@ const CollaborationSettings = () => {
       console.error('[Collab Settings] Add error:', error);
       // Check if it's a limit error
       if (error.response?.data?.upgradeRequired) {
-        alert(`Limit erreicht: ${error.response.data.message}\n\nUpgrade auf https://store.magicdx.dev/`);
+        alert(t('collaboration.limitReachedAlert', 'Collaborator limit reached.\n\nUpgrade at https://store.magicdx.dev/ for more collaborators.'));
       } else {
-        alert('Fehler beim Hinzufuegen der Berechtigung');
+        alert(t('collaboration.errorAdding', 'Error adding permission'));
       }
     } finally {
       setSaving(false);
@@ -756,7 +761,7 @@ const CollaborationSettings = () => {
    */
   const handleOpenAddModal = () => {
     if (!limits.canAdd && !limits.unlimited) {
-      alert(`Collaborator-Limit erreicht (${limits.current}/${limits.max}).\n\nUpgrade auf https://store.magicdx.dev/ fuer mehr Collaborators.`);
+      alert(t('collaboration.limitReachedAlert', 'Collaborator limit reached ({current}/{max}).\n\nUpgrade at https://store.magicdx.dev/ for more collaborators.', { current: limits.current, max: limits.max }));
       return;
     }
     setShowAddModal(true);
@@ -771,7 +776,7 @@ const CollaborationSettings = () => {
       await loadData();
     } catch (error) {
       console.error('[Collab Settings] Update error:', error);
-      alert('Fehler beim Aktualisieren der Rolle');
+      alert(t('collaboration.errorUpdating', 'Error updating role'));
     }
   };
 
@@ -784,12 +789,12 @@ const CollaborationSettings = () => {
       await loadData();
     } catch (error) {
       console.error('[Collab Settings] Update content type error:', error);
-      alert('Fehler beim Aktualisieren des Content Types');
+      alert(t('collaboration.errorUpdating', 'Error updating role'));
     }
   };
 
   const handleDeletePermission = async (permissionId) => {
-    if (!confirm('Berechtigung wirklich entfernen?')) return;
+    if (!confirm(t('collaboration.confirmDelete', 'Really remove permission?'))) return;
 
     try {
       await del(`/magic-editor-x/collaboration/permissions/${permissionId}`);
@@ -797,7 +802,7 @@ const CollaborationSettings = () => {
       await loadLimits(); // Refresh limits after deleting
     } catch (error) {
       console.error('[Collab Settings] Delete error:', error);
-      alert('Fehler beim Loeschen der Berechtigung');
+      alert(t('collaboration.errorDeleting', 'Error deleting permission'));
     }
   };
 
@@ -823,10 +828,10 @@ const CollaborationSettings = () => {
       <Header>
         <Title>
           <UserGroupIcon />
-          Zusammenarbeit
+          {t('collaboration.title', 'Collaboration')}
         </Title>
         <Subtitle>
-          Verwalte Berechtigungen für Echtzeit-Bearbeitung
+          {t('collaboration.subtitle', 'Manage permissions for real-time editing')}
         </Subtitle>
       </Header>
 
@@ -836,12 +841,12 @@ const CollaborationSettings = () => {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
             <div>
               <div style={{ fontWeight: 600, marginBottom: '4px' }}>
-                Collaborators: {limits.current} / {limits.max}
+                {t('collaboration.limitInfo', 'Collaborators: {current} / {max}', { current: limits.current, max: limits.max })}
               </div>
               <div style={{ fontSize: '13px', color: '#6b7280' }}>
                 {limits.canAdd 
-                  ? `Du kannst noch ${limits.max - limits.current} Collaborator${limits.max - limits.current !== 1 ? 's' : ''} hinzufuegen.`
-                  : 'Limit erreicht. Upgrade fuer mehr Collaborators.'}
+                  ? t('collaboration.limitCanAdd', 'You can add {remaining} more collaborator(s).', { remaining: limits.max - limits.current })
+                  : t('collaboration.limitReached', 'Limit reached. Upgrade for more collaborators.')}
               </div>
             </div>
             {!limits.canAdd && (
@@ -849,7 +854,7 @@ const CollaborationSettings = () => {
                 onClick={() => window.open('https://store.magicdx.dev/', '_blank')}
                 style={{ background: 'linear-gradient(135deg, #7C3AED, #6d28d9)', color: 'white' }}
               >
-                Upgrade
+                {t('collaboration.upgrade', 'Upgrade')}
               </Button>
             )}
           </div>
@@ -858,10 +863,10 @@ const CollaborationSettings = () => {
 
       <Card>
         <CardHeader>
-          <CardTitle>Berechtigte Benutzer ({permissions.length})</CardTitle>
+          <CardTitle>{t('collaboration.authorizedUsers', 'Authorized Users ({count})', { count: permissions.length })}</CardTitle>
           <Button onClick={handleOpenAddModal} disabled={!limits.canAdd && !limits.unlimited}>
             <UserPlusIcon />
-            Benutzer hinzufuegen
+            {t('collaboration.addUser', 'Add User')}
           </Button>
         </CardHeader>
 
@@ -870,8 +875,8 @@ const CollaborationSettings = () => {
             <EmptyIcon>
               <UserGroupIcon />
             </EmptyIcon>
-            <h3>Keine Berechtigungen</h3>
-            <p>Füge Benutzer hinzu, um die Zusammenarbeit zu ermöglichen</p>
+            <h3>{t('collaboration.noPermissions', 'No Permissions')}</h3>
+            <p>{t('collaboration.noPermissions.description', 'Add users to enable collaboration')}</p>
           </EmptyState>
         ) : (
           <>
@@ -879,10 +884,10 @@ const CollaborationSettings = () => {
           <Table>
             <thead>
               <tr>
-                <Th>Benutzer</Th>
-                <Th>Rolle</Th>
-                <Th>Content Type</Th>
-                <Th>Aktionen</Th>
+                <Th>{t('collaboration.user', 'User')}</Th>
+                <Th>{t('collaboration.role', 'Role')}</Th>
+                <Th>{t('collaboration.contentType', 'Content Type')}</Th>
+                <Th>{t('collaboration.actions', 'Actions')}</Th>
               </tr>
             </thead>
             <tbody>
@@ -904,9 +909,9 @@ const CollaborationSettings = () => {
                       value={perm.role}
                         onChange={(e) => handleUpdateRole(perm.documentId, e.target.value)}
                     >
-                      <option value="viewer">👁️ Viewer</option>
-                      <option value="editor">✏️ Editor</option>
-                      <option value="owner">👑 Owner</option>
+                      <option value="viewer">👁️ {t('role.viewer', 'Viewer')}</option>
+                      <option value="editor">✏️ {t('role.editor', 'Editor')}</option>
+                      <option value="owner">👑 {t('role.owner', 'Owner')}</option>
                     </Select>
                   </Td>
                     <Td>
@@ -915,7 +920,7 @@ const CollaborationSettings = () => {
                         onChange={(e) => handleUpdateContentType(perm.documentId, e.target.value)}
                         style={{ minWidth: '160px' }}
                       >
-                        <option value="*">🌐 Alle Content Types</option>
+                        <option value="*">🌐 {t('collaboration.allContentTypes', 'All Content Types with Magic Editor')}</option>
                         {contentTypes.map((type) => (
                           <option key={type.uid} value={type.uid}>
                             {type.kind === 'singleType' ? '📄' : '📚'} {type.displayName}
@@ -961,23 +966,23 @@ const CollaborationSettings = () => {
                   </PermissionCardHeader>
                   <PermissionCardBody>
                     <PermissionRow>
-                      <PermissionLabel>Rolle</PermissionLabel>
+                      <PermissionLabel>{t('collaboration.role', 'Role')}</PermissionLabel>
                       <Select
                         value={perm.role}
                         onChange={(e) => handleUpdateRole(perm.documentId, e.target.value)}
                       >
-                        <option value="viewer">👁️ Viewer</option>
-                        <option value="editor">✏️ Editor</option>
-                        <option value="owner">👑 Owner</option>
+                        <option value="viewer">👁️ {t('role.viewer', 'Viewer')}</option>
+                        <option value="editor">✏️ {t('role.editor', 'Editor')}</option>
+                        <option value="owner">👑 {t('role.owner', 'Owner')}</option>
                       </Select>
                     </PermissionRow>
                     <PermissionRow>
-                      <PermissionLabel>Content Type</PermissionLabel>
+                      <PermissionLabel>{t('collaboration.contentType', 'Content Type')}</PermissionLabel>
                       <Select
                         value={perm.contentType || '*'}
                         onChange={(e) => handleUpdateContentType(perm.documentId, e.target.value)}
                       >
-                        <option value="*">🌐 Alle</option>
+                        <option value="*">🌐 {t('collaboration.allContentTypes', 'All Content Types with Magic Editor')}</option>
                         {contentTypes.map((type) => (
                           <option key={type.uid} value={type.uid}>
                             {type.kind === 'singleType' ? '📄' : '📚'} {type.displayName}
@@ -999,22 +1004,22 @@ const CollaborationSettings = () => {
             <ModalHeader>
               <ModalTitle>
                 <UserPlusIcon />
-                Benutzer einladen
+                {t('collaboration.inviteUser', 'Invite User')}
               </ModalTitle>
               <ModalSubtitle>
-                Erteile Zugriff auf Echtzeit-Bearbeitung
+                {t('collaboration.inviteUser.subtitle', 'Grant access to real-time editing')}
               </ModalSubtitle>
             </ModalHeader>
 
             <ModalBody>
               <FormGroup>
-                <Label>Benutzer auswählen</Label>
+                <Label>{t('collaboration.selectUser', 'Select User')}</Label>
                 <SelectWrapper>
                   <StyledSelect
                     value={selectedUser}
                     onChange={(e) => setSelectedUser(e.target.value)}
                   >
-                    <option value="">Wähle einen Benutzer...</option>
+                    <option value="">{t('collaboration.selectUser.placeholder', 'Choose a user...')}</option>
                     {users.map((user) => (
                       <option key={user.id} value={user.id}>
                         {user.firstname} {user.lastname} • {user.email}
@@ -1025,7 +1030,7 @@ const CollaborationSettings = () => {
               </FormGroup>
 
               <FormGroup>
-                <Label>Rolle & Berechtigungen</Label>
+                <Label>{t('collaboration.rolePermissions', 'Role & Permissions')}</Label>
                 <RoleGrid>
                   <RoleOption
                     $selected={selectedRole === 'viewer'}
@@ -1033,8 +1038,8 @@ const CollaborationSettings = () => {
                   >
                     <RoleIcon $role="viewer">👁️</RoleIcon>
                     <RoleInfo>
-                      <RoleName>Viewer</RoleName>
-                      <RoleDescription>Kann Änderungen sehen, aber nicht bearbeiten</RoleDescription>
+                      <RoleName>{t('role.viewer', 'Viewer')}</RoleName>
+                      <RoleDescription>{t('role.viewer.description', 'Can view changes but not edit')}</RoleDescription>
                     </RoleInfo>
                   </RoleOption>
 
@@ -1044,8 +1049,8 @@ const CollaborationSettings = () => {
                   >
                     <RoleIcon $role="editor">✏️</RoleIcon>
                     <RoleInfo>
-                      <RoleName>Editor</RoleName>
-                      <RoleDescription>Kann Inhalte bearbeiten und mit anderen zusammenarbeiten</RoleDescription>
+                      <RoleName>{t('role.editor', 'Editor')}</RoleName>
+                      <RoleDescription>{t('role.editor.description', 'Can edit content and collaborate with others')}</RoleDescription>
                     </RoleInfo>
                   </RoleOption>
 
@@ -1055,21 +1060,21 @@ const CollaborationSettings = () => {
                   >
                     <RoleIcon $role="owner">👑</RoleIcon>
                     <RoleInfo>
-                      <RoleName>Owner</RoleName>
-                      <RoleDescription>Vollzugriff inkl. Berechtigungsverwaltung</RoleDescription>
+                      <RoleName>{t('role.owner', 'Owner')}</RoleName>
+                      <RoleDescription>{t('role.owner.description', 'Full access including managing permissions')}</RoleDescription>
                     </RoleInfo>
                   </RoleOption>
                 </RoleGrid>
               </FormGroup>
 
               <FormGroup>
-                <Label>Content Type (optional)</Label>
+                <Label>{t('collaboration.contentTypeOptional', 'Content Type (optional)')}</Label>
                 <SelectWrapper>
                   <StyledSelect
                   value={contentType}
                   onChange={(e) => setContentType(e.target.value)}
                   >
-                    <option value="">🌐 Alle Content Types mit Magic Editor</option>
+                    <option value="">🌐 {t('collaboration.allContentTypes', 'All Content Types with Magic Editor')}</option>
                     {contentTypes.map((type) => (
                       <option key={type.uid} value={type.uid}>
                         {type.kind === 'singleType' ? '📄' : '📚'} {type.displayName}
@@ -1080,23 +1085,22 @@ const CollaborationSettings = () => {
                 </SelectWrapper>
                 {contentTypes.length === 0 ? (
                   <HelpText $warning>
-                    ⚠️ Kein Content Type verwendet aktuell das Magic Editor X Feld. 
-                    Füge das Custom Field zu einem Content Type hinzu.
+                    {t('collaboration.contentTypeWarning', '⚠️ No content type currently uses the Magic Editor X field. Add the custom field to a content type.')}
                   </HelpText>
                 ) : (
                   <HelpText>
-                    Zeigt nur Content Types mit Magic Editor X Feld • Leer = Zugriff auf alle
+                    {t('collaboration.contentTypeHelp', 'Shows only content types with Magic Editor X field • Empty = access to all')}
                   </HelpText>
                 )}
               </FormGroup>
 
               <ModalActions>
                 <Button $secondary onClick={() => setShowAddModal(false)}>
-                  Abbrechen
+                  {t('collaboration.cancel', 'Cancel')}
                 </Button>
                 <Button onClick={handleAddPermission} disabled={!selectedUser || saving}>
                   <CheckCircleIcon />
-                  {saving ? 'Lädt...' : 'Einladen'}
+                  {saving ? t('collaboration.saving', 'Saving...') : t('collaboration.invite', 'Invite')}
                 </Button>
               </ModalActions>
             </ModalBody>

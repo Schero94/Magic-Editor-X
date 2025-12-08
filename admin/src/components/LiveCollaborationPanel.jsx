@@ -3,8 +3,10 @@
  * Uses the same API as Session Manager to appear below PREVIEW
  */
 import { useState, useEffect, useMemo } from 'react';
+import { useIntl } from 'react-intl';
 import { Box, Typography, Flex, Divider } from '@strapi/design-system';
 import styled, { css, keyframes } from 'styled-components';
+import { getTranslation } from '../utils/getTranslation';
 
 /* ============================================
    STYLED COMPONENTS
@@ -22,11 +24,11 @@ const pulse = keyframes`
 `;
 
 const StatusCard = styled.div`
-  background: white;
-  border: 1px solid ${({ $status }) => 
+  background: ${props => props.theme.colors.neutral0};
+  border: 1px solid ${({ $status, theme }) => 
     $status === 'connected' ? 'rgba(34, 197, 94, 0.3)' : 
     $status === 'denied' ? 'rgba(239, 68, 68, 0.3)' : 
-    '#eaeaea'};
+    theme.colors.neutral200};
   border-radius: 10px;
   padding: 14px 16px;
   display: flex;
@@ -59,22 +61,22 @@ const StatusText = styled.div`
 const StatusLabel = styled.span`
   font-size: 14px;
   font-weight: 600;
-  color: ${({ $status }) => 
-    $status === 'connected' ? '#166534' : 
-    $status === 'connecting' || $status === 'requesting' ? '#92400e' :
-    $status === 'denied' ? '#991b1b' : 
-    '#475569'};
+  color: ${({ $status, theme }) => 
+    $status === 'connected' ? theme.colors.success600 : 
+    $status === 'connecting' || $status === 'requesting' ? theme.colors.warning600 :
+    $status === 'denied' ? theme.colors.danger600 : 
+    theme.colors.neutral600};
 `;
 
 const StatusSubtext = styled.span`
   font-size: 12px;
-  color: #94a3b8;
+  color: ${props => props.theme.colors.neutral500};
 `;
 
 const SectionTitle = styled.div`
   font-size: 11px;
   font-weight: 600;
-  color: #64748b;
+  color: ${props => props.theme.colors.neutral600};
   text-transform: uppercase;
   letter-spacing: 0.5px;
   margin-bottom: 10px;
@@ -85,13 +87,13 @@ const PeerItem = styled.div`
   align-items: center;
   gap: 12px;
   padding: 12px 14px;
-  background: white;
+  background: ${props => props.theme.colors.neutral0};
   border-radius: 10px;
-  border: 1px solid #f1f5f9;
+  border: 1px solid ${props => props.theme.colors.neutral150};
   transition: all 0.2s ease;
   
   &:hover {
-    border-color: rgba(124, 58, 237, 0.3);
+    border-color: ${props => props.theme.colors.primary200};
     box-shadow: 0 2px 8px rgba(124, 58, 237, 0.08);
     transform: translateY(-1px);
   }
@@ -132,7 +134,7 @@ const PeerInfo = styled.div`
 const PeerName = styled.span`
   font-size: 13px;
   font-weight: 600;
-  color: #334155;
+  color: ${props => props.theme.colors.neutral800};
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -140,7 +142,7 @@ const PeerName = styled.span`
 
 const PeerEmail = styled.span`
   font-size: 11px;
-  color: #94a3b8;
+  color: ${props => props.theme.colors.neutral500};
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -159,14 +161,14 @@ const OnlineBadge = styled.span`
 const EmptyState = styled.div`
   text-align: center;
   padding: 16px;
-  background: #f8fafc;
+  background: ${props => props.theme.colors.neutral100};
   border-radius: 10px;
-  border: 1px dashed #e2e8f0;
+  border: 1px dashed ${props => props.theme.colors.neutral300};
 `;
 
 const EmptyText = styled.span`
   font-size: 13px;
-  color: #94a3b8;
+  color: ${props => props.theme.colors.neutral500};
 `;
 
 /* ============================================
@@ -179,11 +181,11 @@ const getPeerInitials = (user = {}) => {
   return `${first}${last}`.trim();
 };
 
-const getPeerName = (user = {}) => {
+const getPeerName = (user = {}, t) => {
   if (user.firstname) {
     return `${user.firstname} ${user.lastname || ''}`.trim();
   }
-  return user.email || 'Unbekannt';
+  return user.email || t('collab.unknown', 'Unknown');
 };
 
 /* ============================================
@@ -191,6 +193,9 @@ const getPeerName = (user = {}) => {
    ============================================ */
 
 const LiveCollaborationPanel = ({ documentId, model, document }) => {
+  const { formatMessage } = useIntl();
+  const t = (id, defaultMessage, values) => formatMessage({ id: getTranslation(id), defaultMessage }, values);
+  
   const [collabState, setCollabState] = useState({
     status: 'disabled',
     peers: [],
@@ -221,15 +226,15 @@ const LiveCollaborationPanel = ({ documentId, model, document }) => {
 
   const statusLabel = useMemo(() => {
     switch (status) {
-      case 'connected': return 'Live';
-      case 'connecting': return 'Verbinde...';
-      case 'requesting': return 'Prüfe Berechtigung';
-      case 'denied': return 'Keine Berechtigung';
-      case 'disconnected': return 'Getrennt';
-      case 'disabled': return 'Deaktiviert';
-      default: return 'Bereit';
+      case 'connected': return t('collab.live', 'Live');
+      case 'connecting': return t('collab.connecting', 'Connecting...');
+      case 'requesting': return t('collab.checkingPermission', 'Checking permission');
+      case 'denied': return t('collab.noPermission', 'No permission');
+      case 'disconnected': return t('collab.disconnected', 'Disconnected');
+      case 'disabled': return t('collab.disabled', 'Disabled');
+      default: return t('collab.ready', 'Ready');
     }
-  }, [status]);
+  }, [status, t]);
 
   // Don't render if disabled or idle
   if (status === 'disabled' || status === 'idle') {
@@ -240,7 +245,7 @@ const LiveCollaborationPanel = ({ documentId, model, document }) => {
 
   // Return object format required by addEditViewSidePanel
   return {
-    title: 'Live Collaboration',
+    title: t('collab.title', 'Live Collaboration'),
     content: (
       <Flex direction="column" gap={4} alignItems="stretch" style={{ width: '100%' }}>
         {/* Status Card */}
@@ -249,7 +254,7 @@ const LiveCollaborationPanel = ({ documentId, model, document }) => {
           <StatusText>
             <StatusLabel $status={status}>{statusLabel}</StatusLabel>
             <StatusSubtext>
-              {isConnected ? 'Echtzeit-Sync aktiv' : error || 'Verbindung wird hergestellt...'}
+              {isConnected ? t('collab.realtimeActive', 'Realtime sync active') : error || t('collab.connectionEstablishing', 'Connection is being established...')}
             </StatusSubtext>
           </StatusText>
         </StatusCard>
@@ -257,7 +262,7 @@ const LiveCollaborationPanel = ({ documentId, model, document }) => {
         {/* Peers List */}
         {isConnected && peers.length > 0 && (
           <div>
-            <SectionTitle>Aktive Mitarbeiter ({peers.length})</SectionTitle>
+            <SectionTitle>{t('collab.activePeers', 'Active Collaborators ({count})', { count: peers.length })}</SectionTitle>
             <Flex direction="column" gap={2} alignItems="stretch">
               {peers.map((peer, idx) => (
                 <PeerItem key={peer.id}>
@@ -265,12 +270,12 @@ const LiveCollaborationPanel = ({ documentId, model, document }) => {
                     {getPeerInitials(peer)}
                   </PeerAvatar>
                   <PeerInfo>
-                    <PeerName>{getPeerName(peer)}</PeerName>
+                    <PeerName>{getPeerName(peer, t)}</PeerName>
                     {peer.email && peer.firstname && (
                       <PeerEmail>{peer.email}</PeerEmail>
                     )}
                   </PeerInfo>
-                  <OnlineBadge>Online</OnlineBadge>
+                  <OnlineBadge>{t('collab.online', 'Online')}</OnlineBadge>
                 </PeerItem>
               ))}
             </Flex>
@@ -280,7 +285,7 @@ const LiveCollaborationPanel = ({ documentId, model, document }) => {
         {/* Empty State */}
         {isConnected && peers.length === 0 && (
           <EmptyState>
-            <EmptyText>Du arbeitest alleine</EmptyText>
+            <EmptyText>{t('collab.workingAlone', 'You are working alone')}</EmptyText>
           </EmptyState>
         )}
       </Flex>
