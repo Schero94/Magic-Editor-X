@@ -15,7 +15,7 @@ Magic Editor X is a production-ready Strapi v5 Custom Field that brings the powe
 
 Built on proven technologies like Editor.js for the editing interface and Y.js for conflict-free real-time collaboration, this plugin provides a modern, extensible content editing experience that scales from solo developers to large editorial teams.
 
-### Why Magic Editor X?
+### Why Magic Editor X? :)
 
 **For Developers:**
 - Clean JSON output instead of unstructured HTML
