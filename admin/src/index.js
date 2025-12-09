@@ -116,10 +116,8 @@ export default {
         id: `${PLUGIN_ID}.plugin.name`,
         defaultMessage: 'Magic Editor X',
       },
-      Component: async () => {
-        const { App } = await import('./pages/App');
-        return App;
-      },
+      // Use lazy import without async wrapper to avoid deprecation warning
+      Component: () => import('./pages/App'),
       permissions: [],
     });
 
@@ -128,7 +126,8 @@ export default {
       {
         intlLabel: { id: `${PLUGIN_ID}.settings.section`, defaultMessage: 'Magic Editor X' },
         id: PLUGIN_ID,
-        to: `/settings/${PLUGIN_ID}`,
+        // path relative to /settings
+        to: PLUGIN_ID,
       },
       [
         {
@@ -137,7 +136,8 @@ export default {
             defaultMessage: 'Upgrade',
           },
           id: 'upgrade',
-          to: `/settings/${PLUGIN_ID}/upgrade`,
+          // relative path (no leading slash)
+          to: `${PLUGIN_ID}/upgrade`,
           Component: () => import('./pages/LicensePage'),
         },
         {
@@ -146,7 +146,8 @@ export default {
             defaultMessage: 'License Details',
           },
           id: 'license',
-          to: `/settings/${PLUGIN_ID}/license`,
+          // relative path (no leading slash)
+          to: `${PLUGIN_ID}/license`,
           Component: () => import('./pages/Settings'),
         },
       ]

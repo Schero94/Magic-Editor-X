@@ -29,9 +29,46 @@ module.exports = ({ strapi }) => {
   const rooms = new Map();
   const sessionTokens = new Map();
   let io;
+  let cleanupInterval;
 
   /** Returns plugin configuration */
   const getConfig = () => strapi.config.get(`plugin::${pluginId}`, {});
+
+  /**
+   * Cleanup routine to remove stale rooms and free memory
+   */
+  const cleanupStaleRooms = () => {
+    if (!io) return;
+    
+    const now = Date.now();
+    const STALE_THRESHOLD = 60 * 60 * 1000; // 1 hour
+    
+    let removedCount = 0;
+    
+    rooms.forEach((room, roomId) => {
+      // Check for active connections
+      const socketsInRoom = io.sockets.adapter.rooms.get(roomId);
+      const connectionCount = socketsInRoom ? socketsInRoom.size : 0;
+      
+      if (connectionCount === 0) {
+        // No connections - check if it's stale
+        if (now - room.updatedAt > STALE_THRESHOLD) {
+          room.doc.destroy();
+          rooms.delete(roomId);
+          removedCount++;
+        }
+      }
+    });
+    
+    if (removedCount > 0) {
+      strapi.log.info(`[Magic Editor X] [CLEANUP] Removed ${removedCount} stale rooms`);
+    }
+  };
+
+  // Start cleanup interval
+  if (!cleanupInterval) {
+    cleanupInterval = setInterval(cleanupStaleRooms, 15 * 60 * 1000); // Every 15 minutes
+  }
 
   /**
    * Ensures a Y.Doc room exists for the given roomId
@@ -71,7 +108,14 @@ module.exports = ({ strapi }) => {
    */
   const initializeDoc = (roomId, initialValue) => {
     const room = ensureRoom(roomId);
-    if (!initialValue || room.initialized) {
+    
+    // Check if doc is already populated
+    const blocksMap = room.doc.getMap('blocks');
+    const isDocEmpty = blocksMap.size === 0;
+
+    // Only initialize if we have a value AND the doc is empty
+    // This handles server restarts where room is lost but client provides latest DB state
+    if (!initialValue || (!isDocEmpty && room.initialized)) {
       return room;
     }
 
@@ -81,8 +125,10 @@ module.exports = ({ strapi }) => {
       const blocks = data?.blocks || [];
       const time = data?.time || Date.now();
       
+      // If the provided initial value is also empty, we don't need to do much,
+      // but we should mark it as initialized so we don't keep trying.
+      
       room.doc.transact(() => {
-        const blocksMap = room.doc.getMap('blocks');
         const metaMap = room.doc.getMap('meta');
         
         // Store each block by ID
@@ -92,11 +138,13 @@ module.exports = ({ strapi }) => {
           }
         }
         
-        // Store metadata
+        // Store metadata (time) and block order in Y.Map (NOT Y.Array)
+        // Y.Array causes CRDT delete conflicts when clients delete+push
         metaMap.set('time', time);
-        metaMap.set('blockOrder', blocks.map(b => b.id));
+        metaMap.set('blockOrder', JSON.stringify(blocks.map((b) => b.id)));
       }, 'bootstrap');
       
+      room.initialized = true;
       strapi.log.info(`[Magic Editor X] [INIT] Initialized room ${roomId} with ${blocks.length} blocks`);
     } catch (error) {
       strapi.log.error(`[Magic Editor X] Failed to initialize Y.Doc for room ${roomId}`, error);
@@ -370,6 +418,11 @@ module.exports = ({ strapi }) => {
    * Closes the Socket.io server and cleans up all rooms
    */
   const close = async () => {
+    if (cleanupInterval) {
+      clearInterval(cleanupInterval);
+      cleanupInterval = null;
+    }
+
     if (io) {
       await io.close();
       io = null;

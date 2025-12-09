@@ -71,12 +71,13 @@ export const useMagicCollaboration = ({
 
   // Create Y.Doc + Y.Map for block-level collaboration
   // Using Y.Map instead of Y.Text prevents JSON corruption from character-level CRDT merges
+  // NOTE: Block order is stored in metaMap as JSON string (NOT Y.Array to avoid CRDT delete conflicts)
   const { doc, blocksMap, metaMap } = useMemo(() => {
     const yDoc = new Y.Doc();
     return { 
       doc: yDoc, 
       blocksMap: yDoc.getMap('blocks'),  // Each block stored by ID
-      metaMap: yDoc.getMap('meta'),      // Metadata (time, version, etc.)
+      metaMap: yDoc.getMap('meta'),      // Metadata (time, blockOrder, etc.)
     };
   }, [roomId]);
 
@@ -171,6 +172,10 @@ export const useMagicCollaboration = ({
       
       persistence.on('synced', () => {
         console.log('[Magic Collab] [CACHE] IndexedDB synced for room:', roomId);
+        // #region agent log
+        const blockOrder = metaMap.get('blockOrder');
+        fetch('http://127.0.0.1:7242/ingest/12c1170b-f275-4a73-9ee7-3006bf7f0881',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useMagicCollaboration:indexeddb:synced',message:'IndexedDB synced - loaded local state',data:{blocksMapSize:blocksMap.size,blocksMapKeys:Array.from(blocksMap.keys()),blockOrder:blockOrder,roomId,persistenceKey},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H'})}).catch(()=>{});
+        // #endregion
       });
       
       console.log('[Magic Collab] [CACHE] IndexedDB persistence initialized:', persistenceKey);
@@ -288,22 +293,32 @@ export const useMagicCollaboration = ({
         });
 
         // Sync initial state from server
-        // The server sends the FULL Y.Doc state as a binary update
+        // The server sends the full Y.Doc state as a binary update
         socket.on('collab:sync', (update) => {
           if (update) {
             console.log('[Magic Collab] [SYNC] Syncing initial state, update size:', update.length, 'bytes');
             try {
+              // #region agent log
+              const blockOrderBefore = metaMap.get('blockOrder');
+              fetch('http://127.0.0.1:7242/ingest/12c1170b-f275-4a73-9ee7-3006bf7f0881',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useMagicCollaboration:collab:sync:before',message:'BEFORE applying server sync',data:{blocksMapSize:blocksMap.size,blocksMapKeys:Array.from(blocksMap.keys()),blockOrder:blockOrderBefore,roomId},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'F'})}).catch(()=>{});
+              // #endregion
+              
               const beforeBlockCount = blocksMap.size;
               console.log('[Magic Collab] [DATA] Y.Map BEFORE sync - block count:', beforeBlockCount);
               
               // Apply the server's state to our Y.Doc
+              // If we have local changes (from IndexedDB), they will be merged automatically.
               Y.applyUpdate(doc, new Uint8Array(update), 'remote');
               
               const afterBlockCount = blocksMap.size;
               console.log('[Magic Collab] [DATA] Y.Map AFTER sync - block count:', afterBlockCount);
-              console.log('[Magic Collab] [DATA] Y.Map changed:', beforeBlockCount !== afterBlockCount);
               
-              // Always call callback after initial sync to render the server's content
+              // #region agent log
+              const blockOrderAfter = metaMap.get('blockOrder');
+              fetch('http://127.0.0.1:7242/ingest/12c1170b-f275-4a73-9ee7-3006bf7f0881',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useMagicCollaboration:collab:sync:after',message:'AFTER applying server sync',data:{blocksMapSize:blocksMap.size,blocksMapKeys:Array.from(blocksMap.keys()),blockOrder:blockOrderAfter,roomId},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'F'})}).catch(()=>{});
+              // #endregion
+              
+              // Always call callback after initial sync to render the merged content
               if (onRemoteUpdateRef.current) {
                 console.log('[Magic Collab] [CALLBACK] Calling onRemoteUpdate callback after sync');
                 setTimeout(() => {
@@ -322,6 +337,10 @@ export const useMagicCollaboration = ({
           if (update) {
             console.log('[Magic Collab] [UPDATE] Received remote update:', update.length, 'bytes');
             try {
+              // #region agent log
+              fetch('http://127.0.0.1:7242/ingest/12c1170b-f275-4a73-9ee7-3006bf7f0881',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useMagicCollaboration:collab:update:before',message:'BEFORE applying remote update',data:{blocksMapSize:blocksMap.size,blocksMapKeys:Array.from(blocksMap.keys()),blockOrder:metaMap.get('blockOrder'),updateSize:update.length,roomId},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'G'})}).catch(()=>{});
+              // #endregion
+              
               const beforeBlockCount = blocksMap.size;
               console.log('[Magic Collab] [DATA] Y.Map BEFORE update - blocks:', beforeBlockCount);
               
@@ -330,6 +349,10 @@ export const useMagicCollaboration = ({
               
               const afterBlockCount = blocksMap.size;
               console.log('[Magic Collab] [DATA] Y.Map AFTER update - blocks:', afterBlockCount);
+              
+              // #region agent log
+              fetch('http://127.0.0.1:7242/ingest/12c1170b-f275-4a73-9ee7-3006bf7f0881',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useMagicCollaboration:collab:update:after',message:'AFTER applying remote update',data:{blocksMapSize:blocksMap.size,blocksMapKeys:Array.from(blocksMap.keys()),blockOrder:metaMap.get('blockOrder'),roomId},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'G'})}).catch(()=>{});
+              // #endregion
               
               // Always call callback for remote updates
               // Y.js only sends actual changes, so we don't need to check for content changes
@@ -381,12 +404,14 @@ export const useMagicCollaboration = ({
           }
 
           // Don't process our own awareness updates
-          // (the server might broadcast to all including sender)
           if (user && peerUser.id === user.id) {
             return;
           }
-
-          console.log('[Magic Collab] [CURSOR] Cursor update from:', peerUser.email, payload);
+          
+          // Skip invalid cursor positions (blockIndex -1 means no active block)
+          if (payload?.blockIndex === -1 || payload?.blockIndex === null) {
+            return;
+          }
 
           setAwareness((prev) => ({
             ...prev,
@@ -394,7 +419,7 @@ export const useMagicCollaboration = ({
               user: peerUser,
               cursor: payload?.cursor || null,
               blockId: payload?.blockId || null,
-              blockIndex: payload?.blockIndex || null,
+              blockIndex: payload?.blockIndex ?? null,
               selection: payload?.selection || null,
               color: getUserColor(peerUser.id),
               lastUpdate: Date.now(),
@@ -450,27 +475,26 @@ export const useMagicCollaboration = ({
     console.log('[Magic Collab] [HANDLER] Registering update handler on doc');
 
     const handler = (update, origin) => {
-      console.log('[Magic Collab] [DOC] Doc update event - origin:', origin, 'socket:', !!socketRef.current, 'connected:', socketRef.current?.connected);
+      // Only log significant updates to reduce console spam
+      const updateSize = update?.length || 0;
+      if (updateSize > 10) {
+        console.log('[Magic Collab] [DOC] Doc update - origin:', origin, 'size:', updateSize, 'bytes');
+      }
       
+      // Skip remote updates to prevent echo/loops
       if (origin === 'remote' || origin === 'bootstrap') {
-        console.log('[Magic Collab] [SKIP] Skipping update (origin:', origin, ')');
         return;
       }
       
-      if (!socketRef.current) {
-        console.log('[Magic Collab] [WARNING] Socket not ready, update not sent');
-        return;
-      }
-      
-      if (!socketRef.current.connected) {
-        console.log('[Magic Collab] [WARNING] Socket not connected, update not sent');
+      if (!socketRef.current?.connected) {
+        console.log('[Magic Collab] [WARNING] Socket not connected, update queued');
         return;
       }
 
       // Convert Uint8Array to Array for Socket.io transmission
       const updateArray = Array.from(update);
       socketRef.current.emit('collab:update', updateArray);
-      console.log('[Magic Collab] [SENT] Sent update:', updateArray.length, 'bytes');
+      console.log('[Magic Collab] [SENT] Sent update:', updateArray.length, 'bytes to server');
     };
 
     doc.on('update', handler);
@@ -498,7 +522,7 @@ export const useMagicCollaboration = ({
   return {
     doc,
     blocksMap,     // Y.Map for block-level sync (replaces Y.Text)
-    metaMap,       // Y.Map for metadata
+    metaMap,       // Y.Map for metadata (includes blockOrder as JSON string)
     status,
     error,
     peers,

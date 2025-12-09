@@ -34,7 +34,12 @@ import { getToggleFunc, changeFunc } from '../MediaLib/utils';
 import { PLUGIN_ID } from '../../pluginId';
 import { useMagicCollaboration } from '../../hooks/useMagicCollaboration';
 import { useLicense } from '../../hooks/useLicense';
+import { useAIActions } from '../../hooks/useAIActions';
 import AIAssistantPopup from '../AIAssistantPopup';
+import AIInlineToolbar from '../AIInlineToolbar';
+import { AIToast, toastManager } from '../AIToast';
+import CreditsModal from '../CreditsModal';
+import '../../styles/ai-assistant.css';
 
 /* ============================================
    STYLED COMPONENTS
@@ -1763,6 +1768,28 @@ const Editor = forwardRef(({
   // Get license for AI Assistant
   const { licenseData } = useLicense();
   
+  // Refs - must be defined before useAIActions
+  const editorRef = useRef(null);
+  const editorInstanceRef = useRef(null);
+  const containerRef = useRef(null);
+  
+  // State - must be defined before useAIActions
+  const isReadyRef = useRef(false); // Changed from useState to useRef to fix closure issues
+  const [isReady, setIsReady] = useState(false); // Keep for UI rendering
+  const [showCreditsModal, setShowCreditsModal] = useState(false);
+  const [creditsUpgradeInfo, setCreditsUpgradeInfo] = useState(null);
+  
+  // AI Actions Handler - after refs and state
+  const { handleAIAction } = useAIActions({
+    licenseKey: licenseData?.licenseKey,
+    editorInstanceRef,
+    isReady,
+    onNoCredits: (upgradeInfo) => {
+      setCreditsUpgradeInfo(upgradeInfo);
+      setShowCreditsModal(true);
+    },
+  });
+  
   // Make license key globally available for AI Assistant Tool
   useEffect(() => {
     if (licenseData?.licenseKey) {
@@ -1773,12 +1800,6 @@ const Editor = forwardRef(({
       delete window.__MAGIC_EDITOR_LICENSE_KEY__;
     };
   }, [licenseData?.licenseKey]);
-  
-  const editorRef = useRef(null);
-  const editorInstanceRef = useRef(null);
-  const containerRef = useRef(null);
-  
-  const [isReady, setIsReady] = useState(false);
   const [blocksCount, setBlocksCount] = useState(0);
   const [wordCount, setWordCount] = useState(0);
   const [charCount, setCharCount] = useState(0);
@@ -1788,8 +1809,11 @@ const Editor = forwardRef(({
   const [mediaLibBlockIndex, setMediaLibBlockIndex] = useState(-1);
   const [isMediaLibOpen, setIsMediaLibOpen] = useState(false);
   const [showAIPopup, setShowAIPopup] = useState(false);
+  const [showAIToolbar, setShowAIToolbar] = useState(false);
+  const [aiToolbarPosition, setAIToolbarPosition] = useState({ top: 0, left: 0 });
   const [aiSelectedText, setAISelectedText] = useState('');
   const aiSelectionRangeRef = useRef(null);
+  const [aiLoading, setAILoading] = useState(false);
 
   const serializedInitialValue = useMemo(() => {
     if (!value) {
@@ -1797,6 +1821,23 @@ const Editor = forwardRef(({
     }
     return typeof value === 'string' ? value : JSON.stringify(value);
   }, [value]);
+
+  // Normalize payloads (remove volatile fields like time) to avoid render/push loops
+  const serializeForCompare = useCallback((payload) => {
+    if (!payload) return '';
+    try {
+      const dataObj = typeof payload === 'string' ? JSON.parse(payload) : payload;
+      if (!dataObj || typeof dataObj !== 'object') return '';
+      const clone = { ...dataObj };
+      if ('time' in clone) {
+        clone.time = 0; // neutralize time for stable comparison
+      }
+      return JSON.stringify(clone);
+    } catch (err) {
+      console.warn('[Magic Editor X] [COMPARE] Failed to normalize payload', err?.message);
+      return '';
+    }
+  }, []);
 
   const collabRoomId = useMemo(() => buildRoomId(name), [name]);
   const collabEnabled = (attribute?.options?.collaboration?.enabled ?? true) && !disabled;
@@ -1880,6 +1921,7 @@ const Editor = forwardRef(({
 
   // Track cursor position and emit awareness updates
   const lastCursorUpdateRef = useRef(0);
+  const lastEmittedPositionRef = useRef(null); // For deduplication
   
   /**
    * Calculate absolute character offset from start of container
@@ -1907,12 +1949,11 @@ const Editor = forwardRef(({
       return;
     }
 
-    // Throttle updates to max 20 per second for smoother streaming
+    // Throttle updates - send every ~200ms for smoother awareness
     const now = Date.now();
-    if (now - lastCursorUpdateRef.current < 50) {
+    if (now - lastCursorUpdateRef.current < 200) {
       return;
     }
-    lastCursorUpdateRef.current = now;
 
     if (!editorInstanceRef.current) {
       return;
@@ -1920,7 +1961,14 @@ const Editor = forwardRef(({
 
     try {
       const currentBlockIndex = editorInstanceRef.current.blocks.getCurrentBlockIndex();
+      
+      // Only emit if we have a valid block (not -1)
+      if (currentBlockIndex < 0) {
+        return;
+      }
+      
       const currentBlock = editorInstanceRef.current.blocks.getBlockByIndex(currentBlockIndex);
+      const blockId = currentBlock?.id || null;
       
       // Get selection info with absolute offset
       const selection = window.getSelection();
@@ -1951,9 +1999,18 @@ const Editor = forwardRef(({
         };
       }
 
+      // Deduplicate: Only emit if position actually changed
+      const newPosition = JSON.stringify({ blockIndex: currentBlockIndex, blockId, selection: selectionInfo });
+      if (newPosition === lastEmittedPositionRef.current) {
+        return;
+      }
+      
+      lastCursorUpdateRef.current = now;
+      lastEmittedPositionRef.current = newPosition;
+
       emitAwareness({
         blockIndex: currentBlockIndex,
-        blockId: currentBlock?.id || null,
+        blockId,
         selection: selectionInfo,
         timestamp: now,
       });
@@ -1982,10 +2039,10 @@ const Editor = forwardRef(({
     editorElement.addEventListener('mouseup', handleInteraction);
     editorElement.addEventListener('selectionchange', handleInteraction); // Track selection changes
 
-    // Also emit position periodically while focused (very frequently for streaming effect)
+    // Also emit position periodically while focused (reduced frequency to prevent spam)
     let intervalId = null;
     const handleFocus = () => {
-      intervalId = setInterval(emitCursorPosition, 100); // Very frequent for real-time streaming
+      intervalId = setInterval(emitCursorPosition, 1000); // 1 second interval - reduced from 100ms
     };
     const handleBlur = () => {
       if (intervalId) {
@@ -2189,7 +2246,10 @@ const Editor = forwardRef(({
       
       cursorIndicator.appendChild(cursorLabel);
       
-      editorElement.appendChild(cursorIndicator);
+      // Defer DOM writes to next frame to avoid layout thrash
+      requestAnimationFrame(() => {
+        editorElement.appendChild(cursorIndicator);
+      });
     });
 
     return () => {
@@ -2226,11 +2286,11 @@ const Editor = forwardRef(({
 
   const isApplyingRemoteRef = useRef(false);
   const pendingRenderRef = useRef(null);
-  const lastSerializedValueRef = useRef(serializedInitialValue || null);
+  const lastSerializedValueRef = useRef(serializeForCompare(serializedInitialValue || null));
 
   useEffect(() => {
-    lastSerializedValueRef.current = serializedInitialValue || null;
-  }, [serializedInitialValue]);
+    lastSerializedValueRef.current = serializeForCompare(serializedInitialValue || null);
+  }, [serializedInitialValue, serializeForCompare]);
 
   // Calculate word & character count (MOVED UP - before usage)
   const calculateStats = useCallback((data) => {
@@ -2258,127 +2318,172 @@ const Editor = forwardRef(({
 
   /**
    * Renders editor content from Y.Map (block-level sync)
-   * Each block is stored by ID in the Y.Map, preventing JSON corruption
+   * Uses smart diffing to apply only necessary changes (Google Docs style)
    */
   const renderFromYDoc = useCallback(async () => {
-    console.log('[Magic Editor X] [RENDER] renderFromYDoc called');
-    console.log('[Magic Editor X] [CHECK] collabEnabled:', collabEnabled, 'yBlocksMap:', !!yBlocksMap, 'yDoc:', !!yDoc);
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/12c1170b-f275-4a73-9ee7-3006bf7f0881',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'EditorJS/index.jsx:renderFromYDoc:entry',message:'renderFromYDoc called',data:{collabEnabled,hasYBlocksMap:!!yBlocksMap,hasYDoc:!!yDoc,hasYMetaMap:!!yMetaMap},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
     
+    // Hard guard: only run when collaboration + doc + editor are ready
     if (!collabEnabled || !yBlocksMap || !yDoc) {
-      console.log('[Magic Editor X] [SKIP] Skipping - missing dependencies');
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/12c1170b-f275-4a73-9ee7-3006bf7f0881',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'EditorJS/index.jsx:renderFromYDoc:guard1',message:'EARLY EXIT: missing collab deps',data:{collabEnabled,hasYBlocksMap:!!yBlocksMap,hasYDoc:!!yDoc},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
       return;
     }
 
-    // Reconstruct EditorJS data from Y.Map
-    const blockIds = Array.from(yBlocksMap.keys());
-    console.log('[Magic Editor X] [DATA] Y.Map block count:', blockIds.length);
-    
-    if (blockIds.length === 0) {
-      console.log('[Magic Editor X] [SKIP] Skipping - no blocks in Y.Map');
+    const editor = editorInstanceRef.current;
+
+    // If editor not yet instantiated or not ready, queue the sync and exit
+    if (!editor || !isReadyRef.current) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/12c1170b-f275-4a73-9ee7-3006bf7f0881',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'EditorJS/index.jsx:renderFromYDoc:guard2',message:'EARLY EXIT: editor not ready',data:{hasEditor:!!editor,isReady:isReadyRef.current},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'D'})}).catch(()=>{});
+      // #endregion
+      pendingRenderRef.current = pendingRenderRef.current || true;
       return;
     }
+
+    // Prevent echo loops
+    if (isApplyingRemoteRef.current) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/12c1170b-f275-4a73-9ee7-3006bf7f0881',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'EditorJS/index.jsx:renderFromYDoc:guard3',message:'EARLY EXIT: isApplyingRemote is true (race condition)',data:{isApplyingRemote:true},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
+      return;
+    }
+    
+    // Lock rendering
+    isApplyingRemoteRef.current = true;
 
     try {
-      // Get metadata (time, version, blockOrder)
-      const blockOrder = yMetaMap?.get('blockOrder') || blockIds;
-      const time = yMetaMap?.get('time') || Date.now();
+      // 1. Get Target State (Yjs)
+      // Read block order from Y.Map (NOT Y.Array to avoid CRDT delete conflicts)
+      let yOrder = [];
+      const blockOrderJson = yMetaMap?.get('blockOrder');
+      if (blockOrderJson) {
+        try {
+          yOrder = JSON.parse(blockOrderJson);
+        } catch (e) {
+          console.warn('[Magic Editor X] Invalid blockOrder JSON, falling back to Map keys');
+          yOrder = Array.from(yBlocksMap.keys());
+        }
+      } else {
+        // Fallback to Map keys if no order stored
+        yOrder = Array.from(yBlocksMap.keys());
+      }
       
-      // Reconstruct blocks array in correct order
-      const blocks = [];
-      for (const blockId of blockOrder) {
-        const blockJson = yBlocksMap.get(blockId);
-        if (blockJson) {
+      const yBlocks = []; // Array of { id, type, data }
+      
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/12c1170b-f275-4a73-9ee7-3006bf7f0881',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'EditorJS/index.jsx:renderFromYDoc:yState',message:'Y.js state before parsing',data:{blockOrderFromMeta:!!blockOrderJson,yBlocksMapSize:yBlocksMap?.size,yOrder:yOrder,yBlocksMapKeys:Array.from(yBlocksMap?.keys()||[])},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'C'})}).catch(()=>{});
+      // #endregion
+      
+      // Filter out invalid/deleted blocks and parse JSON
+      yOrder.forEach((id) => {
+        const json = yBlocksMap.get(id);
+        if (json) {
           try {
-            const block = JSON.parse(blockJson);
-            blocks.push(block);
-          } catch (parseErr) {
-            console.warn('[Magic Editor X] [WARNING] Could not parse block:', blockId, parseErr.message);
+            const block = JSON.parse(json);
+            yBlocks.push(block);
+          } catch (e) {
+            console.warn('[Magic Editor X] Invalid block JSON:', id);
           }
         }
-      }
-      
-      // Also add any blocks not in blockOrder (new blocks from other users)
-      for (const blockId of blockIds) {
-        if (!blockOrder.includes(blockId)) {
-          const blockJson = yBlocksMap.get(blockId);
-          if (blockJson) {
-            try {
-              blocks.push(JSON.parse(blockJson));
-            } catch (parseErr) {
-              console.warn('[Magic Editor X] [WARNING] Could not parse new block:', blockId);
-            }
-          }
-        }
-      }
-      
-      const parsed = { time, blocks };
-      const serialized = JSON.stringify(parsed);
-      
-      console.log('[Magic Editor X] [SUCCESS] Reconstructed', blocks.length, 'blocks from Y.Map');
+      });
 
-      // Check if this is the same content we already have
-      if (serialized === lastSerializedValueRef.current) {
-        console.log('[Magic Editor X] [SKIP] Skipping - content unchanged from last render');
-        return;
-      }
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/12c1170b-f275-4a73-9ee7-3006bf7f0881',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'EditorJS/index.jsx:renderFromYDoc:parsed',message:'Parsed yBlocks from Y.Map',data:{yBlocksCount:yBlocks.length,yBlockIds:yBlocks.map(b=>b.id),yBlockTypes:yBlocks.map(b=>b.type)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
 
-      if (!editorInstanceRef.current) {
-        console.warn('[Magic Editor X] Editor instance not available, queuing update');
-        pendingRenderRef.current = parsed;
-        return;
-      }
+      const parsed = { blocks: yBlocks };
+      const normalizedParsed = serializeForCompare(parsed);
 
-      console.log('[Magic Editor X] [APPLY] Applying remote update with', blocks.length, 'blocks');
-
-      // Set flag BEFORE starting any async operations
-      isApplyingRemoteRef.current = true;
-      
-      try {
-        // Wait for editor to be ready
-        await editorInstanceRef.current.isReady;
-        console.log('[Magic Editor X] [SUCCESS] Editor is ready');
-        
-        // Get current state for comparison
-        const currentBlockCount = editorInstanceRef.current.blocks.getBlocksCount();
-        console.log('[Magic Editor X] [DATA] Current block count:', currentBlockCount);
-        
-        // Use editor.render() directly - it automatically replaces all content
-        console.log('[Magic Editor X] [RENDER] Calling editor.render() with', blocks.length, 'blocks');
-        await editorInstanceRef.current.render(parsed);
-        
-        // Verify what's in the editor after render
-        const newBlockCount = editorInstanceRef.current.blocks.getBlocksCount();
-        console.log('[Magic Editor X] [SUCCESS] Successfully rendered! New block count:', newBlockCount);
-        
-        // Update our tracking state
-        setBlocksCount(blocks.length);
+      const renderFull = async () => {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/12c1170b-f275-4a73-9ee7-3006bf7f0881',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'EditorJS/index.jsx:renderFull:start',message:'FULL RENDER triggered',data:{blocksToRender:yBlocks.length,blockIds:yBlocks.map(b=>b.id)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'E'})}).catch(()=>{});
+        // #endregion
+        await editor.render(parsed);
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/12c1170b-f275-4a73-9ee7-3006bf7f0881',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'EditorJS/index.jsx:renderFull:done',message:'FULL RENDER completed',data:{newBlockCount:editor.blocks.getBlocksCount()},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'E'})}).catch(()=>{});
+        // #endregion
+        lastSerializedValueRef.current = normalizedParsed;
+        setBlocksCount(yBlocks.length);
         calculateStats(parsed);
-        lastSerializedValueRef.current = serialized;
+      };
 
-        // Update Strapi form state
-        if (blocks.length === 0) {
-          onChange({ target: { name, value: null, type: 'text' } });
-        } else {
-          onChange({ target: { name, value: serialized, type: 'text' } });
+      // 2. Get Current State (Editor.js)
+      const blockCount = editor.blocks.getBlocksCount();
+      const currentBlocks = []; // Array of { id, index }
+      
+      for (let i = 0; i < blockCount; i++) {
+        const block = editor.blocks.getBlockByIndex(i);
+        if (block) {
+          currentBlocks.push({ id: block.id, index: i });
         }
-        
-      } catch (renderError) {
-        console.error('[Magic Editor X] [ERROR] Error rendering blocks:', renderError);
-        console.error('[Magic Editor X] [ERROR] Error details:', renderError.message, renderError.stack);
-        throw renderError;
-      } finally {
-        // Keep flag true for a short delay to catch any delayed onChange events
-        setTimeout(() => {
-          isApplyingRemoteRef.current = false;
-          console.log('[Magic Editor X] [FLAG] isApplyingRemoteRef released');
-        }, 100);
       }
+
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/12c1170b-f275-4a73-9ee7-3006bf7f0881',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'EditorJS/index.jsx:renderFromYDoc:comparison',message:'Comparing editor vs Y.js state',data:{editorBlockCount:blockCount,yBlocksCount:yBlocks.length,editorBlockIds:currentBlocks.map(b=>b.id),yBlockIds:yBlocks.map(b=>b.id)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'E'})}).catch(()=>{});
+      // #endregion
+
+      // If structure differs by count, fall back to full render
+      if (blockCount !== yBlocks.length) {
+        console.log('[Magic Editor X] [SYNC] Structural change detected (count mismatch). Falling back to full render.');
+        await renderFull();
+        return;
+      }
+
+      // Validate order and existence; if mismatch, render full
+      const targetIds = yBlocks.map((b) => b.id);
+      const orderMatches = targetIds.every((id, idx) => currentBlocks[idx]?.id === id);
+      const allIdsPresent = targetIds.every((id) => yBlocksMap.has(id));
+
+      if (!orderMatches || !allIdsPresent) {
+        console.log('[Magic Editor X] [SYNC] Order mismatch detected. Falling back to full render.');
+        await renderFull();
+        return;
+      }
+
+      // 3. Content updates only (structure is validated above)
+      const activeBlockIndex = editor.blocks.getCurrentBlockIndex();
+
+      for (let i = 0; i < yBlocks.length; i++) {
+        const targetBlock = yBlocks[i];
+        const currentBlock = editor.blocks.getBlockByIndex(i);
+
+        // If something drifted mid-sync, fall back to full render
+        if (!currentBlock || currentBlock.id !== targetBlock.id) {
+          console.log('[Magic Editor X] [SYNC] Unexpected block mismatch during update, rerendering.');
+          await renderFull();
+          return;
+        }
+
+        // Do not overwrite the block the user is currently editing
+        if (activeBlockIndex === i) {
+          continue;
+        }
+
+        try {
+          editor.blocks.update(targetBlock.id, targetBlock.data);
+        } catch (e) {
+          console.warn('[Magic Editor X] [SYNC] Block update failed, rerendering:', targetBlock.id, e);
+          await renderFull();
+          return;
+        }
+      }
+
+      // Update stats and cache
+      lastSerializedValueRef.current = normalizedParsed;
+      setBlocksCount(yBlocks.length);
+      calculateStats(parsed);
       
     } catch (error) {
-      console.error('[Magic Editor X] [ERROR] Could not apply realtime update:', error.message);
+      console.error('[Magic Editor X] [SYNC] Error in smart sync:', error);
+    } finally {
+      // Release lock
       isApplyingRemoteRef.current = false;
     }
-  }, [calculateStats, collabEnabled, name, onChange, yBlocksMap, yMetaMap, yDoc]);
+  }, [collabEnabled, yBlocksMap, yDoc, yMetaMap]);
 
   // Keep the ref updated so the callback in useMagicCollaboration can call it
   useEffect(() => {
@@ -2405,24 +2510,29 @@ const Editor = forwardRef(({
       console.log('[Magic Editor X] [DOC] Pushing', blocks.length, 'blocks to Y.Map');
 
       yDoc.transact(() => {
-        // Track which block IDs are in current content
-        const currentBlockIds = new Set(blocks.map(b => b.id));
-        
-        // Remove blocks that no longer exist
-        const existingIds = Array.from(yBlocksMap.keys());
-        for (const existingId of existingIds) {
-          if (!currentBlockIds.has(existingId)) {
-            yBlocksMap.delete(existingId);
-            console.log('[Magic Editor X] [DELETE] Removed block:', existingId);
-          }
-        }
-        
-        // Update or add blocks
+        // Normalize blocks to unique IDs (drop duplicates/invalid)
+        const uniqueBlocks = [];
+        const currentBlockIds = new Set();
         for (const block of blocks) {
-          if (!block.id) {
+          if (!block?.id) {
             console.warn('[Magic Editor X] [WARNING] Block without ID, skipping');
             continue;
           }
+          if (currentBlockIds.has(block.id)) {
+            console.warn('[Magic Editor X] [WARNING] Duplicate block ID detected, keeping first occurrence:', block.id);
+            continue;
+          }
+          currentBlockIds.add(block.id);
+          uniqueBlocks.push(block);
+        }
+        
+        // NOTE: We do NOT delete blocks from Y.Map!
+        // Deleting from Y.Map causes CRDT conflicts - delete operations propagate to other clients
+        // and delete THEIR blocks. Instead, blockOrder in metaMap determines which blocks are visible.
+        // Blocks not in blockOrder are effectively "soft deleted" without CRDT conflicts.
+        
+        // Update or add blocks (NEVER delete)
+        for (const block of uniqueBlocks) {
           const blockJson = JSON.stringify(block);
           const existing = yBlocksMap.get(block.id);
           if (existing !== blockJson) {
@@ -2430,10 +2540,15 @@ const Editor = forwardRef(({
           }
         }
         
-        // Update metadata
+        // Update metadata including block order
+        // IMPORTANT: Store blockOrder in Y.Map (NOT Y.Array) to avoid CRDT delete conflicts
+        // Y.Array delete operations propagate to other clients and cause data loss
         if (yMetaMap) {
           yMetaMap.set('time', time);
-          yMetaMap.set('blockOrder', blocks.map(b => b.id));
+          // Store block order as JSON string - last-write-wins semantics
+          const newOrder = uniqueBlocks.map(b => b.id);
+          yMetaMap.set('blockOrder', JSON.stringify(newOrder));
+          console.log('[Magic Editor X] [ORDER] Updated block order in Y.Map:', newOrder.length, 'blocks');
         }
       }, 'local');
       
@@ -2502,25 +2617,65 @@ const Editor = forwardRef(({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isFullscreen, toggleFullscreen]);
 
-  // AI Assistant - open popup with selected text
+  // AI Assistant - show inline toolbar with selected text
   const handleAIAssistant = useCallback(() => {
     const selection = window.getSelection();
-    const text = selection?.toString().trim();
+    let text = selection?.toString().trim();
+    
+    // If no text selected, try to select current block
+    if (!text && editorInstanceRef.current && isReady) {
+      const currentBlockIndex = editorInstanceRef.current.blocks.getCurrentBlockIndex();
+      const currentBlock = editorInstanceRef.current.blocks.getBlockByIndex(currentBlockIndex);
+      if (currentBlock) {
+        const blockElement = currentBlock.holder?.querySelector('[contenteditable]') || 
+                            currentBlock.holder?.querySelector('.ce-paragraph') ||
+                            currentBlock.holder?.querySelector('.ce-header');
+        if (blockElement) {
+          text = blockElement.textContent?.trim() || '';
+          if (text) {
+            const range = document.createRange();
+            range.selectNodeContents(blockElement);
+            selection.removeAllRanges();
+            selection.addRange(range);
+          }
+        }
+      }
+    }
     
     if (!text) {
-      // No text selected - show hint
-      alert('Bitte markiere zuerst Text im Editor, um die KI-Korrektur zu nutzen.');
+      toastManager.warning('Bitte Text markieren');
       return;
     }
     
     // Save the selection range for later restoration
     if (selection.rangeCount > 0) {
       aiSelectionRangeRef.current = selection.getRangeAt(0).cloneRange();
+      
+      // Calculate toolbar position - getBoundingClientRect is relative to viewport
+      // position: fixed also uses viewport coordinates, so no scrollY needed
+      const rect = selection.getRangeAt(0).getBoundingClientRect();
+      const toolbarWidth = 450; // Approximate toolbar width
+      
+      let left = rect.left + (rect.width / 2) - (toolbarWidth / 2);
+      let top = rect.bottom + 10; // 10px below selection
+      
+      // Keep in viewport horizontally
+      if (left < 10) left = 10;
+      if (left + toolbarWidth > window.innerWidth - 10) {
+        left = window.innerWidth - toolbarWidth - 10;
+      }
+      
+      // If toolbar would go below viewport, show above selection
+      if (top + 60 > window.innerHeight) {
+        top = rect.top - 60;
+      }
+      
+      setAIToolbarPosition({ left, top });
     }
     
     setAISelectedText(text);
-    setShowAIPopup(true);
-  }, []);
+    setShowAIToolbar(true);
+  }, [isReady]);
 
   // Insert block
   const handleInsertBlock = useCallback((blockType) => {
@@ -2557,6 +2712,10 @@ const Editor = forwardRef(({
     if (window.confirm('Clear all content? This cannot be undone.')) {
       await editorInstanceRef.current.clear();
       const emptyPayload = JSON.stringify({ blocks: [] });
+      
+      // Update lastSerializedValueRef so onChange doesn't re-push
+      lastSerializedValueRef.current = emptyPayload;
+      
       pushLocalToCollab(emptyPayload);
       onChange({ target: { name, value: null, type: 'text' } });
       setBlocksCount(0);
@@ -2616,8 +2775,10 @@ const Editor = forwardRef(({
         autofocus: false,
         
         onReady: async () => {
+          isReadyRef.current = true;
           setIsReady(true);
           console.log('[Magic Editor X] [READY] Editor onReady fired');
+          console.log('[Magic Editor X] [READY] Editor holder:', editorRef.current?.id);
           
           // Initialize Undo/Redo plugin
           try {
@@ -2637,16 +2798,23 @@ const Editor = forwardRef(({
           
           if (pendingRenderRef.current) {
             try {
-              console.log('[Magic Editor X] [PENDING] Rendering pending data with', pendingRenderRef.current?.blocks?.length, 'blocks');
-              isApplyingRemoteRef.current = true;
-              // Use editor.render() directly - it handles clearing and rendering atomically
-              await editor.render(pendingRenderRef.current);
-              console.log('[Magic Editor X] [SUCCESS] Rendered pending blocks on ready');
-              setTimeout(() => {
-                isApplyingRemoteRef.current = false;
-              }, 100);
+              // If pendingRenderRef holds a full payload (legacy path), render it; otherwise trigger fresh sync
+              if (typeof pendingRenderRef.current === 'object' && pendingRenderRef.current.blocks) {
+                console.log('[Magic Editor X] [PENDING] Rendering pending data with', pendingRenderRef.current?.blocks?.length, 'blocks');
+                isApplyingRemoteRef.current = true;
+                try {
+                  await editor.render(pendingRenderRef.current);
+                  lastSerializedValueRef.current = serializeForCompare(pendingRenderRef.current);
+                  console.log('[Magic Editor X] [SUCCESS] Rendered pending blocks on ready');
+                } finally {
+                  isApplyingRemoteRef.current = false;
+                }
+              } else {
+                console.log('[Magic Editor X] [PENDING] Triggering queued sync after onReady');
+                await renderFromYDocRef.current?.();
+              }
             } catch (err) {
-              console.error('[Magic Editor X] Error rendering pending blocks:', err);
+              console.error('[Magic Editor X] Error applying pending sync:', err);
               isApplyingRemoteRef.current = false;
             }
             pendingRenderRef.current = null;
@@ -2655,21 +2823,19 @@ const Editor = forwardRef(({
 
         onChange: async (api) => {
           try {
-            const outputData = await api.saver.save();
-            const count = outputData.blocks?.length || 0;
-            const serialized = JSON.stringify(outputData);
-            
-            console.log('[Magic Editor X] [CHANGE] onChange fired - blocks:', count, 'isApplyingRemote:', isApplyingRemoteRef.current);
-            
-            // Skip if this is from a remote update being applied
+            // FIRST: Skip if remote update is being applied
+            // This prevents render() from triggering a push back
             if (isApplyingRemoteRef.current) {
-              console.log('[Magic Editor X] [SKIP] Skipping onChange - remote update in progress');
               return;
             }
             
-            // Skip if content hasn't actually changed
-            if (serialized === lastSerializedValueRef.current) {
-              console.log('[Magic Editor X] [SKIP] Skipping onChange - content unchanged');
+            const outputData = await api.saver.save();
+            const count = outputData.blocks?.length || 0;
+            const serialized = JSON.stringify(outputData);
+            const normalized = serializeForCompare(outputData);
+            
+            // Skip if content hasn't actually changed (ignoring volatile fields)
+            if (normalized === lastSerializedValueRef.current) {
               return;
             }
             
@@ -2679,10 +2845,9 @@ const Editor = forwardRef(({
             const docPayload = count === 0 ? JSON.stringify({ blocks: [] }) : serialized;
 
             // Push to collaboration
-            console.log('[Magic Editor X] [PUSH] Pushing local change to collaboration');
-              pushLocalToCollabRef.current?.(docPayload);
+            pushLocalToCollabRef.current?.(docPayload);
 
-            lastSerializedValueRef.current = serialized;
+            lastSerializedValueRef.current = normalized;
             
             if (count === 0) {
               onChange({ target: { name, value: null, type: 'text' } });
@@ -2699,8 +2864,15 @@ const Editor = forwardRef(({
     }
 
     return () => {
+      console.log('[Magic Editor X] [CLEANUP] Editor component unmounting, destroying editor');
+      isReadyRef.current = false;
+      setIsReady(false);
       if (editorInstanceRef.current && editorInstanceRef.current.destroy) {
-        editorInstanceRef.current.destroy();
+        try {
+          editorInstanceRef.current.destroy();
+        } catch (e) {
+          console.warn('[Magic Editor X] Error destroying editor:', e);
+        }
         editorInstanceRef.current = null;
       }
       document.body.classList.remove('editor-fullscreen');
@@ -2764,6 +2936,7 @@ const Editor = forwardRef(({
     <Field.Root name={name} id={name} error={error} required={required} hint={hint}>
       <FullscreenGlobalStyle />
       <EditorJSGlobalStyles />
+      <AIToast />
       
       {label && !isFullscreen && (
         <Field.Label action={labelAction}>
@@ -2914,7 +3087,8 @@ const Editor = forwardRef(({
               $minHeight={editorHeight}
             />
             
-            {isReady && blocksCount === 0 && (
+            {/* Only show EmptyState when NOT in collaboration mode - prevents blocking remote content */}
+            {isReady && blocksCount === 0 && !collabEnabled && (
               <EmptyState>
                 <EmptyIcon>
                   <PencilSquareIcon />
@@ -2973,6 +3147,31 @@ const Editor = forwardRef(({
         onToggle={mediaLibToggleFunc}
       />
       
+      {/* AI Inline Toolbar - New Smart UI */}
+      {showAIToolbar && (
+        <AIInlineToolbar
+          position={aiToolbarPosition}
+          onAction={async (action, options) => {
+            setAILoading(true);
+            const success = await handleAIAction(action, options, {
+              text: aiSelectedText,
+              range: aiSelectionRangeRef.current,
+            });
+            setAILoading(false);
+            if (success) {
+              setShowAIToolbar(false);
+              aiSelectionRangeRef.current = null;
+            }
+          }}
+          loading={aiLoading}
+          onClose={() => {
+            setShowAIToolbar(false);
+            aiSelectionRangeRef.current = null;
+          }}
+        />
+      )}
+      
+      {/* Old AI Popup - Kept for backward compatibility */}
       {showAIPopup && (
         <AIAssistantPopup
           selectedText={aiSelectedText}
@@ -2997,6 +3196,16 @@ const Editor = forwardRef(({
           }}
         />
       )}
+      
+      {/* Credits Modal - Shows when no credits available */}
+      <CreditsModal
+        isOpen={showCreditsModal}
+        onClose={() => {
+          setShowCreditsModal(false);
+          setCreditsUpgradeInfo(null);
+        }}
+        upgradeInfo={creditsUpgradeInfo}
+      />
     </Field.Root>
   );
 });

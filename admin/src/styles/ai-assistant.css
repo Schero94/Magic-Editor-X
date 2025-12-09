@@ -1,0 +1,164 @@
+/**
+ * AI Assistant Styles for Editor.js
+ * Inline toolbar, suggestions, and tooltips
+ */
+
+/* AI Suggestion Underlines */
+.ai-suggestion {
+  text-decoration: underline wavy;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  position: relative;
+  transition: background 0.15s ease;
+}
+
+.ai-suggestion[data-type="grammar"],
+.ai-suggestion[data-type="spelling"] {
+  text-decoration-color: #ef4444;
+}
+
+.ai-suggestion[data-type="style"] {
+  text-decoration-color: #f59e0b;
+}
+
+.ai-suggestion[data-type="suggestion"] {
+  text-decoration-color: #3b82f6;
+}
+
+.ai-suggestion:hover {
+  background: rgba(124, 58, 237, 0.1);
+  border-radius: 2px;
+}
+
+/* AI Inline Toolbar Container */
+.ai-inline-toolbar-container {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* Editor.js Inline Tool Button Customization */
+.ce-inline-tool--ai-assistant {
+  position: relative;
+}
+
+.ce-inline-tool--ai-assistant svg {
+  color: #7C3AED;
+}
+
+.ce-inline-tool--ai-assistant:hover svg {
+  color: #6d28d9;
+}
+
+/* Loading State for AI Tool Button */
+.ce-inline-tool--ai-assistant.loading svg {
+  animation: ai-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes ai-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* Editor Block Hover Effect (for AI suggestions) */
+.codex-editor__redactor .ce-block:hover .ai-suggestion {
+  text-decoration-color: rgba(239, 68, 68, 0.8);
+}
+
+.codex-editor__redactor .ce-block:hover .ai-suggestion[data-type="style"] {
+  text-decoration-color: rgba(245, 158, 11, 0.8);
+}
+
+.codex-editor__redactor .ce-block:hover .ai-suggestion[data-type="suggestion"] {
+  text-decoration-color: rgba(59, 130, 246, 0.8);
+}
+
+/* Tooltip Accessibility */
+.ai-suggestion:focus {
+  outline: 2px solid #7C3AED;
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+  .ai-inline-toolbar-container > div {
+    max-width: calc(100vw - 40px);
+    left: 20px !important;
+    right: 20px !important;
+  }
+  
+  .ai-inline-toolbar-container button span {
+    display: none;
+  }
+  
+  .ai-inline-toolbar-container button {
+    padding: 6px 8px;
+  }
+}
+
+/* Print Styles - Hide AI suggestions when printing */
+@media print {
+  .ai-suggestion {
+    text-decoration: none !important;
+  }
+  
+  .ai-inline-toolbar-container {
+    display: none !important;
+  }
+}
+
+/* Dark Mode Support (if Strapi admin is in dark mode) */
+@media (prefers-color-scheme: dark) {
+  .ai-inline-toolbar-container > div {
+    background: #1e293b;
+    border-color: #334155;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  }
+  
+  .ai-inline-toolbar-container button {
+    color: #e2e8f0;
+  }
+  
+  .ai-inline-toolbar-container button:hover {
+    background: #334155;
+    color: #a78bfa;
+  }
+}
+
+/* Smooth Transitions */
+.ai-suggestion,
+.ai-inline-toolbar-container button {
+  transition: all 0.15s ease;
+}
+
+/* Selection Highlight Enhancement */
+::selection {
+  background: rgba(124, 58, 237, 0.2);
+}
+
+::-moz-selection {
+  background: rgba(124, 58, 237, 0.2);
+}
+
+/* Custom Scrollbar for AI Tooltips */
+.ai-tooltip-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.ai-tooltip-content::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 3px;
+}
+
+.ai-tooltip-content::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+.ai-tooltip-content::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}

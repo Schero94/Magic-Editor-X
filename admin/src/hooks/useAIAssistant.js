@@ -271,7 +271,7 @@ export const useAIAssistant = (licenseKey) => {
     credits,
     lastResult,
     
-    // Core methods
+    // Core methods - all AI actions go through correct() with different types
     correct,
     getUsage,
     getCredits,
@@ -335,8 +335,15 @@ export class MagicEditorAPI {
     return data;
   }
 
+  /**
+   * Perform text correction/transformation
+   * All AI actions go through this endpoint with different types
+   * @param {string} text - Text to process
+   * @param {string} type - Type: 'grammar' | 'style' | 'rewrite' | 'expand' | 'summarize' | 'continue' | 'translate'
+   * @param {object} options - Additional options (tone, language, etc.)
+   * @returns {Promise<object>} Result with corrected text
+   */
   async correct(text, type = 'grammar', options = {}) {
-    // License key in body for POST
     return this.request('/correct', {
       method: 'POST',
       body: JSON.stringify({ text, type, options, licenseKey: this.licenseKey }),

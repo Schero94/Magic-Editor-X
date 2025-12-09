@@ -28,6 +28,18 @@
 
 ---
 
+## Screenshots
+
+> Hinweis: Bilder werden über GitHub Raw ausgeliefert, damit sie auch auf npm sichtbar sind.
+
+![Editor Overview](https://raw.githubusercontent.com/Schero94/magic-editor-x/refs/heads/main/pics/editorX.png)
+
+![Collaboration Panel](https://raw.githubusercontent.com/Schero94/magic-editor-x/refs/heads/main/pics/collab-magiceditorX.png)
+
+![Live Collaboration Widget](https://raw.githubusercontent.com/Schero94/magic-editor-x/refs/heads/main/pics/liveCollabwidget1.png)
+
+---
+
 ## Pricing
 
 Magic Editor X offers a freemium model. **The editor itself is completely FREE** - you only pay for extended collaboration features.
@@ -87,6 +99,15 @@ npm run develop
 3. Go to **Custom** tab
 4. Select **Magic Editor X**
 5. Configure options and save!
+
+---
+
+## Repository Structure (Kurzüberblick)
+
+- `admin/` – Strapi Admin UI (React), Editor.js Integration, Collaboration UI, AI-Hooks, Einstellungen.
+- `server/` – Strapi Server (Services, Controller, Routes) für Editor, Lizenz, Realtime (Y.js + Socket.io).
+- `pics/` – Screenshots für README (werden per GitHub Raw eingebunden).
+- `strapi-admin.js` / `strapi-server.js` – Strapi Plugin Entry Points.
 
 ---
 
