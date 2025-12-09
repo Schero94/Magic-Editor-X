@@ -86,7 +86,8 @@ module.exports = async ({ strapi }) => {
     const autoParseJSON = pluginConfig.api?.autoParseJSON !== false; // Default: true
     
     if (autoParseJSON) {
-      strapi.server.use(strapi.plugin('magic-editor-x').middleware('parse-editor-fields')());
+      const parseMiddleware = strapi.plugin('magic-editor-x').middleware('parse-editor-fields');
+      strapi.server.use(parseMiddleware({}, { strapi }));
       strapi.log.info('[Magic Editor X] [SUCCESS] Auto-parse middleware registered (api.autoParseJSON: true)');
     } else {
       strapi.log.info('[Magic Editor X] [INFO] Auto-parse middleware disabled (api.autoParseJSON: false)');
