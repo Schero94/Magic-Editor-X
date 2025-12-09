@@ -1,3 +1,10 @@
+## [1.1.1](https://github.com/Schero94/magic-editor-x/compare/v1.1.0...v1.1.1) (2025-12-09)
+
+
+### Bug Fixes
+
+* parse middleware context ([fdf3ada](https://github.com/Schero94/magic-editor-x/commit/fdf3adabe7f2a9eb0542c2d4764e4f198745bb6f))
+
 # [1.1.0](https://github.com/Schero94/magic-editor-x/compare/v1.0.0...v1.1.0) (2025-12-09)
 
 
