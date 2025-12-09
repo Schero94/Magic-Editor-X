@@ -79,6 +79,18 @@ module.exports = async ({ strapi }) => {
     // Start realtime server
     await strapi.plugin('magic-editor-x').service('realtimeService').initSocketServer();
     strapi.log.info('[Magic Editor X] [SUCCESS] Realtime server started');
+
+    // Register middleware to auto-parse Editor.js JSON fields in API responses
+    // This transforms JSON strings to objects for better developer experience
+    const pluginConfig = strapi.config.get('plugin::magic-editor-x') || {};
+    const autoParseJSON = pluginConfig.api?.autoParseJSON !== false; // Default: true
+    
+    if (autoParseJSON) {
+      strapi.server.use(strapi.plugin('magic-editor-x').middleware('parse-editor-fields')());
+      strapi.log.info('[Magic Editor X] [SUCCESS] Auto-parse middleware registered (api.autoParseJSON: true)');
+    } else {
+      strapi.log.info('[Magic Editor X] [INFO] Auto-parse middleware disabled (api.autoParseJSON: false)');
+    }
   } catch (error) {
     strapi.log.error('[Magic Editor X] [ERROR] Bootstrap failed:', error);
   }

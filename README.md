@@ -387,6 +387,11 @@ export default () => ({
         allowedAdminRoles: ['strapi-super-admin'],
         allowedAdminUserIds: [],
       },
+
+      // API Response Settings
+      api: {
+        autoParseJSON: true, // Auto-parse JSON strings to objects in API responses
+      },
     },
   },
 });
@@ -478,6 +483,11 @@ interface MagicEditorXConfig {
   // Link Preview Settings
   linkPreviewTimeout?: number; // Milliseconds, default: 10000
   
+  // API Response Settings
+  api?: {
+    autoParseJSON: boolean; // Auto-parse JSON strings to objects, default: true
+  };
+  
   // Collaboration Settings
   collaboration?: {
     enabled: boolean; // Default: true
@@ -504,6 +514,76 @@ When adding the field in Content-Type Builder:
 - **Minimum Height** - Editor height in pixels (default: 300)
 - **Max Length** - Maximum characters (optional)
 - **Min Length** - Minimum characters (optional)
+
+---
+
+## API Response Format
+
+### Automatic JSON Parsing
+
+Magic Editor X automatically transforms JSON string fields into structured objects in API responses for better developer experience.
+
+**Without auto-parsing (raw Strapi response):**
+```json
+{
+  "data": {
+    "id": 1,
+    "documentId": "abc123",
+    "editorX": "{\"time\":1699999999999,\"blocks\":[{\"id\":\"xyz\",\"type\":\"paragraph\",\"data\":{\"text\":\"Hello\"}}],\"version\":\"2.31.0\"}"
+  }
+}
+```
+
+**With auto-parsing (Magic Editor X middleware active):**
+```json
+{
+  "data": {
+    "id": 1,
+    "documentId": "abc123",
+    "editorX": {
+      "time": 1699999999999,
+      "blocks": [
+        {
+          "id": "xyz",
+          "type": "paragraph",
+          "data": {
+            "text": "Hello"
+          }
+        }
+      ],
+      "version": "2.31.0"
+    }
+  }
+}
+```
+
+**Configuration:**
+
+Auto-parsing is enabled by default. To disable it, add to `config/plugins.ts`:
+
+```typescript
+{
+  'magic-editor-x': {
+    config: {
+      api: {
+        autoParseJSON: false // Disable automatic JSON parsing
+      }
+    }
+  }
+}
+```
+
+**Manual Parsing (if auto-parse is disabled):**
+
+```javascript
+// Client-side parsing
+const response = await fetch('/api/articles/1');
+const data = await response.json();
+
+// Parse Editor.js field manually
+const editorContent = JSON.parse(data.data.editorX);
+console.log(editorContent.blocks); // Array of blocks
+```
 
 ---
 

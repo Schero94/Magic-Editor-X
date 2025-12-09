@@ -3,4 +3,8 @@
  */
 'use strict';
 
-module.exports = {};
+const parseEditorFields = require('./parse-editor-fields');
+
+module.exports = {
+  'parse-editor-fields': parseEditorFields,
+};

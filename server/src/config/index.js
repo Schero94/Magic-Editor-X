@@ -45,6 +45,11 @@ module.exports = {
       allowedAdminRoles: ['strapi-super-admin'],
       allowedAdminUserIds: [],
     },
+
+    // API Response Settings
+    api: {
+      autoParseJSON: true, // Automatically parse Editor.js JSON strings to objects in API responses
+    },
   },
   
   validator: (config) => {
