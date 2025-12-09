@@ -1,3 +1,10 @@
+# [1.1.0](https://github.com/Schero94/magic-editor-x/compare/v1.0.0...v1.1.0) (2025-12-09)
+
+
+### Features
+
+* add automatic JSON parsing middleware for API responses ([135e8bb](https://github.com/Schero94/magic-editor-x/commit/135e8bb9504630a30d176522cf15383c0a0bffeb))
+
 # 1.0.0 (2025-12-09)
 
 
