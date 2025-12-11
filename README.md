@@ -9,6 +9,15 @@
 
 ---
 
+## 🆕 What's New in v1.2.0
+
+- **Character-Level Collaboration** - Multiple users can now type in the same paragraph simultaneously without conflicts
+- **Webtools Links Integration** - Optional integration with PluginPal's Webtools Links addon for internal/external link management
+- **Improved Fullscreen Mode** - Blocks now stretch to full width, Media Library modal works correctly
+- **Performance Improvements** - Removed debug logging, optimized Y.js sync
+
+---
+
 ## Introduction
 
 Magic Editor X is a production-ready Strapi v5 Custom Field that brings the power of Editor.js to your content management workflow. Unlike traditional WYSIWYG replacements or plugins that override Strapi's default editor, Magic Editor X integrates as a **proper Custom Field** in Strapi's Content-Type Builder, giving you complete control over when and where to use it.
@@ -59,13 +68,16 @@ admin/
 ├── src/
 │   ├── components/
 │   │   ├── EditorJS/           # Main editor component
-│   │   ├── EditorTools/        # Custom tools (Button, Hyperlink, AI)
+│   │   ├── EditorTools/        # Custom tools (Button, Hyperlink, AI, WebtoolsLink)
 │   │   ├── MediaLib/           # Strapi Media Library adapter
 │   │   └── LiveCollaborationPanel.jsx  # Collaboration UI
 │   ├── hooks/
 │   │   ├── useMagicCollaboration.js    # Y.js & Socket.io integration
+│   │   ├── useWebtoolsLinks.js         # 🆕 Webtools Links addon integration
 │   │   ├── useAIAssistant.js           # AI features
 │   │   └── useLicense.js               # License management
+│   ├── utils/
+│   │   └── YTextBinding.js     # 🆕 Y.Text <-> contenteditable binding
 │   ├── config/
 │   │   └── tools.js            # Editor.js tools configuration
 │   └── index.js                # Plugin registration
@@ -186,6 +198,26 @@ Magic Editor X uses Y.js, a battle-tested CRDT implementation, to enable true re
 4. **Server Broadcast** - Server distributes operations to all connected clients
 5. **Automatic Merge** - Y.js guarantees conflict-free merges (no "last write wins")
 6. **Persistence** - Changes are stored in IndexedDB for offline capability
+
+**🆕 Character-Level Collaboration (v1.2.0)**
+
+Starting with v1.2.0, Magic Editor X supports **simultaneous editing within the same block**. Multiple users can type in the same paragraph at the same time without conflicts:
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  Before v1.2.0: Block-Level Sync                        │
+│  User A edits Block 1 → User B's Block 1 changes lost   │
+├─────────────────────────────────────────────────────────┤
+│  After v1.2.0: Character-Level Sync                     │
+│  User A types "Hello" → User B types "World" → "HelloWorld" │
+│  Both changes merge seamlessly!                          │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Hybrid Data Structure:**
+- `Y.Map` for block metadata (type, tunes, order)
+- `Y.Text` for character-level content (rich text with formatting)
+- `Y.Map` for document metadata (blockOrder, timestamps)
 
 **Example: Collaborative Editing Flow**
 
@@ -315,7 +347,44 @@ class MediaLibAdapter {
 }
 ```
 
-### 5. AI-Powered Features (Premium)
+### 5. Webtools Links Integration (Optional)
+
+Magic Editor X integrates seamlessly with the [Webtools Links addon](https://www.pluginpal.io/plugin/webtools) by PluginPal for enhanced link management:
+
+**Features:**
+- 🔗 **Internal Link Picker** - Select pages/entries from your Strapi content
+- 🌐 **External URL Support** - Paste external URLs with validation
+- ✏️ **Edit Existing Links** - Click on a link to edit its URL and text
+- 🔍 **Link Detection** - Automatically detects when cursor is inside a link
+
+**Setup:**
+
+1. Install the Webtools Links addon (requires Webtools license)
+2. Magic Editor X auto-detects the addon and enables the Link Picker button
+
+**Usage:**
+
+```javascript
+// The integration uses Strapi's plugin API
+const getPlugin = useStrapiApp('WebtoolsLinks', (state) => state.getPlugin);
+const linksPlugin = getPlugin('webtools-addon-links');
+const { openLinkPicker } = linksPlugin?.apis;
+
+// Open picker with existing link data (for editing)
+const result = await openLinkPicker({
+  linkType: 'both',           // 'internal', 'external', or 'both'
+  initialHref: existingUrl,   // Pre-fill for editing
+  initialText: selectedText   // Pre-fill link text
+});
+```
+
+**Without Webtools:**
+
+If Webtools is not installed, a subtle promo link appears in the editor footer pointing to the addon store page.
+
+---
+
+### 6. AI-Powered Features (Premium)
 
 Built-in AI assistant for content enhancement:
 
@@ -907,13 +976,21 @@ Add to `config/plugins.ts`:
 
 ## Roadmap
 
-- **Version History** - Track all content changes with restore capability
-- **Custom Blocks API** - Simplified API for creating custom tools
-- **Advanced AI** - Content suggestions, auto-completion, tone analysis
+### ✅ Completed
+- **Version History** - Track all content changes with snapshot restore (v1.1.0)
+- **Character-Level Collaboration** - Simultaneous editing in same block (v1.2.0)
+- **Webtools Links Integration** - Internal/external link picker (v1.2.0)
+
+### 🚧 In Progress
 - **Comments & Annotations** - Inline comments for editorial workflow
+- **Custom Blocks API** - Simplified API for creating custom tools
+
+### 📋 Planned
+- **Advanced AI** - Content suggestions, auto-completion, tone analysis
 - **Offline Mode** - Full offline editing with sync on reconnect
 - **Import/Export** - Markdown, HTML, DOCX conversion
 - **Templates** - Pre-built content templates
+- **Block Permissions** - Per-block editing restrictions
 
 ---
 
