@@ -12,7 +12,7 @@
 ## 🆕 What's New in v1.2.0
 
 - **Character-Level Collaboration** - Multiple users can now type in the same paragraph simultaneously without conflicts
-- **Webtools Links Integration** - Optional integration with PluginPal's Webtools Links addon for internal/external link managemen
+- **Webtools Links Integration** - Optional integration with PluginPal's Webtools Links addon for internal/external link management
 - **Improved Fullscreen Mode** - Blocks now stretch to full width, Media Library modal works correctly
 - **Performance Improvements** - Removed debug logging, optimized Y.js sync
 
