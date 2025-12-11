@@ -35,6 +35,7 @@ import CodeFlask from '@calumk/editorjs-codeflask';
 // CUSTOM TOOLS (Secure implementations without eval)
 // ============================================
 import { ButtonTool, HyperlinkTool, AIAssistantTool } from '../components/EditorTools';
+import WebtoolsLinkTool from '../components/EditorTools/WebtoolsLinkTool';
 
 // ============================================
 // OFFICIAL INLINE TOOLS
@@ -75,6 +76,7 @@ import MediaLibAdapter from '../components/MediaLib/MediaLibAdapter';
 Personality.isReadOnlySupported = true;
 MediaLibAdapter.isReadOnlySupported = true;
 ButtonTool.isReadOnlySupported = true;
+WebtoolsLinkTool.isReadOnlySupported = true;
 
 /**
  * Get authentication token from Strapi
@@ -98,8 +100,12 @@ const getAuthToken = () => {
 
 /**
  * Get all EditorJS tools configuration
+ * @param {object} options - Configuration options
+ * @param {function} options.mediaLibToggleFunc - Function to toggle media library
+ * @param {string} options.pluginId - Plugin identifier
+ * @param {function} options.openLinkPicker - Optional: Webtools Link Picker function
  */
-export const getTools = ({ mediaLibToggleFunc, pluginId }) => {
+export const getTools = ({ mediaLibToggleFunc, pluginId, openLinkPicker }) => {
   const token = getAuthToken();
   const authHeader = token ? `Bearer ${token}` : '';
 
@@ -520,6 +526,9 @@ export const getTools = ({ mediaLibToggleFunc, pluginId }) => {
       },
       shortcut: 'CMD+SHIFT+G',
     },
+
+    // Note: Webtools Link integration is handled via toolbar button in EditorJS component
+    // The inline tool was removed as redundant - toolbar button works better
 
     // ============================================
     // TUNES (3 Tunes)

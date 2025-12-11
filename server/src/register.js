@@ -14,7 +14,7 @@ module.exports = ({ strapi }) => {
   strapi.customFields.register({
     name: 'richtext',
     plugin: 'magic-editor-x',
-    type: 'text', // Stores JSON content as text
+    type: 'json', // Stores Editor.js JSON content natively
     inputSize: {
       default: 12, // Full width
       isResizable: true,

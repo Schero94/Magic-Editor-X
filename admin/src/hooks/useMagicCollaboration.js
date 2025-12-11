@@ -1,6 +1,15 @@
 /**
  * Magic Editor X - Collaboration Hook (Strapi v5)
- * Manages Yjs document sync + Socket.io connection with admin auth
+ * 
+ * CHARACTER-LEVEL COLLABORATION:
+ * - Uses Y.Text for character-level sync within blocks (like Google Docs)
+ * - Uses Y.Map for block metadata (type, tunes, etc.)
+ * - Enables multiple users to edit the same block simultaneously
+ * 
+ * Data Structure:
+ * - blocksMap: Y.Map<blockId, Y.Map{ type, tunes }>  (block metadata)
+ * - textMap: Y.Map<blockId, Y.Text>  (block text content - character-level)
+ * - metaMap: Y.Map{ time, blockOrder }  (document metadata)
  */
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useFetchClient, useAuth } from '@strapi/strapi/admin';
@@ -29,6 +38,119 @@ const getUserColor = (userId) => {
   // Use a simple hash to get consistent color assignment
   const hash = String(userId).split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
   return CURSOR_COLORS[hash % CURSOR_COLORS.length];
+};
+
+/**
+ * Converts HTML to Y.Text delta format
+ * @param {string} html - HTML string
+ * @returns {Array} Delta operations
+ */
+const htmlToDelta = (html) => {
+  if (!html || html === '<br>' || html === '<br/>') return [];
+  
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(`<div>${html}</div>`, 'text/html');
+  const delta = [];
+  
+  function processNode(node, attributes = {}) {
+    if (node.nodeType === Node.TEXT_NODE) {
+      const text = node.textContent;
+      if (text) {
+        const attrs = Object.keys(attributes).length > 0 ? { ...attributes } : undefined;
+        delta.push({ insert: text, attributes: attrs });
+      }
+      return;
+    }
+    
+    if (node.nodeType === Node.ELEMENT_NODE) {
+      const newAttrs = { ...attributes };
+      const tagName = node.tagName.toLowerCase();
+      
+      switch (tagName) {
+        case 'b':
+        case 'strong':
+          newAttrs.bold = true;
+          break;
+        case 'i':
+        case 'em':
+          newAttrs.italic = true;
+          break;
+        case 'u':
+          newAttrs.underline = true;
+          break;
+        case 'code':
+          newAttrs.code = true;
+          break;
+        case 'a':
+          newAttrs.a = { 
+            href: node.getAttribute('href') || '',
+            target: node.getAttribute('target') || '_blank',
+            rel: node.getAttribute('rel') || 'noopener noreferrer'
+          };
+          break;
+        case 'mark':
+          newAttrs.mark = true;
+          break;
+        case 'br':
+          delta.push({ insert: '\n' });
+          return;
+      }
+      
+      for (const child of node.childNodes) {
+        processNode(child, newAttrs);
+      }
+    }
+  }
+  
+  const wrapper = doc.body.firstChild;
+  if (wrapper) {
+    for (const child of wrapper.childNodes) {
+      processNode(child);
+    }
+  }
+  
+  return delta;
+};
+
+/**
+ * Converts Y.Text delta to HTML string
+ * @param {Array} delta - Delta operations
+ * @returns {string} HTML string
+ */
+const deltaToHtml = (delta) => {
+  if (!delta || delta.length === 0) return '';
+  
+  let html = '';
+  
+  for (const op of delta) {
+    if (typeof op.insert !== 'string') continue;
+    
+    let text = op.insert;
+    text = text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/\n/g, '<br>');
+    
+    const attrs = op.attributes || {};
+    let result = text;
+    
+    if (attrs.code) result = `<code>${result}</code>`;
+    if (attrs.italic) result = `<i>${result}</i>`;
+    if (attrs.bold) result = `<b>${result}</b>`;
+    if (attrs.underline) result = `<u>${result}</u>`;
+    if (attrs.mark) result = `<mark>${result}</mark>`;
+    if (attrs.a) {
+      const href = attrs.a.href || '';
+      const target = attrs.a.target || '_blank';
+      const rel = attrs.a.rel || 'noopener noreferrer';
+      result = `<a href="${href}" target="${target}" rel="${rel}">${result}</a>`;
+    }
+    
+    html += result;
+  }
+  
+  return html;
 };
 
 /**
@@ -69,17 +191,76 @@ export const useMagicCollaboration = ({
     onRemoteUpdateRef.current = onRemoteUpdate;
   }, [onRemoteUpdate]);
 
-  // Create Y.Doc + Y.Map for block-level collaboration
-  // Using Y.Map instead of Y.Text prevents JSON corruption from character-level CRDT merges
-  // NOTE: Block order is stored in metaMap as JSON string (NOT Y.Array to avoid CRDT delete conflicts)
-  const { doc, blocksMap, metaMap } = useMemo(() => {
+  // Create Y.Doc with hybrid structure for CHARACTER-LEVEL COLLABORATION
+  // - blocksMap: Y.Map for block metadata (type, tunes) - ONLY metadata, not content
+  // - textMap: Y.Map<blockId, Y.Text> for character-level text sync
+  // - metaMap: Y.Map for document metadata (time, blockOrder)
+  const { doc, blocksMap, textMap, metaMap } = useMemo(() => {
     const yDoc = new Y.Doc();
     return { 
       doc: yDoc, 
-      blocksMap: yDoc.getMap('blocks'),  // Each block stored by ID
-      metaMap: yDoc.getMap('meta'),      // Metadata (time, blockOrder, etc.)
+      blocksMap: yDoc.getMap('blocks'),  // Block metadata (type, tunes)
+      textMap: yDoc.getMap('text'),      // Y.Text per block (character-level sync!)
+      metaMap: yDoc.getMap('meta'),      // Document metadata (time, blockOrder)
     };
   }, [roomId]);
+  
+  /**
+   * Get or create Y.Text for a specific block
+   * This enables character-level collaboration within blocks
+   * @param {string} blockId - Block ID
+   * @returns {Y.Text} Y.Text instance for the block
+   */
+  const getBlockText = useCallback((blockId) => {
+    if (!blockId) return null;
+    
+    let ytext = textMap.get(blockId);
+    if (!ytext) {
+      // Create new Y.Text for this block
+      ytext = new Y.Text();
+      textMap.set(blockId, ytext);
+    }
+    return ytext;
+  }, [textMap]);
+  
+  /**
+   * Set block text content (for initial sync from Editor.js)
+   * @param {string} blockId - Block ID
+   * @param {string} html - HTML content
+   */
+  const setBlockText = useCallback((blockId, html) => {
+    if (!blockId) return;
+    
+    const ytext = getBlockText(blockId);
+    if (!ytext) return;
+    
+    doc.transact(() => {
+      // Clear existing content
+      if (ytext.length > 0) {
+        ytext.delete(0, ytext.length);
+      }
+      
+      // Convert HTML to delta and apply
+      const delta = htmlToDelta(html);
+      if (delta.length > 0) {
+        ytext.applyDelta(delta);
+      }
+    }, 'local');
+  }, [doc, getBlockText]);
+  
+  /**
+   * Get block text content as HTML
+   * @param {string} blockId - Block ID
+   * @returns {string} HTML content
+   */
+  const getBlockTextHtml = useCallback((blockId) => {
+    if (!blockId) return '';
+    
+    const ytext = textMap.get(blockId);
+    if (!ytext) return '';
+    
+    return deltaToHtml(ytext.toDelta());
+  }, [textMap]);
 
   // Cleanup Y.Doc on unmount
   useEffect(() => {
@@ -172,10 +353,6 @@ export const useMagicCollaboration = ({
       
       persistence.on('synced', () => {
         console.log('[Magic Collab] [CACHE] IndexedDB synced for room:', roomId);
-        // #region agent log
-        const blockOrder = metaMap.get('blockOrder');
-        fetch('http://127.0.0.1:7242/ingest/12c1170b-f275-4a73-9ee7-3006bf7f0881',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useMagicCollaboration:indexeddb:synced',message:'IndexedDB synced - loaded local state',data:{blocksMapSize:blocksMap.size,blocksMapKeys:Array.from(blocksMap.keys()),blockOrder:blockOrder,roomId,persistenceKey},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H'})}).catch(()=>{});
-        // #endregion
       });
       
       console.log('[Magic Collab] [CACHE] IndexedDB persistence initialized:', persistenceKey);
@@ -298,11 +475,6 @@ export const useMagicCollaboration = ({
           if (update) {
             console.log('[Magic Collab] [SYNC] Syncing initial state, update size:', update.length, 'bytes');
             try {
-              // #region agent log
-              const blockOrderBefore = metaMap.get('blockOrder');
-              fetch('http://127.0.0.1:7242/ingest/12c1170b-f275-4a73-9ee7-3006bf7f0881',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useMagicCollaboration:collab:sync:before',message:'BEFORE applying server sync',data:{blocksMapSize:blocksMap.size,blocksMapKeys:Array.from(blocksMap.keys()),blockOrder:blockOrderBefore,roomId},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'F'})}).catch(()=>{});
-              // #endregion
-              
               const beforeBlockCount = blocksMap.size;
               console.log('[Magic Collab] [DATA] Y.Map BEFORE sync - block count:', beforeBlockCount);
               
@@ -312,11 +484,6 @@ export const useMagicCollaboration = ({
               
               const afterBlockCount = blocksMap.size;
               console.log('[Magic Collab] [DATA] Y.Map AFTER sync - block count:', afterBlockCount);
-              
-              // #region agent log
-              const blockOrderAfter = metaMap.get('blockOrder');
-              fetch('http://127.0.0.1:7242/ingest/12c1170b-f275-4a73-9ee7-3006bf7f0881',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useMagicCollaboration:collab:sync:after',message:'AFTER applying server sync',data:{blocksMapSize:blocksMap.size,blocksMapKeys:Array.from(blocksMap.keys()),blockOrder:blockOrderAfter,roomId},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'F'})}).catch(()=>{});
-              // #endregion
               
               // Always call callback after initial sync to render the merged content
               if (onRemoteUpdateRef.current) {
@@ -337,10 +504,6 @@ export const useMagicCollaboration = ({
           if (update) {
             console.log('[Magic Collab] [UPDATE] Received remote update:', update.length, 'bytes');
             try {
-              // #region agent log
-              fetch('http://127.0.0.1:7242/ingest/12c1170b-f275-4a73-9ee7-3006bf7f0881',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useMagicCollaboration:collab:update:before',message:'BEFORE applying remote update',data:{blocksMapSize:blocksMap.size,blocksMapKeys:Array.from(blocksMap.keys()),blockOrder:metaMap.get('blockOrder'),updateSize:update.length,roomId},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'G'})}).catch(()=>{});
-              // #endregion
-              
               const beforeBlockCount = blocksMap.size;
               console.log('[Magic Collab] [DATA] Y.Map BEFORE update - blocks:', beforeBlockCount);
               
@@ -349,10 +512,6 @@ export const useMagicCollaboration = ({
               
               const afterBlockCount = blocksMap.size;
               console.log('[Magic Collab] [DATA] Y.Map AFTER update - blocks:', afterBlockCount);
-              
-              // #region agent log
-              fetch('http://127.0.0.1:7242/ingest/12c1170b-f275-4a73-9ee7-3006bf7f0881',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useMagicCollaboration:collab:update:after',message:'AFTER applying remote update',data:{blocksMapSize:blocksMap.size,blocksMapKeys:Array.from(blocksMap.keys()),blockOrder:metaMap.get('blockOrder'),roomId},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'G'})}).catch(()=>{});
-              // #endregion
               
               // Always call callback for remote updates
               // Y.js only sends actual changes, so we don't need to check for content changes
@@ -520,18 +679,34 @@ export const useMagicCollaboration = ({
   }, [user]);
 
   return {
+    // Y.js Document & Maps
     doc,
-    blocksMap,     // Y.Map for block-level sync (replaces Y.Text)
-    metaMap,       // Y.Map for metadata (includes blockOrder as JSON string)
+    blocksMap,       // Y.Map for block metadata (type, tunes)
+    textMap,         // Y.Map<blockId, Y.Text> for character-level text sync
+    metaMap,         // Y.Map for document metadata (time, blockOrder)
+    
+    // Character-level text helpers
+    getBlockText,    // Get Y.Text for a block (creates if not exists)
+    setBlockText,    // Set block text from HTML
+    getBlockTextHtml, // Get block text as HTML
+    
+    // Utility functions
+    htmlToDelta,     // Convert HTML to delta
+    deltaToHtml,     // Convert delta to HTML
+    
+    // Connection status
     status,
     error,
+    
+    // Collaboration
     peers,
     awareness,
     emitAwareness,
     localUserColor,
     getUserColor,
+    
     // Role-based access control
-    collabRole,    // 'viewer' | 'editor' | 'owner' | null
-    canEdit,       // true if user can edit (editor/owner), false for viewer
+    collabRole,      // 'viewer' | 'editor' | 'owner' | null
+    canEdit,         // true if user can edit (editor/owner), false for viewer
   };
 };

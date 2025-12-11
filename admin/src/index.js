@@ -34,7 +34,7 @@ export default {
     app.customFields.register({
       name: 'richtext',
       pluginId: PLUGIN_ID, // Must match server-side plugin name
-      type: 'text', // Data type - stores JSON as text
+      type: 'json', // Data type - stores Editor.js JSON content natively
       
       intlLabel: {
         id: `${PLUGIN_ID}.richtext.label`,

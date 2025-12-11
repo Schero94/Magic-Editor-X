@@ -98,28 +98,30 @@ class WebtoolsLinkTool {
    * @param {Range} range - Current selection range
    */
   async surround(range) {
-    if (this.state) {
-      // Already has a link - remove it
-      this._unwrap(range);
-      return;
-    }
-
     // Check if openLinkPicker is available
     if (!this.openLinkPicker) {
       console.error('[WebtoolsLinkTool] openLinkPicker not available');
       return;
     }
 
-    // Save the current selection
-    this.selectedRange = range.cloneRange();
-    const selectedText = range.toString();
-
     // Check if selection is inside existing link
     const parentAnchor = this.api.selection.findParentTag('A');
+    
+    // Save the current selection
+    this.selectedRange = range.cloneRange();
+    
+    // Get text - if existing link, use its text content
+    const selectedText = parentAnchor 
+      ? parentAnchor.textContent 
+      : range.toString();
+    
+    // Get existing href if editing
     const existingHref = parentAnchor?.href || '';
 
     try {
       // Open the Webtools Link Picker
+      // For existing links: pre-fill with current href and text
+      // For new links: pre-fill with selected text
       const result = await this.openLinkPicker({
         initialHref: existingHref,
         initialText: selectedText,
@@ -132,7 +134,7 @@ class WebtoolsLinkTool {
         if (parentAnchor) {
           // Update existing link
           parentAnchor.href = result.href;
-          // Optionally update text if label changed
+          // Update text if label changed
           if (result.label && result.label !== parentAnchor.textContent) {
             parentAnchor.textContent = result.label;
           }
@@ -140,10 +142,53 @@ class WebtoolsLinkTool {
           // Create new link
           this._wrap(result.href, result.label || selectedText);
         }
+      } else if (result === null && parentAnchor) {
+        // User cancelled or cleared - if editing existing link, offer to remove
+        // (result is null when picker is dismissed without saving)
+        // Keep the link as-is (don't remove on cancel)
       }
     } catch (error) {
       console.error('[WebtoolsLinkTool] Error:', error);
     }
+  }
+
+  /**
+   * Renders additional actions when link is active
+   * @returns {HTMLElement|undefined} Actions element or undefined
+   */
+  renderActions() {
+    // Show unlink button when inside a link
+    if (!this.state) return undefined;
+
+    const actionsWrapper = document.createElement('div');
+    actionsWrapper.classList.add('ce-inline-tool-input');
+    actionsWrapper.style.cssText = 'display: flex; align-items: center; gap: 8px; padding: 4px 8px;';
+
+    // Show current link
+    const parentAnchor = this.api.selection.findParentTag('A');
+    if (parentAnchor) {
+      const linkInfo = document.createElement('span');
+      linkInfo.style.cssText = 'font-size: 12px; color: #666; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;';
+      linkInfo.textContent = parentAnchor.href;
+      linkInfo.title = parentAnchor.href;
+      actionsWrapper.appendChild(linkInfo);
+    }
+
+    // Unlink button
+    const unlinkBtn = document.createElement('button');
+    unlinkBtn.type = 'button';
+    unlinkBtn.innerHTML = '✕';
+    unlinkBtn.title = 'Remove link';
+    unlinkBtn.style.cssText = 'background: #ef4444; color: white; border: none; border-radius: 4px; padding: 2px 8px; cursor: pointer; font-size: 12px;';
+    unlinkBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      this._unwrap();
+      this.api.inlineToolbar.close();
+    });
+    actionsWrapper.appendChild(unlinkBtn);
+
+    return actionsWrapper;
   }
 
   /**
@@ -196,9 +241,8 @@ class WebtoolsLinkTool {
 
   /**
    * Unwraps anchor tag from selection
-   * @param {Range} range - Selection range
    */
-  _unwrap(range) {
+  _unwrap() {
     const anchor = this.api.selection.findParentTag('A');
     if (!anchor) return;
 
@@ -212,6 +256,9 @@ class WebtoolsLinkTool {
     const newRange = document.createRange();
     newRange.selectNode(textNode);
     selection.addRange(newRange);
+    
+    // Update state
+    this.state = false;
   }
 
   /**

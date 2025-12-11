@@ -28,7 +28,17 @@ export const useWebtoolsLinks = () => {
 
   // Check if the openLinkPicker API is available
   const isAvailable = useMemo(() => {
-    return !!(linksPlugin?.apis?.openLinkPicker);
+    const available = !!(linksPlugin?.apis?.openLinkPicker);
+    // Log status on first check for debugging
+    if (typeof window !== 'undefined' && !window.__WEBTOOLS_LINKS_CHECKED__) {
+      window.__WEBTOOLS_LINKS_CHECKED__ = true;
+      if (available) {
+        console.log('[Magic Editor X] [SUCCESS] Webtools Links addon detected - Link Picker enabled');
+      } else {
+        console.log('[Magic Editor X] [INFO] Webtools Links addon not installed - Link Picker disabled');
+      }
+    }
+    return available;
   }, [linksPlugin]);
 
   /**
@@ -44,6 +54,13 @@ export const useWebtoolsLinks = () => {
       return null;
     }
 
+    // Debug: Log what we're passing to the picker
+    console.log('[Magic Editor X] Opening Webtools Link Picker with:', {
+      linkType: 'both',
+      initialHref: initialHref || '(empty)',
+      initialText: initialText || '(empty)',
+    });
+
     try {
       const result = await linksPlugin.apis.openLinkPicker({
         linkType: 'both', // Allow both internal and external links
@@ -52,6 +69,8 @@ export const useWebtoolsLinks = () => {
       });
 
       // Result contains { href, label } when submitted, or null/undefined when cancelled
+      console.log('[Magic Editor X] Webtools picker result:', result);
+      
       if (result && result.href) {
         console.log('[Magic Editor X] Webtools link selected:', result);
         return {

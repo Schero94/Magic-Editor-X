@@ -102,8 +102,121 @@ module.exports = ({ strapi }) => {
   };
 
   /**
-   * Initializes a Y.Doc with initial value using Y.Map for block-level sync
-   * Each block is stored by ID to prevent JSON corruption during CRDT merges
+   * Converts HTML to Y.Text delta format
+   * @param {string} html - HTML string
+   * @returns {Array} Delta operations
+   */
+  const htmlToDelta = (html) => {
+    if (!html || html === '<br>' || html === '<br/>') return [];
+    
+    // Simple HTML parser for server-side (no DOMParser available)
+    // This handles basic formatting tags
+    const delta = [];
+    let currentText = '';
+    let currentAttrs = {};
+    let i = 0;
+    
+    const tagStack = [];
+    
+    while (i < html.length) {
+      if (html[i] === '<') {
+        // Flush current text
+        if (currentText) {
+          const attrs = Object.keys(currentAttrs).length > 0 ? { ...currentAttrs } : undefined;
+          delta.push({ insert: currentText, attributes: attrs });
+          currentText = '';
+        }
+        
+        // Find end of tag
+        const tagEnd = html.indexOf('>', i);
+        if (tagEnd === -1) break;
+        
+        const tagContent = html.substring(i + 1, tagEnd);
+        const isClosing = tagContent.startsWith('/');
+        const tagName = isClosing 
+          ? tagContent.substring(1).toLowerCase().trim()
+          : tagContent.split(/\s/)[0].toLowerCase();
+        
+        if (isClosing) {
+          // Remove attribute from stack
+          if (tagStack.length > 0) {
+            const lastTag = tagStack.pop();
+            delete currentAttrs[lastTag.attr];
+          }
+        } else if (tagName === 'br') {
+          delta.push({ insert: '\n' });
+        } else {
+          // Opening tag - add attribute
+          let attr = null;
+          switch (tagName) {
+            case 'b':
+            case 'strong':
+              attr = 'bold';
+              currentAttrs.bold = true;
+              break;
+            case 'i':
+            case 'em':
+              attr = 'italic';
+              currentAttrs.italic = true;
+              break;
+            case 'u':
+              attr = 'underline';
+              currentAttrs.underline = true;
+              break;
+            case 'code':
+              attr = 'code';
+              currentAttrs.code = true;
+              break;
+            case 'mark':
+              attr = 'mark';
+              currentAttrs.mark = true;
+              break;
+            case 'a':
+              attr = 'a';
+              // Parse href attribute
+              const hrefMatch = tagContent.match(/href=["']([^"']*)["']/);
+              const targetMatch = tagContent.match(/target=["']([^"']*)["']/);
+              const relMatch = tagContent.match(/rel=["']([^"']*)["']/);
+              currentAttrs.a = {
+                href: hrefMatch ? hrefMatch[1] : '',
+                target: targetMatch ? targetMatch[1] : '_blank',
+                rel: relMatch ? relMatch[1] : 'noopener noreferrer'
+              };
+              break;
+          }
+          if (attr) {
+            tagStack.push({ tagName, attr });
+          }
+        }
+        
+        i = tagEnd + 1;
+      } else {
+        // Regular character
+        currentText += html[i];
+        i++;
+      }
+    }
+    
+    // Flush remaining text
+    if (currentText) {
+      // Decode HTML entities
+      currentText = currentText
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&amp;/g, '&');
+      
+      const attrs = Object.keys(currentAttrs).length > 0 ? { ...currentAttrs } : undefined;
+      delta.push({ insert: currentText, attributes: attrs });
+    }
+    
+    return delta;
+  };
+
+  /**
+   * Initializes a Y.Doc with initial value using hybrid structure for CHARACTER-LEVEL SYNC
+   * - blocksMap: Y.Map for block metadata (type, tunes)
+   * - textMap: Y.Map<blockId, Y.Text> for character-level text content
+   * - metaMap: Y.Map for document metadata (time, blockOrder)
    * @param {string} roomId - Room identifier
    * @param {string} initialValue - Initial JSON content (EditorJS format)
    * @returns {object} Room object
@@ -113,7 +226,8 @@ module.exports = ({ strapi }) => {
     
     // Check if doc is already populated
     const blocksMap = room.doc.getMap('blocks');
-    const isDocEmpty = blocksMap.size === 0;
+    const textMap = room.doc.getMap('text');
+    const isDocEmpty = blocksMap.size === 0 && textMap.size === 0;
 
     // Only initialize if we have a value AND the doc is empty
     // This handles server restarts where room is lost but client provides latest DB state
@@ -122,32 +236,61 @@ module.exports = ({ strapi }) => {
     }
 
     try {
-      // Parse initial value and store blocks in Y.Map
+      // Parse initial value and store using hybrid structure
       const data = JSON.parse(initialValue);
       const blocks = data?.blocks || [];
       const time = data?.time || Date.now();
       
-      // If the provided initial value is also empty, we don't need to do much,
-      // but we should mark it as initialized so we don't keep trying.
-      
       room.doc.transact(() => {
         const metaMap = room.doc.getMap('meta');
         
-        // Store each block by ID
+        // Store each block with character-level text sync
         for (const block of blocks) {
-          if (block.id) {
-            blocksMap.set(block.id, JSON.stringify(block));
+          if (!block.id) continue;
+          
+          // Store block metadata (type, tunes, etc.) - NOT text content
+          const blockMeta = {
+            type: block.type,
+            tunes: block.tunes || {},
+          };
+          blocksMap.set(block.id, JSON.stringify(blockMeta));
+          
+          // Create Y.Text for block's text content (character-level sync!)
+          const ytext = new Y.Text();
+          
+          // Extract text content from block data
+          let textContent = '';
+          if (block.data) {
+            // Handle different block types
+            if (typeof block.data.text === 'string') {
+              textContent = block.data.text;
+            } else if (typeof block.data.content === 'string') {
+              textContent = block.data.content;
+            } else if (typeof block.data.code === 'string') {
+              textContent = block.data.code;
+            } else if (typeof block.data.caption === 'string') {
+              textContent = block.data.caption;
+            }
           }
+          
+          // Convert HTML to delta and apply to Y.Text
+          if (textContent) {
+            const delta = htmlToDelta(textContent);
+            if (delta.length > 0) {
+              ytext.applyDelta(delta);
+            }
+          }
+          
+          textMap.set(block.id, ytext);
         }
         
-        // Store metadata (time) and block order in Y.Map (NOT Y.Array)
-        // Y.Array causes CRDT delete conflicts when clients delete+push
+        // Store metadata (time) and block order
         metaMap.set('time', time);
         metaMap.set('blockOrder', JSON.stringify(blocks.map((b) => b.id)));
       }, 'bootstrap');
       
       room.initialized = true;
-      logger.info(`[INIT] Initialized room ${roomId} with ${blocks.length} blocks`);
+      logger.info(`[INIT] Initialized room ${roomId} with ${blocks.length} blocks (character-level sync)`);
     } catch (error) {
       logger.error(`Failed to initialize Y.Doc for room ${roomId}`, error);
     }

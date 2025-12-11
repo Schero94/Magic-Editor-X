@@ -36,6 +36,7 @@ import { PLUGIN_ID } from '../../pluginId';
 import { useMagicCollaboration } from '../../hooks/useMagicCollaboration';
 import { useLicense } from '../../hooks/useLicense';
 import { useAIActions } from '../../hooks/useAIActions';
+import { useWebtoolsLinks } from '../../hooks/useWebtoolsLinks';
 import { useVersionHistory } from '../../hooks/useVersionHistory';
 import AIAssistantPopup from '../AIAssistantPopup';
 import VersionHistoryPanel from '../VersionHistoryPanel';
@@ -114,11 +115,14 @@ const EditorJSGlobalStyles = createGlobalStyle`
   
   /* ============================================
      STRAPI MEDIA LIBRARY - Higher z-index for fullscreen
+     Must be higher than fullscreen z-index (9999)
      ============================================ */
   [data-react-portal],
   .ReactModalPortal,
   [role="dialog"],
   [data-strapi-modal="true"],
+  [class*="Dialog"],
+  [class*="Modal"],
   .upload-dialog,
   [class*="Modal"],
   [class*="modal"],
@@ -831,15 +835,36 @@ const EditorContent = styled.div`
   flex: 1;
   overflow: visible; /* Allow toolbars/popovers to escape */
   position: relative;
-  padding: 24px 24px 24px 16px; /* Less left padding since toolbar has its own space */
+  padding: 24px;
   min-height: 200px;
   
   ${props => props.$isFullscreen && css`
-    padding: clamp(32px, 4vw, 60px);
+    padding: clamp(24px, 3vw, 48px);
     width: 100%;
     max-width: 100%;
     margin: 0;
     align-self: stretch;
+    
+    /* Make blocks stretch full width in fullscreen */
+    .codex-editor {
+      width: 100%;
+    }
+    
+    .ce-block__content,
+    .ce-toolbar__content {
+      max-width: 100% !important;
+      padding: 0 !important;
+    }
+    
+    .ce-toolbar {
+      max-width: 100% !important;
+      left: 0 !important;
+      transform: none !important;
+    }
+    
+    .ce-toolbar__actions {
+      right: 0 !important;
+    }
   `}
 `;
 
@@ -915,18 +940,19 @@ const EditorWrapper = styled.div`
      TOOLBAR INSIDE EDITOR - Position Fix
      ============================================ */
   
-  /* Make the redactor (content area) have left padding for toolbar */
+  /* Centered content area */
   .codex-editor__redactor {
     padding-bottom: 100px !important;
-    padding-left: 50px !important; /* Space for toolbar */
-    margin-left: 0 !important;
+    padding-left: 0 !important;
+    margin: 0 auto !important;
+    max-width: 800px !important;
   }
   
-  /* Content blocks - full width within padded area */
+  /* Content blocks - centered */
   .ce-block__content {
     max-width: 100%;
-    margin-left: 0;
-    margin-right: 0;
+    margin: 0 auto;
+    padding: 0 16px;
   }
   
   /* ============================================
@@ -975,24 +1001,27 @@ const EditorWrapper = styled.div`
     border-radius: 6px;
   }
   
-  /* Toolbar positioning - inside the editor */
+  /* Toolbar positioning - centered with content */
   .ce-toolbar__content {
-    max-width: 100%;
-    margin-left: 0;
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 0 16px;
   }
   
   .ce-toolbar {
-    left: 0 !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    width: 100% !important;
+    max-width: 832px !important;
   }
   
   .ce-toolbar__plus {
-    left: 0 !important;
     position: relative !important;
   }
   
   .ce-toolbar__actions {
-    right: 0 !important;
     position: absolute !important;
+    right: 16px !important;
   }
   
   /* Settings button (⋮⋮) */
@@ -1490,6 +1519,36 @@ const FooterButton = styled.button`
   }
 `;
 
+const WebtoolsPromoLink = styled.a`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(139, 92, 246, 0.08) 100%);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  border-radius: 6px;
+  font-size: 11px;
+  color: #6366f1;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  
+  svg {
+    width: 12px;
+    height: 12px;
+  }
+  
+  &:hover {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(139, 92, 246, 0.15) 100%);
+    border-color: rgba(99, 102, 241, 0.4);
+    transform: translateY(-1px);
+  }
+  
+  @media (max-width: 768px) {
+    display: none;
+  }
+`;
+
 const LoadingOverlay = styled.div`
   position: absolute;
   top: 0;
@@ -1784,10 +1843,14 @@ const Editor = forwardRef(({
   // Get license for AI Assistant and Version History
   const { licenseData, tier: licenseTier } = useLicense();
   
+  // Webtools Link Picker integration (optional)
+  const { isAvailable: isWebtoolsAvailable, openLinkPicker: webtoolsOpenLinkPicker } = useWebtoolsLinks();
+  
   // Refs - must be defined before useAIActions
   const editorRef = useRef(null);
   const editorInstanceRef = useRef(null);
   const containerRef = useRef(null);
+  const webtoolsSelectionRef = useRef({ text: '', range: null, blockIndex: -1, existingAnchor: null, existingHref: '' }); // Store selection for Webtools
   
   // State - must be defined before useAIActions
   const isReadyRef = useRef(false); // Changed from useState to useRef to fix closure issues
@@ -1832,6 +1895,65 @@ const Editor = forwardRef(({
   const [aiLoading, setAILoading] = useState(false);
   const [showVersionHistory, setShowVersionHistory] = useState(false);
 
+  // Continuously track selection in editor for Webtools Link Picker
+  useEffect(() => {
+    if (!isWebtoolsAvailable || !editorRef.current) return;
+    
+    const updateWebtoolsSelection = () => {
+      const selection = window.getSelection();
+      if (!selection || selection.rangeCount === 0) return;
+      
+      // Check if selection is inside our editor
+      const range = selection.getRangeAt(0);
+      if (!editorRef.current.contains(range.commonAncestorContainer)) return;
+      
+      const selectedText = selection.toString().trim();
+      let existingAnchor = null;
+      let existingHref = '';
+      
+      // Find if we're inside or have selected an anchor
+      let node = range.commonAncestorContainer;
+      while (node && node !== editorRef.current) {
+        if (node.nodeName === 'A') {
+          existingAnchor = node;
+          existingHref = node.href || '';
+          break;
+        }
+        node = node.parentNode;
+      }
+      
+      // Also check startContainer
+      if (!existingAnchor) {
+        node = range.startContainer;
+        while (node && node !== editorRef.current) {
+          if (node.nodeName === 'A') {
+            existingAnchor = node;
+            existingHref = node.href || '';
+            break;
+          }
+          node = node.parentNode;
+        }
+      }
+      
+      const blockIndex = editorInstanceRef.current?.blocks?.getCurrentBlockIndex?.() ?? -1;
+      
+      webtoolsSelectionRef.current = {
+        text: existingAnchor ? existingAnchor.textContent : selectedText,
+        range: range.cloneRange(),
+        blockIndex,
+        existingAnchor,
+        existingHref,
+      };
+    };
+    
+    // Listen for selection changes
+    document.addEventListener('selectionchange', updateWebtoolsSelection);
+    
+    return () => {
+      document.removeEventListener('selectionchange', updateWebtoolsSelection);
+    };
+  }, [isWebtoolsAvailable, isReady]);
+
   const serializedInitialValue = useMemo(() => {
     if (!value) {
       return '';
@@ -1865,13 +1987,24 @@ const Editor = forwardRef(({
   const {
     doc: yDoc,
     blocksMap: yBlocksMap,
+    textMap: yTextMap,        // NEW: Y.Map<blockId, Y.Text> for character-level sync
     metaMap: yMetaMap,
+    // Character-level text helpers
+    getBlockText,             // NEW: Get Y.Text for a block
+    setBlockText,             // NEW: Set block text from HTML
+    getBlockTextHtml,         // NEW: Get block text as HTML
+    // Utility functions
+    htmlToDelta: collabHtmlToDelta,
+    deltaToHtml: collabDeltaToHtml,
+    // Connection status
     status: collabStatus,
     error: collabError,
+    // Collaboration
     peers: collabPeers,
     awareness: collabAwareness,
     emitAwareness,
     localUserColor,
+    // Role-based access control
     collabRole,
     canEdit: collabCanEdit,
   } = useMagicCollaboration({
@@ -1886,6 +2019,226 @@ const Editor = forwardRef(({
       }
     },
   });
+  
+  // Store active Y.Text bindings for cleanup
+  const yTextBindingsRef = useRef(new Map()); // Map<blockId, { ytext, observer }>
+  
+  /**
+   * Bind a block's contenteditable to its Y.Text for character-level sync
+   * @param {string} blockId - Block ID
+   * @param {HTMLElement} element - Contenteditable element
+   */
+  const bindBlockToYText = useCallback((blockId, element) => {
+    if (!collabEnabled || !blockId || !element || !yTextMap) return;
+    
+    // Check if already bound
+    if (yTextBindingsRef.current.has(blockId)) {
+      const existing = yTextBindingsRef.current.get(blockId);
+      if (existing.element === element) return; // Same binding, skip
+      // Different element, unbind old one
+      unbindBlockFromYText(blockId);
+    }
+    
+    const ytext = getBlockText(blockId);
+    if (!ytext) return;
+    
+    let isUpdating = false;
+    
+    // Observer for Y.Text changes (remote updates)
+    const ytextObserver = (event) => {
+      if (isUpdating) return;
+      if (event.transaction.local) return; // Skip local changes
+      
+      isUpdating = true;
+      try {
+        // Save cursor position
+        const selection = window.getSelection();
+        let cursorOffset = 0;
+        if (selection && selection.rangeCount > 0 && element.contains(selection.anchorNode)) {
+          const range = selection.getRangeAt(0);
+          const preCaretRange = document.createRange();
+          preCaretRange.selectNodeContents(element);
+          preCaretRange.setEnd(range.startContainer, range.startOffset);
+          cursorOffset = preCaretRange.toString().length;
+        }
+        
+        // Update DOM from Y.Text
+        const html = collabDeltaToHtml(ytext.toDelta());
+        if (element.innerHTML !== html) {
+          element.innerHTML = html || '';
+        }
+        
+        // Restore cursor position (best effort)
+        if (document.activeElement === element && cursorOffset > 0) {
+          // Simple restoration - could be improved
+          try {
+            const textNode = element.firstChild;
+            if (textNode && textNode.nodeType === Node.TEXT_NODE) {
+              const newRange = document.createRange();
+              const pos = Math.min(cursorOffset, textNode.length);
+              newRange.setStart(textNode, pos);
+              newRange.setEnd(textNode, pos);
+              selection.removeAllRanges();
+              selection.addRange(newRange);
+            }
+          } catch (e) {
+            // Ignore cursor restoration errors
+          }
+        }
+      } finally {
+        isUpdating = false;
+      }
+    };
+    
+    // Observer for DOM changes (local input)
+    const inputHandler = () => {
+      if (isUpdating) return;
+      
+      isUpdating = true;
+      try {
+        const html = element.innerHTML;
+        const newDelta = collabHtmlToDelta(html);
+        const currentDelta = ytext.toDelta();
+        
+        // Simple diff: clear and reapply (can be optimized later)
+        yDoc.transact(() => {
+          if (ytext.length > 0) {
+            ytext.delete(0, ytext.length);
+          }
+          if (newDelta.length > 0) {
+            ytext.applyDelta(newDelta);
+          }
+        }, 'local');
+      } finally {
+        isUpdating = false;
+      }
+    };
+    
+    // Attach observers
+    ytext.observe(ytextObserver);
+    element.addEventListener('input', inputHandler);
+    
+    // Store binding for cleanup
+    yTextBindingsRef.current.set(blockId, {
+      ytext,
+      element,
+      ytextObserver,
+      inputHandler,
+    });
+    
+    console.log('[Magic Editor X] [CHAR-SYNC] Bound block to Y.Text:', blockId);
+  }, [collabEnabled, yTextMap, yDoc, getBlockText, collabHtmlToDelta, collabDeltaToHtml]);
+  
+  /**
+   * Unbind a block from its Y.Text
+   * @param {string} blockId - Block ID
+   */
+  const unbindBlockFromYText = useCallback((blockId) => {
+    const binding = yTextBindingsRef.current.get(blockId);
+    if (!binding) return;
+    
+    binding.ytext.unobserve(binding.ytextObserver);
+    binding.element.removeEventListener('input', binding.inputHandler);
+    yTextBindingsRef.current.delete(blockId);
+    
+    console.log('[Magic Editor X] [CHAR-SYNC] Unbound block from Y.Text:', blockId);
+  }, []);
+  
+  /**
+   * Bind all existing blocks in the editor to Y.Text
+   * Called after editor is ready and after renders
+   */
+  const bindAllBlocksToYText = useCallback(() => {
+    if (!collabEnabled || !editorInstanceRef.current || !yTextMap) return;
+    
+    const editor = editorInstanceRef.current;
+    const blockCount = editor.blocks.getBlocksCount();
+    
+    console.log('[Magic Editor X] [CHAR-SYNC] Binding', blockCount, 'blocks to Y.Text');
+    
+    for (let i = 0; i < blockCount; i++) {
+      try {
+        const block = editor.blocks.getBlockByIndex(i);
+        if (!block || !block.id) continue;
+        
+        // Find the contenteditable element for this block
+        const blockHolder = block.holder;
+        if (!blockHolder) continue;
+        
+        const contentEditable = blockHolder.querySelector('[contenteditable="true"]');
+        if (contentEditable) {
+          // Initialize Y.Text with current content if empty
+          const ytext = getBlockText(block.id);
+          if (ytext && ytext.length === 0) {
+            const currentHtml = contentEditable.innerHTML;
+            if (currentHtml && currentHtml !== '<br>') {
+              setBlockText(block.id, currentHtml);
+            }
+          }
+          
+          // Bind element to Y.Text
+          bindBlockToYText(block.id, contentEditable);
+        }
+      } catch (e) {
+        console.warn('[Magic Editor X] [CHAR-SYNC] Error binding block:', e);
+      }
+    }
+  }, [collabEnabled, yTextMap, getBlockText, setBlockText, bindBlockToYText]);
+  
+  // MutationObserver to detect new blocks and bind them to Y.Text
+  const blockObserverRef = useRef(null);
+  
+  useEffect(() => {
+    if (!collabEnabled || !editorRef.current || !yTextMap) return;
+    
+    // Create MutationObserver to watch for new blocks
+    const observer = new MutationObserver((mutations) => {
+      let hasNewBlocks = false;
+      
+      for (const mutation of mutations) {
+        if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
+          for (const node of mutation.addedNodes) {
+            if (node.nodeType === Node.ELEMENT_NODE && 
+                (node.classList?.contains('ce-block') || node.querySelector?.('.ce-block'))) {
+              hasNewBlocks = true;
+              break;
+            }
+          }
+        }
+        if (hasNewBlocks) break;
+      }
+      
+      if (hasNewBlocks) {
+        // Debounce binding to avoid multiple calls
+        setTimeout(() => {
+          bindAllBlocksToYText();
+        }, 50);
+      }
+    });
+    
+    observer.observe(editorRef.current, {
+      childList: true,
+      subtree: true,
+    });
+    
+    blockObserverRef.current = observer;
+    
+    return () => {
+      observer.disconnect();
+      blockObserverRef.current = null;
+    };
+  }, [collabEnabled, yTextMap, bindAllBlocksToYText]);
+  
+  // Cleanup all bindings on unmount
+  useEffect(() => {
+    return () => {
+      yTextBindingsRef.current.forEach((binding, blockId) => {
+        binding.ytext.unobserve(binding.ytextObserver);
+        binding.element.removeEventListener('input', binding.inputHandler);
+      });
+      yTextBindingsRef.current.clear();
+    };
+  }, []);
 
   // Version History - for snapshots/restore
   const {
@@ -2355,15 +2708,8 @@ const Editor = forwardRef(({
    * Uses smart diffing to apply only necessary changes (Google Docs style)
    */
   const renderFromYDoc = useCallback(async () => {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/12c1170b-f275-4a73-9ee7-3006bf7f0881',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'EditorJS/index.jsx:renderFromYDoc:entry',message:'renderFromYDoc called',data:{collabEnabled,hasYBlocksMap:!!yBlocksMap,hasYDoc:!!yDoc,hasYMetaMap:!!yMetaMap},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
-    
     // Hard guard: only run when collaboration + doc + editor are ready
     if (!collabEnabled || !yBlocksMap || !yDoc) {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/12c1170b-f275-4a73-9ee7-3006bf7f0881',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'EditorJS/index.jsx:renderFromYDoc:guard1',message:'EARLY EXIT: missing collab deps',data:{collabEnabled,hasYBlocksMap:!!yBlocksMap,hasYDoc:!!yDoc},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
       return;
     }
 
@@ -2371,18 +2717,12 @@ const Editor = forwardRef(({
 
     // If editor not yet instantiated or not ready, queue the sync and exit
     if (!editor || !isReadyRef.current) {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/12c1170b-f275-4a73-9ee7-3006bf7f0881',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'EditorJS/index.jsx:renderFromYDoc:guard2',message:'EARLY EXIT: editor not ready',data:{hasEditor:!!editor,isReady:isReadyRef.current},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'D'})}).catch(()=>{});
-      // #endregion
       pendingRenderRef.current = pendingRenderRef.current || true;
       return;
     }
 
     // Prevent echo loops
     if (isApplyingRemoteRef.current) {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/12c1170b-f275-4a73-9ee7-3006bf7f0881',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'EditorJS/index.jsx:renderFromYDoc:guard3',message:'EARLY EXIT: isApplyingRemote is true (race condition)',data:{isApplyingRemote:true},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B'})}).catch(()=>{});
-      // #endregion
       return;
     }
     
@@ -2408,38 +2748,44 @@ const Editor = forwardRef(({
       
       const yBlocks = []; // Array of { id, type, data }
       
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/12c1170b-f275-4a73-9ee7-3006bf7f0881',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'EditorJS/index.jsx:renderFromYDoc:yState',message:'Y.js state before parsing',data:{blockOrderFromMeta:!!blockOrderJson,yBlocksMapSize:yBlocksMap?.size,yOrder:yOrder,yBlocksMapKeys:Array.from(yBlocksMap?.keys()||[])},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'C'})}).catch(()=>{});
-      // #endregion
-      
       // Filter out invalid/deleted blocks and parse JSON
+      // MIGRATION: Handle both old format (full JSON) and new format (metadata + Y.Text)
       yOrder.forEach((id) => {
         const json = yBlocksMap.get(id);
         if (json) {
           try {
-            const block = JSON.parse(json);
-            yBlocks.push(block);
+            const blockData = JSON.parse(json);
+            
+            // Check if this is new format (only metadata) or old format (full block)
+            if (blockData.type && !blockData.data) {
+              // NEW FORMAT: metadata only, get text from Y.Text
+              const ytext = yTextMap?.get(id);
+              const textContent = ytext ? collabDeltaToHtml(ytext.toDelta()) : '';
+              
+              yBlocks.push({
+                id,
+                type: blockData.type,
+                data: { text: textContent },
+                tunes: blockData.tunes || {},
+              });
+            } else if (blockData.type && blockData.data) {
+              // OLD FORMAT: full block with data - use as-is
+              yBlocks.push({
+                id,
+                ...blockData,
+              });
+            }
           } catch (e) {
             console.warn('[Magic Editor X] Invalid block JSON:', id);
           }
         }
       });
 
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/12c1170b-f275-4a73-9ee7-3006bf7f0881',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'EditorJS/index.jsx:renderFromYDoc:parsed',message:'Parsed yBlocks from Y.Map',data:{yBlocksCount:yBlocks.length,yBlockIds:yBlocks.map(b=>b.id),yBlockTypes:yBlocks.map(b=>b.type)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
-
       const parsed = { blocks: yBlocks };
       const normalizedParsed = serializeForCompare(parsed);
 
       const renderFull = async () => {
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/12c1170b-f275-4a73-9ee7-3006bf7f0881',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'EditorJS/index.jsx:renderFull:start',message:'FULL RENDER triggered',data:{blocksToRender:yBlocks.length,blockIds:yBlocks.map(b=>b.id)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'E'})}).catch(()=>{});
-        // #endregion
         await editor.render(parsed);
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/12c1170b-f275-4a73-9ee7-3006bf7f0881',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'EditorJS/index.jsx:renderFull:done',message:'FULL RENDER completed',data:{newBlockCount:editor.blocks.getBlocksCount()},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'E'})}).catch(()=>{});
-        // #endregion
         lastSerializedValueRef.current = normalizedParsed;
         setBlocksCount(yBlocks.length);
         calculateStats(parsed);
@@ -2455,10 +2801,6 @@ const Editor = forwardRef(({
           currentBlocks.push({ id: block.id, index: i });
         }
       }
-
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/12c1170b-f275-4a73-9ee7-3006bf7f0881',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'EditorJS/index.jsx:renderFromYDoc:comparison',message:'Comparing editor vs Y.js state',data:{editorBlockCount:blockCount,yBlocksCount:yBlocks.length,editorBlockIds:currentBlocks.map(b=>b.id),yBlockIds:yBlocks.map(b=>b.id)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'E'})}).catch(()=>{});
-      // #endregion
 
       // If structure differs by count, fall back to full render
       if (blockCount !== yBlocks.length) {
@@ -2751,7 +3093,7 @@ const Editor = forwardRef(({
       lastSerializedValueRef.current = emptyPayload;
       
       pushLocalToCollab(emptyPayload);
-      onChange({ target: { name, value: null, type: 'text' } });
+      onChange({ target: { name, value: null, type: 'json' } });
       setBlocksCount(0);
       setWordCount(0);
       setCharCount(0);
@@ -2770,7 +3112,11 @@ const Editor = forwardRef(({
   // Initialize Editor.js
   useEffect(() => {
     if (editorRef.current && !editorInstanceRef.current) {
-      const tools = getTools({ mediaLibToggleFunc, pluginId: PLUGIN_ID });
+      const tools = getTools({ 
+        mediaLibToggleFunc, 
+        pluginId: PLUGIN_ID,
+        openLinkPicker: isWebtoolsAvailable ? webtoolsOpenLinkPicker : null,
+      });
 
       let initialData = undefined;
       if (value) {
@@ -2853,6 +3199,13 @@ const Editor = forwardRef(({
             }
             pendingRenderRef.current = null;
           }
+          
+          // CHARACTER-LEVEL SYNC: Bind all blocks to Y.Text after editor is ready
+          if (collabEnabled && yTextMap) {
+            setTimeout(() => {
+              bindAllBlocksToYText();
+            }, 100);
+          }
         },
 
         onChange: async (api) => {
@@ -2883,10 +3236,11 @@ const Editor = forwardRef(({
 
             lastSerializedValueRef.current = normalized;
             
+            // For JSON field type, pass the object directly (not stringified)
             if (count === 0) {
-              onChange({ target: { name, value: null, type: 'text' } });
+              onChange({ target: { name, value: null, type: 'json' } });
             } else {
-              onChange({ target: { name, value: serialized, type: 'text' } });
+              onChange({ target: { name, value: outputData, type: 'json' } });
             }
           } catch (error) {
             console.error('[Magic Editor X] Error in onChange:', error);
@@ -3034,6 +3388,126 @@ const Editor = forwardRef(({
                 <SparklesIcon />
               </ToolButton>
               
+              {/* Webtools Link Picker Button - only shown when addon is installed */}
+              {isWebtoolsAvailable && (
+                <ToolButton
+                  type="button"
+                  data-tooltip="Webtools Link Picker"
+                  onClick={async () => {
+                    if (!editorInstanceRef.current || !isReady) {
+                      console.warn('[Magic Editor X] Editor not ready');
+                      return;
+                    }
+                    
+                    const editor = editorInstanceRef.current;
+                    
+                    // Use selection from continuous tracking (via selectionchange event)
+                    const { 
+                      text: selectedText, 
+                      range: savedRange, 
+                      blockIndex,
+                      existingAnchor,
+                      existingHref,
+                    } = webtoolsSelectionRef.current;
+                    
+                    // Debug logging
+                    console.log('[Magic Editor X] Webtools button clicked with stored selection:', {
+                      text: selectedText || '(none)',
+                      existingHref: existingHref || '(new link)',
+                      hasRange: !!savedRange,
+                      blockIndex,
+                    });
+                    
+                    const currentBlockIndex = blockIndex >= 0 ? blockIndex : editor.blocks.getCurrentBlockIndex();
+                    
+                    // Open Link Picker with tracked selection and existing href
+                    const result = await webtoolsOpenLinkPicker({
+                      initialText: selectedText || '',
+                      initialHref: existingHref || '',
+                    });
+                    
+                    if (result && result.href) {
+                      const linkText = result.label || selectedText || result.href;
+                      const linkHtml = `<a href="${result.href}" target="_blank" rel="noopener noreferrer">${linkText}</a>`;
+                      
+                      // Case 1: Editing existing link
+                      if (existingAnchor && existingAnchor.parentNode) {
+                        try {
+                          // Update the existing anchor element directly
+                          existingAnchor.href = result.href;
+                          existingAnchor.textContent = linkText;
+                          
+                          // Trigger input event so Editor.js picks up the change
+                          const contentEditable = existingAnchor.closest('[contenteditable="true"]');
+                          if (contentEditable) {
+                            contentEditable.dispatchEvent(new Event('input', { bubbles: true }));
+                          }
+                          
+                          console.log('[Magic Editor X] Webtools link UPDATED:', { 
+                            oldHref: existingHref, 
+                            newHref: result.href, 
+                            text: linkText 
+                          });
+                        } catch (e) {
+                          console.error('[Magic Editor X] Failed to update link:', e);
+                        }
+                      }
+                      // Case 2: Creating new link with selection
+                      else if (savedRange && selectedText && currentBlockIndex >= 0) {
+                        try {
+                          const blockHolder = editor.blocks.getBlockByIndex(currentBlockIndex)?.holder;
+                          const contentEditable = blockHolder?.querySelector('[contenteditable="true"]');
+                          
+                          if (contentEditable) {
+                            // Restore selection
+                            const selection = window.getSelection();
+                            selection.removeAllRanges();
+                            selection.addRange(savedRange);
+                            
+                            // Use execCommand for cleaner insertion
+                            document.execCommand('insertHTML', false, linkHtml);
+                            
+                            // Trigger input event
+                            contentEditable.dispatchEvent(new Event('input', { bubbles: true }));
+                            
+                            console.log('[Magic Editor X] Webtools link CREATED:', { 
+                              text: linkText, 
+                              href: result.href 
+                            });
+                          } else {
+                            editor.blocks.insert('paragraph', { text: linkHtml }, {}, currentBlockIndex + 1, true);
+                          }
+                        } catch (e) {
+                          console.error('[Magic Editor X] Failed to insert link:', e);
+                          editor.blocks.insert('paragraph', { text: linkHtml }, {}, currentBlockIndex + 1, true);
+                        }
+                      }
+                      // Case 3: No selection - insert as new block
+                      else if (currentBlockIndex >= 0) {
+                        editor.blocks.insert('paragraph', {
+                          text: linkHtml,
+                        }, {}, currentBlockIndex + 1, true);
+                        editor.caret.setToBlock(currentBlockIndex + 1);
+                        console.log('[Magic Editor X] Webtools link inserted (no selection):', result);
+                      } else {
+                        editor.blocks.insert('paragraph', { text: linkHtml });
+                      }
+                    }
+                    
+                    // Clear stored selection
+                    webtoolsSelectionRef.current = { text: '', range: null, blockIndex: -1, existingAnchor: null, existingHref: '' };
+                  }}
+                  disabled={collabEnabled && collabCanEdit === false}
+                  style={{
+                    background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+                    color: 'white',
+                    ...(collabEnabled && collabCanEdit === false ? { opacity: 0.4, cursor: 'not-allowed' } : {})
+                  }}
+                >
+                  <LinkIcon />
+                </ToolButton>
+              )}
+              
               <ToolbarDivider />
               
               <ToolButton
@@ -3144,6 +3618,18 @@ const Editor = forwardRef(({
             <FooterLeft>
               <FooterStat><strong>{wordCount}</strong> {t('editor.words', 'Wörter')}</FooterStat>
               <FooterStat><strong>{charCount}</strong> {t('editor.characters', 'Zeichen')}</FooterStat>
+              {/* Subtle Webtools promo when Links addon is not installed */}
+              {!isWebtoolsAvailable && (
+                <WebtoolsPromoLink 
+                  href="https://www.pluginpal.io/plugin/webtools" 
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="Get Webtools Links addon for internal link management"
+                >
+                  <LinkIcon />
+                  Internal Links? Get Webtools
+                </WebtoolsPromoLink>
+              )}
             </FooterLeft>
             
             <FooterRight>
@@ -3255,8 +3741,8 @@ const Editor = forwardRef(({
                     if (contentToRestore && editorInstanceRef.current) {
                       await editorInstanceRef.current.render(contentToRestore);
                       setShowVersionHistory(false);
-                      // Update Strapi field value
-                      onChange({ target: { name, value: JSON.stringify(contentToRestore), type: 'text' } });
+                      // Update Strapi field value (pass object directly for JSON field type)
+                      onChange({ target: { name, value: contentToRestore, type: 'json' } });
                     }
                   } catch (err) {
                     console.error('[Magic Editor X] Failed to restore snapshot:', err?.message);
