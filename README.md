@@ -1030,7 +1030,7 @@ npm run watch:link
 
 MIT License - See [LICENSE](LICENSE) for details
 
-Copyright (c) 2024 Schero D.
+Copyright (c) 2024-2025 Schero D.
 
 ---
 
