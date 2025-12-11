@@ -67,6 +67,15 @@ import DragDrop from 'editorjs-drag-drop';
 // ============================================
 import MediaLibAdapter from '../components/MediaLib/MediaLibAdapter';
 
+// ============================================
+// READ-ONLY MODE SUPPORT
+// Enable read-only mode for tools that don't natively support it
+// This allows viewing published content without errors
+// ============================================
+Personality.isReadOnlySupported = true;
+MediaLibAdapter.isReadOnlySupported = true;
+ButtonTool.isReadOnlySupported = true;
+
 /**
  * Get authentication token from Strapi
  */

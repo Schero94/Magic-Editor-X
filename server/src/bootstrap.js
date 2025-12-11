@@ -10,7 +10,11 @@
  */
 'use strict';
 
+const { createLogger } = require('./utils');
+
 module.exports = async ({ strapi }) => {
+  const logger = createLogger(strapi);
+
   try {
     // Check if content types are registered
     const contentTypes = [
@@ -22,9 +26,9 @@ module.exports = async ({ strapi }) => {
     for (const contentType of contentTypes) {
       const exists = strapi.contentType(contentType);
       if (exists) {
-        strapi.log.info(`[Magic Editor X] [SUCCESS] Content type registered: ${contentType}`);
+        logger.info(`[SUCCESS] Content type registered: ${contentType}`);
       } else {
-        strapi.log.warn(`[Magic Editor X] [WARNING] Content type NOT found: ${contentType}`);
+        logger.warn(`[WARNING] Content type NOT found: ${contentType}`);
       }
     }
 
@@ -42,11 +46,11 @@ module.exports = async ({ strapi }) => {
             documentId: session.documentId,
           });
         }
-        strapi.log.info(`[Magic Editor X] [CLEANUP] Cleaned up ${staleSessions.length} stale sessions`);
+        logger.info(`[CLEANUP] Cleaned up ${staleSessions.length} stale sessions`);
       }
     } catch (cleanupError) {
       // Ignore cleanup errors - table might not exist yet
-      strapi.log.debug('[Magic Editor X] Session cleanup skipped:', cleanupError.message);
+      logger.debug('Session cleanup skipped:', cleanupError.message);
     }
 
     // Cleanup expired permissions
@@ -65,20 +69,20 @@ module.exports = async ({ strapi }) => {
             documentId: perm.documentId,
           });
         }
-        strapi.log.info(`[Magic Editor X] [CLEANUP] Cleaned up ${expiredPerms.length} expired permissions`);
+        logger.info(`[CLEANUP] Cleaned up ${expiredPerms.length} expired permissions`);
       }
     } catch (cleanupError) {
-      strapi.log.debug('[Magic Editor X] Permission cleanup skipped:', cleanupError.message);
+      logger.debug('Permission cleanup skipped:', cleanupError.message);
     }
 
     // Check for strapi-plugin-io compatibility
     if (strapi.$io) {
-      strapi.log.info('[Magic Editor X] [INFO] strapi-plugin-io detected - running in compatibility mode');
+      logger.info('[INFO] strapi-plugin-io detected - running in compatibility mode');
     }
 
     // Start realtime server
     await strapi.plugin('magic-editor-x').service('realtimeService').initSocketServer();
-    strapi.log.info('[Magic Editor X] [SUCCESS] Realtime server started');
+    logger.info('[SUCCESS] Realtime server started');
 
     // Register middleware to auto-parse Editor.js JSON fields in API responses
     // This transforms JSON strings to objects for better developer experience
@@ -88,13 +92,13 @@ module.exports = async ({ strapi }) => {
     if (autoParseJSON) {
       const parseMiddleware = strapi.plugin('magic-editor-x').middleware('parse-editor-fields');
       strapi.server.use(parseMiddleware({}, { strapi }));
-      strapi.log.info('[Magic Editor X] [SUCCESS] Auto-parse middleware registered (api.autoParseJSON: true)');
+      logger.info('[SUCCESS] Auto-parse middleware registered (api.autoParseJSON: true)');
     } else {
-      strapi.log.info('[Magic Editor X] [INFO] Auto-parse middleware disabled (api.autoParseJSON: false)');
+      logger.info('[INFO] Auto-parse middleware disabled (api.autoParseJSON: false)');
     }
   } catch (error) {
-    strapi.log.error('[Magic Editor X] [ERROR] Bootstrap failed:', error);
+    logger.error('[ERROR] Bootstrap failed:', error);
   }
 
-  strapi.log.info('[Magic Editor X] Plugin bootstrapped');
+  logger.info('Plugin bootstrapped');
 };

@@ -5,7 +5,12 @@
 
 'use strict';
 
-module.exports = ({ strapi }) => ({
+const { createLogger } = require('../utils');
+
+module.exports = ({ strapi }) => {
+  const logger = createLogger(strapi);
+
+  return {
   /**
    * Auto-create a FREE license with logged-in admin user data
    */
@@ -50,7 +55,7 @@ module.exports = ({ strapi }) => ({
         data: license,
       });
     } catch (error) {
-      strapi.log.error('[Magic Editor X] Error auto-creating license:', error);
+      logger.error('[Magic Editor X] Error auto-creating license:', error);
       return ctx.badRequest('Error creating license');
     }
   },
@@ -101,7 +106,7 @@ module.exports = ({ strapi }) => ({
         },
       });
     } catch (error) {
-      strapi.log.error('[Magic Editor X] Error getting license status:', error);
+      logger.error('[Magic Editor X] Error getting license status:', error);
       return ctx.badRequest('Error getting license status');
     }
   },
@@ -129,7 +134,7 @@ module.exports = ({ strapi }) => ({
       const verification = await licenseService.verifyLicense(trimmedKey);
 
       if (!verification.valid) {
-        strapi.log.warn(`[Magic Editor X] [WARNING] Invalid license key attempted: ${trimmedKey.substring(0, 8)}...`);
+        logger.warn(`[Magic Editor X] [WARNING] Invalid license key attempted: ${trimmedKey.substring(0, 8)}...`);
         return ctx.badRequest('Invalid or expired license key');
       }
 
@@ -142,7 +147,7 @@ module.exports = ({ strapi }) => ({
 
       // Verify email matches
       if (license.email.toLowerCase() !== trimmedEmail) {
-        strapi.log.warn(`[Magic Editor X] [WARNING] Email mismatch for license key`);
+        logger.warn(`[Magic Editor X] [WARNING] Email mismatch for license key`);
         return ctx.badRequest('Email address does not match this license key');
       }
 
@@ -161,7 +166,7 @@ module.exports = ({ strapi }) => ({
         tier,
       };
 
-      strapi.log.info(`[Magic Editor X] [SUCCESS] License validated and stored`);
+      logger.info(`[Magic Editor X] [SUCCESS] License validated and stored`);
 
       return ctx.send({
         success: true,
@@ -170,7 +175,7 @@ module.exports = ({ strapi }) => ({
         data: verification.data,
       });
     } catch (error) {
-      strapi.log.error('[Magic Editor X] Error storing license key:', error);
+      logger.error('[Magic Editor X] Error storing license key:', error);
       return ctx.badRequest('Error storing license key');
     }
   },
@@ -201,7 +206,7 @@ module.exports = ({ strapi }) => ({
         features: tierConfig.features,
       };
     } catch (error) {
-      strapi.log.error('[Magic Editor X] Error getting license limits:', error);
+      logger.error('[Magic Editor X] Error getting license limits:', error);
       ctx.throw(500, 'Error getting license limits');
     }
   },
@@ -219,9 +224,9 @@ module.exports = ({ strapi }) => ({
         ...result,
       };
     } catch (error) {
-      strapi.log.error('[Magic Editor X] Error checking collaborator limit:', error);
+      logger.error('[Magic Editor X] Error checking collaborator limit:', error);
       ctx.throw(500, 'Error checking collaborator limit');
     }
   },
-});
+};};
 

@@ -25,6 +25,7 @@ import {
   DocumentDuplicateIcon,
   TrashIcon,
   EyeIcon,
+  ClockIcon,
 } from '@heroicons/react/24/outline';
 import EditorJS from '@editorjs/editorjs';
 
@@ -35,7 +36,9 @@ import { PLUGIN_ID } from '../../pluginId';
 import { useMagicCollaboration } from '../../hooks/useMagicCollaboration';
 import { useLicense } from '../../hooks/useLicense';
 import { useAIActions } from '../../hooks/useAIActions';
+import { useVersionHistory } from '../../hooks/useVersionHistory';
 import AIAssistantPopup from '../AIAssistantPopup';
+import VersionHistoryPanel from '../VersionHistoryPanel';
 import AIInlineToolbar from '../AIInlineToolbar';
 import { AIToast, toastManager } from '../AIToast';
 import CreditsModal from '../CreditsModal';
@@ -1502,6 +1505,19 @@ const LoadingOverlay = styled.div`
   z-index: 10;
 `;
 
+const VersionHistoryOverlay = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 99999;
+`;
+
 const LoadingText = styled.span`
   font-size: 13px;
   color: #64748b;
@@ -1765,8 +1781,8 @@ const Editor = forwardRef(({
   const { formatMessage } = useIntl();
   const t = (id, defaultMessage) => formatMessage({ id: getTranslation(id), defaultMessage });
   
-  // Get license for AI Assistant
-  const { licenseData } = useLicense();
+  // Get license for AI Assistant and Version History
+  const { licenseData, tier: licenseTier } = useLicense();
   
   // Refs - must be defined before useAIActions
   const editorRef = useRef(null);
@@ -1814,6 +1830,7 @@ const Editor = forwardRef(({
   const [aiSelectedText, setAISelectedText] = useState('');
   const aiSelectionRangeRef = useRef(null);
   const [aiLoading, setAILoading] = useState(false);
+  const [showVersionHistory, setShowVersionHistory] = useState(false);
 
   const serializedInitialValue = useMemo(() => {
     if (!value) {
@@ -1869,6 +1886,23 @@ const Editor = forwardRef(({
       }
     },
   });
+
+  // Version History - for snapshots/restore
+  const {
+    snapshots,
+    loading: versionHistoryLoading,
+    error: versionHistoryError,
+    fetchSnapshots,
+    restoreSnapshot,
+    createSnapshot,
+  } = useVersionHistory();
+
+  // Fetch snapshots when panel opens
+  useEffect(() => {
+    if (showVersionHistory && collabRoomId) {
+      fetchSnapshots(collabRoomId);
+    }
+  }, [showVersionHistory, collabRoomId, fetchSnapshots]);
 
   // Get human-readable role label
   const collabRoleLabel = useMemo(() => {
@@ -3113,6 +3147,11 @@ const Editor = forwardRef(({
             </FooterLeft>
             
             <FooterRight>
+              {/* Version History Button */}
+              <FooterButton type="button" onClick={() => setShowVersionHistory(true)}>
+                <ClockIcon />
+                {t('editor.versionHistory', 'History')}
+              </FooterButton>
               {/* Hide Media Library button for viewers */}
               {!(collabEnabled && collabCanEdit === false) && (
               <FooterButton type="button" onClick={() => handleInsertBlock('mediaLib')}>
@@ -3197,6 +3236,60 @@ const Editor = forwardRef(({
         />
       )}
       
+      {/* Version History Panel */}
+      {showVersionHistory && (
+        <VersionHistoryOverlay onClick={() => setShowVersionHistory(false)}>
+          <div onClick={(e) => e.stopPropagation()}>
+            <VersionHistoryPanel
+              snapshots={snapshots}
+              loading={versionHistoryLoading}
+              error={versionHistoryError}
+              tier={licenseTier}
+              onClose={() => setShowVersionHistory(false)}
+              onRestore={async (snapshot) => {
+                if (snapshot.documentId && editorInstanceRef.current && isReady) {
+                  try {
+                    const result = await restoreSnapshot(snapshot.documentId, collabRoomId);
+                    // Use jsonContent from response to render in editor
+                    const contentToRestore = result?.jsonContent || snapshot.jsonContent;
+                    if (contentToRestore && editorInstanceRef.current) {
+                      await editorInstanceRef.current.render(contentToRestore);
+                      setShowVersionHistory(false);
+                      // Update Strapi field value
+                      onChange({ target: { name, value: JSON.stringify(contentToRestore), type: 'text' } });
+                    }
+                  } catch (err) {
+                    console.error('[Magic Editor X] Failed to restore snapshot:', err?.message);
+                  }
+                }
+              }}
+              onCreate={async () => {
+                if (collabRoomId && editorInstanceRef.current && isReady) {
+                  // Parse roomId format: contentType|documentId|fieldName
+                  const [contentType, entryId, fieldName] = collabRoomId.split('|');
+                  if (contentType && entryId && fieldName) {
+                    try {
+                      // Get current editor content as fallback
+                      const editorContent = await editorInstanceRef.current.save();
+                      await createSnapshot({ 
+                        roomId: collabRoomId, 
+                        contentType, 
+                        entryId, 
+                        fieldName,
+                        content: editorContent,
+                      });
+                      fetchSnapshots(collabRoomId);
+                    } catch (err) {
+                      console.error('[Magic Editor X] Failed to create snapshot:', err?.message);
+                    }
+                  }
+                }
+              }}
+            />
+          </div>
+        </VersionHistoryOverlay>
+      )}
+
       {/* Credits Modal - Shows when no credits available */}
       <CreditsModal
         isOpen={showCreditsModal}

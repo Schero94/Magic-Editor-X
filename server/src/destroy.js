@@ -4,12 +4,16 @@
  */
 'use strict';
 
+const { createLogger } = require('./utils');
+
 module.exports = async ({ strapi }) => {
+  const logger = createLogger(strapi);
+
   try {
     await strapi.plugin('magic-editor-x').service('realtimeService').close();
   } catch (error) {
-    strapi.log.error('[Magic Editor X] Failed to gracefully shutdown realtime server', error);
+    logger.error('Failed to gracefully shutdown realtime server', error);
   }
 
-  strapi.log.info('[Magic Editor X] Plugin destroyed');
+  logger.info('Plugin destroyed');
 };

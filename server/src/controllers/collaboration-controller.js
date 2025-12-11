@@ -4,7 +4,12 @@
  */
 'use strict';
 
-module.exports = ({ strapi }) => ({
+const { createLogger } = require('../utils');
+
+module.exports = ({ strapi }) => {
+  const logger = createLogger(strapi);
+
+  return {
   /**
    * List admin users for collaboration
    */
@@ -19,7 +24,7 @@ module.exports = ({ strapi }) => ({
 
       ctx.body = { data: users };
     } catch (error) {
-      strapi.log.error('[Collab] Error listing admin users:', error);
+      logger.error('[Collab] Error listing admin users:', error);
       ctx.throw(500, error);
     }
   },
@@ -49,10 +54,10 @@ module.exports = ({ strapi }) => ({
     try {
       const { userId, role, contentType, entryId, fieldName, expiresAt } = ctx.request.body;
 
-      strapi.log.info('[Collab] Creating permission with data:', { userId, role, contentType });
+      logger.info('[Collab] Creating permission with data:', { userId, role, contentType });
 
       if (!userId || !role) {
-        strapi.log.warn('[Collab] Missing userId or role');
+        logger.warn('[Collab] Missing userId or role');
         return ctx.badRequest('userId and role are required');
       }
 
@@ -61,7 +66,7 @@ module.exports = ({ strapi }) => ({
       const limitCheck = await accessService.checkCollaboratorLimit();
       
       if (!limitCheck.canAdd) {
-        strapi.log.warn('[Collab] Collaborator limit reached:', limitCheck);
+        logger.warn('[Collab] Collaborator limit reached:', limitCheck);
         return ctx.forbidden({
           error: 'Collaborator limit reached',
           message: `You have reached the maximum of ${limitCheck.max} collaborators for your plan. Upgrade to add more.`,
@@ -78,11 +83,11 @@ module.exports = ({ strapi }) => ({
       });
 
       if (!user) {
-        strapi.log.warn('[Collab] User not found:', userId);
+        logger.warn('[Collab] User not found:', userId);
         return ctx.badRequest('User not found');
       }
 
-      strapi.log.info('[Collab] Creating permission for user:', user.email);
+      logger.info('[Collab] Creating permission for user:', user.email);
 
       // Using Document Service API (strapi.documents) for Strapi v5
       const permission = await strapi.documents('plugin::magic-editor-x.collab-permission').create({
@@ -98,11 +103,11 @@ module.exports = ({ strapi }) => ({
           },
       });
 
-      strapi.log.info('[Collab] Permission created successfully:', permission.documentId);
+      logger.info('[Collab] Permission created successfully:', permission.documentId);
 
       ctx.body = { data: permission };
     } catch (error) {
-      strapi.log.error('[Collab] Error creating permission:', error);
+      logger.error('[Collab] Error creating permission:', error);
       ctx.throw(500, error.message || 'Failed to create permission');
     }
   },
@@ -141,7 +146,7 @@ module.exports = ({ strapi }) => ({
         updateData.expiresAt = expiresAt;
       }
 
-      strapi.log.info('[Collab] Updating permission:', { documentId: id, updateData });
+      logger.info('[Collab] Updating permission:', { documentId: id, updateData });
 
       const permission = await strapi.documents('plugin::magic-editor-x.collab-permission').update({
         documentId: id,
@@ -150,7 +155,7 @@ module.exports = ({ strapi }) => ({
 
       ctx.body = { data: permission };
     } catch (error) {
-      strapi.log.error('[Collab] Error updating permission:', error);
+      logger.error('[Collab] Error updating permission:', error);
       ctx.throw(500, error);
     }
   },
@@ -196,5 +201,5 @@ module.exports = ({ strapi }) => ({
       ctx.throw(500, error);
     }
   },
-});
+};};
 

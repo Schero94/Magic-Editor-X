@@ -97,6 +97,7 @@
   "editor.clearConfirm": "¿Limpiar todo el contenido? Esto no se puede deshacer.",
   "editor.fullscreen": "Pantalla Completa",
   "editor.exitFullscreen": "Salir de Pantalla Completa",
+  "editor.versionHistory": "Historial",
   "editor.mediaLibrary": "Media Library",
   "editor.placeholder": "Comienza a escribir tu increíble contenido...",
   

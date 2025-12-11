@@ -102,5 +102,30 @@ module.exports = {
         policies: ['admin::isAuthenticatedAdmin'],
       },
     },
+    // Version History (Snapshots)
+    {
+      method: 'GET',
+      path: '/snapshots/:roomId',
+      handler: 'snapshot.list',
+      config: {
+        policies: ['admin::isAuthenticatedAdmin'],
+      },
+    },
+    {
+      method: 'POST',
+      path: '/snapshots/:roomId',
+      handler: 'snapshot.create',
+      config: {
+        policies: ['admin::isAuthenticatedAdmin'],
+      },
+    },
+    {
+      method: 'POST',
+      path: '/snapshots/restore/:documentId',
+      handler: 'snapshot.restore',
+      config: {
+        policies: ['admin::isAuthenticatedAdmin'],
+      },
+    },
   ],
 };

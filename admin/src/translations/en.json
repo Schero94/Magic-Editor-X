@@ -97,6 +97,7 @@
   "editor.clearConfirm": "Clear all content? This cannot be undone.",
   "editor.fullscreen": "Fullscreen",
   "editor.exitFullscreen": "Exit Fullscreen",
+  "editor.versionHistory": "History",
   "editor.mediaLibrary": "Media Library",
   "editor.placeholder": "Start writing your amazing content...",
   

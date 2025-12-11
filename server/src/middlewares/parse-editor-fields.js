@@ -9,7 +9,11 @@
  */
 'use strict';
 
+const { createLogger } = require('../utils');
+
 module.exports = (config, { strapi }) => {
+  const logger = createLogger(strapi);
+
   return async (ctx, next) => {
     await next();
 
@@ -33,6 +37,11 @@ module.exports = (config, { strapi }) => {
         // Handle arrays
         if (Array.isArray(data)) {
           return data.map(parseEditorFields);
+        }
+
+        // Preserve Date objects as-is (Object.entries(Date) returns [], causing empty object)
+        if (data instanceof Date) {
+          return data;
         }
 
         // Handle objects
@@ -72,7 +81,7 @@ module.exports = (config, { strapi }) => {
       }
     } catch (error) {
       // Silently fail - don't break the response if parsing fails
-      strapi.log.debug('[Magic Editor X] Failed to parse editor fields:', error.message);
+      logger.debug('Failed to parse editor fields:', error.message);
     }
   };
 };

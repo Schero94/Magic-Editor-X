@@ -4,7 +4,12 @@
  */
 'use strict';
 
-module.exports = ({ strapi }) => ({
+const { createLogger } = require('../utils');
+
+module.exports = ({ strapi }) => {
+  const logger = createLogger(strapi);
+
+  return {
   /**
    * Fetch link metadata (OpenGraph) for URL preview
    * GET /api/magic-editor-x/link?url=https://example.com
@@ -28,7 +33,7 @@ module.exports = ({ strapi }) => ({
 
       ctx.send(result);
     } catch (error) {
-      strapi.log.error('[Magic Editor X] Link fetch error:', error);
+      logger.error('[Magic Editor X] Link fetch error:', error);
       ctx.send({
         success: 0,
         message: error.message || 'Failed to fetch link metadata',
@@ -51,7 +56,7 @@ module.exports = ({ strapi }) => ({
 
       ctx.send(result);
     } catch (error) {
-      strapi.log.error('[Magic Editor X] File upload error:', error);
+      logger.error('[Magic Editor X] File upload error:', error);
       ctx.send({
         success: 0,
         message: error.message || 'Failed to upload file',
@@ -83,7 +88,7 @@ module.exports = ({ strapi }) => ({
 
       ctx.send(result);
     } catch (error) {
-      strapi.log.error('[Magic Editor X] URL upload error:', error);
+      logger.error('[Magic Editor X] URL upload error:', error);
       ctx.send({
         success: 0,
         message: error.message || 'Failed to upload from URL',
@@ -106,12 +111,12 @@ module.exports = ({ strapi }) => ({
 
       ctx.send(result);
     } catch (error) {
-      strapi.log.error('[Magic Editor X] Attachment upload error:', error);
+      logger.error('[Magic Editor X] Attachment upload error:', error);
       ctx.send({
         success: 0,
         message: error.message || 'Failed to upload attachment',
       }, 500);
     }
   },
-});
+};};
 

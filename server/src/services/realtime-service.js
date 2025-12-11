@@ -3,6 +3,7 @@
 const { randomUUID } = require('crypto');
 const { Server } = require('socket.io');
 const Y = require('yjs');
+const { createLogger } = require('../utils');
 
 const pluginId = 'magic-editor-x';
 const DEFAULT_SOCKET_PATH = '/magic-editor-x/realtime';
@@ -26,6 +27,7 @@ const isPluginIoActive = (strapi) => {
 };
 
 module.exports = ({ strapi }) => {
+  const logger = createLogger(strapi);
   const rooms = new Map();
   const sessionTokens = new Map();
   let io;
@@ -61,7 +63,7 @@ module.exports = ({ strapi }) => {
     });
     
     if (removedCount > 0) {
-      strapi.log.info(`[Magic Editor X] [CLEANUP] Removed ${removedCount} stale rooms`);
+      logger.info(`[CLEANUP] Removed ${removedCount} stale rooms`);
     }
   };
 
@@ -145,9 +147,9 @@ module.exports = ({ strapi }) => {
       }, 'bootstrap');
       
       room.initialized = true;
-      strapi.log.info(`[Magic Editor X] [INIT] Initialized room ${roomId} with ${blocks.length} blocks`);
+      logger.info(`[INIT] Initialized room ${roomId} with ${blocks.length} blocks`);
     } catch (error) {
-      strapi.log.error(`[Magic Editor X] Failed to initialize Y.Doc for room ${roomId}`, error);
+      logger.error(`Failed to initialize Y.Doc for room ${roomId}`, error);
     }
 
     return room;
@@ -163,7 +165,7 @@ module.exports = ({ strapi }) => {
     try {
       return Y.encodeStateAsUpdate(room.doc);
     } catch (error) {
-      strapi.log.error(`[Magic Editor X] Failed to encode state for room ${roomId}`, error);
+      logger.error(`Failed to encode state for room ${roomId}`, error);
       return null;
     }
   };
@@ -184,7 +186,7 @@ module.exports = ({ strapi }) => {
     try {
       Y.applyUpdate(room.doc, update, origin);
     } catch (error) {
-      strapi.log.error(`[Magic Editor X] Failed to apply update for room ${roomId}`, error);
+      logger.error(`Failed to apply update for room ${roomId}`, error);
     }
   };
 
@@ -280,7 +282,7 @@ module.exports = ({ strapi }) => {
 
     // Collaboration ist standardmäßig aktiviert, außer explizit deaktiviert
     if (collabConfig.enabled === false) {
-      strapi.log.info('[Magic Editor X] Realtime server disabled (collaboration.enabled=false)');
+      logger.info('Realtime server disabled (collaboration.enabled=false)');
       return null;
     }
 
@@ -290,13 +292,13 @@ module.exports = ({ strapi }) => {
 
     const httpServer = strapi.server.httpServer;
     if (!httpServer) {
-      strapi.log.warn('[Magic Editor X] HTTP server not ready. Realtime collaboration skipped.');
+      logger.warn('HTTP server not ready. Realtime collaboration skipped.');
       return null;
     }
 
     // Check for strapi-plugin-io compatibility
     if (isPluginIoActive(strapi)) {
-      strapi.log.info('[Magic Editor X] [INFO] strapi-plugin-io detected - using separate namespace');
+      logger.info('[INFO] strapi-plugin-io detected - using separate namespace');
     }
 
     // IMPORTANT: Use a unique path to avoid conflicts with strapi-plugin-io
@@ -306,13 +308,13 @@ module.exports = ({ strapi }) => {
     
     // Validate path doesn't conflict with strapi-plugin-io
     if (wsPath === '/socket.io') {
-      strapi.log.warn('[Magic Editor X] [WARNING] wsPath "/socket.io" conflicts with strapi-plugin-io!');
-      strapi.log.warn('[Magic Editor X] Using default path instead: ' + DEFAULT_SOCKET_PATH);
+      logger.warn('[WARNING] wsPath "/socket.io" conflicts with strapi-plugin-io!');
+      logger.warn('Using default path instead: ' + DEFAULT_SOCKET_PATH);
     }
     
     const finalPath = wsPath === '/socket.io' ? DEFAULT_SOCKET_PATH : wsPath;
     
-    strapi.log.info(`[Magic Editor X] [SOCKET] Starting Socket.io server on path: ${finalPath}`);
+    logger.info(`[SOCKET] Starting Socket.io server on path: ${finalPath}`);
 
     io = new Server(httpServer, {
       path: finalPath,
@@ -330,12 +332,12 @@ module.exports = ({ strapi }) => {
     io.on('connection', (socket) => {
       const token = socket.handshake.auth?.token;
       
-      strapi.log.info(`[Magic Editor X] [SOCKET] Client connecting with token: ${token ? 'valid' : 'missing'}`);
+      logger.info(`[SOCKET] Client connecting with token: ${token ? 'valid' : 'missing'}`);
       
       const session = consumeSessionToken(token);
 
       if (!session) {
-        strapi.log.warn('[Magic Editor X] [WARNING] Invalid or expired token');
+        logger.warn('[WARNING] Invalid or expired token');
         socket.emit('collab:error', { code: 'INVALID_TOKEN', message: 'Invalid or expired session token' });
         socket.disconnect(true);
         return;
@@ -346,7 +348,7 @@ module.exports = ({ strapi }) => {
       socket.data.roomId = roomId;
       socket.join(roomId);
 
-      strapi.log.info(`[Magic Editor X] [SUCCESS] User ${user.email} joined room: ${roomId}`);
+      logger.info(`[SUCCESS] User ${user.email} joined room: ${roomId}`);
 
       // Send initial state as binary data (Uint8Array)
       const initialState = getStateUpdate(roomId);
@@ -354,7 +356,7 @@ module.exports = ({ strapi }) => {
         // Convert to Array for Socket.io transmission
         const stateArray = Array.from(initialState);
         socket.emit('collab:sync', stateArray);
-        strapi.log.info(`[Magic Editor X] [SYNC] Sent initial state (${stateArray.length} bytes)`);
+        logger.info(`[SYNC] Sent initial state (${stateArray.length} bytes)`);
       }
 
       // Send list of ALL peers already in the room to the new user
@@ -373,7 +375,7 @@ module.exports = ({ strapi }) => {
           socket.emit('collab:presence', { type: 'join', user: peerUser });
         });
         
-        strapi.log.info(`[Magic Editor X] [PEERS] Sent ${existingPeers.length} existing peers to new user`);
+        logger.info(`[PEERS] Sent ${existingPeers.length} existing peers to new user`);
       }
 
       // Notify other users about the new user
@@ -388,9 +390,9 @@ module.exports = ({ strapi }) => {
           // Broadcast to other clients in the room
           socket.to(roomId).emit('collab:update', update);
           
-          strapi.log.debug(`[Magic Editor X] [BROADCAST] Update broadcast to room ${roomId}`);
+          logger.debug(`[BROADCAST] Update broadcast to room ${roomId}`);
         } catch (error) {
-          strapi.log.error('[Magic Editor X] Failed to process update:', error);
+          logger.error('Failed to process update:', error);
           socket.emit('collab:error', { code: 'UPDATE_FAILED', message: 'Failed to process update' });
         }
       });
@@ -400,16 +402,16 @@ module.exports = ({ strapi }) => {
       });
 
       socket.on('disconnect', (reason) => {
-        strapi.log.info(`[Magic Editor X] [DISCONNECT] User ${user.email} left room ${roomId} (${reason})`);
+        logger.info(`[DISCONNECT] User ${user.email} left room ${roomId} (${reason})`);
         socket.to(roomId).emit('collab:presence', { type: 'leave', user });
       });
 
       socket.on('error', (error) => {
-        strapi.log.error('[Magic Editor X] Socket error:', error);
+        logger.error('Socket error:', error);
       });
     });
 
-    strapi.log.info('[Magic Editor X] [SUCCESS] Realtime collaboration server ready');
+    logger.info('[SUCCESS] Realtime collaboration server ready');
 
     return io;
   };

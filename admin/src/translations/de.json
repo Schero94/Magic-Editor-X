@@ -97,6 +97,7 @@
   "editor.clearConfirm": "Gesamten Inhalt löschen? Dies kann nicht rückgängig gemacht werden.",
   "editor.fullscreen": "Vollbild",
   "editor.exitFullscreen": "Vollbild beenden",
+  "editor.versionHistory": "Verlauf",
   "editor.mediaLibrary": "Media Library",
   "editor.placeholder": "Beginne mit dem Schreiben deines Inhalts...",
   

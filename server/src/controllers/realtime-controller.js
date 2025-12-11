@@ -5,6 +5,7 @@
  * Handles session creation and permission checks for collaboration
  */
 
+const { createLogger } = require('../utils');
 const pluginId = 'magic-editor-x';
 
 /**
@@ -64,12 +65,16 @@ const verifyAdminToken = async (strapi, ctx) => {
 
     return adminUser;
   } catch (error) {
-    strapi.log.warn('[Realtime] Admin token verification failed:', error.message);
+    const logger = createLogger(strapi);
+    logger.warn('[Realtime] Admin token verification failed:', error.message);
     return null;
   }
 };
 
-module.exports = ({ strapi }) => ({
+module.exports = ({ strapi }) => {
+  const logger = createLogger(strapi);
+
+  return {
   /**
    * POST /magic-editor-x/realtime/session
    * Issues a short-lived collaboration token for the socket handshake.
@@ -77,10 +82,10 @@ module.exports = ({ strapi }) => ({
   async createSession(ctx) {
     const { roomId, fieldName, meta = {}, initialValue } = ctx.request.body || {};
 
-    strapi.log.info('[Realtime] createSession called with:', { roomId, fieldName });
+    logger.info('[Realtime] createSession called with:', { roomId, fieldName });
 
     if (!roomId || !fieldName) {
-      strapi.log.warn('[Realtime] Missing roomId or fieldName');
+      logger.warn('[Realtime] Missing roomId or fieldName');
       return ctx.badRequest('roomId and fieldName are required');
     }
 
@@ -93,11 +98,11 @@ module.exports = ({ strapi }) => ({
     }
 
     if (!adminUser) {
-      strapi.log.warn('[Realtime] No admin user in context or invalid token');
+      logger.warn('[Realtime] No admin user in context or invalid token');
       return ctx.unauthorized('Admin authentication required');
     }
 
-    strapi.log.info('[Realtime] Admin user:', {
+    logger.info('[Realtime] Admin user:', {
       id: adminUser.id,
       email: adminUser.email,
       firstname: adminUser.firstname,
@@ -126,7 +131,7 @@ module.exports = ({ strapi }) => ({
           extractedDocumentId = parts[1];
         }
       }
-      strapi.log.info('[Realtime] Parsed roomId:', { 
+      logger.info('[Realtime] Parsed roomId:', { 
         contentType: extractedContentType, 
         documentId: extractedDocumentId,
         roomId 
@@ -136,7 +141,7 @@ module.exports = ({ strapi }) => ({
     // canUseCollaboration ist jetzt async! Pass extracted contentType for permission check
     const access = await accessService.canUseCollaboration(adminUser, extractedContentType);
 
-    strapi.log.info('[Realtime] Access check result:', {
+    logger.info('[Realtime] Access check result:', {
       allowed: access.allowed,
       reason: access.reason || 'none',
       role: access.role || 'none',
@@ -168,7 +173,7 @@ module.exports = ({ strapi }) => ({
         initialValue: sanitizeInitialValue(initialValue),
       });
 
-      strapi.log.info('[Realtime] [SUCCESS] Session created successfully with role:', access.role);
+      logger.info('[Realtime] [SUCCESS] Session created successfully with role:', access.role);
 
       // Include the user's collaboration role in the response
       ctx.body = {
@@ -181,8 +186,8 @@ module.exports = ({ strapi }) => ({
         return ctx.forbidden('Realtime collaboration is disabled');
       }
 
-      strapi.log.error('[Magic Editor X] Failed to create realtime session', error);
+      logger.error('Failed to create realtime session', error);
       ctx.internalServerError('Unable to create realtime session');
     }
   },
-});
+};};

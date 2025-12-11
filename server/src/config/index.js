@@ -5,6 +5,10 @@
 
 module.exports = {
   default: {
+    // Debug/Verbose logging (default: false for production)
+    // Set to true to see all [Magic Editor X] logs in the console
+    debug: false,
+
     // Default configuration options
     enabledTools: [
       'header',
@@ -54,6 +58,10 @@ module.exports = {
   
   validator: (config) => {
     // Validate configuration
+    if (config.debug !== undefined && typeof config.debug !== 'boolean') {
+      throw new Error('[Magic Editor X] debug must be a boolean');
+    }
+
     if (config.linkPreviewTimeout && typeof config.linkPreviewTimeout !== 'number') {
       throw new Error('[Magic Editor X] linkPreviewTimeout must be a number');
     }

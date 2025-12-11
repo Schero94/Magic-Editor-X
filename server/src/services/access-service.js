@@ -1,5 +1,6 @@
 'use strict';
 
+const { createLogger } = require('../utils');
 const pluginId = 'magic-editor-x';
 
 /**
@@ -18,6 +19,7 @@ const getRoleCodes = (user) => {
 };
 
 module.exports = ({ strapi }) => {
+  const logger = createLogger(strapi);
   const getConfig = () => strapi.config.get(`plugin::${pluginId}`, {});
 
   return {
@@ -31,18 +33,18 @@ module.exports = ({ strapi }) => {
      */
     async canUseCollaboration(user, contentType = null) {
       if (!user) {
-        strapi.log.warn('[Access Service] No user provided');
+        logger.warn('[Access Service] No user provided');
         return { allowed: false, reason: 'not-authenticated', role: null };
       }
 
-      strapi.log.info('[Access Service] Checking access for user:', user.email, 'contentType:', contentType);
+      logger.info('[Access Service] Checking access for user:', user.email, 'contentType:', contentType);
 
       const config = getConfig();
       const collab = config.collaboration || {};
 
       // Wenn explizit deaktiviert
       if (collab.enabled === false) {
-        strapi.log.info('[Access Service] Collaboration is disabled');
+        logger.info('[Access Service] Collaboration is disabled');
         return { allowed: false, reason: 'collaboration-disabled', role: null };
       }
 
@@ -50,10 +52,10 @@ module.exports = ({ strapi }) => {
       const userRoleCodes = getRoleCodes(user);
       const isSuperAdmin = userRoleCodes.includes('strapi-super-admin');
       
-      strapi.log.info('[Access Service] User roles:', userRoleCodes, 'isSuperAdmin:', isSuperAdmin);
+      logger.info('[Access Service] User roles:', userRoleCodes, 'isSuperAdmin:', isSuperAdmin);
       
       if (isSuperAdmin) {
-        strapi.log.info('[Access Service] [SUCCESS] Super Admin access granted');
+        logger.info('[Access Service] [SUCCESS] Super Admin access granted');
         return { allowed: true, reason: 'super-admin', role: 'owner' };
       }
 
@@ -67,14 +69,14 @@ module.exports = ({ strapi }) => {
             },
         });
 
-        strapi.log.info('[Access Service] Found permissions:', permissions?.length || 0);
+        logger.info('[Access Service] Found permissions:', permissions?.length || 0);
 
         if (permissions && permissions.length > 0) {
           // Finde die beste passende Permission
           let bestPermission = null;
           
           for (const perm of permissions) {
-            strapi.log.info('[Access Service] Checking permission:', {
+            logger.info('[Access Service] Checking permission:', {
               permContentType: perm.contentType,
               requestedContentType: contentType,
               role: perm.role,
@@ -83,20 +85,20 @@ module.exports = ({ strapi }) => {
             
             // Check if permission is expired
             if (perm.expiresAt && new Date(perm.expiresAt) < new Date()) {
-              strapi.log.info('[Access Service] Permission expired, skipping');
+              logger.info('[Access Service] Permission expired, skipping');
               continue;
             }
             
             // Globale Permission (null, '*', oder leer = Zugriff auf ALLES)
             if (!perm.contentType || perm.contentType === '*' || perm.contentType === '') {
-              strapi.log.info('[Access Service] ✅ Global permission found');
+              logger.info('[Access Service] Global permission found');
               if (!bestPermission || this.getRoleLevel(perm.role) > this.getRoleLevel(bestPermission.role)) {
                 bestPermission = perm;
               }
             }
             // Spezifische Content Type Permission
             else if (contentType && perm.contentType === contentType) {
-              strapi.log.info('[Access Service] ✅ Specific content type match');
+              logger.info('[Access Service] Specific content type match');
               // Spezifische Permission hat Vorrang
               bestPermission = perm;
               break;
@@ -104,7 +106,7 @@ module.exports = ({ strapi }) => {
             // Auch matchen wenn contentType "unknown" ist (z.B. Plugin-Seite)
             // In diesem Fall jede existierende Permission akzeptieren
             else if (!contentType || contentType === 'unknown') {
-              strapi.log.info('[Access Service] ✅ Unknown/null contentType - accepting any permission');
+              logger.info('[Access Service] Unknown/null contentType - accepting any permission');
               if (!bestPermission || this.getRoleLevel(perm.role) > this.getRoleLevel(bestPermission.role)) {
                 bestPermission = perm;
               }
@@ -112,7 +114,7 @@ module.exports = ({ strapi }) => {
           }
           
           if (bestPermission) {
-            strapi.log.info('[Access Service] ✅ Permission granted via collab-permission, role:', bestPermission.role);
+            logger.info('[Access Service] Permission granted via collab-permission, role:', bestPermission.role);
             return { 
               allowed: true, 
               reason: 'explicit-permission', 
@@ -122,11 +124,11 @@ module.exports = ({ strapi }) => {
           }
         }
       } catch (error) {
-        strapi.log.error('[Access Service] Error checking permissions:', error);
+        logger.error('[Access Service] Error checking permissions:', error);
       }
 
       // Keine Berechtigung
-      strapi.log.info('[Access Service] [DENIED] No permission found for user');
+      logger.info('[Access Service] [DENIED] No permission found for user');
       return { allowed: false, reason: 'permission-required', role: null };
     },
 
@@ -147,7 +149,7 @@ module.exports = ({ strapi }) => {
         const licenseService = strapi.plugin('magic-editor-x').service('licenseService');
         return await licenseService.canAddCollaborator();
       } catch (error) {
-        strapi.log.error('[Access Service] Error checking collaborator limit:', error);
+        logger.error('[Access Service] Error checking collaborator limit:', error);
         // Default to allowing in case of error (fail open for free tier)
         return {
           canAdd: true,
@@ -238,7 +240,7 @@ module.exports = ({ strapi }) => {
 
         return false;
       } catch (error) {
-        strapi.log.error('[Access Service] Error checking room access:', error);
+        logger.error('[Access Service] Error checking room access:', error);
         return false;
       }
     },

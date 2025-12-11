@@ -129,7 +129,7 @@ module.exports = {
         },
         yjsSnapshot: {
           type: 'text',
-          required: true,
+          required: false, // Optional for JSON-only snapshots
         },
         jsonContent: {
           type: 'json',
@@ -139,9 +139,7 @@ module.exports = {
           relation: 'oneToOne',
           target: 'admin::user',
         },
-        createdAt: {
-          type: 'datetime',
-        },
+        // Note: createdAt/updatedAt are auto-managed by Strapi
       },
     },
   },

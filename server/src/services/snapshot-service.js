@@ -6,8 +6,12 @@
 'use strict';
 
 const { encodeStateAsUpdate, encodeStateVector, applyUpdate } = require('yjs');
+const { createLogger } = require('../utils');
 
-module.exports = ({ strapi }) => ({
+module.exports = ({ strapi }) => {
+  const logger = createLogger(strapi);
+
+  return {
   /**
    * Create snapshot from Y.Doc
    */
@@ -32,10 +36,11 @@ module.exports = ({ strapi }) => ({
         const text = ydoc.getText('content');
         jsonContent = text.toString();
       } catch (e) {
-        strapi.log.warn('[Snapshot] Could not extract JSON content:', e);
+        logger.warn('[Snapshot] Could not extract JSON content:', e);
       }
 
       // Create snapshot
+      // Note: createdAt is auto-set by Strapi
       const snapshot = await strapi.documents('plugin::magic-editor-x.document-snapshot').create({
           data: {
             roomId,
@@ -46,14 +51,55 @@ module.exports = ({ strapi }) => ({
             yjsSnapshot,
             jsonContent: jsonContent ? JSON.parse(jsonContent) : null,
             createdBy: userId,
-            createdAt: new Date(),
           },
       });
 
-      strapi.log.info(`[Snapshot] Created v${nextVersion} for ${roomId}`);
+      logger.info(`[Snapshot] Created v${nextVersion} for ${roomId}`);
       return snapshot;
     } catch (error) {
-      strapi.log.error('[Snapshot] Error creating snapshot:', error);
+      logger.error('[Snapshot] Error creating snapshot:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Create snapshot from JSON content (when no Y.Doc available)
+   * @param {string} roomId - Room identifier
+   * @param {string} contentType - Content type UID
+   * @param {string} entryId - Entry document ID
+   * @param {string} fieldName - Field name
+   * @param {object} jsonContent - Editor.js JSON content
+   * @param {string|null} userId - User ID who created the snapshot
+   */
+  async createSnapshotFromJson(roomId, contentType, entryId, fieldName, jsonContent, userId) {
+    try {
+      // Get latest version number
+      const latestSnapshots = await strapi.documents('plugin::magic-editor-x.document-snapshot').findMany({
+        filters: { roomId },
+        sort: [{ version: 'desc' }],
+        limit: 1,
+      });
+
+      const nextVersion = latestSnapshots?.[0]?.version ? latestSnapshots[0].version + 1 : 1;
+
+      // Create snapshot without Y.js state (JSON-only snapshot)
+      const snapshot = await strapi.documents('plugin::magic-editor-x.document-snapshot').create({
+        data: {
+          roomId,
+          contentType,
+          entryId,
+          fieldName,
+          version: nextVersion,
+          yjsSnapshot: null, // No Y.js state available
+          jsonContent: typeof jsonContent === 'string' ? JSON.parse(jsonContent) : jsonContent,
+          createdBy: userId,
+        },
+      });
+
+      logger.info(`[Snapshot] Created v${nextVersion} for ${roomId} (JSON-only)`);
+      return snapshot;
+    } catch (error) {
+      logger.error('[Snapshot] Error creating JSON snapshot:', error);
       throw error;
     }
   },
@@ -88,10 +134,10 @@ module.exports = ({ strapi }) => ({
       const yjsState = Buffer.from(snapshot.yjsSnapshot, 'base64');
       applyUpdate(ydoc, yjsState);
 
-      strapi.log.info(`[Snapshot] Restored v${snapshot.version} for ${snapshot.roomId}`);
+      logger.info(`[Snapshot] Restored v${snapshot.version} for ${snapshot.roomId}`);
       return snapshot;
     } catch (error) {
-      strapi.log.error('[Snapshot] Error restoring snapshot:', error);
+      logger.error('[Snapshot] Error restoring snapshot:', error);
       throw error;
     }
   },
@@ -115,11 +161,11 @@ module.exports = ({ strapi }) => ({
         });
       }
 
-      strapi.log.info(`[Snapshot] Cleaned up ${toDelete.length} old snapshots for ${roomId}`);
+      logger.info(`[Snapshot] Cleaned up ${toDelete.length} old snapshots for ${roomId}`);
       return { deleted: toDelete.length };
     } catch (error) {
-      strapi.log.error('[Snapshot] Error cleaning up snapshots:', error);
+      logger.error('[Snapshot] Error cleaning up snapshots:', error);
       throw error;
     }
   },
-});
+};};

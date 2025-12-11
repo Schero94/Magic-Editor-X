@@ -12,6 +12,7 @@
 
 const crypto = require('crypto');
 const os = require('os');
+const { createLogger } = require('../utils');
 
 // License Server URL
 const LICENSE_SERVER_URL = 'https://magicapi.fitlex.me';
@@ -65,7 +66,10 @@ const TIERS = {
   },
 };
 
-module.exports = ({ strapi }) => ({
+module.exports = ({ strapi }) => {
+  const logger = createLogger(strapi);
+
+  return {
   /**
    * Get license server URL
    * @returns {string} License server URL
@@ -182,14 +186,14 @@ module.exports = ({ strapi }) => ({
       const data = await response.json();
 
       if (data.success) {
-        strapi.log.info(`[Magic Editor X] [SUCCESS] License created: ${data.data.licenseKey}`);
+        logger.info(`[Magic Editor X] [SUCCESS] License created: ${data.data.licenseKey}`);
         return data.data;
       } else {
-        strapi.log.error('[Magic Editor X] [ERROR] License creation failed:', data);
+        logger.error('[Magic Editor X] [ERROR] License creation failed:', data);
         return null;
       }
     } catch (error) {
-      strapi.log.error('[Magic Editor X] [ERROR] Error creating license:', error);
+      logger.error('[Magic Editor X] [ERROR] Error creating license:', error);
       return null;
     }
   },
@@ -226,10 +230,10 @@ module.exports = ({ strapi }) => ({
       }
     } catch (error) {
       if (allowGracePeriod) {
-        strapi.log.warn('[Magic Editor X] [WARNING] License verification timeout - grace period active');
+        logger.warn('[Magic Editor X] [WARNING] License verification timeout - grace period active');
         return { valid: true, data: null, gracePeriod: true };
       }
-      strapi.log.error('[Magic Editor X] [ERROR] License verification error:', error.message);
+      logger.error('[Magic Editor X] [ERROR] License verification error:', error.message);
       return { valid: false, data: null };
     }
   },
@@ -254,7 +258,7 @@ module.exports = ({ strapi }) => ({
       
       return null;
     } catch (error) {
-      strapi.log.error('[Magic Editor X] Error fetching license by key:', error);
+      logger.error('[Magic Editor X] Error fetching license by key:', error);
       return null;
     }
   },
@@ -302,7 +306,7 @@ module.exports = ({ strapi }) => ({
       name: 'magic-editor-x' 
     });
     await pluginStore.set({ key: 'licenseKey', value: licenseKey });
-    strapi.log.info(`[Magic Editor X] [SUCCESS] License key stored: ${licenseKey.substring(0, 8)}...`);
+    logger.info(`[Magic Editor X] [SUCCESS] License key stored: ${licenseKey.substring(0, 8)}...`);
   },
 
   /**
@@ -353,7 +357,7 @@ module.exports = ({ strapi }) => ({
       const license = await this.getLicenseByKey(licenseKey);
       return license;
     } catch (error) {
-      strapi.log.error(`[Magic Editor X] [ERROR] Error loading license:`, error);
+      logger.error(`[Magic Editor X] [ERROR] Error loading license:`, error);
       return null;
     }
   },
@@ -433,12 +437,12 @@ module.exports = ({ strapi }) => ({
    */
   async initialize() {
     try {
-      strapi.log.info('[Magic Editor X] [INIT] Initializing License Service...');
+      logger.info('[Magic Editor X] [INIT] Initializing License Service...');
 
       const licenseKey = await this.getStoredLicenseKey();
       
       if (!licenseKey) {
-        strapi.log.info('[Magic Editor X] [FREE] No license found - Running in FREE mode (2 Collaborators)');
+        logger.info('[Magic Editor X] [FREE] No license found - Running in FREE mode (2 Collaborators)');
         return {
           valid: false,
           demo: true,
@@ -487,13 +491,13 @@ module.exports = ({ strapi }) => ({
           tier,
         };
 
-        strapi.log.info('==================================================================');
-        strapi.log.info('[SUCCESS] MAGIC EDITOR X LICENSE ACTIVE');
-        strapi.log.info(`  License: ${licenseKey.substring(0, 15)}...`);
-        strapi.log.info(`  Tier: ${tierConfig.name}`);
-        strapi.log.info(`  Collaborators: ${tierConfig.maxCollaborators === -1 ? 'Unlimited' : tierConfig.maxCollaborators}`);
-        strapi.log.info(`  User: ${license?.firstName} ${license?.lastName}`);
-        strapi.log.info('==================================================================');
+        logger.info('==================================================================');
+        logger.info('[SUCCESS] MAGIC EDITOR X LICENSE ACTIVE');
+        logger.info(`  License: ${licenseKey.substring(0, 15)}...`);
+        logger.info(`  Tier: ${tierConfig.name}`);
+        logger.info(`  Collaborators: ${tierConfig.maxCollaborators === -1 ? 'Unlimited' : tierConfig.maxCollaborators}`);
+        logger.info(`  User: ${license?.firstName} ${license?.lastName}`);
+        logger.info('==================================================================');
 
         return {
           valid: true,
@@ -503,7 +507,7 @@ module.exports = ({ strapi }) => ({
           gracePeriod: verification.gracePeriod || false,
         };
       } else {
-        strapi.log.warn('[Magic Editor X] [WARNING] License validation failed - Running in FREE mode');
+        logger.warn('[Magic Editor X] [WARNING] License validation failed - Running in FREE mode');
         return {
           valid: false,
           demo: true,
@@ -513,7 +517,7 @@ module.exports = ({ strapi }) => ({
         };
       }
     } catch (error) {
-      strapi.log.error('[Magic Editor X] [ERROR] Error initializing License Service:', error);
+      logger.error('[Magic Editor X] [ERROR] Error initializing License Service:', error);
       return {
         valid: false,
         demo: true,
@@ -523,5 +527,5 @@ module.exports = ({ strapi }) => ({
       };
     }
   },
-});
+};};
 

@@ -10,8 +10,12 @@ const path = require('path');
 const https = require('https');
 const http = require('http');
 const { URL } = require('url');
+const { createLogger } = require('../utils');
 
-module.exports = ({ strapi }) => ({
+module.exports = ({ strapi }) => {
+  const logger = createLogger(strapi);
+
+  return {
   /**
    * Fetch OpenGraph metadata for a URL
    * @param {string} url - URL to fetch metadata from
@@ -32,7 +36,7 @@ module.exports = ({ strapi }) => ({
       const { result, error } = await ogs(options);
 
       if (error) {
-        strapi.log.warn('[Magic Editor X] OGS error:', error);
+        logger.warn('[Magic Editor X] OGS error:', error);
         return {
           success: 1,
           meta: {
@@ -64,7 +68,7 @@ module.exports = ({ strapi }) => ({
         },
       };
     } catch (error) {
-      strapi.log.error('[Magic Editor X] Link meta fetch error:', error);
+      logger.error('[Magic Editor X] Link meta fetch error:', error);
       
       // Return basic result even on error
       return {
@@ -117,7 +121,7 @@ module.exports = ({ strapi }) => ({
         },
       };
     } catch (error) {
-      strapi.log.error('[Magic Editor X] File upload error:', error);
+      logger.error('[Magic Editor X] File upload error:', error);
       throw error;
     }
   },
@@ -175,7 +179,7 @@ module.exports = ({ strapi }) => ({
       try {
         await fs.promises.unlink(tempFilePath);
       } catch (unlinkError) {
-        strapi.log.warn('[Magic Editor X] Could not delete temp file:', unlinkError);
+        logger.warn('[Magic Editor X] Could not delete temp file:', unlinkError);
       }
 
       const uploadedFile = uploadedFiles[0];
@@ -193,7 +197,7 @@ module.exports = ({ strapi }) => ({
         },
       };
     } catch (error) {
-      strapi.log.error('[Magic Editor X] URL upload error:', error);
+      logger.error('[Magic Editor X] URL upload error:', error);
       throw error;
     }
   },
@@ -329,9 +333,9 @@ module.exports = ({ strapi }) => ({
         },
       };
     } catch (error) {
-      strapi.log.error('[Magic Editor X] Attachment upload error:', error);
+      logger.error('[Magic Editor X] Attachment upload error:', error);
       throw error;
     }
   },
-});
+};};
 

@@ -5,7 +5,11 @@
  */
 'use strict';
 
+const { createLogger } = require('./utils');
+
 module.exports = ({ strapi }) => {
+  const logger = createLogger(strapi);
+
   // Register the custom field on the server
   strapi.customFields.register({
     name: 'richtext',
@@ -17,5 +21,5 @@ module.exports = ({ strapi }) => {
     },
   });
 
-  strapi.log.info('[Magic Editor X] Custom field registered');
+  logger.info('Custom field registered');
 };
