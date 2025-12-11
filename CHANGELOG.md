@@ -1,3 +1,10 @@
+## [1.2.1](https://github.com/Schero94/magic-editor-x/compare/v1.2.0...v1.2.1) (2025-12-11)
+
+
+### Bug Fixes
+
+* Try release it ([5cf2b97](https://github.com/Schero94/magic-editor-x/commit/5cf2b971493a75376bccc8be285c0c36a0282022))
+
 # [1.2.0](https://github.com/Schero94/magic-editor-x/compare/v1.1.1...v1.2.0) (2025-12-11)
 
 
