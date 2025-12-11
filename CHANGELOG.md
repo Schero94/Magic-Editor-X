@@ -1,3 +1,10 @@
+# [1.2.0](https://github.com/Schero94/magic-editor-x/compare/v1.1.1...v1.2.0) (2025-12-11)
+
+
+### Features
+
+* add Version History UI/UX with snapshot management ([4a0d06e](https://github.com/Schero94/magic-editor-x/commit/4a0d06e14afee82d38913153a1af9400fa56c78c))
+
 ## [1.1.1](https://github.com/Schero94/magic-editor-x/compare/v1.1.0...v1.1.1) (2025-12-09)
 
 
