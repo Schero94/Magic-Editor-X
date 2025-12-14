@@ -1,3 +1,10 @@
+# [1.3.0](https://github.com/Schero94/magic-editor-x/compare/v1.2.2...v1.3.0) (2025-12-14)
+
+
+### Features
+
+* improve link editing UX and inline toolbar ([c9cfe8d](https://github.com/Schero94/magic-editor-x/commit/c9cfe8dbafae664a664fc3d51dc4f250589e8fab))
+
 ## [1.2.2](https://github.com/Schero94/magic-editor-x/compare/v1.2.1...v1.2.2) (2025-12-11)
 
 
