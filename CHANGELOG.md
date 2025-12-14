@@ -1,3 +1,10 @@
+## [1.3.2](https://github.com/Schero94/magic-editor-x/compare/v1.3.1...v1.3.2) (2025-12-14)
+
+
+### Bug Fixes
+
+* enable npm provenance with OIDC trusted publishing ([99ab48b](https://github.com/Schero94/magic-editor-x/commit/99ab48b850c5b472dce1a0606983711edb1bb9b1))
+
 ## [1.3.1](https://github.com/Schero94/magic-editor-x/compare/v1.3.0...v1.3.1) (2025-12-14)
 
 
