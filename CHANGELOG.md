@@ -1,3 +1,10 @@
+## [1.3.1](https://github.com/Schero94/magic-editor-x/compare/v1.3.0...v1.3.1) (2025-12-14)
+
+
+### Bug Fixes
+
+* update readme with direct link editing feature ([cf9d21a](https://github.com/Schero94/magic-editor-x/commit/cf9d21a00671fffcf564135ff79e1f92ce87933a))
+
 # [1.3.0](https://github.com/Schero94/magic-editor-x/compare/v1.2.2...v1.3.0) (2025-12-14)
 
 
