@@ -13,6 +13,7 @@
 
 - **Character-Level Collaboration** - Multiple users can now type in the same paragraph simultaneously without conflicts
 - **Webtools Links Integration** - Optional integration with PluginPal's Webtools Links addon for internal/external link management
+- **Direct Link Editing** - Click on any link to instantly open the link editor modal
 - **Improved Fullscreen Mode** - Blocks now stretch to full width, Media Library modal works correctly
 - **Performance Improvements** - Removed debug logging, optimized Y.js sync
 
