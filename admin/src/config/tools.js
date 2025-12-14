@@ -69,6 +69,111 @@ import DragDrop from 'editorjs-drag-drop';
 import MediaLibAdapter from '../components/MediaLib/MediaLibAdapter';
 
 // ============================================
+// CUSTOM INLINE TOOLS (Bold & Italic)
+// EditorJS does NOT have native Bold/Italic tools - we must implement them
+// ============================================
+
+/**
+ * Custom Bold Inline Tool
+ * Uses document.execCommand for cross-browser compatibility
+ */
+class BoldInlineTool {
+  static get isInline() {
+    return true;
+  }
+
+  static get title() {
+    return 'Bold';
+  }
+
+  static get sanitize() {
+    return {
+      b: {},
+      strong: {},
+    };
+  }
+
+  constructor({ api }) {
+    this.api = api;
+    this.button = null;
+    this._state = false;
+  }
+
+  render() {
+    this.button = document.createElement('button');
+    this.button.type = 'button';
+    this.button.innerHTML = '<svg width="12" height="14" xmlns="http://www.w3.org/2000/svg"><path d="M5.997 14H1.72c-.618 0-1.058-.138-1.323-.415C.132 13.308 0 12.924 0 12.435V1.565C0 1.076.132.692.397.415.662.138 1.102 0 1.72 0h4.418c.862 0 1.592.175 2.189.526.597.35 1.047.818 1.35 1.403.302.585.454 1.236.454 1.952 0 .603-.13 1.144-.388 1.624-.26.48-.617.871-1.072 1.174.659.225 1.182.608 1.57 1.147.388.54.583 1.173.583 1.9 0 .792-.19 1.496-.57 2.111-.38.616-.91 1.1-1.592 1.451-.682.352-1.465.527-2.35.527H6zm-.02-8.393h2.341c.444 0 .804-.13 1.08-.39.278-.26.416-.618.416-1.072 0-.467-.152-.838-.457-1.114-.305-.276-.677-.414-1.115-.414H5.977v2.99zm0 6.182h2.593c.478 0 .862-.152 1.152-.456.29-.305.436-.69.436-1.155 0-.467-.152-.858-.456-1.172-.304-.315-.709-.472-1.214-.472H5.977v3.255z" fill="currentColor"/></svg>';
+    this.button.classList.add('ce-inline-tool');
+
+    return this.button;
+  }
+
+  surround(range) {
+    document.execCommand('bold');
+  }
+
+  checkState() {
+    const isActive = document.queryCommandState('bold');
+    this.button.classList.toggle('ce-inline-tool--active', isActive);
+    return isActive;
+  }
+
+  get shortcut() {
+    return 'CMD+B';
+  }
+}
+
+/**
+ * Custom Italic Inline Tool
+ * Uses document.execCommand for cross-browser compatibility
+ */
+class ItalicInlineTool {
+  static get isInline() {
+    return true;
+  }
+
+  static get title() {
+    return 'Italic';
+  }
+
+  static get sanitize() {
+    return {
+      i: {},
+      em: {},
+    };
+  }
+
+  constructor({ api }) {
+    this.api = api;
+    this.button = null;
+    this._state = false;
+  }
+
+  render() {
+    this.button = document.createElement('button');
+    this.button.type = 'button';
+    this.button.innerHTML = '<svg width="6" height="14" xmlns="http://www.w3.org/2000/svg"><path d="M3.289 14L4.867 3.286H3.267L3.496 1.59h4.555L8 0H1.49l-.498 1.59h1.594L.844 12.304H.265L0 14h3.289z" fill="currentColor"/></svg>';
+    this.button.classList.add('ce-inline-tool');
+
+    return this.button;
+  }
+
+  surround(range) {
+    document.execCommand('italic');
+  }
+
+  checkState() {
+    const isActive = document.queryCommandState('italic');
+    this.button.classList.toggle('ce-inline-tool--active', isActive);
+    return isActive;
+  }
+
+  get shortcut() {
+    return 'CMD+I';
+  }
+}
+
+// ============================================
 // READ-ONLY MODE SUPPORT
 // Enable read-only mode for tools that don't natively support it
 // This allows viewing published content without errors
@@ -120,7 +225,7 @@ export const getTools = ({ mediaLibToggleFunc, pluginId, openLinkPicker }) => {
      */
     header: {
       class: Header,
-      inlineToolbar: true,
+      inlineToolbar: ['bold', 'italic', 'marker', 'inlineCode', 'underline', 'strikethrough'],
       tunes: ['alignmentTune'],
       config: {
         placeholder: 'Enter a heading',
@@ -136,7 +241,7 @@ export const getTools = ({ mediaLibToggleFunc, pluginId, openLinkPicker }) => {
      */
     paragraph: {
       class: Paragraph,
-      inlineToolbar: true,
+      inlineToolbar: ['bold', 'italic', 'marker', 'inlineCode', 'underline', 'strikethrough', 'hyperlink'],
       tunes: ['alignmentTune', 'indentTune'],
       config: {
         placeholder: 'Start writing or press Tab to add a block...',
@@ -150,7 +255,7 @@ export const getTools = ({ mediaLibToggleFunc, pluginId, openLinkPicker }) => {
      */
     list: {
       class: NestedList,
-      inlineToolbar: true,
+      inlineToolbar: ['bold', 'italic', 'marker', 'inlineCode', 'underline', 'strikethrough'],
       tunes: ['indentTune'],
       config: {
         defaultStyle: 'unordered',
@@ -439,6 +544,29 @@ export const getTools = ({ mediaLibToggleFunc, pluginId, openLinkPicker }) => {
     },
 
     // ============================================
+    // CORE INLINE TOOLS (Bold & Italic)
+    // These are essential for basic text formatting
+    // ============================================
+
+    /**
+     * Bold Tool (Custom Implementation)
+     * Essential inline formatting tool
+     */
+    bold: {
+      class: BoldInlineTool,
+      shortcut: 'CMD+B',
+    },
+
+    /**
+     * Italic Tool (Custom Implementation)
+     * Essential inline formatting tool
+     */
+    italic: {
+      class: ItalicInlineTool,
+      shortcut: 'CMD+I',
+    },
+
+    // ============================================
     // OFFICIAL INLINE TOOLS (3 Tools)
     // ============================================
 
@@ -615,6 +743,9 @@ export const defaultTools = [
   'toggle',
   'codeFlask',
   'button',
+  // Core Inline Tools (Bold & Italic - Essential!)
+  'bold',
+  'italic',
   // Official Inline Tools
   'marker',
   'inlineCode',
@@ -659,6 +790,8 @@ export const toolCategories = {
     { name: 'button', label: 'Button', description: 'CTA buttons', official: false },
   ],
   inlineTools: [
+    { name: 'bold', label: 'Bold', description: 'Make text bold (Ctrl/Cmd+B)', official: false },
+    { name: 'italic', label: 'Italic', description: 'Make text italic (Ctrl/Cmd+I)', official: false },
     { name: 'marker', label: 'Marker', description: 'Highlight text', official: true },
     { name: 'inlineCode', label: 'Inline Code', description: 'Code formatting', official: true },
     { name: 'underline', label: 'Underline', description: 'Underline text', official: true },

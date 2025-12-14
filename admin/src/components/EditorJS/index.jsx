@@ -55,21 +55,120 @@ const FullscreenGlobalStyle = createGlobalStyle`
   }
 `;
 
-/* Global z-index fixes for Editor.js popovers (may render at body level) */
+/* Global z-index and visibility fixes for Editor.js */
 const EditorJSGlobalStyles = createGlobalStyle`
-  /* Popover rendered at document body */
-  body > .ce-popover,
-  body > .ce-popover--opened,
-  body > .ce-popover__container,
-  body > .ce-settings,
-  body > .ce-conversion-toolbar,
-  body > .ce-inline-toolbar {
-    z-index: 99999 !important;
+  /* ============================================
+     INLINE TOOLBAR - EditorJS 2.31
+     Structure: .ce-inline-toolbar > .ce-popover--inline > .ce-popover__items > .ce-popover-item-html > .ce-inline-tool
+     ============================================ */
+  
+  /* Hide "Nothing found" message when inline tools ARE present */
+  .ce-popover--inline .ce-popover__nothing-found-message {
+    display: none !important;
   }
   
-  /* Ensure popovers are visible above Strapi modals */
-  .ce-popover,
-  .ce-popover--opened {
+  /* Inline Toolbar Popover - horizontal layout for tool buttons */
+  .ce-popover--inline.ce-popover--opened {
+    display: block !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    z-index: 99999 !important;
+    background: white !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 8px !important;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12) !important;
+    padding: 4px !important;
+  }
+  
+  .ce-popover--inline .ce-popover__container {
+    display: block !important;
+  }
+  
+  /* Items container - HORIZONTAL layout for inline tools */
+  .ce-popover--inline .ce-popover__items {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: wrap !important;
+    align-items: center !important;
+    gap: 2px !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+  }
+  
+  /* Custom HTML wrapper for inline tools */
+  .ce-popover--inline .ce-popover-item-html {
+    display: flex !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+  }
+  
+  /* The actual inline tool buttons (Bold, Italic, etc.) */
+  .ce-popover--inline .ce-inline-tool {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 32px !important;
+    height: 32px !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    background: transparent !important;
+    border: none !important;
+    border-radius: 6px !important;
+    cursor: pointer !important;
+    color: #64748b !important;
+    transition: background 0.15s ease, color 0.15s ease !important;
+  }
+  
+  .ce-popover--inline .ce-inline-tool:hover {
+    background: #f1f5f9 !important;
+    color: #334155 !important;
+  }
+  
+  .ce-popover--inline .ce-inline-tool--active {
+    background: #ede9fe !important;
+    color: #7C3AED !important;
+  }
+  
+  .ce-popover--inline .ce-inline-tool svg {
+    width: 18px !important;
+    height: 18px !important;
+  }
+  
+  /* Convert-to button (block type changer) */
+  .ce-popover--inline .ce-popover-item[data-item-name="convert-to"] {
+    display: flex !important;
+    align-items: center !important;
+    padding: 4px 8px !important;
+    border-radius: 6px !important;
+    cursor: pointer !important;
+  }
+  
+  .ce-popover--inline .ce-popover-item[data-item-name="convert-to"]:hover {
+    background: #f1f5f9 !important;
+  }
+  
+  /* Separator line between convert-to and inline tools */
+  .ce-popover--inline .ce-popover-item-separator {
+    width: 1px !important;
+    height: 24px !important;
+    background: #e2e8f0 !important;
+    margin: 0 4px !important;
+  }
+  
+  .ce-popover--inline .ce-popover-item-separator__line {
+    display: none !important;
+  }
+  
+  /* ============================================
+     GLOBAL Z-INDEX FOR ALL EDITOR POPOVERS
+     ============================================ */
+  
+  body > .ce-popover,
+  body > .ce-inline-toolbar,
+  .ce-popover--opened,
+  .ce-inline-toolbar,
+  .ce-settings,
+  .ce-conversion-toolbar {
     z-index: 99999 !important;
   }
   
@@ -940,19 +1039,29 @@ const EditorWrapper = styled.div`
      TOOLBAR INSIDE EDITOR - Position Fix
      ============================================ */
   
-  /* Centered content area */
+  /* Content area - full container width */
   .codex-editor__redactor {
     padding-bottom: 100px !important;
     padding-left: 0 !important;
-    margin: 0 auto !important;
-    max-width: 800px !important;
+    padding-right: 0 !important;
+    margin: 0 !important;
+    max-width: 100% !important;
+    width: 100% !important;
   }
   
-  /* Content blocks - centered */
+  /* Content blocks - full width, no centering */
   .ce-block__content {
-    max-width: 100%;
-    margin: 0 auto;
-    padding: 0 16px;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 16px !important;
+  }
+  
+  /* Paragraph and other editable elements - full width */
+  .ce-paragraph,
+  .ce-header,
+  .cdx-block {
+    max-width: 100% !important;
+    width: 100% !important;
   }
   
   /* ============================================
@@ -1001,18 +1110,20 @@ const EditorWrapper = styled.div`
     border-radius: 6px;
   }
   
-  /* Toolbar positioning - centered with content */
+  /* Toolbar positioning - full width */
   .ce-toolbar__content {
-    max-width: 800px;
-    margin: 0 auto;
-    padding: 0 16px;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 16px !important;
   }
   
   .ce-toolbar {
-    left: 50% !important;
-    transform: translateX(-50%) !important;
+    left: 0 !important;
+    right: 0 !important;
+    transform: none !important;
     width: 100% !important;
-    max-width: 832px !important;
+    max-width: 100% !important;
+    padding-left: 8px !important;
   }
   
   .ce-toolbar__plus {
@@ -2152,6 +2263,8 @@ const Editor = forwardRef(({
     if (!collabEnabled || !editorInstanceRef.current || !yTextMap) return;
     
     const editor = editorInstanceRef.current;
+    if (!editor.blocks || typeof editor.blocks.getBlocksCount !== 'function') return;
+    
     const blockCount = editor.blocks.getBlocksCount();
     
     console.log('[Magic Editor X] [CHAR-SYNC] Binding', blockCount, 'blocks to Y.Text');
@@ -2720,6 +2833,13 @@ const Editor = forwardRef(({
       pendingRenderRef.current = pendingRenderRef.current || true;
       return;
     }
+    
+    // Ensure blocks API is available
+    if (!editor.blocks || typeof editor.blocks.getBlocksCount !== 'function') {
+      console.warn('[Magic Editor X] Editor blocks API not ready for renderFromYDoc');
+      pendingRenderRef.current = pendingRenderRef.current || true;
+      return;
+    }
 
     // Prevent echo loops
     if (isApplyingRemoteRef.current) {
@@ -3075,6 +3195,8 @@ const Editor = forwardRef(({
     }
     
     const editor = editorInstanceRef.current;
+    if (!editor.blocks || typeof editor.blocks.getBlocksCount !== 'function') return;
+    
     const lastIndex = editor.blocks.getBlocksCount();
     
     editor.blocks.insert(blockType, {}, {}, lastIndex, true);
@@ -3145,6 +3267,23 @@ const Editor = forwardRef(({
         }
       }
 
+      // Debug: Log registered tools to verify inline tools are loaded
+      console.log('[Magic Editor X] Registered tools:', Object.keys(tools));
+      
+      // Check each tool for isInline property
+      const inlineTools = Object.entries(tools).filter(([name, config]) => {
+        const toolClass = config.class || config;
+        const isInline = toolClass?.isInline === true;
+        if (isInline) {
+          console.log(`[Magic Editor X] Found inline tool: ${name}`, toolClass);
+        }
+        return isInline;
+      }).map(([name]) => name);
+      
+      console.log('[Magic Editor X] Inline tools found:', inlineTools);
+      console.log('[Magic Editor X] Marker isInline:', tools.marker?.class?.isInline);
+      console.log('[Magic Editor X] Bold isInline:', tools.bold?.class?.isInline);
+
       const editor = new EditorJS({
         holder: editorRef.current,
         tools,
@@ -3153,6 +3292,8 @@ const Editor = forwardRef(({
         placeholder: customPlaceholder,
         minHeight: 200,
         autofocus: false,
+        // Note: Do NOT set inlineToolbar here - each block tool controls its own inline toolbar
+        // The inline tools (bold, italic, marker, etc.) are automatically available when block tools have inlineToolbar: true
         
         onReady: async () => {
           isReadyRef.current = true;
@@ -3160,21 +3301,31 @@ const Editor = forwardRef(({
           console.log('[Magic Editor X] [READY] Editor onReady fired');
           console.log('[Magic Editor X] [READY] Editor holder:', editorRef.current?.id);
           
-          // Initialize Undo/Redo plugin
-          try {
-            initUndoRedo(editor);
-            console.log('[Magic Editor X] [SUCCESS] Undo/Redo initialized');
-          } catch (e) {
-            console.warn('[Magic Editor X] Could not initialize Undo/Redo:', e);
-          }
-          
-          // Initialize Drag & Drop plugin
-          try {
-            initDragDrop(editor);
-            console.log('[Magic Editor X] [SUCCESS] Drag & Drop initialized');
-          } catch (e) {
-            console.warn('[Magic Editor X] Could not initialize Drag & Drop:', e);
-          }
+          // Initialize Undo/Redo and Drag & Drop plugins with longer delay
+          // These plugins require the editor to be fully ready with blocks API available
+          setTimeout(() => {
+            try {
+              if (editor && editor.blocks && typeof editor.blocks.getBlocksCount === 'function') {
+                initUndoRedo(editor);
+                console.log('[Magic Editor X] [SUCCESS] Undo/Redo initialized');
+              } else {
+                console.warn('[Magic Editor X] Editor blocks API not ready for Undo/Redo');
+              }
+            } catch (e) {
+              console.warn('[Magic Editor X] Could not initialize Undo/Redo:', e);
+            }
+            
+            try {
+              if (editor && editor.blocks && typeof editor.blocks.getBlocksCount === 'function') {
+                initDragDrop(editor);
+                console.log('[Magic Editor X] [SUCCESS] Drag & Drop initialized');
+              } else {
+                console.warn('[Magic Editor X] Editor blocks API not ready for Drag & Drop');
+              }
+            } catch (e) {
+              console.warn('[Magic Editor X] Could not initialize Drag & Drop:', e);
+            }
+          }, 500);
           
           if (pendingRenderRef.current) {
             try {
@@ -3205,6 +3356,68 @@ const Editor = forwardRef(({
             setTimeout(() => {
               bindAllBlocksToYText();
             }, 100);
+          }
+          
+          // WEBTOOLS LINK CLICK HANDLER
+          // When clicking on an existing link, open the link picker directly for editing
+          if (isWebtoolsAvailable && webtoolsOpenLinkPicker && editorRef.current) {
+            const handleLinkClick = async (e) => {
+              // Find if click was on an anchor tag or inside one
+              const anchor = e.target.closest('a');
+              
+              if (anchor && editorRef.current?.contains(anchor)) {
+                // Prevent default link navigation
+                e.preventDefault();
+                e.stopPropagation();
+                
+                const existingHref = anchor.href || '';
+                const existingText = anchor.textContent || '';
+                
+                console.log('[Magic Editor X] Link clicked, opening editor:', existingHref);
+                
+                try {
+                  // Select the link text for editing
+                  const selection = window.getSelection();
+                  const range = document.createRange();
+                  range.selectNodeContents(anchor);
+                  selection.removeAllRanges();
+                  selection.addRange(range);
+                  
+                  // Open the Webtools Link Picker with existing values
+                  const result = await webtoolsOpenLinkPicker({
+                    initialText: existingText,
+                    initialHref: existingHref,
+                  });
+                  
+                  if (result && result.href) {
+                    // Update the link
+                    anchor.href = result.href;
+                    if (result.label && result.label !== existingText) {
+                      anchor.textContent = result.label;
+                    }
+                    console.log('[Magic Editor X] Link updated:', result.href);
+                  } else if (result === null) {
+                    // User cancelled - keep the link as-is
+                    console.log('[Magic Editor X] Link edit cancelled');
+                  }
+                } catch (err) {
+                  console.error('[Magic Editor X] Error editing link:', err);
+                }
+              }
+            };
+            
+            // Add click listener to the editor container
+            editorRef.current.addEventListener('click', handleLinkClick);
+            
+            // Store cleanup function
+            const cleanup = () => {
+              editorRef.current?.removeEventListener('click', handleLinkClick);
+            };
+            
+            // Store for cleanup on unmount
+            if (!editorRef.current._linkClickCleanup) {
+              editorRef.current._linkClickCleanup = cleanup;
+            }
           }
         },
 
@@ -3255,6 +3468,13 @@ const Editor = forwardRef(({
       console.log('[Magic Editor X] [CLEANUP] Editor component unmounting, destroying editor');
       isReadyRef.current = false;
       setIsReady(false);
+      
+      // Cleanup link click handler
+      if (editorRef.current?._linkClickCleanup) {
+        editorRef.current._linkClickCleanup();
+        delete editorRef.current._linkClickCleanup;
+      }
+      
       if (editorInstanceRef.current && editorInstanceRef.current.destroy) {
         try {
           editorInstanceRef.current.destroy();
