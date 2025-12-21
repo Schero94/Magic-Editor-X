@@ -130,6 +130,11 @@ class AIAssistantTool {
       return;
     }
     
+    // Close the Editor.js inline toolbar first
+    if (this.api.inlineToolbar) {
+      this.api.inlineToolbar.close();
+    }
+    
     // Get toolbar position
     const selection = window.getSelection();
     if (!selection.rangeCount) return;

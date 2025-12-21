@@ -38,6 +38,14 @@
   display: none !important;
 }
 
+/* CRITICAL: Allow inline toolbar (text selection) to overflow */
+.ce-inline-toolbar,
+.ce-inline-toolbar .ce-popover,
+.ce-inline-toolbar .ce-popover__container,
+.ce-inline-toolbar .ce-popover__items {
+  overflow: visible !important;
+}
+
 .ce-popover__search {
   background: transparent !important;
   border: none !important;

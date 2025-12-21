@@ -76,22 +76,24 @@ const EditorJSGlobalStyles = createGlobalStyle`
     z-index: 99999 !important;
     background: white !important;
     border: 1px solid #e2e8f0 !important;
-    border-radius: 8px !important;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12) !important;
-    padding: 4px !important;
+    border-radius: 12px !important;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.1) !important;
+    padding: 6px !important;
+    position: absolute !important;
+    transform: translateY(-8px) !important;
   }
   
   .ce-popover--inline .ce-popover__container {
     display: block !important;
+    height: auto !important;
   }
   
   /* Items container - HORIZONTAL layout for inline tools */
   .ce-popover--inline .ce-popover__items {
     display: flex !important;
     flex-direction: row !important;
-    flex-wrap: wrap !important;
-    align-items: center !important;
-    gap: 2px !important;
+    flex-wrap: nowrap !important;
+    gap: 4px !important;
     opacity: 1 !important;
     visibility: visible !important;
   }
@@ -108,31 +110,55 @@ const EditorJSGlobalStyles = createGlobalStyle`
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
-    width: 32px !important;
-    height: 32px !important;
+    width: 36px !important;
+    height: 36px !important;
     opacity: 1 !important;
     visibility: visible !important;
     background: transparent !important;
     border: none !important;
-    border-radius: 6px !important;
+    border-radius: 8px !important;
     cursor: pointer !important;
     color: #64748b !important;
-    transition: background 0.15s ease, color 0.15s ease !important;
+    transition: all 0.15s ease !important;
   }
   
   .ce-popover--inline .ce-inline-tool:hover {
     background: #f1f5f9 !important;
     color: #334155 !important;
+    transform: scale(1.05) !important;
   }
   
   .ce-popover--inline .ce-inline-tool--active {
-    background: #ede9fe !important;
+    background: linear-gradient(135deg, #ede9fe 0%, #ddd6fe 100%) !important;
     color: #7C3AED !important;
+    font-weight: 600 !important;
   }
   
   .ce-popover--inline .ce-inline-tool svg {
     width: 18px !important;
     height: 18px !important;
+  }
+  
+  /* AI Assistant button in inline toolbar - special styling */
+  .ce-popover--inline .ce-inline-tool[data-tool="aiAssistant"] {
+    background: linear-gradient(135deg, #7C3AED 0%, #6d28d9 100%) !important;
+    color: white !important;
+    margin-left: 4px !important;
+    position: relative !important;
+  }
+  
+  .ce-popover--inline .ce-inline-tool[data-tool="aiAssistant"]:hover {
+    background: linear-gradient(135deg, #6d28d9 0%, #5b21b6 100%) !important;
+    color: white !important;
+    box-shadow: 0 4px 12px rgba(124, 58, 237, 0.4) !important;
+  }
+  
+  .ce-popover--inline .ce-inline-tool[data-tool="aiAssistant"]::before {
+    content: '✨';
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    font-size: 12px;
   }
   
   /* Convert-to button (block type changer) */
@@ -148,16 +174,29 @@ const EditorJSGlobalStyles = createGlobalStyle`
     background: #f1f5f9 !important;
   }
   
-  /* Separator line between convert-to and inline tools */
+  /* Separator line between tool groups */
   .ce-popover--inline .ce-popover-item-separator {
     width: 1px !important;
-    height: 24px !important;
-    background: #e2e8f0 !important;
-    margin: 0 4px !important;
+    height: 28px !important;
+    background: linear-gradient(180deg, transparent 0%, #e2e8f0 20%, #e2e8f0 80%, transparent 100%) !important;
+    margin: 0 6px !important;
+    flex-shrink: 0 !important;
   }
   
   .ce-popover--inline .ce-popover-item-separator__line {
     display: none !important;
+  }
+  
+  /* Separator before AI button */
+  .ce-popover--inline .ce-inline-tool[data-tool="aiAssistant"]::after {
+    content: '';
+    position: absolute;
+    left: -8px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 1px;
+    height: 28px;
+    background: linear-gradient(180deg, transparent 0%, #c4b5fd 20%, #c4b5fd 80%, transparent 100%);
   }
   
   /* ============================================
@@ -169,8 +208,71 @@ const EditorJSGlobalStyles = createGlobalStyle`
   .ce-popover--opened,
   .ce-inline-toolbar,
   .ce-settings,
-  .ce-conversion-toolbar {
+  .ce-conversion-toolbar,
+  .ce-toolbox {
     z-index: 99999 !important;
+  }
+  
+  /* ============================================
+     TOOLBOX POPOVER (Plus Button) - CRITICAL FIX
+     Make sure items are visible and properly displayed
+     ============================================ */
+  
+  .ce-popover:not(.ce-popover--inline) {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    z-index: 99999 !important;
+  }
+  
+  .ce-popover--opened {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+  }
+  
+  .ce-popover__container {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+  }
+  
+  .ce-popover__items {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    max-height: 400px !important;
+    overflow-y: auto !important;
+  }
+  
+  .ce-popover-item {
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+  }
+  
+  .ce-popover-item__icon {
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+  }
+  
+  .ce-popover-item__title {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+  }
+  
+  /* Hide empty/nothing-found message for main toolbox */
+  .ce-popover:not(.ce-popover--inline) .ce-popover__nothing-found-message {
+    display: none !important;
+  }
+  
+  /* Make sure search is visible */
+  .ce-popover__search {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
   }
   
   /* ============================================
@@ -252,11 +354,29 @@ const EditorJSGlobalStyles = createGlobalStyle`
   /* Inline toolbar */
   .ce-inline-toolbar {
     z-index: 99998 !important;
+    background: white !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 12px !important;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15) !important;
   }
   
   /* Conversion toolbar */
   .ce-conversion-toolbar {
     z-index: 99999 !important;
+    padding: 8px !important;
+    display: flex !important;
+    flex-wrap: wrap !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 4px !important;
+    background: white !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 12px !important;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15) !important;
+  }
+  
+  .ce-conversion-tool {
+    margin: 0 !important;
   }
   
   /* Block tune popovers */
@@ -1157,8 +1277,12 @@ const EditorWrapper = styled.div`
     border-radius: 12px !important;
   }
   
-  .ce-popover__items {
-    padding: 8px !important;
+  /* Only inline toolbar (text selection) needs overflow visible */
+  .ce-inline-toolbar,
+  .ce-inline-toolbar .ce-popover,
+  .ce-inline-toolbar .ce-popover__container,
+  .ce-inline-toolbar .ce-popover__items {
+    overflow: visible !important;
   }
   
   .ce-popover-item {
