@@ -1,3 +1,10 @@
+## [1.3.6](https://github.com/Schero94/magic-editor-x/compare/v1.3.5...v1.3.6) (2025-12-21)
+
+
+### Bug Fixes
+
+* improve inline toolbar and AI assistant UX ([660c916](https://github.com/Schero94/magic-editor-x/commit/660c91634af516da309b8dd7c69777f2d715ce3a))
+
 ## [1.3.5](https://github.com/Schero94/magic-editor-x/compare/v1.3.4...v1.3.5) (2025-12-21)
 
 
