@@ -34,6 +34,11 @@
 /* AI Inline Toolbar Container */
 .ai-inline-toolbar-container {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  z-index: 10000 !important;
+}
+
+.ai-inline-toolbar-container > div {
+  z-index: 10000 !important;
 }
 
 /* Editor.js Inline Tool Button Customization */

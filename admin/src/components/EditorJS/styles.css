@@ -618,6 +618,7 @@ h4.ce-header { font-size: 1.25em; }
   border-radius: 12px;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
   padding: 6px;
+  z-index: 9999 !important;
 }
 
 .ce-inline-tool {
@@ -673,6 +674,7 @@ u {
   border-radius: 16px;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
   padding: 10px;
+  z-index: 9999 !important;
 }
 
 .ce-settings__button {
@@ -699,6 +701,7 @@ u {
   border-radius: 16px;
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.18);
   padding: 10px;
+  z-index: 9999 !important;
 }
 
 .ce-toolbox__button {
@@ -727,6 +730,7 @@ u {
   border-radius: 16px;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
   padding: 10px;
+  z-index: 9999 !important;
 }
 
 .ce-conversion-tool {
@@ -750,6 +754,7 @@ u {
   border: 1px solid #e2e8f0;
   border-radius: 16px;
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.18);
+  z-index: 9999 !important;
 }
 
 .ce-popover__item {
