@@ -1,0 +1,20 @@
+/**
+ * Magic Editor X - Advanced Block Editor for Strapi
+ * 
+ * Copyright (c) 2025 Schero D.
+ * 
+ * Licensed under the MIT License
+ * 
+ * This plugin is free to use for personal and commercial projects.
+ * 
+ * IMPORTANT RESTRICTION:
+ * The license validation system (license-service.js, license-controller.js 
+ * and related components) must remain intact and functional. Removing or 
+ * bypassing this system is strictly prohibited.
+ * 
+ * See LICENSE file for full terms.
+ * 
+ * Repository: https://github.com/Schero94/magic-editor-x
+ * Issues: https://github.com/Schero94/magic-editor-x/issues
+ */
+
