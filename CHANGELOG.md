@@ -1,3 +1,10 @@
+## [1.3.5](https://github.com/Schero94/magic-editor-x/compare/v1.3.4...v1.3.5) (2025-12-21)
+
+
+### Bug Fixes
+
+* import CSS globally for custom field z-index fix ([185f35e](https://github.com/Schero94/magic-editor-x/commit/185f35e82aaf0db59e2efda411e230728f2486bf))
+
 ## [1.3.4](https://github.com/Schero94/magic-editor-x/compare/v1.3.3...v1.3.4) (2025-12-21)
 
 
