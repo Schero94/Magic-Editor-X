@@ -111,14 +111,15 @@ class HyperlinkTool {
     this.popup = document.createElement('div');
     this.popup.classList.add('ce-inline-tool-hyperlink-popup');
     this.popup.style.cssText = `
-      position: absolute;
+      position: fixed;
       background: white;
       border: 1px solid #e2e8f0;
-      border-radius: 8px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-      padding: 12px;
+      border-radius: 12px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+      padding: 16px;
       z-index: 999999;
-      min-width: 300px;
+      min-width: 360px;
+      max-width: 420px;
     `;
     
     // URL Input
@@ -336,29 +337,19 @@ class HyperlinkTool {
   }
 
   /**
-   * Positions the popup near the selection
+   * Positions the popup centered on screen
    */
   _positionPopup() {
     if (!this.popup) return;
     
-    const selection = window.getSelection();
-    if (!selection.rangeCount) return;
-    
-    const range = selection.getRangeAt(0);
-    const rect = range.getBoundingClientRect();
-    
     const popupRect = this.popup.getBoundingClientRect();
-    let left = rect.left + (rect.width / 2) - (popupRect.width / 2);
-    let top = rect.bottom + 10 + window.scrollY;
     
-    // Keep popup in viewport
-    if (left < 10) left = 10;
-    if (left + popupRect.width > window.innerWidth - 10) {
-      left = window.innerWidth - popupRect.width - 10;
-    }
+    // Center horizontally and vertically
+    const left = (window.innerWidth - popupRect.width) / 2;
+    const top = (window.innerHeight - popupRect.height) / 2;
     
-    this.popup.style.left = `${left}px`;
-    this.popup.style.top = `${top}px`;
+    this.popup.style.left = `${Math.max(10, left)}px`;
+    this.popup.style.top = `${Math.max(10, top)}px`;
   }
 
   /**
