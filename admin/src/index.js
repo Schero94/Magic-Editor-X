@@ -7,6 +7,10 @@ import { PLUGIN_ID } from './pluginId';
 import { Initializer } from './components/Initializer';
 import { PluginIcon } from './components/PluginIcon';
 
+// Import CSS globally so it's available in Custom Field
+import './components/EditorJS/styles.css';
+import './styles/ai-assistant.css';
+
 // Prefix translation keys with pluginId (required for Strapi)
 const prefixPluginTranslations = (data, pluginId) => {
   const prefixed = {};

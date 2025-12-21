@@ -43,6 +43,7 @@ import VersionHistoryPanel from '../VersionHistoryPanel';
 import AIInlineToolbar from '../AIInlineToolbar';
 import { AIToast, toastManager } from '../AIToast';
 import CreditsModal from '../CreditsModal';
+import './styles.css';
 import '../../styles/ai-assistant.css';
 
 /* ============================================
