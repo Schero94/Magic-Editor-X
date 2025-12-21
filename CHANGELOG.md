@@ -1,3 +1,10 @@
+## [1.3.4](https://github.com/Schero94/magic-editor-x/compare/v1.3.3...v1.3.4) (2025-12-21)
+
+
+### Bug Fixes
+
+* increase z-index for all editor popovers and toolbars ([0c3a442](https://github.com/Schero94/magic-editor-x/commit/0c3a442b241c5d5c51fb1d60707d53a0304ffa54))
+
 ## [1.3.3](https://github.com/Schero94/magic-editor-x/compare/v1.3.2...v1.3.3) (2025-12-14)
 
 
