@@ -1,3 +1,10 @@
+## [1.3.7](https://github.com/Schero94/magic-editor-x/compare/v1.3.6...v1.3.7) (2025-12-21)
+
+
+### Bug Fixes
+
+* center hyperlink modal on screen ([0e7e6be](https://github.com/Schero94/magic-editor-x/commit/0e7e6be5f7c9d347fb8086d961bc50860c610fad))
+
 ## [1.3.6](https://github.com/Schero94/magic-editor-x/compare/v1.3.5...v1.3.6) (2025-12-21)
 
 
