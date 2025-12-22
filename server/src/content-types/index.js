@@ -212,4 +212,133 @@ module.exports = {
       },
     },
   },
+
+  /**
+   * Custom Blocks
+   * User-defined blocks for the editor
+   * Supports simple text/HTML blocks and embedded Strapi entries
+   */
+  'custom-block': {
+    schema: {
+      kind: 'collectionType',
+      collectionName: 'magic_editor_custom_blocks',
+      info: {
+        singularName: 'custom-block',
+        pluralName: 'custom-blocks',
+        displayName: 'Custom Block',
+        description: 'User-defined editor blocks',
+      },
+      options: {
+        draftAndPublish: false,
+      },
+      pluginOptions: {
+        'content-manager': {
+          visible: false, // Hidden - use plugin settings page instead
+        },
+        'content-type-builder': {
+          visible: false,
+        },
+      },
+      attributes: {
+        // Block identifier (used as tool name in Editor.js)
+        name: {
+          type: 'string',
+          required: true,
+          unique: true,
+          minLength: 2,
+          maxLength: 50,
+          regex: '^[a-zA-Z][a-zA-Z0-9_-]*$',
+        },
+        // Display label in toolbox
+        label: {
+          type: 'string',
+          required: true,
+          maxLength: 100,
+        },
+        // Block type: 'simple' or 'embedded-entry'
+        blockType: {
+          type: 'enumeration',
+          enum: ['simple', 'embedded-entry'],
+          required: true,
+          default: 'simple',
+        },
+        // Description for documentation
+        description: {
+          type: 'text',
+        },
+        // SVG icon for toolbox (optional, uses default if empty)
+        icon: {
+          type: 'text',
+        },
+        // For embedded-entry blocks: target content type
+        contentType: {
+          type: 'string',
+        },
+        // Fields to display in preview
+        displayFields: {
+          type: 'json',
+          default: ['title', 'name', 'id'],
+        },
+        // Field to use as title in preview
+        titleField: {
+          type: 'string',
+          default: 'title',
+        },
+        // Additional fields to show in preview
+        previewFields: {
+          type: 'json',
+          default: [],
+        },
+        // For simple blocks: field configuration
+        fields: {
+          type: 'json',
+          default: [],
+        },
+        // HTML template for simple blocks
+        template: {
+          type: 'text',
+        },
+        // Placeholder text for content
+        placeholder: {
+          type: 'string',
+          default: 'Enter content...',
+        },
+        // Custom CSS styles
+        styles: {
+          type: 'json',
+          default: {},
+        },
+        // Enable inline toolbar
+        inlineToolbar: {
+          type: 'boolean',
+          default: true,
+        },
+        // Block tunes to enable
+        tunes: {
+          type: 'json',
+          default: [],
+        },
+        // Keyboard shortcut
+        shortcut: {
+          type: 'string',
+        },
+        // Sort order in toolbox
+        sortOrder: {
+          type: 'integer',
+          default: 0,
+        },
+        // Is block enabled
+        enabled: {
+          type: 'boolean',
+          default: true,
+        },
+        // Who created this block
+        createdByUser: {
+          type: 'relation',
+          relation: 'oneToOne',
+          target: 'admin::user',
+        },
+      },
+    },
+  },
 };

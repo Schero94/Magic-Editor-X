@@ -292,14 +292,17 @@ const LicensePage = () => {
         { name: 'Full Editor Access', included: true },
         { name: 'All Editor Tools', included: true },
         { name: '2 Collaborators', included: true },
+        { name: '3 Custom Blocks (Simple)', included: true },
         { name: 'Real-time Sync', included: true },
-        { name: 'AI Grammar Check (3/day)', included: true },
+        { name: 'Embedded Entry Blocks', included: false },
+        { name: 'Block Export/Import', included: false },
         { name: 'AI Style + Rewrite', included: false },
         { name: 'Version History', included: false },
         { name: 'Priority Support', included: false },
       ],
       limits: {
         collaborators: '2',
+        customBlocks: '3 Simple',
       }
     },
     {
@@ -315,13 +318,17 @@ const LicensePage = () => {
         { name: 'Full Editor Access', included: true },
         { name: 'All Editor Tools', included: true },
         { name: '10 Collaborators', included: true },
+        { name: '10 Custom Blocks', included: true },
+        { name: 'Embedded Entry Blocks', included: true },
         { name: 'Real-time Sync', included: true },
         { name: 'AI Grammar + Style (10/day)', included: true },
+        { name: 'Block Export/Import', included: false },
         { name: 'Version History', included: true },
         { name: 'Priority Support', included: true },
       ],
       limits: {
         collaborators: '10',
+        customBlocks: '10 Total',
       }
     },
     {
@@ -336,6 +343,9 @@ const LicensePage = () => {
         { name: 'Full Editor Access', included: true },
         { name: 'All Editor Tools', included: true },
         { name: 'Unlimited Collaborators', included: true },
+        { name: 'Unlimited Custom Blocks', included: true },
+        { name: 'Embedded Entry Blocks', included: true },
+        { name: 'Block Export/Import + API', included: true },
         { name: 'Real-time Sync', included: true },
         { name: 'AI All Types (Unlimited)', included: true },
         { name: 'Version History', included: true },
@@ -343,6 +353,7 @@ const LicensePage = () => {
       ],
       limits: {
         collaborators: 'Unlimited',
+        customBlocks: 'Unlimited',
       }
     }
   ];
@@ -435,8 +446,11 @@ const LicensePage = () => {
                 padding={3} 
                 marginBottom={5}
               >
-                <Typography variant="pi" style={{ fontSize: '13px' }}>
+                <Typography variant="pi" style={{ fontSize: '13px', display: 'block', marginBottom: '4px' }}>
                   <strong>Collaborators:</strong> {tier.limits.collaborators}
+                </Typography>
+                <Typography variant="pi" style={{ fontSize: '13px', display: 'block' }}>
+                  <strong>Custom Blocks:</strong> {tier.limits.customBlocks}
                 </Typography>
               </Box>
               

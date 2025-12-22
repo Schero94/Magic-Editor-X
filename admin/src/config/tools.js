@@ -209,12 +209,13 @@ const getAuthToken = () => {
  * @param {function} options.mediaLibToggleFunc - Function to toggle media library
  * @param {string} options.pluginId - Plugin identifier
  * @param {function} options.openLinkPicker - Optional: Webtools Link Picker function
+ * @param {Array} options.customBlocks - Optional: Custom blocks from config or database
  */
-export const getTools = ({ mediaLibToggleFunc, pluginId, openLinkPicker }) => {
+export const getTools = ({ mediaLibToggleFunc, pluginId, openLinkPicker, customBlocks = [] }) => {
   const token = getAuthToken();
   const authHeader = token ? `Bearer ${token}` : '';
 
-  return {
+  const tools = {
     // ============================================
     // OFFICIAL BLOCK TOOLS (16 Tools)
     // ============================================
@@ -698,6 +699,27 @@ export const getTools = ({ mediaLibToggleFunc, pluginId, openLinkPicker }) => {
       },
     },
   };
+
+  // ============================================
+  // MERGE CUSTOM BLOCKS
+  // Custom blocks registered via config or database
+  // ============================================
+  if (customBlocks && customBlocks.length > 0) {
+    customBlocks.forEach((block) => {
+      if (block && block.name && block.class) {
+        tools[block.name] = {
+          class: block.class,
+          config: block.config || {},
+          inlineToolbar: block.inlineToolbar !== undefined ? block.inlineToolbar : true,
+          tunes: block.tunes || [],
+          shortcut: block.shortcut || null,
+        };
+        console.log(`[Magic Editor X] Registered custom block: ${block.name}`);
+      }
+    });
+  }
+
+  return tools;
 };
 
 /**

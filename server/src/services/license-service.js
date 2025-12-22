@@ -31,6 +31,13 @@ const TIERS = {
       allTools: true,
       collaboration: true,
       ai: false,
+      customBlocks: {
+        maxSimple: 3,
+        maxEmbedded: 0,
+        maxTotal: 3,
+        exportImport: false,
+        apiAccess: false,
+      },
     },
   },
   premium: {
@@ -41,6 +48,13 @@ const TIERS = {
       allTools: true,
       collaboration: true,
       ai: true,
+      customBlocks: {
+        maxSimple: -1, // Unlimited simple within total
+        maxEmbedded: -1, // Unlimited embedded within total
+        maxTotal: 10, // Combined limit
+        exportImport: false,
+        apiAccess: false,
+      },
     },
   },
   advanced: {
@@ -51,6 +65,13 @@ const TIERS = {
       allTools: true,
       collaboration: true,
       ai: true,
+      customBlocks: {
+        maxSimple: -1, // Unlimited
+        maxEmbedded: -1, // Unlimited
+        maxTotal: -1, // Unlimited
+        exportImport: true,
+        apiAccess: true,
+      },
     },
   },
   enterprise: {
@@ -62,6 +83,13 @@ const TIERS = {
       collaboration: true,
       ai: true,
       prioritySupport: true,
+      customBlocks: {
+        maxSimple: -1, // Unlimited
+        maxEmbedded: -1, // Unlimited
+        maxTotal: -1, // Unlimited
+        exportImport: true,
+        apiAccess: true,
+      },
     },
   },
 };
@@ -409,6 +437,22 @@ module.exports = ({ strapi }) => {
     const tier = await this.getCurrentTier();
     const config = this.getTierConfig(tier);
     return config.features[featureName] === true;
+  },
+
+  /**
+   * Get custom blocks configuration for current tier
+   * @returns {Promise<object>} Custom blocks limits and features
+   */
+  async getCustomBlocksConfig() {
+    const tier = await this.getCurrentTier();
+    const config = this.getTierConfig(tier);
+    return config.features.customBlocks || {
+      maxSimple: 3,
+      maxEmbedded: 0,
+      maxTotal: 3,
+      exportImport: false,
+      apiAccess: false,
+    };
   },
 
   /**

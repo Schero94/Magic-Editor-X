@@ -127,5 +127,110 @@ module.exports = {
         policies: ['admin::isAuthenticatedAdmin'],
       },
     },
+    // Custom Blocks Management
+    {
+      method: 'GET',
+      path: '/custom-blocks/limits',
+      handler: 'customBlock.getLimits',
+      config: {
+        policies: ['admin::isAuthenticatedAdmin'],
+      },
+    },
+    {
+      method: 'GET',
+      path: '/custom-blocks/can-create/:blockType',
+      handler: 'customBlock.canCreate',
+      config: {
+        policies: ['admin::isAuthenticatedAdmin'],
+      },
+    },
+    {
+      method: 'GET',
+      path: '/custom-blocks',
+      handler: 'customBlock.find',
+      config: {
+        policies: ['admin::isAuthenticatedAdmin'],
+      },
+    },
+    {
+      method: 'GET',
+      path: '/custom-blocks/:id',
+      handler: 'customBlock.findOne',
+      config: {
+        policies: ['admin::isAuthenticatedAdmin'],
+      },
+    },
+    {
+      method: 'POST',
+      path: '/custom-blocks',
+      handler: 'customBlock.create',
+      config: {
+        policies: ['admin::isAuthenticatedAdmin'],
+      },
+    },
+    {
+      method: 'PUT',
+      path: '/custom-blocks/:id',
+      handler: 'customBlock.update',
+      config: {
+        policies: ['admin::isAuthenticatedAdmin'],
+      },
+    },
+    {
+      method: 'DELETE',
+      path: '/custom-blocks/:id',
+      handler: 'customBlock.delete',
+      config: {
+        policies: ['admin::isAuthenticatedAdmin'],
+      },
+    },
+    {
+      method: 'POST',
+      path: '/custom-blocks/:id/toggle',
+      handler: 'customBlock.toggle',
+      config: {
+        policies: ['admin::isAuthenticatedAdmin'],
+      },
+    },
+    {
+      method: 'POST',
+      path: '/custom-blocks/reorder',
+      handler: 'customBlock.reorder',
+      config: {
+        policies: ['admin::isAuthenticatedAdmin'],
+      },
+    },
+    {
+      method: 'POST',
+      path: '/custom-blocks/:id/duplicate',
+      handler: 'customBlock.duplicate',
+      config: {
+        policies: ['admin::isAuthenticatedAdmin'],
+      },
+    },
+    {
+      method: 'GET',
+      path: '/custom-blocks/export',
+      handler: 'customBlock.export',
+      config: {
+        policies: ['admin::isAuthenticatedAdmin'],
+      },
+    },
+    {
+      method: 'POST',
+      path: '/custom-blocks/import',
+      handler: 'customBlock.import',
+      config: {
+        policies: ['admin::isAuthenticatedAdmin'],
+      },
+    },
+    {
+      method: 'GET',
+      path: '/content-types',
+      handler: 'customBlock.getContentTypes',
+      config: {
+        policies: ['admin::isAuthenticatedAdmin'],
+      },
+    },
   ],
 };

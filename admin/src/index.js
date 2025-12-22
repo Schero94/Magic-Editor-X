@@ -136,6 +136,16 @@ export default {
       [
         {
           intlLabel: {
+            id: `${PLUGIN_ID}.settings.customBlocks`,
+            defaultMessage: 'Custom Blocks',
+          },
+          id: 'custom-blocks',
+          // relative path (no leading slash)
+          to: `${PLUGIN_ID}/custom-blocks`,
+          Component: () => import('./pages/CustomBlocksPage'),
+        },
+        {
+          intlLabel: {
             id: `${PLUGIN_ID}.settings.upgrade`,
             defaultMessage: 'Upgrade',
           },

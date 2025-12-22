@@ -38,6 +38,7 @@ import { useLicense } from '../../hooks/useLicense';
 import { useAIActions } from '../../hooks/useAIActions';
 import { useWebtoolsLinks } from '../../hooks/useWebtoolsLinks';
 import { useVersionHistory } from '../../hooks/useVersionHistory';
+import { useCustomBlocks } from '../../hooks/useCustomBlocks';
 import AIAssistantPopup from '../AIAssistantPopup';
 import VersionHistoryPanel from '../VersionHistoryPanel';
 import AIInlineToolbar from '../AIInlineToolbar';
@@ -214,41 +215,59 @@ const EditorJSGlobalStyles = createGlobalStyle`
   }
   
   /* ============================================
+     NESTED POPOVER FIX - Remove min-width constraint
+     ============================================ */
+  .ce-popover--inline .ce-popover--nested .ce-popover__container,
+  .ce-popover--inline .ce-popover--nested.ce-popover--nested-level-1 .ce-popover__container {
+    min-width: 0 !important;
+  }
+  
+  /* ============================================
      TOOLBOX POPOVER (Plus Button) - CRITICAL FIX
      Make sure items are visible and properly displayed
      ============================================ */
   
   .ce-popover:not(.ce-popover--inline) {
-    display: block !important;
+    display: flex !important;
+    flex-direction: column !important;
     visibility: visible !important;
     opacity: 1 !important;
     z-index: 99999 !important;
   }
   
   .ce-popover--opened {
-    display: block !important;
+    display: flex !important;
+    flex-direction: column !important;
     visibility: visible !important;
     opacity: 1 !important;
   }
   
   .ce-popover__container {
-    display: block !important;
+    display: flex !important;
+    flex-direction: column !important;
     visibility: visible !important;
     opacity: 1 !important;
+    flex: 1 !important;
+    overflow: hidden !important;
   }
   
   .ce-popover__items {
     display: block !important;
     visibility: visible !important;
     opacity: 1 !important;
-    max-height: 400px !important;
+    flex: 1 !important;
     overflow-y: auto !important;
   }
   
+  /* Popover items - don't force display, let EditorJS control visibility for search */
   .ce-popover-item {
-    display: flex !important;
     visibility: visible !important;
     opacity: 1 !important;
+  }
+  
+  /* Only show flex when not hidden by search */
+  .ce-popover-item:not([hidden]) {
+    display: flex !important;
   }
   
   .ce-popover-item__icon {
@@ -263,16 +282,48 @@ const EditorJSGlobalStyles = createGlobalStyle`
     opacity: 1 !important;
   }
   
-  /* Hide empty/nothing-found message for main toolbox */
+  /* Nothing found message - EditorJS controls visibility */
   .ce-popover:not(.ce-popover--inline) .ce-popover__nothing-found-message {
+    padding: 16px !important;
+    text-align: center !important;
+    color: #64748b !important;
+    font-size: 14px !important;
+  }
+  
+  /* Search styling - let EditorJS control visibility */
+  .ce-popover__search {
+    padding: 12px !important;
+    margin: 0 !important;
+    border-bottom: 1px solid #e2e8f0 !important;
+    background: white !important;
+  }
+  
+  /* Hide the search icon */
+  .ce-popover__search-icon {
     display: none !important;
   }
   
-  /* Make sure search is visible */
-  .ce-popover__search {
-    display: block !important;
-    visibility: visible !important;
-    opacity: 1 !important;
+  .ce-popover__search-input {
+    width: 100% !important;
+    padding: 10px 14px !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 10px !important;
+    background: #f8fafc !important;
+    font-size: 14px !important;
+    color: #334155 !important;
+    outline: none !important;
+    transition: all 0.15s ease !important;
+    box-sizing: border-box !important;
+  }
+  
+  .ce-popover__search-input:focus {
+    border-color: #7C3AED !important;
+    background: white !important;
+    box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.1) !important;
+  }
+  
+  .ce-popover__search-input::placeholder {
+    color: #94a3b8 !important;
   }
   
   /* ============================================
@@ -2082,6 +2133,9 @@ const Editor = forwardRef(({
   // Webtools Link Picker integration (optional)
   const { isAvailable: isWebtoolsAvailable, openLinkPicker: webtoolsOpenLinkPicker } = useWebtoolsLinks();
   
+  // Custom Blocks (user-defined blocks from database)
+  const { customBlocks, isLoading: isLoadingCustomBlocks } = useCustomBlocks();
+  
   // Refs - must be defined before useAIActions
   const editorRef = useRef(null);
   const editorInstanceRef = useRef(null);
@@ -3358,12 +3412,21 @@ const Editor = forwardRef(({
 
   // Initialize Editor.js
   useEffect(() => {
+    // Wait for custom blocks to finish loading before initializing
+    if (isLoadingCustomBlocks) {
+      console.log('[Magic Editor X] Waiting for custom blocks to load...');
+      return;
+    }
+    
     if (editorRef.current && !editorInstanceRef.current) {
       const tools = getTools({ 
         mediaLibToggleFunc, 
         pluginId: PLUGIN_ID,
         openLinkPicker: isWebtoolsAvailable ? webtoolsOpenLinkPicker : null,
+        customBlocks: customBlocks || [],
       });
+      
+      console.log('[Magic Editor X] Custom blocks loaded:', customBlocks?.length || 0);
 
       let initialData = undefined;
       if (value) {
@@ -3610,7 +3673,8 @@ const Editor = forwardRef(({
       }
       document.body.classList.remove('editor-fullscreen');
     };
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoadingCustomBlocks, customBlocks]);
 
   // Dynamically toggle readOnly when collaboration role changes (viewer can't edit)
   useEffect(() => {

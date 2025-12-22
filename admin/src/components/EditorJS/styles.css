@@ -31,10 +31,8 @@
   margin-left: 10px;
 }
 
-/* Hide the dark popover header bar */
-.ce-popover__custom-content,
-.ce-popover-header,
-.ce-popover__nothing-found-message {
+/* Hide the dark popover header bar - but keep search functional */
+.ce-popover__custom-content {
   display: none !important;
 }
 
@@ -46,9 +44,60 @@
   overflow: visible !important;
 }
 
+/* Fix nested popover width - remove min-width constraint */
+.ce-popover--inline .ce-popover--nested .ce-popover__container,
+.ce-popover--inline.ce-popover--opened .ce-popover--nested .ce-popover__container,
+.ce-popover--inline .ce-popover--nested.ce-popover--opened .ce-popover__container,
+.ce-popover--inline .ce-popover--nested.ce-popover--nested-level-1 .ce-popover__container,
+div.ce-popover.ce-popover--inline div.ce-popover.ce-popover--nested div.ce-popover__container {
+  min-width: 0 !important;
+  min-width: unset !important;
+}
+
+/* Search input in toolbox - styling only, let EditorJS control visibility */
 .ce-popover__search {
-  background: transparent !important;
-  border: none !important;
+  padding: 12px !important;
+  margin: 0 !important;
+  border-bottom: 1px solid #e2e8f0 !important;
+  background: white !important;
+}
+
+/* Hide the search icon */
+.ce-popover__search-icon {
+  display: none !important;
+}
+
+.ce-popover__search-input {
+  width: 100% !important;
+  padding: 10px 14px !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 10px !important;
+  background: #f8fafc !important;
+  font-size: 14px !important;
+  color: #334155 !important;
+  outline: none !important;
+  transition: all 0.15s ease !important;
+  box-sizing: border-box !important;
+}
+
+.ce-popover__search-input:focus {
+  border-color: #7C3AED !important;
+  background: white !important;
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.1) !important;
+}
+
+.ce-popover__search-input::placeholder {
+  color: #94a3b8 !important;
+}
+
+/* Nothing found message - EditorJS controls visibility via inline styles */
+/* We only style it, don't override display */
+.ce-popover__nothing-found-message {
+  padding: 16px !important;
+  text-align: center !important;
+  color: #64748b !important;
+  font-size: 14px !important;
+  /* Let EditorJS control visibility - it uses display:none when items exist */
 }
 
 /* Hide the dark tooltip on hover */
@@ -754,7 +803,7 @@ u {
 }
 
 /* ============================================
-   POPOVER
+   POPOVER (Toolbox Dropdown)
    ============================================ */
 
 .ce-popover {
@@ -763,6 +812,66 @@ u {
   border-radius: 16px;
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.18);
   z-index: 9999 !important;
+}
+
+/* Toolbox Popover - Responsive Scroll Behavior */
+.ce-popover:not(.ce-popover--inline) {
+  max-height: 60vh;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+}
+
+/* Popover items container - scrollable area */
+.ce-popover__items {
+  padding: 8px;
+  flex: 1 !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  scrollbar-width: thin;
+  scrollbar-color: #c4b5fd #f1f5f9;
+}
+
+/* Custom scrollbar for webkit browsers */
+.ce-popover__items::-webkit-scrollbar {
+  width: 6px;
+}
+
+.ce-popover__items::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 3px;
+}
+
+.ce-popover__items::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #c4b5fd 0%, #a78bfa 100%);
+  border-radius: 3px;
+}
+
+.ce-popover__items::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #a78bfa 0%, #8b5cf6 100%);
+}
+
+/* Larger screens - show more items */
+@media (min-height: 700px) {
+  .ce-popover:not(.ce-popover--inline) {
+    max-height: 70vh;
+  }
+}
+
+@media (min-height: 900px) {
+  .ce-popover:not(.ce-popover--inline) {
+    max-height: 80vh;
+  }
+}
+
+/* Very tall screens - show everything */
+@media (min-height: 1100px) {
+  .ce-popover:not(.ce-popover--inline) {
+    max-height: none;
+  }
+  .ce-popover__items {
+    overflow-y: visible !important;
+  }
 }
 
 .ce-popover__item {

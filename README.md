@@ -7,15 +7,36 @@
 [![Strapi v5](https://img.shields.io/badge/Strapi-v5-7C3AED.svg)](https://strapi.io)
 [![Editor.js](https://img.shields.io/badge/Editor.js-2.31.0-000.svg)](https://editorjs.io)
 
+> **ALPHA RELEASE v1.4.0-alpha.1** - Custom Blocks with Tier-based Limits now available! Create your own editor blocks without writing code.
+
 ---
 
-## 🆕 What's New in v1.2.0
+## What's New in v1.4.0-alpha.1
+
+### Custom Blocks (Contentful-style)
+
+Create custom editor blocks directly from the Admin UI - no code required!
+
+- **Simple Blocks** - Text/HTML blocks with configurable fields (text, textarea, select, color, checkbox)
+- **Embedded Entry Blocks** - Reference other Strapi content types with preview fields (like Contentful Inline Entries)
+- **HTML Templates** - Define custom templates with `{{fieldName}}` placeholders
+- **Replaces Dynamic Zones** - Simpler alternative for structured content within the editor
+
+### Tier-Based Limits
+
+| Feature | FREE | PREMIUM | ADVANCED |
+|---------|------|---------|----------|
+| Simple Blocks | 3 | 10 (combined) | Unlimited |
+| Embedded Entry | - | 10 (combined) | Unlimited |
+| Export/Import | - | - | Yes |
+| API Access | - | - | Yes |
+
+### Previous Updates (v1.2.0)
 
 - **Character-Level Collaboration** - Multiple users can now type in the same paragraph simultaneously without conflicts
 - **Webtools Links Integration** - Optional integration with PluginPal's Webtools Links addon for internal/external link management
 - **Direct Link Editing** - Click on any link to instantly open the link editor modal
 - **Improved Fullscreen Mode** - Blocks now stretch to full width, Media Library modal works correctly
-- **Performance Improvements** - Removed debug logging, optimized Y.js sync
 
 ---
 
@@ -313,6 +334,114 @@ Magic Editor X comes with a comprehensive collection of tools, categorized for e
 |--------|-------------|---------|
 | **Undo/Redo** | History management | `editorjs-undo` |
 | **Drag & Drop** | Reorder blocks by dragging | `editorjs-drag-drop` |
+
+### Custom Blocks (User-Defined)
+
+Magic Editor X allows you to create your own custom blocks without writing code! This feature is similar to Contentful's embedded entries and can replace Strapi's Components + Dynamic Zones setup.
+
+#### Creating Custom Blocks via Admin UI
+
+1. Go to **Settings > Magic Editor X > Custom Blocks**
+2. Click **Create Block**
+3. Fill in the form:
+   - **Block Name** - Unique identifier (e.g., `productCard`)
+   - **Display Label** - Shown in the editor toolbox
+   - **Block Type**:
+     - **Simple Block** - Text/HTML content with custom fields
+     - **Embedded Entry** - Links to existing Strapi content
+4. Configure additional options (fields, template, icon)
+5. Click **Create Block**
+
+The new block appears immediately in the editor toolbox!
+
+#### Block Types
+
+**Simple Blocks:**
+Custom text/HTML blocks with configurable fields.
+
+| Option | Description |
+|--------|-------------|
+| Placeholder | Hint text for empty content |
+| Template | Custom HTML with `{{fieldName}}` placeholders |
+| Fields | Add custom fields (text, select, color, checkbox) |
+| Styles | Custom CSS as JSON object |
+
+**Embedded Entry Blocks:**
+Embed existing Strapi content directly in your editor.
+
+| Option | Description |
+|--------|-------------|
+| Content Type | Target content type (e.g., `api::product.product`) |
+| Title Field | Field to display as entry title |
+| Display Fields | Fields shown in preview |
+
+#### Creating Custom Blocks via Config (Developers)
+
+For developers who prefer code-based configuration:
+
+```javascript
+// config/plugins.js
+'magic-editor-x': {
+  enabled: true,
+  config: {
+    customBlocks: [
+      {
+        name: 'productCard',
+        label: 'Product Card',
+        blockType: 'embedded-entry',
+        contentType: 'api::product.product',
+        displayFields: ['title', 'price', 'thumbnail'],
+        titleField: 'title',
+        icon: '<svg>...</svg>',
+      },
+      {
+        name: 'callToAction',
+        label: 'Call to Action',
+        blockType: 'simple',
+        placeholder: 'Enter CTA text...',
+        fields: [
+          { name: 'buttonText', label: 'Button Text', type: 'text' },
+          { name: 'buttonUrl', label: 'Button URL', type: 'text' },
+          { name: 'variant', label: 'Style', type: 'select', options: ['primary', 'secondary'] },
+        ],
+        template: `
+          <div class="cta-block">
+            <p data-field="content">{{content}}</p>
+            <a href="{{buttonUrl}}" class="btn btn-{{variant}}">{{buttonText}}</a>
+          </div>
+        `,
+      },
+    ],
+  },
+},
+```
+
+#### Import/Export Custom Blocks
+
+Custom blocks can be exported and imported between environments:
+
+1. Go to **Settings > Magic Editor X > Custom Blocks**
+2. Click **Export** to download a JSON file
+3. On another instance, click **Import** and select the file
+
+#### Custom Block Output Format
+
+Custom blocks save their data in the standard Editor.js format:
+
+```json
+{
+  "type": "productCard",
+  "data": {
+    "entry": {
+      "id": 42,
+      "documentId": "abc123",
+      "title": "Product Name",
+      "price": 99.99
+    },
+    "contentType": "api::product.product"
+  }
+}
+```
 
 ### 4. Media Library Integration
 
