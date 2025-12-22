@@ -1,6 +1,6 @@
 {
   "name": "magic-editor-x",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "Advanced block-based editor for Strapi v5 with Editor.js, Media Library integration, and real-time collaboration support",
   "keywords": [
     "strapi",

@@ -1,3 +1,10 @@
+# [1.5.0](https://github.com/Schero94/magic-editor-x/compare/v1.4.0...v1.5.0) (2025-12-22)
+
+
+### Features
+
+* add image field type for Simple Blocks with Media Library integration ([61fa769](https://github.com/Schero94/magic-editor-x/commit/61fa7693e37be0cb54cfc56ce49d2a395f0d0d44))
+
 # [1.4.0](https://github.com/Schero94/magic-editor-x/compare/v1.3.7...v1.4.0) (2025-12-22)
 
 
