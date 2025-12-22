@@ -1758,6 +1758,7 @@ const CustomBlocksPage = () => {
                                 <option value="select">Select</option>
                                 <option value="color">Color</option>
                                 <option value="checkbox">Checkbox</option>
+                                <option value="image">Image</option>
                               </FieldSelect>
                               <IconButton $danger onClick={() => removeField(index)}>
                                 <TrashIcon />

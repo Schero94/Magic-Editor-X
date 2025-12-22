@@ -349,6 +349,10 @@ export function createSimpleBlock(config) {
           });
           break;
           
+        case 'image':
+          input = this._createImageField(field);
+          break;
+          
         default: // text input
           input = document.createElement('input');
           input.type = field.type || 'text';
@@ -372,6 +376,174 @@ export function createSimpleBlock(config) {
       
       container.appendChild(input);
       return container;
+    }
+
+    /**
+     * Create image field with Media Library integration
+     * @param {object} field - Field configuration
+     * @returns {HTMLElement}
+     */
+    _createImageField(field) {
+      const wrapper = document.createElement('div');
+      wrapper.style.cssText = `
+        border: 2px dashed #e2e8f0;
+        border-radius: 8px;
+        padding: 16px;
+        text-align: center;
+        background: #fafbfc;
+        transition: all 0.2s ease;
+      `;
+      
+      // Image preview
+      const preview = document.createElement('div');
+      preview.className = 'image-preview';
+      preview.style.cssText = `
+        margin-bottom: 12px;
+        min-height: 60px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      `;
+      
+      const img = document.createElement('img');
+      img.style.cssText = `
+        max-width: 100%;
+        max-height: 150px;
+        border-radius: 6px;
+        display: none;
+      `;
+      
+      const placeholder = document.createElement('div');
+      placeholder.innerHTML = `
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.5">
+          <rect x="3" y="3" width="18" height="18" rx="2"/>
+          <circle cx="8.5" cy="8.5" r="1.5"/>
+          <path d="M21 15l-5-5L5 21"/>
+        </svg>
+        <p style="margin: 8px 0 0; color: #94a3b8; font-size: 13px;">No image selected</p>
+      `;
+      placeholder.style.cssText = 'text-align: center;';
+      
+      preview.appendChild(img);
+      preview.appendChild(placeholder);
+      
+      // Update preview based on current data
+      const updatePreview = (url) => {
+        if (url) {
+          img.src = url;
+          img.style.display = 'block';
+          placeholder.style.display = 'none';
+          wrapper.style.borderStyle = 'solid';
+          wrapper.style.borderColor = '#c4b5fd';
+        } else {
+          img.style.display = 'none';
+          placeholder.style.display = 'block';
+          wrapper.style.borderStyle = 'dashed';
+          wrapper.style.borderColor = '#e2e8f0';
+        }
+      };
+      
+      // Initial state
+      const currentValue = this.data[field.name];
+      if (currentValue && typeof currentValue === 'object') {
+        updatePreview(currentValue.url);
+      } else if (typeof currentValue === 'string' && currentValue) {
+        updatePreview(currentValue);
+      }
+      
+      // Buttons container
+      const buttons = document.createElement('div');
+      buttons.style.cssText = 'display: flex; gap: 8px; justify-content: center;';
+      
+      // Select button
+      const selectBtn = document.createElement('button');
+      selectBtn.type = 'button';
+      selectBtn.textContent = 'Select Image';
+      selectBtn.style.cssText = `
+        padding: 8px 16px;
+        background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+        color: white;
+        border: none;
+        border-radius: 6px;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s ease;
+      `;
+      selectBtn.addEventListener('mouseenter', () => {
+        selectBtn.style.transform = 'translateY(-1px)';
+        selectBtn.style.boxShadow = '0 4px 12px rgba(124, 58, 237, 0.35)';
+      });
+      selectBtn.addEventListener('mouseleave', () => {
+        selectBtn.style.transform = 'translateY(0)';
+        selectBtn.style.boxShadow = 'none';
+      });
+      
+      // Remove button
+      const removeBtn = document.createElement('button');
+      removeBtn.type = 'button';
+      removeBtn.textContent = 'Remove';
+      removeBtn.style.cssText = `
+        padding: 8px 16px;
+        background: transparent;
+        color: #ef4444;
+        border: 1px solid #fecaca;
+        border-radius: 6px;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: ${this.data[field.name] ? 'inline-block' : 'none'};
+      `;
+      removeBtn.addEventListener('click', () => {
+        this.data[field.name] = null;
+        updatePreview(null);
+        removeBtn.style.display = 'none';
+      });
+      
+      // Handle select button click - dispatch custom event
+      selectBtn.addEventListener('click', () => {
+        if (this.readOnly) return;
+        
+        // Create a unique callback ID
+        const callbackId = `image_field_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        
+        // Store callback globally for Media Library to call
+        window.__MAGIC_EDITOR_IMAGE_CALLBACKS__ = window.__MAGIC_EDITOR_IMAGE_CALLBACKS__ || {};
+        window.__MAGIC_EDITOR_IMAGE_CALLBACKS__[callbackId] = (files) => {
+          if (files && files.length > 0) {
+            const file = files[0];
+            const imageData = {
+              url: file.url,
+              alt: file.alt || file.name || '',
+              width: file.width,
+              height: file.height,
+              id: file.id,
+              documentId: file.documentId,
+            };
+            this.data[field.name] = imageData;
+            updatePreview(imageData.url);
+            removeBtn.style.display = 'inline-block';
+          }
+          // Cleanup
+          delete window.__MAGIC_EDITOR_IMAGE_CALLBACKS__[callbackId];
+        };
+        
+        // Dispatch event to open Media Library
+        window.dispatchEvent(new CustomEvent('magic-editor-open-media-lib', {
+          detail: { callbackId, fieldName: field.name, allowedTypes: ['images'] }
+        }));
+      });
+      
+      buttons.appendChild(selectBtn);
+      buttons.appendChild(removeBtn);
+      
+      wrapper.appendChild(preview);
+      if (!this.readOnly) {
+        wrapper.appendChild(buttons);
+      }
+      
+      return wrapper;
     }
 
     /**

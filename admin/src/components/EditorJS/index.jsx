@@ -3265,6 +3265,44 @@ const Editor = forwardRef(({
     [mediaLibBlockIndex, mediaLibToggleFunc]
   );
 
+  // Custom Block Image Field - Media Library integration
+  const [customBlockImageCallback, setCustomBlockImageCallback] = useState(null);
+  
+  const handleCustomBlockMediaLibChange = useCallback((data) => {
+    if (customBlockImageCallback && window.__MAGIC_EDITOR_IMAGE_CALLBACKS__) {
+      const callback = window.__MAGIC_EDITOR_IMAGE_CALLBACKS__[customBlockImageCallback];
+      if (callback) {
+        // Format the data for the image field
+        const formattedData = data.map((file) => ({
+          url: file.url,
+          alt: file.alt || file.name || '',
+          width: file.width,
+          height: file.height,
+          id: file.id,
+          documentId: file.documentId,
+          name: file.name,
+        }));
+        callback(formattedData);
+      }
+    }
+    setCustomBlockImageCallback(null);
+    setIsMediaLibOpen(false);
+  }, [customBlockImageCallback]);
+
+  // Listen for custom block image field events
+  useEffect(() => {
+    const handleOpenMediaLib = (event) => {
+      const { callbackId, allowedTypes } = event.detail || {};
+      if (callbackId) {
+        setCustomBlockImageCallback(callbackId);
+        setIsMediaLibOpen(true);
+      }
+    };
+    
+    window.addEventListener('magic-editor-open-media-lib', handleOpenMediaLib);
+    return () => window.removeEventListener('magic-editor-open-media-lib', handleOpenMediaLib);
+  }, []);
+
   // Fullscreen toggle
   const toggleFullscreen = useCallback(() => {
     setIsFullscreen(prev => {
@@ -4077,8 +4115,14 @@ const Editor = forwardRef(({
 
       <MediaLibComponent
         isOpen={isMediaLibOpen}
-        onChange={handleMediaLibChange}
-        onToggle={mediaLibToggleFunc}
+        onChange={customBlockImageCallback ? handleCustomBlockMediaLibChange : handleMediaLibChange}
+        onToggle={() => {
+          if (customBlockImageCallback) {
+            setCustomBlockImageCallback(null);
+          }
+          mediaLibToggleFunc();
+        }}
+        multiple={!customBlockImageCallback}
       />
       
       {/* AI Inline Toolbar - New Smart UI */}
