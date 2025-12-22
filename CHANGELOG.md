@@ -1,3 +1,10 @@
+# [1.4.0](https://github.com/Schero94/magic-editor-x/compare/v1.3.7...v1.4.0) (2025-12-22)
+
+
+### Features
+
+* Custom Blocks with Tier-based Limits (v1.4.0-alpha.1) ([b3e21c7](https://github.com/Schero94/magic-editor-x/commit/b3e21c7ee6bdefac5f3d6aa7f33e46e4029053db))
+
 ## [1.3.7](https://github.com/Schero94/magic-editor-x/compare/v1.3.6...v1.3.7) (2025-12-21)
 
 
