@@ -1,3 +1,10 @@
+## [1.5.1](https://github.com/Schero94/magic-editor-x/compare/v1.5.0...v1.5.1) (2026-02-12)
+
+
+### Bug Fixes
+
+* apply Strapi v5 best practices and update dependencies ([7c004fe](https://github.com/Schero94/magic-editor-x/commit/7c004febd0b91a86c494228e87d4148126fc2863))
+
 # [1.5.0](https://github.com/Schero94/magic-editor-x/compare/v1.4.0...v1.5.0) (2025-12-22)
 
 
