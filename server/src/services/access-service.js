@@ -61,11 +61,11 @@ module.exports = ({ strapi }) => {
 
       // Prüfe explizite Permissions für nicht-Super-Admins
       // Using Document Service API (strapi.documents) for Strapi v5
-      // Note: Deep filtering required for relations - { user: { id: ... } }
+      // Note: Deep filtering required for relations - { user: { documentId: ... } }
       try {
         const permissions = await strapi.documents('plugin::magic-editor-x.collab-permission').findMany({
             filters: {
-              user: { id: user.id },
+              user: { documentId: user.documentId },
             },
         });
 
@@ -133,7 +133,9 @@ module.exports = ({ strapi }) => {
     },
 
     /**
-     * Hilfsfunktion: Gibt Rollen-Level zurück (höher = mehr Rechte)
+     * Returns role level (higher = more permissions)
+     * @param {string} role - Role name (viewer, editor, owner)
+     * @returns {number} Role level (1-3)
      */
     getRoleLevel(role) {
       const levels = { viewer: 1, editor: 2, owner: 3 };
@@ -198,10 +200,10 @@ module.exports = ({ strapi }) => {
 
         // Permission Check für andere User
         // Using Document Service API (strapi.documents) for Strapi v5
-        // Note: Deep filtering required for relations - { user: { id: ... } }
+        // Note: Deep filtering required for relations - { user: { documentId: ... } }
         const permissions = await strapi.documents('plugin::magic-editor-x.collab-permission').findMany({
             filters: {
-              user: { id: userId },
+              user: { documentId: userId },
             },
         });
 

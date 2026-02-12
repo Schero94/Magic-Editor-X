@@ -14,30 +14,24 @@ const getCustomBlockUID = () => 'plugin::magic-editor-x.custom-block';
 
 module.exports = ({ strapi }) => ({
   /**
-   * Count blocks by type
+   * Count blocks by type using native count() method
    * @returns {Promise<object>} Block counts by type
    */
   async countBlocks() {
     try {
-      const allBlocks = await strapi.documents(getCustomBlockUID()).findMany({
-        filters: {},
-      });
+      // Use native count() for better performance (no data loading)
+      const [total, embedded] = await Promise.all([
+        strapi.documents(getCustomBlockUID()).count(),
+        strapi.documents(getCustomBlockUID()).count({
+          filters: { blockType: 'embedded-entry' },
+        }),
+      ]);
       
-      const counts = {
-        simple: 0,
-        'embedded-entry': 0,
-        total: allBlocks.length,
+      return {
+        simple: total - embedded,
+        'embedded-entry': embedded,
+        total,
       };
-      
-      allBlocks.forEach((block) => {
-        if (block.blockType === 'embedded-entry') {
-          counts['embedded-entry']++;
-        } else {
-          counts.simple++;
-        }
-      });
-      
-      return counts;
       
     } catch (error) {
       logger.error('[CustomBlockService] Error counting blocks:', error);
