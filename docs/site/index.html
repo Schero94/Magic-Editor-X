@@ -128,7 +128,7 @@
         <p class="eyebrow">Development</p>
         <h2 id="releases-title">Releases and testing</h2>
         <p>Releases use semantic-release on Node.js 22 and Conventional Commits. The release workflow installs from the lockfile, runs tests, builds and verifies the package before publishing to npm.</p>
-        <pre><code>npm ci
+        <pre><code>npm ci --legacy-peer-deps
 npm test
 npm run build
 npm run verify</code></pre>
