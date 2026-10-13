@@ -18,7 +18,7 @@ module.exports = ({ strapi }) => {
     try {
       const { url } = ctx.query;
 
-      if (!url) {
+      if (typeof url !== 'string' || !url) {
         return ctx.send({
           success: 0,
           message: 'URL parameter is required',
@@ -29,15 +29,15 @@ module.exports = ({ strapi }) => {
       const result = await strapi
         .plugin('magic-editor-x')
         .service('editorService')
-        .fetchLinkMeta(url);
+        .fetchLinkMeta(url, ctx);
 
       ctx.send(result);
     } catch (error) {
       logger.error('[Magic Editor X] Link fetch error:', error);
       ctx.send({
         success: 0,
-        message: error.message || 'Failed to fetch link metadata',
-      }, 500);
+        message: error.statusCode === 400 ? error.message : 'Failed to fetch link metadata',
+      }, error.statusCode || 502);
     }
   },
 
@@ -59,8 +59,8 @@ module.exports = ({ strapi }) => {
       logger.error('[Magic Editor X] File upload error:', error);
       ctx.send({
         success: 0,
-        message: error.message || 'Failed to upload file',
-      }, 500);
+        message: error.statusCode === 400 || error.statusCode === 413 ? error.message : 'Failed to upload file',
+      }, error.statusCode || 500);
     }
   },
 
@@ -71,9 +71,9 @@ module.exports = ({ strapi }) => {
    */
   async uploadByUrl(ctx) {
     try {
-      const { url } = ctx.request.body;
+      const { url } = ctx.request.body || {};
 
-      if (!url) {
+      if (typeof url !== 'string' || !url) {
         return ctx.send({
           success: 0,
           message: 'URL is required',
@@ -84,15 +84,15 @@ module.exports = ({ strapi }) => {
       const result = await strapi
         .plugin('magic-editor-x')
         .service('editorService')
-        .uploadByUrl(url);
+        .uploadByUrl(url, ctx);
 
       ctx.send(result);
     } catch (error) {
       logger.error('[Magic Editor X] URL upload error:', error);
       ctx.send({
         success: 0,
-        message: error.message || 'Failed to upload from URL',
-      }, 500);
+        message: error.statusCode === 400 || error.statusCode === 413 ? error.message : 'Failed to upload from URL',
+      }, error.statusCode || 502);
     }
   },
 
@@ -114,8 +114,8 @@ module.exports = ({ strapi }) => {
       logger.error('[Magic Editor X] Attachment upload error:', error);
       ctx.send({
         success: 0,
-        message: error.message || 'Failed to upload attachment',
-      }, 500);
+        message: error.statusCode === 400 || error.statusCode === 413 ? error.message : 'Failed to upload attachment',
+      }, error.statusCode || 500);
     }
   },
 };};

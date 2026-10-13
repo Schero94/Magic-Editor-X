@@ -6,6 +6,7 @@
 import { PLUGIN_ID } from './pluginId';
 import { Initializer } from './components/Initializer';
 import { PluginIcon } from './components/PluginIcon';
+import pluginPermissions from './permissions';
 
 // Import CSS globally so it's available in Custom Field
 import './components/EditorJS/styles.css';
@@ -122,7 +123,7 @@ export default {
       },
       // Use lazy import without async wrapper to avoid deprecation warning
       Component: () => import('./pages/App'),
-      permissions: [],
+      permissions: pluginPermissions.access,
     });
 
     // Add Settings section (License & Upgrade)
@@ -140,6 +141,7 @@ export default {
             defaultMessage: 'Custom Blocks',
           },
           id: 'custom-blocks',
+          permissions: pluginPermissions.access,
           // relative path (no leading slash)
           to: `${PLUGIN_ID}/custom-blocks`,
           Component: () => import('./pages/CustomBlocksPage'),
@@ -150,6 +152,7 @@ export default {
             defaultMessage: 'Upgrade',
           },
           id: 'upgrade',
+          permissions: pluginPermissions.access,
           // relative path (no leading slash)
           to: `${PLUGIN_ID}/upgrade`,
           Component: () => import('./pages/LicensePage'),
@@ -160,6 +163,7 @@ export default {
             defaultMessage: 'License Details',
           },
           id: 'license',
+          permissions: pluginPermissions.access,
           // relative path (no leading slash)
           to: `${PLUGIN_ID}/license`,
           Component: () => import('./pages/Settings'),

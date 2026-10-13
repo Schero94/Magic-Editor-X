@@ -9,6 +9,8 @@
 
 > **ALPHA RELEASE v1.4.0-alpha.1** - Custom Blocks with Tier-based Limits now available! Create your own editor blocks without writing code.
 
+Project site: https://schero94.github.io/Magic-Editor-X/
+
 ---
 
 ## What's New in v1.4.0-alpha.1
@@ -138,7 +140,7 @@ server/
 - **Socket.io 4.8** - WebSocket server
 - **Y.js 13.6** - Server-side CRDT state
 - **Open Graph Scraper** - Link metadata extraction
-- **Strapi 5.31** - Backend framework
+- **Strapi 5.57 or later in the 5.x line** - Backend framework
 
 ### Data Flow
 
@@ -788,117 +790,11 @@ console.log(editorContent.blocks); // Array of blocks
 
 ## API Reference
 
-### Public API Endpoints
+The plugin currently registers admin routes only. It does not register public Content API routes. Admin routes use Strapi's admin API base and require authentication and the route-specific permissions defined in `server/src/routes/admin.js`.
 
-These endpoints are available for content-api usage:
+Editor routes include `GET /magic-editor-x/link`, `POST /magic-editor-x/image/byFile`, `POST /magic-editor-x/image/byUrl`, and `POST /magic-editor-x/file/upload`. Link preview and URL upload accept remote URLs; the implementation restricts these requests to public HTTP(S) destinations and applies response size, MIME-type, redirect, and timeout limits. Upload routes require the admin plugin access and Strapi upload-create permissions.
 
-#### Fetch Link Metadata
-
-```http
-GET /api/magic-editor-x/link?url=https://example.com
-```
-
-**Response:**
-```json
-{
-  "success": 1,
-  "meta": {
-    "title": "Example Domain",
-    "description": "Example domain for documentation",
-    "image": {
-      "url": "https://example.com/og-image.jpg"
-    }
-  }
-}
-```
-
-#### Upload Image by File
-
-```http
-POST /api/magic-editor-x/image/byFile
-Content-Type: multipart/form-data
-
-files.image: <file>
-```
-
-**Response:**
-```json
-{
-  "success": 1,
-  "file": {
-    "url": "https://cdn.example.com/image.jpg",
-    "name": "image.jpg",
-    "size": 123456
-  }
-}
-```
-
-#### Upload Image by URL
-
-```http
-POST /api/magic-editor-x/image/byUrl
-Content-Type: application/json
-
-{
-  "url": "https://example.com/image.jpg"
-}
-```
-
-**Response:**
-```json
-{
-  "success": 1,
-  "file": {
-    "url": "https://cdn.example.com/image.jpg",
-    "name": "image.jpg",
-    "size": 123456
-  }
-}
-```
-
-### Admin API Endpoints
-
-These endpoints require authentication and admin permissions:
-
-#### License Management
-
-```http
-GET /magic-editor-x/license/status
-GET /magic-editor-x/license/limits
-POST /magic-editor-x/license/auto-create
-POST /magic-editor-x/license/store-key
-```
-
-#### Collaboration Permissions
-
-```http
-GET /magic-editor-x/collaboration/permissions
-POST /magic-editor-x/collaboration/permissions
-PUT /magic-editor-x/collaboration/permissions/:id
-DELETE /magic-editor-x/collaboration/permissions/:id
-```
-
-#### Real-Time Sessions
-
-```http
-POST /magic-editor-x/realtime/session-token
-```
-
-**Request:**
-```json
-{
-  "roomId": "api::article.article|abc123|content",
-  "fieldName": "content"
-}
-```
-
-**Response:**
-```json
-{
-  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "expiresAt": 1699999999999
-}
-```
+Other admin route groups manage collaboration sessions and permissions, license status and limits, snapshots, and custom blocks. Collaboration session creation checks the configured collaboration access rules. See `server/src/routes/admin.js` for the current route and policy definitions.
 
 ---
 

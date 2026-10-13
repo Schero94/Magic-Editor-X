@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Magic Editor X is a Strapi 5 custom field for structured Editor.js content, Media Library uploads, custom blocks and configurable collaboration support.">
+    <title>Magic Editor X | Strapi plugin</title>
+    <link rel="canonical" href="https://schero94.github.io/Magic-Editor-X/">
+    <link rel="stylesheet" href="./site.css">
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">Skip to content</a>
+    <header class="topbar">
+      <div class="topbar-inner">
+        <a class="brand" href="#main-content" aria-label="Magic Editor X home">Magic Editor X</a>
+        <nav class="top-links" aria-label="Main navigation">
+          <a href="#features">Features</a>
+          <a href="#install">Install</a>
+          <a href="#api">API</a>
+        </nav>
+      </div>
+    </header>
+
+    <main id="main-content">
+      <div class="hero-wrap">
+        <section class="hero" aria-labelledby="page-title">
+          <div class="hero-copy">
+            <p class="eyebrow">Strapi 5 plugin · Node.js 22</p>
+            <h1 id="page-title">A block editor custom field for Strapi</h1>
+            <p>Magic Editor X adds an Editor.js-based custom field with structured content, Media Library integration, configurable custom blocks and collaboration support.</p>
+            <div class="hero-actions">
+              <a class="button primary" href="https://github.com/Schero94/Magic-Editor-X">View source on GitHub</a>
+              <a class="button" href="https://www.npmjs.com/package/magic-editor-x">View the npm package</a>
+            </div>
+            <p class="badges">Manifest compatibility: Strapi <code>^5.57.0</code>; Node.js <code>&gt;=22.22.2 &lt;23</code>.</p>
+          </div>
+        </section>
+      </div>
+
+      <div class="layout">
+        <nav class="side-nav" aria-label="Page sections">
+          <a href="#features">Features</a>
+          <a href="#install">Install</a>
+          <a href="#configuration">Configuration</a>
+          <a href="#security">Security</a>
+          <a href="#api">API</a>
+          <a href="#releases">Releases</a>
+        </nav>
+        <div class="content">
+      <section class="section" id="features" aria-labelledby="features-title">
+        <p class="eyebrow">What it does</p>
+        <h2 id="features-title">Features</h2>
+        <div class="card-grid">
+          <article class="card"><h3>Editor.js content</h3><p>Store editor output as structured block JSON in a Strapi custom field.</p></article>
+          <article class="card"><h3>Editor tools</h3><p>Includes configured text, list, quote, table, image, embed and formatting tools.</p></article>
+          <article class="card"><h3>Custom blocks</h3><p>Create simple or embedded-entry blocks in the admin UI, subject to license-tier limits.</p></article>
+          <article class="card"><h3>Media Library</h3><p>Use Strapi's upload service for editor images and attachments.</p></article>
+          <article class="card"><h3>Collaboration support</h3><p>Yjs and Socket.IO code provides configurable real-time collaboration support. Live provider connections are not verified here.</p></article>
+          <article class="card"><h3>Version history</h3><p>Admin routes support listing, creating and restoring document snapshots.</p></article>
+        </div>
+      </section>
+
+      <section class="section" id="install" aria-labelledby="install-title">
+        <p class="eyebrow">Getting started</p>
+        <h2 id="install-title">Install</h2>
+        <p>Install the published package in your Strapi project:</p>
+        <pre><code>npm install magic-editor-x</code></pre>
+        <p>Enable the plugin in <code>config/plugins.js</code> or <code>config/plugins.ts</code>:</p>
+        <pre><code>module.exports = () =&gt; ({
+  'magic-editor-x': {
+    enabled: true,
+  },
+});</code></pre>
+        <p>Then rebuild the Strapi admin. Add the Magic Editor X custom field to a content type in the Content-Type Builder.</p>
+      </section>
+
+      <section class="section" id="configuration" aria-labelledby="configuration-title">
+        <p class="eyebrow">Plugin settings</p>
+        <h2 id="configuration-title">Configuration</h2>
+        <p>Plugin options are set under the <code>magic-editor-x</code> key in <code>config/plugins</code>. Defaults include a 10-second link-preview timeout, 10 MB image and file limits, selected editor tools, and enabled collaboration support.</p>
+        <pre><code>module.exports = () =&gt; ({
+  'magic-editor-x': {
+    enabled: true,
+    config: {
+      debug: false,
+      linkPreviewTimeout: 10000,
+      maxImageSize: 10 * 1024 * 1024,
+      maxFileSize: 10 * 1024 * 1024,
+      collaboration: {
+        enabled: true,
+        sessionTTL: 2 * 60 * 1000,
+        wsPath: '/magic-editor-x/realtime',
+        wsUrl: null,
+        allowedOrigins: [],
+        allowedAdminRoles: ['strapi-super-admin'],
+        allowedAdminUserIds: [],
+      },
+      api: { autoParseJSON: true },
+    },
+  },
+});</code></pre>
+        <p>Allowed image MIME types default to JPEG, PNG, GIF and WebP. The plugin also accepts an <code>enabledTools</code> list and API JSON auto-parsing setting.</p>
+      </section>
+
+      <section class="section" id="security" aria-labelledby="security-title">
+        <p class="eyebrow">Access boundaries</p>
+        <h2 id="security-title">Security</h2>
+        <p>The current editor, upload, collaboration, license, snapshot and custom-block routes are Strapi admin routes. They are not public Content API endpoints. Routes require an authenticated admin. Editor and collaboration-permission routes also check the plugin access permission; image and attachment uploads additionally check the Strapi upload-create permission. Collaboration sessions check the configured collaboration access rules.</p>
+        <p>Remote preview and URL-upload requests validate HTTP(S) URLs, resolve public addresses, recheck redirects, and enforce response size, MIME-type and timeout limits. Use normal Strapi admin permissions and review who can grant collaboration access. This page does not claim live external-service or collaboration testing.</p>
+      </section>
+
+      <section class="section" id="api" aria-labelledby="api-title">
+        <p class="eyebrow">Admin routes</p>
+        <h2 id="api-title">API</h2>
+        <p>Routes use the Strapi admin API base and require the access described above. The plugin currently declares no Content API routes.</p>
+        <ul>
+          <li><code>GET /magic-editor-x/link</code> fetches link-preview metadata.</li>
+          <li><code>POST /magic-editor-x/image/byFile</code>, <code>/image/byUrl</code> and <code>/file/upload</code> handle editor uploads.</li>
+          <li><code>/magic-editor-x/collaboration/…</code> manages collaboration permissions and access.</li>
+          <li><code>/magic-editor-x/license/…</code> reads license status and limits or stores a license key.</li>
+          <li><code>/magic-editor-x/snapshots/…</code> lists, creates and restores snapshots.</li>
+          <li><code>/magic-editor-x/custom-blocks/…</code> manages custom blocks and tier limits.</li>
+          <li><code>POST /magic-editor-x/collab/session</code> requests a collaboration session.</li>
+        </ul>
+      </section>
+
+      <section class="section" id="releases" aria-labelledby="releases-title">
+        <p class="eyebrow">Development</p>
+        <h2 id="releases-title">Releases and testing</h2>
+        <p>Releases use semantic-release on Node.js 22 and Conventional Commits. The release workflow installs from the lockfile, runs tests, builds and verifies the package before publishing to npm.</p>
+        <pre><code>npm ci
+npm test
+npm run build
+npm run verify</code></pre>
+        <p><a href="https://github.com/Schero94/Magic-Editor-X/releases">Release history</a> · <a href="https://github.com/Schero94/Magic-Editor-X">Source and issue tracker</a> · <a href="https://www.npmjs.com/package/magic-editor-x">npm package</a></p>
+      </section>
+        </div>
+      </div>
+    </main>
+
+    <footer class="footer">
+      <p>Magic Editor X · MIT License</p>
+      <p><a href="https://github.com/Schero94/Magic-Editor-X">GitHub</a> · <a href="https://www.npmjs.com/package/magic-editor-x">npm</a></p>
+    </footer>
+  </body>
+</html>

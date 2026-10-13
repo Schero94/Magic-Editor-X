@@ -11,9 +11,11 @@
 'use strict';
 
 const { createLogger } = require('./utils');
+const { registerPermissions } = require('./permissions');
 
 module.exports = async ({ strapi }) => {
   const logger = createLogger(strapi);
+  await registerPermissions(strapi);
 
   try {
     // Check if content types are registered

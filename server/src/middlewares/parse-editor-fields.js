@@ -22,6 +22,19 @@ module.exports = (config, { strapi }) => {
       return;
     }
 
+    const restPrefix = String(strapi.config.get('api.rest.prefix', '/api') || '/api').replace(/\/+$/, '') || '/api';
+    const requestPath = ctx.request?.path || ctx.path || '';
+    if (requestPath !== restPrefix && !requestPath.startsWith(`${restPrefix}/`)) {
+      return;
+    }
+
+    const contentType = String(
+      ctx.response?.type || ctx.type || ctx.response?.get?.('content-type') || '',
+    );
+    if (!/json/i.test(contentType)) {
+      return;
+    }
+
     // Only process JSON responses
     if (!ctx.body || typeof ctx.body !== 'object') {
       return;

@@ -35,9 +35,12 @@ module.exports = {
     
     // Max image upload size (bytes)
     maxImageSize: 10 * 1024 * 1024, // 10MB
+
+    // Max attachment upload size (bytes)
+    maxFileSize: 10 * 1024 * 1024, // 10MB
     
     // Allowed image types
-    allowedImageTypes: ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'],
+    allowedImageTypes: ['image/jpeg', 'image/png', 'image/gif', 'image/webp'],
 
     // Realtime collaboration defaults
     collaboration: {
@@ -68,6 +71,10 @@ module.exports = {
     
     if (config.maxImageSize && typeof config.maxImageSize !== 'number') {
       throw new Error('[Magic Editor X] maxImageSize must be a number');
+    }
+
+    if (config.maxFileSize && typeof config.maxFileSize !== 'number') {
+      throw new Error('[Magic Editor X] maxFileSize must be a number');
     }
 
     if (config.collaboration) {

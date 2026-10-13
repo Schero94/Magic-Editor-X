@@ -384,7 +384,7 @@ export const getTools = ({ mediaLibToggleFunc, pluginId, openLinkPicker, customB
     linkTool: {
       class: LinkTool,
       config: {
-        endpoint: `/api/${pluginId}/link`,
+        endpoint: `/${pluginId}/link`,
         headers: {
           Authorization: authHeader,
         },
@@ -406,7 +406,7 @@ export const getTools = ({ mediaLibToggleFunc, pluginId, openLinkPicker, customB
           Authorization: authHeader,
         },
         endpoints: {
-          byUrl: `/api/${pluginId}/image/byUrl`,
+          byUrl: `/${pluginId}/image/byUrl`,
         },
         uploader: {
           async uploadByFile(file) {
@@ -415,7 +415,7 @@ export const getTools = ({ mediaLibToggleFunc, pluginId, openLinkPicker, customB
             formData.append('files.image', file);
 
             try {
-              const response = await fetch(`/api/${pluginId}/image/byFile`, {
+              const response = await fetch(`/${pluginId}/image/byFile`, {
                 method: 'POST',
                 headers: {
                   Authorization: authHeader,
@@ -449,9 +449,9 @@ export const getTools = ({ mediaLibToggleFunc, pluginId, openLinkPicker, customB
     attaches: {
       class: Attaches,
       config: {
-        endpoint: `/api/${pluginId}/file/upload`,
+        endpoint: `/${pluginId}/file/upload`,
         field: 'file',
-        types: '*',
+        types: 'application/pdf,text/plain,text/csv,application/json,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/zip,audio/mpeg,audio/wav,audio/ogg,video/mp4,video/webm,image/jpeg,image/png,image/gif,image/webp',
         buttonText: 'Select file to upload',
         errorMessage: 'File upload failed',
         additionalRequestHeaders: {
@@ -467,7 +467,7 @@ export const getTools = ({ mediaLibToggleFunc, pluginId, openLinkPicker, customB
     personality: {
       class: Personality,
       config: {
-        endpoint: `/api/${pluginId}/image/byFile`,
+        endpoint: `/${pluginId}/image/byFile`,
         field: 'files.image',
         additionalRequestHeaders: {
           Authorization: authHeader,
