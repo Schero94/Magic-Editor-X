@@ -269,7 +269,14 @@ export class SimpleImageTool extends BaseTool {
     this.wrapper.classList.toggle('mex-simple-image--border', this.data.withBorder);
     this.wrapper.classList.toggle('mex-simple-image--background', this.data.withBackground);
     this.wrapper.classList.toggle('mex-simple-image--stretched', this.data.stretched);
-    if (this.block) this.block.stretched = this.data.stretched;
+    // The block holder exists only after the first render; Editor.js throws if
+    // `stretched` is set before that, and then drops the block.
+    if (this.block && this.isRendered) this.block.stretched = this.data.stretched;
+  }
+
+  rendered() {
+    this.isRendered = true;
+    if (this.block) this.block.stretched = Boolean(this.data.stretched);
   }
 
   onPaste(event) {

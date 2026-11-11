@@ -26,7 +26,7 @@
   "settings.ai.model.label": "Modelo",
   "settings.ai.provider.anthropic": "Anthropic (Messages API)",
   "settings.ai.provider.anthropic.name": "Anthropic",
-  "settings.ai.provider.compatible": "Servidor compatible con OpenAI (por ejemplo, un modelo local)",
+  "settings.ai.provider.compatible": "Servidor compatible con OpenAI",
   "settings.ai.provider.compatible.name": "el servidor de la URL base",
   "settings.ai.provider.label": "Proveedor",
   "settings.ai.provider.openai": "OpenAI (Chat Completions)",

@@ -75,8 +75,8 @@ export const editorStyles = css`
     }
 
     .ce-block__content {
-      padding-inline-start: ${s(8)};
-      padding-inline-end: ${s(2)};
+      padding-inline-start: ${s(1)};
+      padding-inline-end: ${s(1)};
     }
 
     .ce-toolbar__content {
@@ -634,8 +634,8 @@ export const editorStyles = css`
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      width: 28px;
-      height: 28px;
+      width: 32px;
+      height: 32px;
       border: none;
       border-radius: ${radius};
       background: transparent;

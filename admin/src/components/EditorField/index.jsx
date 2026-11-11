@@ -58,7 +58,10 @@ const Frame = styled(Box)`
 
 const Holder = styled.div`
   min-width: 0;
-  padding: ${({ theme }) => `${theme.spaces[4]} ${theme.spaces[4]} ${theme.spaces[4]} ${theme.spaces[7]}`};
+  padding: ${({ theme }) => `${theme.spaces[4]} ${theme.spaces[3]}`};
+  ${({ theme }) => theme.breakpoints.medium} {
+    padding: ${({ theme }) => theme.spaces[4]};
+  }
   min-height: ${({ $minHeight }) => `${$minHeight}px`};
   ${({ $fullscreen }) => ($fullscreen ? 'flex: 1 1 auto; overflow: auto;' : '')}
 `;
@@ -113,6 +116,7 @@ const EditorField = ({
   const saveTimerRef = useRef(null);
   const collabRef = useRef(null);
   const pendingLocalRef = useRef(false);
+  const syncedOnceRef = useRef(false);
   const onChangeRef = useRef(onChange);
   const [ready, setReady] = useState(false);
   const [stats, setStats] = useState({ blocks: 0, words: 0, characters: 0 });
@@ -256,7 +260,11 @@ const EditorField = ({
       if (!client) return;
       await flushLocal(client);
       const shared = client.getData();
-      await applyExternal(shared, { emitToForm: true });
+      // The first room state only shows what is stored (normalised); it must
+      // not mark the form as changed. Later remote edits do.
+      const first = !syncedOnceRef.current;
+      syncedOnceRef.current = true;
+      await applyExternal(shared, { emitToForm: !first });
       client.markShown(shared);
     },
   });

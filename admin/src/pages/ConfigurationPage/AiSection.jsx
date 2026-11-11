@@ -187,7 +187,7 @@ export const AiSection = ({ form, readOnly, onTest }) => {
                 {t('settings.ai.provider.openai', 'OpenAI (Chat Completions)')}
               </SingleSelectOption>
               <SingleSelectOption value="openai-compatible">
-                {t('settings.ai.provider.compatible', 'OpenAI-compatible server (for example a local model)')}
+                {t('settings.ai.provider.compatible', 'OpenAI-compatible server')}
               </SingleSelectOption>
             </SingleSelect>
             <Field.Error />
