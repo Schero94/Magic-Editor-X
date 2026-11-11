@@ -207,7 +207,11 @@ export function buildTools(ctx) {
     strikethrough: { class: StrikethroughTool, shortcut: 'CMD+SHIFT+X' },
     inlineCode: { class: InlineCode, shortcut: 'CMD+SHIFT+I' },
     tooltip: { class: TooltipTool, config: { t } },
-    hyperlink: { class: HyperlinkTool, shortcut: 'CMD+K', config: { t, target: '_blank' } },
+    hyperlink: {
+      class: HyperlinkTool,
+      shortcut: 'CMD+K',
+      config: { t, target: '_blank', fetchClient: ctx.fetchClient, getLocale: ctx.getContentLocale },
+    },
 
     alignmentTune: { class: AlignmentTune, config: { t, default: 'left' } },
     textVariant: { class: TextVariantTune, config: { t } },

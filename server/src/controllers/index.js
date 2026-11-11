@@ -8,4 +8,5 @@ module.exports = {
   history: require('./history'),
   ai: require('./ai'),
   settings: require('./settings'),
+  links: require('./links'),
 };

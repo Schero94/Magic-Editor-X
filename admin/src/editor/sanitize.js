@@ -3,6 +3,8 @@ import {
   INLINE_TAGS,
   INLINE_ATTRIBUTES,
   INLINE_CLASSES,
+  INTERNAL_LINK_ATTRIBUTES,
+  cleanInternalLinkAttributes,
   sanitizeUrl,
   sanitizeEditorData,
 } from '../../../shared/sanitize-policy.mjs';
@@ -39,6 +41,19 @@ const instance = () => {
   purify.addHook('afterSanitizeAttributes', (node) => {
     if (node.nodeName === 'A' && node.getAttribute('target') === '_blank')
       node.setAttribute('rel', 'noopener noreferrer');
+    // Internal-link attributes: only on <a>, only valid values, uid and documentId together.
+    if (typeof node.hasAttribute !== 'function') return;
+    if (!INTERNAL_LINK_ATTRIBUTES.some((name) => node.hasAttribute(name))) return;
+    const kept =
+      node.nodeName === 'A'
+        ? cleanInternalLinkAttributes(
+            Object.fromEntries(INTERNAL_LINK_ATTRIBUTES.map((name) => [name, node.getAttribute(name)]))
+          )
+        : {};
+    for (const name of INTERNAL_LINK_ATTRIBUTES) {
+      if (kept[name]) node.setAttribute(name, kept[name]);
+      else node.removeAttribute(name);
+    }
   });
   return purify;
 };
@@ -149,3 +164,26 @@ export const prepareEditorValue = (value, rawHtml = 'allow') => {
 };
 
 export { sanitizeUrl };
+
+/**
+ * Sanitises the shared document of a collaboration room for rendering.
+ * Blocks are cleaned one by one and cached by object identity: the room
+ * reader returns the same object for a block that did not change, so only
+ * changed blocks are sanitised again (large documents stay fast).
+ * @param {{ time?: number, version?: string, blocks: Array<object> }} data - Shared document (untrusted).
+ * @param {WeakMap<object, object|null>} cache - Per-field cache.
+ * @returns {{ time: number, version: string, blocks: Array<object> }} Safe document.
+ */
+export const prepareRemoteData = (data, cache) => {
+  const blocks = [];
+  for (const block of (data && data.blocks) || []) {
+    let clean = cache.get(block);
+    if (clean === undefined) {
+      const prepared = prepareEditorValue({ time: data.time, version: data.version, blocks: [block] }).data;
+      clean = prepared && prepared.blocks.length === 1 ? prepared.blocks[0] : null;
+      cache.set(block, clean);
+    }
+    if (clean) blocks.push(clean);
+  }
+  return { time: (data && data.time) || Date.now(), version: (data && data.version) || '2.31.7', blocks };
+};

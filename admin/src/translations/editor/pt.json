@@ -9,7 +9,7 @@
   "editor.collab.status.connecting": "Conectando",
   "editor.collab.status.syncing": "Sincronizando",
   "editor.collab.status.live": "Ao vivo",
-  "editor.collab.status.offline": "Reconectando",
+  "editor.collab.status.offline": "Offline",
   "editor.collab.status.denied": "Edição ao vivo indisponível",
   "editor.collab.status.error": "Edição ao vivo indisponível",
   "editor.toolbar.undo": "Desfazer",
@@ -88,5 +88,13 @@
   "editor.ai.retry": "Tentar novamente",
   "editor.ai.generate": "Gerar",
   "editor.ai.apply": "Substituir a seleção",
-  "editor.keyboard": "Pressione Tab em um bloco vazio para escolher um tipo de bloco. Pressione Escape e depois Tab para sair do editor."
+  "editor.keyboard": "Pressione Tab em um bloco vazio para escolher um tipo de bloco. Pressione Escape e depois Tab para sair do editor.",
+  "editor.collab.status.reconnecting": "Reconectando",
+  "editor.collab.away": "{name} (ausente)",
+  "editor.collab.editingBlock": "{name} está editando este bloco",
+  "editor.collab.more": "+{count}",
+  "editor.collab.unsent": "As alterações são mantidas e enviadas quando a conexão voltar",
+  "editor.collab.upgrade": "Recarregue a página para continuar editando ao vivo",
+  "editor.collab.joined": "{names} entrou",
+  "editor.collab.left": "{names} saiu"
 }

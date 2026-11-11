@@ -96,6 +96,7 @@ const runEnv = {
   JWT_SECRET: secret(),
   MAGIC_EDITOR_X_ENCRYPTION_KEY: secret(),
   MEX_POLL_MS: '200',
+  MEX_SNAPSHOT_MIN: '1',
   MEX_CLUSTER_BALANCER_PORT: String(ports.balancer),
   MEX_CLUSTER_PORTS: ports.strapi.join(','),
   MEX_CLUSTER_PG_URL: pgUrl,
@@ -104,12 +105,12 @@ const runEnv = {
 const logDir = fs.mkdtempSync(path.join(appDir, '.mex-cluster-logs-'));
 const processes = new Map();
 const strapiBin = path.join(appDir, 'node_modules', '.bin', 'strapi');
-const start = (name, command, commandArgs, extraEnv = {}) => {
+const start = (name, command, commandArgs, extraEnv = {}, ipc = false) => {
   const out = fs.openSync(path.join(logDir, `${name}.log`), 'a');
   const child = spawn(command, commandArgs, {
     cwd: appDir,
     env: { ...runEnv, ...extraEnv },
-    stdio: ['ignore', out, out],
+    stdio: ipc ? ['ignore', out, out, 'ipc'] : ['ignore', out, out],
   });
   processes.set(name, child);
   return child;
@@ -138,7 +139,7 @@ const waitHealthy = async (port, ms = 180_000) => {
 
 let code = 1;
 try {
-  start('balancer', process.execPath, [path.join(here, 'cluster', 'balancer.cjs')]);
+  start('balancer', process.execPath, [path.join(here, 'cluster', 'balancer.cjs')], {}, true);
   // The first process creates the schema alone: Strapi core does not coordinate schema sync.
   startStrapi(ports.strapi[0]);
   await waitHealthy(ports.strapi[0]);
@@ -147,7 +148,11 @@ try {
   console.log(`${count} processes healthy on ${ports.strapi.join(', ')}; balancer on ${ports.balancer}`);
   const proof = spawn(process.execPath, [path.join(here, 'cluster', 'proof.mjs')], {
     cwd: repo,
-    env: runEnv,
+    env: {
+      ...runEnv,
+      MEX_CLUSTER_DURATION_S: option('duration', '150'),
+      MEX_CLUSTER_CLIENTS: option('clients', '12'),
+    },
     stdio: ['ignore', 'inherit', 'inherit', 'ipc'],
   });
   proof.on('message', async (message) => {
@@ -161,6 +166,7 @@ try {
       await waitHealthy(message.restart);
       proof.send({ restarted: message.restart });
     }
+    if (message && message.partition) processes.get('balancer').send(message);
   });
   code = await new Promise((resolve) => proof.on('exit', (exitCode) => resolve(exitCode ?? 1)));
   const errors = [];

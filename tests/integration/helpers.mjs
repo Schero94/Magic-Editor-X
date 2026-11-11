@@ -7,6 +7,8 @@
 import fs from 'node:fs';
 import zlib from 'node:zlib';
 import assert from 'node:assert/strict';
+import { io } from 'socket.io-client';
+import * as Y from 'yjs';
 
 export const HOST = process.env.MEX_HOST_URL;
 const CREDS_PATH = process.env.MEX_CREDS;
@@ -119,4 +121,73 @@ export const makePng = (size = 8) => {
     chunk('IDAT', zlib.deflateSync(Buffer.concat(rows))),
     chunk('IEND', Buffer.alloc(0)),
   ]);
+};
+
+/**
+ * Requests a collaboration session token.
+ * @param {string} token - Admin token.
+ * @param {{ uid: string, documentId: string, locale?: string, field: string }} target - Field.
+ * @param {unknown} [initialValue] - Seed value.
+ * @returns {Promise<{ token: string, path: string, canEdit: boolean }>} Session.
+ */
+export const openSession = async (token, target, initialValue) => {
+  const response = await call('POST', '/magic-editor-x/collaboration/session', {
+    token,
+    body: { ...target, initialValue },
+  });
+  assert.equal(response.status, 200, JSON.stringify(response.body));
+  return response.body.data;
+};
+
+/**
+ * Opens a protocol 3 socket like the admin does and records what it receives.
+ * Handshake refusals (`connect_error` with `data.code`) and `mx:error` codes
+ * end up in `errors`.
+ * @param {{ token: string, path: string }} sessionData - Session.
+ * @param {object} [options] - Extra socket.io-client options.
+ * @returns {Promise<{ ydoc: Y.Doc, socket: object, welcome: object|null, errors: string[], peers: object[], roles: object[] }>} Client.
+ */
+export const connect = (sessionData, options = {}) =>
+  new Promise((resolve, reject) => {
+    const ydoc = new Y.Doc();
+    const socket = io(HOST, {
+      path: sessionData.path,
+      transports: ['websocket'],
+      auth: { token: sessionData.token, protocol: 3 },
+      reconnection: false,
+      ...options,
+    });
+    const state = { ydoc, socket, welcome: null, errors: [], peers: [], roles: [] };
+    socket.on('mx:error', (error) => state.errors.push(error.code));
+    socket.on('mx:welcome', (welcome) => (state.welcome = welcome));
+    socket.on('mx:presence', (peers) => (state.peers = peers));
+    socket.on('mx:role', (role) => state.roles.push(role));
+    socket.on('mx:sync', ({ update }) => {
+      Y.applyUpdate(ydoc, new Uint8Array(update), 'remote');
+      resolve(state);
+    });
+    socket.on('mx:update', (update) => Y.applyUpdate(ydoc, new Uint8Array(update), 'remote'));
+    socket.on('disconnect', () => resolve(state));
+    socket.on('connect_error', (error) => {
+      if (error && error.data && error.data.code) {
+        state.errors.push(error.data.code);
+        resolve(state);
+      } else reject(error);
+    });
+    setTimeout(() => resolve(state), 5000);
+  });
+
+/**
+ * Waits until `check()` is true or the time is up.
+ * @param {() => boolean} check - Condition.
+ * @param {number} [ms=5000] - Timeout.
+ * @returns {Promise<number>} Milliseconds it took (or -1 on timeout).
+ */
+export const waitFor = async (check, ms = 5000) => {
+  const start = Date.now();
+  while (Date.now() - start < ms) {
+    if (check()) return Date.now() - start;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  return check() ? Date.now() - start : -1;
 };

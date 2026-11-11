@@ -10,13 +10,23 @@ import { stableStringify } from '../../../shared/ydoc.mjs';
  * needToFocus, replace, id), update(id, data, tunes), render(data).
  */
 
+/** Fingerprints by block object (blocks are treated as immutable). */
+const keys = new WeakMap();
+
 /**
  * Fingerprint of a block for change detection.
  * @param {{ type: string, data: object, tunes?: object }} block - Block.
  * @returns {string} Fingerprint.
  */
-export const blockKey = (block) =>
-  stableStringify({ type: block.type, data: block.data || {}, tunes: block.tunes || {} });
+export const blockKey = (block) => {
+  // Blocks are treated as immutable; unchanged blocks keep their identity, so the key is cached.
+  let key = keys.get(block);
+  if (key === undefined) {
+    key = stableStringify({ type: block.type, data: block.data || {}, tunes: block.tunes || {} });
+    keys.set(block, key);
+  }
+  return key;
+};
 
 /**
  * Character offset of the caret inside an element, or null.

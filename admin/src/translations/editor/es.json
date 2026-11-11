@@ -9,7 +9,7 @@
   "editor.collab.status.connecting": "Conectando",
   "editor.collab.status.syncing": "Sincronizando",
   "editor.collab.status.live": "En directo",
-  "editor.collab.status.offline": "Reconectando",
+  "editor.collab.status.offline": "Sin conexión",
   "editor.collab.status.denied": "Edición en directo no disponible",
   "editor.collab.status.error": "Edición en directo no disponible",
   "editor.toolbar.undo": "Deshacer",
@@ -88,5 +88,13 @@
   "editor.ai.retry": "Reintentar",
   "editor.ai.generate": "Generar",
   "editor.ai.apply": "Sustituir la selección",
-  "editor.keyboard": "Pulse Tab en un bloque vacío para elegir un tipo de bloque. Pulse Escape y luego Tab para salir del editor."
+  "editor.keyboard": "Pulse Tab en un bloque vacío para elegir un tipo de bloque. Pulse Escape y luego Tab para salir del editor.",
+  "editor.collab.status.reconnecting": "Reconectando",
+  "editor.collab.away": "{name} (ausente)",
+  "editor.collab.editingBlock": "{name} está editando este bloque",
+  "editor.collab.more": "+{count}",
+  "editor.collab.unsent": "Los cambios se conservan y se envían cuando vuelva la conexión",
+  "editor.collab.upgrade": "Recargue la página para seguir editando en directo",
+  "editor.collab.joined": "{names} se ha unido",
+  "editor.collab.left": "{names} se ha ido"
 }

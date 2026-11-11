@@ -1,9 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
-import { io } from 'socket.io-client';
 import * as Y from 'yjs';
-import { call, tokenFor, createArticle, makePng, HOST } from './helpers.mjs';
+import { call, tokenFor, createArticle, makePng, openSession, connect } from './helpers.mjs';
 import { applyEditorDataToDoc, docToEditorData } from '../../shared/ydoc.mjs';
 
 const RUN = Date.now()
@@ -248,37 +247,7 @@ test('collaboration: access per document, two editors converge, viewers cannot w
   });
   assert.equal(titleField.status, 404);
 
-  const session = async (token, initialValue) => {
-    const response = await call('POST', '/magic-editor-x/collaboration/session', {
-      token,
-      body: { ...target, initialValue },
-    });
-    assert.equal(response.status, 200, JSON.stringify(response.body));
-    return response.body.data;
-  };
-  const connect = (sessionData, options = {}) =>
-    new Promise((resolve, reject) => {
-      const ydoc = new Y.Doc();
-      const socket = io(HOST, {
-        path: sessionData.path,
-        transports: ['websocket'],
-        auth: { token: sessionData.token },
-        reconnection: false,
-        ...options,
-      });
-      const state = { ydoc, socket, welcome: null, errors: [] };
-      socket.on('mx:error', (error) => state.errors.push(error.code));
-      socket.on('mx:welcome', (welcome) => (state.welcome = welcome));
-      socket.on('mx:sync', ({ update }) => {
-        Y.applyUpdate(ydoc, new Uint8Array(update), 'remote');
-        resolve(state);
-      });
-      socket.on('mx:update', (update) => Y.applyUpdate(ydoc, new Uint8Array(update), 'remote'));
-      socket.on('disconnect', () => resolve(state));
-      socket.on('connect_error', reject);
-      setTimeout(() => resolve(state), 5000);
-    });
-
+  const session = (token, initialValue) => openSession(token, target, initialValue);
   const a = await connect(await session(editor, doc([p('l1', 'Hello world')])));
   const b = await connect(await session(admin));
   assert.equal(docToEditorData(a.ydoc).blocks[0].data.text, 'Hello world');
@@ -307,11 +276,13 @@ test('collaboration: access per document, two editors converge, viewers cannot w
   assert.ok(replay.errors.includes('INVALID_TOKEN'), 'a token works once');
   const forged = await connect({ ...viewerSession, token: `${viewerSession.token.split('.')[0]}.AAAA` });
   assert.ok(forged.errors.includes('INVALID_TOKEN'));
+  const oldClient = await connect(await session(editor), { auth: { token: 'x' } });
+  assert.ok(oldClient.errors.includes('UPGRADE_REQUIRED'), 'clients without protocol 3 are refused');
   await assert.rejects(
     connect(await session(editor), { extraHeaders: { origin: 'https://evil.example' } }),
     'foreign browser origins are refused'
   );
-  for (const client of [a, b, viewer, replay, forged]) client.socket.disconnect();
+  for (const client of [a, b, viewer, replay, forged, oldClient]) client.socket.disconnect();
 });
 
 test('uploads check magic bytes and the SSRF guard blocks private URLs', async () => {

@@ -12,13 +12,17 @@ const { createLogger } = require('../utils/logger');
  * - magic_editor_x_collab_updates: append-only Yjs updates per room (base64);
  * - magic_editor_x_collab_presence: who is in which room (heartbeat rows);
  * - magic_editor_x_locks: leases and one-time keys (token nonces, seeding,
- *   snapshot buckets, migrations), made atomic by the primary key.
+ *   snapshot buckets, migrations), made atomic by the primary key, and
+ *   cluster-wide signals (permission changes);
+ * - magic_editor_x_counters: fixed-window counters shared by every process
+ *   (rate limits for sessions and the AI assistant).
  */
 
 const TABLES = Object.freeze({
   updates: 'magic_editor_x_collab_updates',
   presence: 'magic_editor_x_collab_presence',
   locks: 'magic_editor_x_locks',
+  counters: 'magic_editor_x_counters',
 });
 
 module.exports = ({ strapi }) => {
@@ -77,6 +81,11 @@ module.exports = ({ strapi }) => {
           await ensureTable(TABLES.locks, (t) => {
             t.string('key', 255).primary();
             t.string('owner', 64).notNullable();
+            t.bigInteger('expires_at').notNullable();
+          });
+          await ensureTable(TABLES.counters, (t) => {
+            t.string('key', 255).primary();
+            t.integer('count').notNullable().defaultTo(0);
             t.bigInteger('expires_at').notNullable();
           });
         })().catch((error) => {
@@ -152,6 +161,88 @@ module.exports = ({ strapi }) => {
     },
 
     /**
+     * Counts one event in a fixed window shared by all processes.
+     * @param {string} key - Counter key (bounded by the caller, no personal data besides an admin id).
+     * @param {number} windowMs - Window length.
+     * @returns {Promise<{ count: number, resetAt: number }>} Events in the current window, including this one.
+     */
+    async hit(key, windowMs) {
+      const now = Date.now();
+      const windowKey = `${key}:${Math.floor(now / windowMs)}`.slice(0, 255);
+      const expiresAt = (Math.floor(now / windowMs) + 1) * windowMs;
+      try {
+        await table(TABLES.counters).insert({ key: windowKey, count: 1, expires_at: expiresAt });
+      } catch {
+        await table(TABLES.counters).where({ key: windowKey }).increment('count', 1);
+      }
+      const row = await table(TABLES.counters).where({ key: windowKey }).first('count');
+      return { count: Number(row?.count || 1), resetAt: expiresAt };
+    },
+
+    /**
+     * Removes expired counters (bounded).
+     * @returns {Promise<number>} Rows removed.
+     */
+    async pruneCounters() {
+      const keys = await table(TABLES.counters).where('expires_at', '<', Date.now()).select('key').limit(500);
+      if (keys.length === 0) return 0;
+      return table(TABLES.counters)
+        .whereIn(
+          'key',
+          keys.map((row) => row.key)
+        )
+        .del();
+    },
+
+    /**
+     * Sets a cluster-wide signal to a new random value (for example after a
+     * permission change). Every process compares it on its next tick.
+     * @param {string} name - Signal name.
+     * @param {string} value - New value.
+     * @returns {Promise<void>}
+     */
+    async setSignal(name, value) {
+      const key = `signal:${name}`;
+      const expiresAt = Date.now() + 10 * 365 * 24 * 3600 * 1000;
+      const updated = await table(TABLES.locks)
+        .where({ key })
+        .update({ owner: value, expires_at: expiresAt });
+      if (updated === 0) {
+        try {
+          await table(TABLES.locks).insert({ key, owner: value, expires_at: expiresAt });
+        } catch {
+          await table(TABLES.locks).where({ key }).update({ owner: value, expires_at: expiresAt });
+        }
+      }
+    },
+
+    /**
+     * Reads a cluster-wide signal.
+     * @param {string} name - Signal name.
+     * @returns {Promise<string>} Current value ('' when never set).
+     */
+    async getSignal(name) {
+      const row = await table(TABLES.locks)
+        .where({ key: `signal:${name}` })
+        .first('owner');
+      return row ? String(row.owner) : '';
+    },
+
+    /**
+     * Live sockets and rooms of one admin across all processes.
+     * @param {number} userId - Admin id.
+     * @param {number} freshAfter - Heartbeat threshold.
+     * @returns {Promise<{ sockets: number, rooms: Set<string> }>} Usage.
+     */
+    async presenceOfUser(userId, freshAfter) {
+      const rows = await table(TABLES.presence)
+        .where({ user_id: userId })
+        .andWhere('updated_at', '>', freshAfter)
+        .select('room');
+      return { sockets: rows.length, rooms: new Set(rows.map((row) => row.room)) };
+    },
+
+    /**
      * Appends one Yjs update.
      * @param {string} room - Room key.
      * @param {Uint8Array} update - Yjs update.
@@ -174,16 +265,17 @@ module.exports = ({ strapi }) => {
     /**
      * Reads every update of a room in insertion order.
      * @param {string} room - Room key.
-     * @returns {Promise<Array<{ id: number, kind: string, update: Uint8Array }>>} Updates.
+     * @returns {Promise<Array<{ id: number, kind: string, createdAt: number, update: Uint8Array }>>} Updates.
      */
     async readRoom(room) {
       const rows = await table(TABLES.updates)
         .where({ room })
         .orderBy('id', 'asc')
-        .select('id', 'kind', 'data');
+        .select('id', 'kind', 'data', 'created_at');
       return rows.map((row) => ({
         id: Number(row.id),
         kind: row.kind,
+        createdAt: Number(row.created_at),
         update: new Uint8Array(Buffer.from(row.data, 'base64')),
       }));
     },

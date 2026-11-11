@@ -9,7 +9,7 @@
   "editor.collab.status.connecting": "Connecting",
   "editor.collab.status.syncing": "Syncing",
   "editor.collab.status.live": "Live",
-  "editor.collab.status.offline": "Reconnecting",
+  "editor.collab.status.offline": "Offline",
   "editor.collab.status.denied": "Live editing unavailable",
   "editor.collab.status.error": "Live editing unavailable",
   "editor.toolbar.undo": "Undo",
@@ -88,5 +88,13 @@
   "editor.ai.retry": "Try again",
   "editor.ai.generate": "Generate",
   "editor.ai.apply": "Replace selection",
-  "editor.keyboard": "Press Tab in an empty block to choose a block type. Press Escape, then Tab, to leave the editor."
+  "editor.keyboard": "Press Tab in an empty block to choose a block type. Press Escape, then Tab, to leave the editor.",
+  "editor.collab.status.reconnecting": "Reconnecting",
+  "editor.collab.away": "{name} (away)",
+  "editor.collab.editingBlock": "{name} is editing this block",
+  "editor.collab.more": "+{count}",
+  "editor.collab.unsent": "Changes are kept and sent when the connection is back",
+  "editor.collab.upgrade": "Reload the page to keep editing live",
+  "editor.collab.joined": "{names} joined",
+  "editor.collab.left": "{names} left"
 }

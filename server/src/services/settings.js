@@ -5,6 +5,7 @@ const { issueDetails } = require('../utils/validation');
 const { errors } = require('@strapi/utils');
 const { getEncryptionKey, encryptSecret, decryptSecret } = require('../utils/crypto');
 const { validateHttpUrl } = require('../utils/url-security');
+const { inspectCsp } = require('../../../shared/csp.mjs');
 
 /**
  * Admin-editable settings, stored in the plugin store under `settings`.
@@ -63,6 +64,19 @@ module.exports = ({ strapi }) => {
   const config = (key, fallback) => {
     const value = strapi.config.get(`plugin::magic-editor-x.${key}`);
     return value === undefined ? fallback : value;
+  };
+
+  let cspReport = null;
+
+  /**
+   * Reports the admin CSP sources the editor's embeds and external images
+   * miss. Middleware config is fixed for the process lifetime, so the result
+   * is computed once (at bootstrap) and cached.
+   * @returns {{ active: boolean, frameSrcMissing: string[], imgSrcMissing: boolean, snippet: string }} Report.
+   */
+  const inspectAdminCsp = () => {
+    if (!cspReport) cspReport = inspectCsp(strapi.config.get('middlewares'));
+    return cspReport;
   };
 
   const readRaw = async () => {
@@ -134,6 +148,7 @@ module.exports = ({ strapi }) => {
           maxImageBytes: config('uploads.maxImageBytes', 10 * 1024 * 1024),
           maxFileBytes: config('uploads.maxFileBytes', 20 * 1024 * 1024),
         },
+        csp: inspectAdminCsp(),
       },
     };
   };
@@ -143,6 +158,7 @@ module.exports = ({ strapi }) => {
     DEFAULT_MODELS,
     DEFAULT_BASE_URLS,
     effectiveBaseUrl,
+    inspectAdminCsp,
 
     /**
      * Settings for the settings page (no secrets).

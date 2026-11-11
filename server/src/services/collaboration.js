@@ -7,57 +7,72 @@ const { errors } = require('@strapi/utils');
 const { createLogger } = require('../utils/logger');
 const { getTokenKey, signToken, verifyToken } = require('../utils/crypto');
 const { cleanEditorValue } = require('../utils/sanitizer');
-const { createSeedUpdate, docToEditorData } = require('../../../shared/ydoc.mjs');
+const { createRateLimiter } = require('../utils/rate-limit');
+const {
+  createSeedUpdate,
+  docToEditorData,
+  epochOf,
+  getTypes,
+  stableStringify,
+} = require('../../../shared/ydoc.mjs');
+const { applyCheckedUpdate } = require('../../../shared/ydoc-guard.mjs');
 
 /**
- * Live collaboration for Magic Editor X fields (Socket.IO + Yjs).
+ * Live collaboration for Magic Editor X fields (Socket.IO + Yjs, protocol 3).
  *
  * Works with several Node processes behind a load balancer without sticky
  * sessions:
  * - the browser uses the WebSocket transport only (one HTTP request per
  *   connection, so no sticky routing is needed);
  * - session tokens are HMAC-signed with a key every process derives from the
- *   shared admin JWT secret, and their nonce is consumed once in the database;
- * - every Yjs update is written to `magic_editor_x_collab_updates` before it
- *   is acknowledged or relayed; other processes pick it up by polling the
- *   table (`collaboration.pollIntervalMs`) and relay it to their sockets;
- * - presence lives in `magic_editor_x_collab_presence` with heartbeats;
+ *   shared admin JWT secret, bound to admin, document, locale and field, and
+ *   their nonce is consumed once in the database;
+ * - every process keeps an in-memory Yjs document per active room. An update
+ *   is checked (structure, dependencies, resulting blocks), written to
+ *   `magic_editor_x_collab_updates` and only then acknowledged and relayed;
+ *   other processes poll the table and relay what they did not write;
+ * - presence lives in `magic_editor_x_collab_presence` with heartbeats; names
+ *   and colours come from the signed token, never from the client;
  * - clients resync with their state vector on (re)connect and every 20 s, so
  *   a restart of any process loses nothing that was acknowledged;
- * - automatic snapshots and compaction run under database leases, so each
- *   happens exactly once across the cluster.
- *
- * Access is checked with the Content Manager permission checker when the
- * session is created and again every few minutes for open sockets. Viewers
- * (read but no update permission) receive updates but cannot send any.
+ * - automatic versions, compaction and room clean-up run under database
+ *   leases, so each happens exactly once across the cluster; a room that is
+ *   cleaned up with edits nobody saved gets a final version first;
+ * - permission changes (roles, permissions, users) raise a cluster-wide
+ *   signal; every process re-checks its sockets within about a second.
  */
 
+const PROTOCOL = 3;
 const PROCESS_ID = randomUUID();
 const PRESENCE_TTL_MS = 30000;
 const HEARTBEAT_MS = 10000;
-const REVALIDATE_MS = 5 * 60 * 1000;
+const SIGNAL_CHECK_MS = 1000;
 const RESEND_WINDOW_MS = 5000;
 const COMPACT_THRESHOLD = 200;
 const MAX_ROOM_BYTES = 64 * 1024 * 1024;
-const COLORS = ['#4945ff', '#d02b20', '#328048', '#ac5e00', '#0c75af', '#8312d1', '#b72b1a', '#2f6846'];
+const MAX_INVALID_UPDATES = 5;
+/** Design System colour families for presence; the admin resolves them per theme. */
+const COLORS = ['primary', 'danger', 'success', 'warning', 'secondary', 'alternative'];
 
 /**
  * Picks a stable presence colour for an admin.
  * @param {number} userId - Admin id.
- * @returns {string} Colour token value.
+ * @returns {string} Colour family name.
  */
 const colorFor = (userId) => COLORS[Math.abs(Number(userId) || 0) % COLORS.length];
 
 /**
- * Display name for presence (first name and initial of the last name).
+ * Display name for presence: first name and initial of the last name.
+ * Never an e-mail address.
  * @param {object} user - Admin user.
  * @returns {string} Name.
  */
 const displayName = (user) => {
-  const first = (user.firstname || '').trim();
-  const last = (user.lastname || '').trim();
+  const first = String(user.firstname || '').trim();
+  const last = String(user.lastname || '').trim();
   const name = [first, last ? `${last[0]}.` : ''].filter(Boolean).join(' ');
-  return (name || user.username || 'Admin').slice(0, 80);
+  const username = String(user.username || '').trim();
+  return (name || (username && !username.includes('@') ? username : '') || 'Admin').slice(0, 80);
 };
 
 /**
@@ -82,17 +97,46 @@ const toBytes = (payload, maxBytes) => {
 };
 
 /**
- * Checks that bytes decode as a Yjs update.
- * @param {Uint8Array} update - Update.
- * @returns {boolean} Valid or not.
+ * Validates a presence payload from a client.
+ * @param {unknown} cursor - Payload.
+ * @returns {{ blockId?: string, anchor?: number, focus?: number, idle: boolean } | null} Clean cursor.
  */
-const isValidUpdate = (update) => {
-  try {
-    Y.decodeUpdate(update);
-    return true;
-  } catch {
-    return false;
+const cleanCursor = (cursor) => {
+  if (!cursor || typeof cursor !== 'object' || Array.isArray(cursor)) return null;
+  const idle = cursor.idle === true;
+  const offset = (value) => (Number.isInteger(value) && value >= 0 ? Math.min(value, 1e7) : 0);
+  if (typeof cursor.blockId === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(cursor.blockId)) {
+    const anchor = offset(cursor.anchor ?? cursor.offset);
+    return {
+      blockId: cursor.blockId,
+      anchor,
+      focus: cursor.focus === undefined ? anchor : offset(cursor.focus),
+      idle,
+    };
   }
+  return { idle };
+};
+
+/**
+ * Parses a room key back into its field target.
+ * @param {string} room - `<uid>|<documentId>|<locale or ->|<field>`.
+ * @returns {{ uid: string, documentId: string, locale: string|null, field: string } | null} Target.
+ */
+const targetOfRoom = (room) => {
+  const parts = String(room).split('|');
+  if (parts.length !== 4) return null;
+  return { uid: parts[0], documentId: parts[1], locale: parts[2] === '-' ? null : parts[2], field: parts[3] };
+};
+
+/**
+ * Error for the Socket.IO middleware; the client reads `data.code`.
+ * @param {string} code - Reason.
+ * @returns {Error} Error.
+ */
+const handshakeError = (code) => {
+  const error = new Error(code);
+  error.data = { code };
+  return error;
 };
 
 module.exports = ({ strapi }) => {
@@ -108,14 +152,25 @@ module.exports = ({ strapi }) => {
   /** @type {Server|null} */
   let io = null;
   const timers = [];
-  /** room -> { sockets: Set, seen: Map<id, at>, watermark: number, presenceHash: string, lastSnapshotBucket: number } */
+  /** room -> { sockets, seen: Map<rowId, at>, watermark, presenceHash, target, doc, loading, lastBucket } */
   const rooms = new Map();
   let polling = false;
+  let permissionSignal = null;
+  let revalidating = null;
+  const sessionLimiter = createRateLimiter({ max: 60, windowMs: 60000 });
 
   const roomState = (room) => {
     let state = rooms.get(room);
     if (!state) {
-      state = { sockets: new Set(), seen: new Map(), watermark: 0, presenceHash: '', target: null };
+      state = {
+        sockets: new Set(),
+        seen: new Map(),
+        watermark: 0,
+        presenceHash: '',
+        target: null,
+        doc: null,
+        loading: null,
+      };
       rooms.set(room, state);
     }
     return state;
@@ -124,7 +179,7 @@ module.exports = ({ strapi }) => {
   /**
    * Merges all stored updates of a room.
    * @param {string} room - Room key.
-   * @returns {Promise<{ update: Uint8Array, lastId: number, count: number }>} Merged state.
+   * @returns {Promise<{ update: Uint8Array, lastId: number, count: number, ids: number[] }>} Merged state.
    */
   const loadRoom = async (room) => {
     const rows = await store().readRoom(room);
@@ -138,7 +193,7 @@ module.exports = ({ strapi }) => {
   };
 
   /**
-   * Materialises the room as Editor.js data.
+   * Materialises a merged update as Editor.js data.
    * @param {Uint8Array} update - Merged update.
    * @returns {object} Editor data.
    */
@@ -153,11 +208,60 @@ module.exports = ({ strapi }) => {
   };
 
   /**
-   * Creates the seed row of a new room exactly once across the cluster.
+   * Loads the in-memory document of a room from the database (once; shared by
+   * concurrent callers). Rows near the end are marked as seen but stay above
+   * the watermark, so a row that commits late is still picked up by the poller.
    * @param {string} room - Room key.
-   * @param {object|null} content - Clean editor data from the session creator.
+   * @returns {Promise<Y.Doc>} Document.
+   */
+  const ensureDoc = async (room) => {
+    const state = roomState(room);
+    if (state.doc) return state.doc;
+    if (!state.loading) {
+      state.loading = (async () => {
+        const rows = await store().readRoom(room);
+        const doc = new Y.Doc({ gc: true });
+        getTypes(doc);
+        for (const row of rows) {
+          try {
+            Y.applyUpdate(doc, row.update);
+          } catch {
+            // a damaged row is skipped; the rest of the room stays usable
+          }
+        }
+        const now = Date.now();
+        const settled = rows.filter((row) => (row.createdAt || 0) < now - RESEND_WINDOW_MS);
+        state.watermark = Math.max(state.watermark, settled.length ? settled[settled.length - 1].id : 0);
+        for (const row of rows) if (row.id > state.watermark) state.seen.set(row.id, now);
+        if (state.doc) state.doc.destroy();
+        state.doc = doc;
+        return doc;
+      })().finally(() => {
+        state.loading = null;
+      });
+    }
+    return state.loading;
+  };
+
+  /**
+   * Throws away the in-memory document of a room (rebuilt from the database on next use).
+   * @param {string} room - Room key.
+   */
+  const dropDoc = (room) => {
+    const state = rooms.get(room);
+    if (state && state.doc) {
+      state.doc.destroy();
+      state.doc = null;
+    }
+  };
+
+  /**
+   * Creates the seed row of a new room exactly once across the cluster.
+   * Every seed carries a new epoch (room generation).
+   * @param {string} room - Room key.
+   * @param {() => Promise<object|null>} loadContent - Clean content for the seed.
    * @param {number} ttlMs - Lease length (room lifetime).
-   * @returns {Promise<void>}
+   * @returns {Promise<boolean>} True when this call created the seed.
    */
   const ensureSeed = async (room, loadContent, ttlMs) => {
     const stats = await store().roomStats(room);
@@ -169,14 +273,13 @@ module.exports = ({ strapi }) => {
         const content = await loadContent();
         await store().appendUpdate(
           room,
-          createSeedUpdate(content || { time: Date.now(), blocks: [], version: '2.31.7' }),
+          createSeedUpdate(content || { time: Date.now(), blocks: [], version: '2.31.7' }, randomUUID()),
           'seed'
         );
         return true;
       }
       return false;
     }
-    // Another process is seeding; wait briefly for its row.
     for (let i = 0; i < 40; i += 1) {
       if ((await store().roomStats(room)).count > 0) return false;
       await new Promise((resolve) => setTimeout(resolve, 50));
@@ -213,6 +316,7 @@ module.exports = ({ strapi }) => {
 
   /**
    * Sends presence of a room to its local sockets when it changed.
+   * Only display name, colour, role, idle state and caret leave the server.
    * @param {string} room - Room key.
    * @param {Array<object>} rows - Presence rows of the room.
    */
@@ -220,19 +324,25 @@ module.exports = ({ strapi }) => {
     const state = rooms.get(room);
     if (!state || !io) return;
     const peers = rows
-      .map((row) => ({
-        id: row.id,
-        name: row.name,
-        color: row.color,
-        canEdit: Boolean(row.can_edit),
-        cursor: (() => {
-          try {
-            return row.cursor ? JSON.parse(row.cursor) : null;
-          } catch {
-            return null;
-          }
-        })(),
-      }))
+      .map((row) => {
+        let cursor;
+        try {
+          cursor = row.cursor ? cleanCursor(JSON.parse(row.cursor)) : null;
+        } catch {
+          cursor = null;
+        }
+        return {
+          id: row.id,
+          name: row.name,
+          color: row.color,
+          canEdit: Boolean(row.can_edit),
+          idle: Boolean(cursor && cursor.idle),
+          cursor:
+            cursor && cursor.blockId
+              ? { blockId: cursor.blockId, anchor: cursor.anchor, focus: cursor.focus }
+              : null,
+        };
+      })
       .sort((a, b) => a.id.localeCompare(b.id));
     const hash = JSON.stringify(peers);
     if (hash === state.presenceHash) return;
@@ -241,7 +351,23 @@ module.exports = ({ strapi }) => {
   };
 
   /**
-   * One polling tick: relay updates written by other processes and refresh presence.
+   * Ends every socket of a room so clients reconnect (room replaced).
+   * @param {string} room - Room key.
+   * @param {string} code - Reason sent to the clients.
+   */
+  const resetRoom = (room, code) => {
+    const state = rooms.get(room);
+    if (!state) return;
+    dropDoc(room);
+    for (const socket of Array.from(state.sockets)) {
+      socket.emit('mx:error', { code });
+      socket.disconnect(true);
+    }
+  };
+
+  /**
+   * One polling tick: relay updates written by other processes, keep the
+   * in-memory documents current and refresh presence.
    * @returns {Promise<void>}
    */
   const poll = async () => {
@@ -254,11 +380,33 @@ module.exports = ({ strapi }) => {
       const rows = await store().readSince(names, after, 2000);
       for (const row of rows) {
         const state = rooms.get(row.room);
-        if (!state || row.id <= state.watermark) continue;
-        if (!state.seen.has(row.id)) {
-          state.seen.set(row.id, now);
-          if (row.kind !== 'compact') io.to(row.room).emit('mx:update', row.update);
+        if (!state || row.id <= state.watermark || state.seen.has(row.id)) continue;
+        state.seen.set(row.id, now);
+        if (row.kind === 'seed' && state.doc) {
+          // A new room generation (the old room was cleaned up): clients start over.
+          const probe = new Y.Doc();
+          let reset = false;
+          try {
+            Y.applyUpdate(probe, row.update);
+            reset = epochOf(probe) !== epochOf(state.doc);
+          } catch {
+            reset = false;
+          } finally {
+            probe.destroy();
+          }
+          if (reset) {
+            resetRoom(row.room, 'ROOM_RESET');
+            continue;
+          }
         }
+        if (state.doc) {
+          try {
+            Y.applyUpdate(state.doc, row.update, 'relay');
+          } catch {
+            dropDoc(row.room);
+          }
+        }
+        if (row.kind !== 'compact') io.to(row.room).emit('mx:update', row.update);
       }
       for (const state of rooms.values()) {
         for (const [id, at] of state.seen) {
@@ -300,33 +448,76 @@ module.exports = ({ strapi }) => {
   };
 
   /**
-   * Creates an automatic snapshot of a room once per room and key.
+   * Creates an automatic version of a room exactly once per room and key.
+   * When creating the version fails, the lease is released so another
+   * process (or the next tick) retries.
    * @param {string} room - Room key.
    * @param {string} bucketKey - Exactly-once key (time bucket or session end).
-   * @returns {Promise<boolean>} True when this process created it.
+   * @param {{ skipWhenSaved?: boolean }} [options] - Skip content equal to the saved draft.
+   * @returns {Promise<boolean>} True when this process created a version.
+   * @throws {Error} When the database or history service fails (lease released).
    */
-  const autoSnapshot = async (room, bucketKey) => {
+  const autoSnapshot = async (room, bucketKey, options = {}) => {
     const state = rooms.get(room);
-    const target = state && state.target;
+    const target = (state && state.target) || targetOfRoom(room);
     if (!target) return false;
     const key = `snap:${room}:${bucketKey}`.slice(0, 255);
     if (!(await store().acquire(key, PROCESS_ID, 24 * 60 * 60 * 1000))) return false;
-    const { update, count } = await loadRoom(room);
-    if (count === 0) return false;
-    const result = await history().create(target, materialize(update), { trigger: 'auto', userId: null });
-    return result.created;
+    try {
+      const { update, count } = await loadRoom(room);
+      if (count === 0) return false;
+      const content = materialize(update);
+      if (options.skipWhenSaved) {
+        const rawHtml = strapi.config.get('plugin::magic-editor-x.rawHtml') || 'sanitize';
+        const clean = (value) => {
+          try {
+            return cleanEditorValue(value, { rawHtml });
+          } catch {
+            return null;
+          }
+        };
+        const blocksOf = (value) => stableStringify(value && Array.isArray(value.blocks) ? value.blocks : []);
+        let saved = null;
+        try {
+          saved = clean(await readStoredValue(target));
+        } catch {
+          saved = null;
+        }
+        if (blocksOf(saved) === blocksOf(clean(content))) return false;
+      }
+      const result = await history().create(target, content, { trigger: 'auto', userId: null });
+      return result.created;
+    } catch (error) {
+      await store()
+        .release(key, PROCESS_ID)
+        .catch(() => {});
+      throw error;
+    }
   };
 
+  /**
+   * Automatic versions per time bucket: when a bucket ends, the room's state
+   * is stored once (lease `snap:<room>:t<bucket>`) if it changed during that
+   * bucket. Taking the version at the end of the period keeps the last state
+   * of it and does not create a version seconds after someone starts typing.
+   */
   const snapshotTick = async () => {
     const minutes = Number(conf('snapshotIntervalMinutes', 10));
     if (!minutes) return;
-    const bucket = Math.floor(Date.now() / (minutes * 60000));
+    const length = minutes * 60000;
+    const bucket = Math.floor(Date.now() / length);
     for (const [room, state] of rooms) {
-      if (state.sockets.size === 0 || state.lastBucket === bucket) continue;
-      state.lastBucket = bucket;
+      if (state.sockets.size === 0) continue;
+      if (state.lastBucket === undefined) {
+        state.lastBucket = bucket;
+        continue;
+      }
+      if (state.lastBucket === bucket) continue;
+      const previous = bucket - 1;
       try {
         const stats = await store().roomStats(room);
-        if (stats.lastAt > Date.now() - minutes * 60000) await autoSnapshot(room, `t${bucket}`);
+        if (stats.lastAt >= previous * length) await autoSnapshot(room, `t${previous}`);
+        state.lastBucket = bucket;
       } catch (error) {
         logger.warn('automatic snapshot failed', { code: error && error.code, name: error && error.name });
       }
@@ -342,10 +533,22 @@ module.exports = ({ strapi }) => {
       if (await store().acquire('maintenance', PROCESS_ID, 55000)) {
         await store().prunePresence(Date.now() - PRESENCE_TTL_MS * 2);
         await store().pruneLocks();
+        await store().pruneCounters();
         const ttl = Number(conf('roomTtlMinutes', 30)) * 60000;
         for (const room of await store().staleRooms(Date.now() - ttl)) {
-          if (!(await store().hasPresence(room, Date.now() - PRESENCE_TTL_MS)))
-            await store().deleteRoom(room);
+          if (await store().hasPresence(room, Date.now() - PRESENCE_TTL_MS)) continue;
+          // Edits nobody saved are kept as a version before the room goes away.
+          try {
+            const stats = await store().roomStats(room);
+            await autoSnapshot(room, `end${stats.lastId}`, { skipWhenSaved: true });
+          } catch (error) {
+            logger.warn('final version before room clean-up failed', {
+              code: error && error.code,
+              name: error && error.name,
+            });
+            continue;
+          }
+          await store().deleteRoom(room);
         }
       }
     } catch (error) {
@@ -357,25 +560,58 @@ module.exports = ({ strapi }) => {
   };
 
   /**
-   * Re-checks access of every open socket and updates or ends sessions.
+   * Re-checks access of every open socket and downgrades or ends sessions.
+   * Abilities are computed once per admin per run.
    * @returns {Promise<void>}
    */
   const revalidate = async () => {
-    for (const state of rooms.values()) {
-      for (const socket of state.sockets) {
-        try {
-          const ability = await access().abilityForUser(socket.data.userId);
-          if (!ability) throw new errors.NotFoundError('gone');
-          const result = await access().checkField({ userAbility: ability, ...socket.data.target });
-          if (result.canUpdate !== socket.data.canEdit) {
-            socket.data.canEdit = result.canUpdate;
-            socket.emit('mx:role', { canEdit: result.canUpdate });
+    if (revalidating) return revalidating;
+    revalidating = (async () => {
+      const abilities = new Map();
+      for (const state of Array.from(rooms.values())) {
+        for (const socket of Array.from(state.sockets)) {
+          try {
+            const userId = socket.data.userId;
+            if (!abilities.has(userId)) abilities.set(userId, await access().abilityForUser(userId));
+            const ability = abilities.get(userId);
+            if (!ability) throw new errors.NotFoundError('gone');
+            const result = await access().checkField({ userAbility: ability, ...socket.data.target });
+            if (result.canUpdate !== socket.data.canEdit) {
+              socket.data.canEdit = result.canUpdate;
+              socket.emit('mx:role', { canEdit: result.canUpdate });
+              store()
+                .upsertPresence({
+                  id: socket.data.presenceId,
+                  room: socket.data.room,
+                  userId,
+                  name: socket.data.name,
+                  color: socket.data.color,
+                  canEdit: result.canUpdate,
+                  cursor: socket.data.cursor,
+                })
+                .catch(() => {});
+            }
+          } catch {
+            socket.emit('mx:error', { code: 'ACCESS_REVOKED' });
+            socket.disconnect(true);
           }
-        } catch {
-          socket.emit('mx:error', { code: 'ACCESS_REVOKED' });
-          socket.disconnect(true);
         }
       }
+    })().finally(() => {
+      revalidating = null;
+    });
+    return revalidating;
+  };
+
+  /** Checks the cluster-wide permission signal and re-checks sockets when it changed. */
+  const signalTick = async () => {
+    try {
+      const value = await store().getSignal('permissions');
+      const changed = permissionSignal !== null && value !== permissionSignal;
+      permissionSignal = value;
+      if (changed && rooms.size > 0) await revalidate();
+    } catch (error) {
+      logger.warn('permission signal check failed', { code: error && error.code, name: error && error.name });
     }
   };
 
@@ -406,52 +642,85 @@ module.exports = ({ strapi }) => {
   };
 
   /**
+   * Handshake: protocol version, token signature and expiry, one-time nonce,
+   * per-admin connection and room limits across the cluster.
+   * @param {import('socket.io').Socket} socket - Socket.
+   * @param {(error?: Error) => void} next - Continue or refuse.
+   * @returns {Promise<void>}
+   */
+  const authenticate = async (socket, next) => {
+    try {
+      const auth = socket.handshake.auth || {};
+      if (auth.protocol !== PROTOCOL) return next(handshakeError('UPGRADE_REQUIRED'));
+      const claims = verifyToken(auth.token, getTokenKey(strapi));
+      if (!claims || typeof claims.nonce !== 'string' || claims.protocol !== PROTOCOL)
+        return next(handshakeError('INVALID_TOKEN'));
+      const fresh = await store().acquire(
+        `tok:${claims.nonce}`,
+        PROCESS_ID,
+        Math.max(1000, claims.exp - Date.now() + 60000)
+      );
+      if (!fresh) return next(handshakeError('INVALID_TOKEN'));
+      const usage = await store().presenceOfUser(claims.userId, Date.now() - PRESENCE_TTL_MS);
+      if (usage.sockets >= Number(conf('maxConnectionsPerAdmin', 20)))
+        return next(handshakeError('TOO_MANY_CONNECTIONS'));
+      if (!usage.rooms.has(claims.room) && usage.rooms.size >= Number(conf('maxRoomsPerAdmin', 20)))
+        return next(handshakeError('TOO_MANY_CONNECTIONS'));
+      socket.data.claims = claims;
+      return next();
+    } catch (error) {
+      logger.warn('collaboration handshake failed', { code: error && error.code, name: error && error.name });
+      return next(handshakeError('UNAVAILABLE'));
+    }
+  };
+
+  /**
    * Handles one authenticated socket.
    * @param {import('socket.io').Socket} socket - Socket.
    * @returns {Promise<void>}
    */
   const onConnection = async (socket) => {
     const maxBytes = Number(conf('maxMessageBytes', 2 * 1024 * 1024));
-    const claims = verifyToken(socket.handshake.auth && socket.handshake.auth.token, getTokenKey(strapi));
-    if (!claims || typeof claims.nonce !== 'string') {
-      socket.emit('mx:error', { code: 'INVALID_TOKEN' });
-      socket.disconnect(true);
-      return;
-    }
-    const fresh = await store().acquire(
-      `tok:${claims.nonce}`,
-      PROCESS_ID,
-      Math.max(1000, claims.exp - Date.now() + 60000)
-    );
-    if (!fresh) {
-      socket.emit('mx:error', { code: 'INVALID_TOKEN' });
-      socket.disconnect(true);
-      return;
-    }
+    const claims = socket.data.claims;
     const room = claims.room;
     socket.data.userId = claims.userId;
     socket.data.canEdit = claims.canEdit === true;
     socket.data.target = claims.target;
+    socket.data.room = room;
+    socket.data.name = claims.name;
+    socket.data.color = claims.color;
+    socket.data.cursor = null;
     socket.data.presenceId = randomUUID();
     const state = roomState(room);
     state.target = claims.target;
-    await socket.join(room);
     state.sockets.add(socket);
+    await socket.join(room);
+
+    // Per-socket limits (a socket lives in exactly one process).
+    const rate = conf('rateLimit', {}) || {};
+    const updates = createRateLimiter({
+      max: Number(rate.updatesPer10s) || 300,
+      windowMs: 10000,
+      maxKeys: 4,
+    });
+    const bytesWindow = { start: Date.now(), bytes: 0 };
+    const maxBytesPer10s = Number(rate.bytesPer10s) || 8 * 1024 * 1024;
+    let invalid = 0;
+    let lastResyncAt = 0;
+    let lastCursorAt = 0;
 
     const sendSync = async (clientVector) => {
-      const { update, lastId } = await loadRoom(room);
-      if (state.watermark === 0) state.watermark = lastId;
-      let payload = update;
-      if (clientVector) {
-        try {
-          payload = Y.diffUpdate(update, clientVector);
-        } catch {
-          payload = update;
-        }
+      const doc = await ensureDoc(room);
+      let payload;
+      try {
+        payload = clientVector ? Y.encodeStateAsUpdate(doc, clientVector) : Y.encodeStateAsUpdate(doc);
+      } catch {
+        payload = Y.encodeStateAsUpdate(doc);
       }
-      socket.emit('mx:sync', { update: payload, stateVector: Y.encodeStateVectorFromUpdate(update) });
+      socket.emit('mx:sync', { update: payload, stateVector: Y.encodeStateVector(doc), epoch: epochOf(doc) });
     };
 
+    const doc = await ensureDoc(room);
     await store().upsertPresence({
       id: socket.data.presenceId,
       room,
@@ -464,6 +733,9 @@ module.exports = ({ strapi }) => {
       canEdit: socket.data.canEdit,
       presenceId: socket.data.presenceId,
       color: claims.color,
+      name: claims.name,
+      epoch: epochOf(doc),
+      protocol: PROTOCOL,
     });
     await sendSync(null);
     poll();
@@ -472,11 +744,44 @@ module.exports = ({ strapi }) => {
       const reply = typeof ack === 'function' ? ack : () => {};
       if (!socket.data.canEdit) return reply({ ok: false, code: 'READ_ONLY' });
       const update = toBytes(payload, maxBytes);
-      if (!update || !isValidUpdate(update)) return reply({ ok: false, code: 'INVALID_UPDATE' });
+      if (!update) return reply({ ok: false, code: 'INVALID_UPDATE' });
+      const now = Date.now();
+      if (now - bytesWindow.start > 10000) {
+        bytesWindow.start = now;
+        bytesWindow.bytes = 0;
+      }
+      bytesWindow.bytes += update.byteLength;
+      if (!updates.hit('u', now).allowed || bytesWindow.bytes > maxBytesPer10s)
+        return reply({ ok: false, code: 'RATE_LIMITED' });
       try {
+        const roomDoc = await ensureDoc(room);
+        const result = applyCheckedUpdate(roomDoc, update);
+        if (!result.ok) {
+          if (result.dirty) dropDoc(room);
+          if (result.code === 'MISSING_DEPENDENCY') return reply({ ok: false, code: 'RETRY' });
+          invalid += 1;
+          logger.warn('collaboration update refused', { code: result.code });
+          reply({ ok: false, code: 'INVALID_UPDATE' });
+          if (invalid >= MAX_INVALID_UPDATES) {
+            socket.emit('mx:error', { code: 'INVALID_UPDATE' });
+            socket.disconnect(true);
+          }
+          return undefined;
+        }
+        if (!result.changed) return reply({ ok: true, id: 0 });
         const stats = await store().roomStats(room);
-        if (stats.bytes + update.byteLength > MAX_ROOM_BYTES) return reply({ ok: false, code: 'ROOM_FULL' });
-        const id = await store().appendUpdate(room, update, 'update');
+        if (stats.bytes + update.byteLength > MAX_ROOM_BYTES) {
+          dropDoc(room);
+          return reply({ ok: false, code: 'ROOM_FULL' });
+        }
+        let id;
+        try {
+          id = await store().appendUpdate(room, update, 'update');
+        } catch (error) {
+          // The in-memory document already holds the update; rebuild it from the database.
+          dropDoc(room);
+          throw error;
+        }
         state.seen.set(id, Date.now());
         socket.to(room).emit('mx:update', update);
         reply({ ok: true, id });
@@ -492,6 +797,9 @@ module.exports = ({ strapi }) => {
     });
 
     socket.on('mx:resync', async (payload) => {
+      const now = Date.now();
+      if (now - lastResyncAt < 1000) return;
+      lastResyncAt = now;
       const vector = toBytes(payload, 64 * 1024);
       try {
         await sendSync(vector);
@@ -500,22 +808,11 @@ module.exports = ({ strapi }) => {
       }
     });
 
-    let lastCursorAt = 0;
     socket.on('mx:cursor', async (cursor) => {
       const now = Date.now();
-      if (now - lastCursorAt < 150) return;
+      if (now - lastCursorAt < 50) return;
       lastCursorAt = now;
-      const clean =
-        cursor &&
-        typeof cursor === 'object' &&
-        typeof cursor.blockId === 'string' &&
-        cursor.blockId.length <= 64
-          ? {
-              blockId: cursor.blockId,
-              offset:
-                Number.isInteger(cursor.offset) && cursor.offset >= 0 ? Math.min(cursor.offset, 1e7) : 0,
-            }
-          : null;
+      socket.data.cursor = cleanCursor(cursor);
       try {
         await store().upsertPresence({
           id: socket.data.presenceId,
@@ -524,7 +821,7 @@ module.exports = ({ strapi }) => {
           name: claims.name,
           color: claims.color,
           canEdit: socket.data.canEdit,
-          cursor: clean,
+          cursor: socket.data.cursor,
         });
         poll();
       } catch {
@@ -539,7 +836,10 @@ module.exports = ({ strapi }) => {
         if (state.sockets.size === 0) {
           const stats = await store().roomStats(room);
           await autoSnapshot(room, `end${stats.lastId}`).catch(() => false);
-          rooms.delete(room);
+          if (state.sockets.size === 0) {
+            dropDoc(room);
+            rooms.delete(room);
+          }
         }
         poll();
       } catch {
@@ -548,18 +848,45 @@ module.exports = ({ strapi }) => {
     });
   };
 
+  /**
+   * Raises the cluster-wide permission signal and re-checks local sockets now.
+   * @returns {Promise<void>}
+   */
+  const permissionsChanged = async () => {
+    try {
+      const value = randomUUID();
+      await store().setSignal('permissions', value);
+      permissionSignal = value;
+    } catch (error) {
+      logger.warn('permission signal could not be raised', {
+        code: error && error.code,
+        name: error && error.name,
+      });
+    }
+    if (rooms.size > 0) await revalidate();
+  };
+
   return {
     PROCESS_ID,
+    PROTOCOL,
 
     /**
      * Issues a one-time session token for a field after checking access.
      * @param {{ userAbility: object, user: object, uid: string, documentId: string, locale?: string|null, field: string, initialValue?: unknown }} input - Request.
      * @returns {Promise<object>} Token and connection details.
-     * @throws {errors.NotFoundError|errors.ForbiddenError} When access is denied or collaboration is off.
+     * @throws {errors.NotFoundError|errors.ForbiddenError|errors.RateLimitError} Access denied, collaboration off, too many sessions.
      */
     async createSession({ userAbility, user, uid, documentId, locale, field, initialValue }) {
       if (conf('enabled', true) === false || !io)
         throw new errors.ForbiddenError('Live collaboration is disabled');
+      const limit = Number((conf('rateLimit', {}) || {}).sessionsPerMinute) || 60;
+      let allowed;
+      try {
+        allowed = (await store().hit(`session:${user.id}`, 60000)).count <= limit;
+      } catch {
+        allowed = sessionLimiter.hit(`session:${user.id}`).allowed;
+      }
+      if (!allowed) throw new errors.RateLimitError('Too many live editing sessions. Try again in a minute.');
       const result = await access().checkField({ userAbility, uid, documentId, locale, field });
       const target = { uid, documentId, locale: result.locale, field };
       const room = history().fieldKey(target);
@@ -592,6 +919,7 @@ module.exports = ({ strapi }) => {
         name: displayName(user),
         color: colorFor(user.id),
         canEdit: result.canUpdate,
+        protocol: PROTOCOL,
         nonce: randomUUID(),
         exp: Date.now() + ttl,
       };
@@ -600,6 +928,7 @@ module.exports = ({ strapi }) => {
         path: conf('path', '/magic-editor-x/realtime'),
         canEdit: result.canUpdate,
         seeded,
+        protocol: PROTOCOL,
         expiresAt: claims.exp,
       };
     },
@@ -626,6 +955,9 @@ module.exports = ({ strapi }) => {
         pingTimeout: 20000,
         cors: { origin: false },
       });
+      io.use((socket, next) => {
+        authenticate(socket, next);
+      });
       io.on('connection', (socket) => {
         onConnection(socket).catch((error) => {
           logger.warn('collaboration connection failed', {
@@ -644,8 +976,9 @@ module.exports = ({ strapi }) => {
       };
       every(poll, Math.max(50, Number(conf('pollIntervalMs', 400))));
       every(maintenanceTick, HEARTBEAT_MS);
-      every(snapshotTick, 30000);
-      every(revalidate, REVALIDATE_MS);
+      every(snapshotTick, 5000);
+      every(signalTick, SIGNAL_CHECK_MS);
+      every(revalidate, Math.max(5, Number(conf('revalidateSeconds', 60))) * 1000);
     },
 
     /**
@@ -667,6 +1000,7 @@ module.exports = ({ strapi }) => {
         await new Promise((resolve) => io.close(() => resolve()));
         io = null;
       }
+      for (const room of Array.from(rooms.keys())) dropDoc(room);
       rooms.clear();
     },
 
@@ -675,10 +1009,18 @@ module.exports = ({ strapi }) => {
       return Boolean(io);
     },
 
+    /** Called by the admin lifecycle subscriber when roles, permissions or users change. */
+    permissionsChanged,
+
     /** Test hook: runs one poll tick. */
     pollNow: poll,
+    /** Test hook: runs one maintenance tick. */
+    maintenanceNow: maintenanceTick,
   };
 };
 
 module.exports.toBytes = toBytes;
 module.exports.displayName = displayName;
+module.exports.cleanCursor = cleanCursor;
+module.exports.targetOfRoom = targetOfRoom;
+module.exports.PROTOCOL = PROTOCOL;

@@ -241,7 +241,9 @@ export class SimpleImageTool extends BaseTool {
       };
       urlInput.addEventListener('keydown', (event) => {
         if (event.key === 'Enter') {
+          // Stop here: Editor.js would also create a new block for this Enter.
           event.preventDefault();
+          event.stopPropagation();
           apply();
         }
       });
@@ -609,7 +611,9 @@ export class LinkPreviewTool extends BaseTool {
     });
     urlInput.addEventListener('keydown', (event) => {
       if (event.key === 'Enter') {
+        // Stop here: Editor.js would also create a new block for this Enter.
         event.preventDefault();
+        event.stopPropagation();
         this.fetch(urlInput.value.trim(), status, urlInput);
       }
     });

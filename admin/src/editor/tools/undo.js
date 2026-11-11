@@ -13,6 +13,10 @@ import { createHistoryStack, historyKey } from './logic.mjs';
  * Shortcuts (only inside the editor holder): Cmd/Ctrl+Z undo,
  * Shift+Cmd/Ctrl+Z and Ctrl+Y redo.
  *
+ * During live collaboration the field sets a delegate (`setDelegate`): undo
+ * and redo then go to the collaboration client, whose Yjs UndoManager only
+ * reverts the user's own changes.
+ *
  * @param {object} editor - Editor.js instance (ready).
  * @param {{ holder?: HTMLElement, maxSteps?: number, debounceMs?: number, onChange?: (state: { canUndo: boolean, canRedo: boolean }) => void }} [options] - Options.
  * @returns {{ record: Function, undo: Function, redo: Function, canUndo: Function, canRedo: Function, pause: Function, resume: Function, reset: Function, destroy: Function }} Manager.
@@ -25,6 +29,7 @@ export const createUndoManager = (editor, options = {}) => {
   let timer = null;
   let applying = false;
   let destroyed = false;
+  let delegate = null;
   const states = new Map();
 
   const notify = () => {
@@ -85,14 +90,23 @@ export const createUndoManager = (editor, options = {}) => {
   if (holder) holder.addEventListener('keydown', onKeyDown, true);
 
   const manager = {
+    /**
+     * Routes undo/redo to another history (live collaboration) or back (null).
+     * @param {{ undo: () => boolean, redo: () => boolean, stopCapturing?: () => void }|null} next - Delegate.
+     */
+    setDelegate(next) {
+      delegate = next;
+      notify();
+    },
     /** Records the current state after the debounce. */
     record() {
-      if (destroyed || paused > 0 || applying) return;
+      if (destroyed || paused > 0 || applying || delegate) return;
       window.clearTimeout(timer);
       timer = window.setTimeout(snapshot, debounceMs);
     },
     /** Steps back. @returns {Promise<boolean>} True when something changed. */
     async undo() {
+      if (delegate) return delegate.undo();
       window.clearTimeout(timer);
       await snapshot();
       const key = stack.undo();
@@ -102,6 +116,7 @@ export const createUndoManager = (editor, options = {}) => {
     },
     /** Steps forward. @returns {Promise<boolean>} True when something changed. */
     async redo() {
+      if (delegate) return delegate.redo();
       const key = stack.redo();
       if (!key) return false;
       await apply(key);

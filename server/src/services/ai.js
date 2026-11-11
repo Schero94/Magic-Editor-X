@@ -93,6 +93,23 @@ module.exports = ({ strapi }, dependencies = {}) => {
   const settings = () => strapi.plugin('magic-editor-x').service('settings');
 
   /**
+   * Per-admin AI rate limit shared by every process (database counter per
+   * minute). When the database is unavailable the process-local limiter
+   * applies, so the limit never disappears.
+   * @param {number} userId - Admin id.
+   * @returns {Promise<boolean>} True when the request may run.
+   */
+  const allowRequest = async (userId) => {
+    const perMinute = Number(strapi.config.get('plugin::magic-editor-x.ai.requestsPerMinute')) || 20;
+    try {
+      const { count } = await strapi.plugin('magic-editor-x').service('store').hit(`ai:${userId}`, 60000);
+      return count <= perMinute;
+    } catch {
+      return getLimiter().hit(`ai:${userId}`).allowed;
+    }
+  };
+
+  /**
    * Builds the instruction for an action.
    * @param {string} action - Action name.
    * @param {{ language?: string, tone?: string }} options - Options.
@@ -239,8 +256,8 @@ module.exports = ({ strapi }, dependencies = {}) => {
       if (textLength(input.text) > runtime.ai.maxInputChars) {
         throw new errors.PayloadTooLargeError('The text is longer than the configured limit');
       }
-      const verdict = getLimiter().hit(`ai:${user.id}`);
-      if (!verdict.allowed) throw new errors.RateLimitError('Too many AI requests. Try again in a minute.');
+      if (!(await allowRequest(user.id)))
+        throw new errors.RateLimitError('Too many AI requests. Try again in a minute.');
       const instruction = instructionFor(input.action, input);
       try {
         const answer = await callProvider(runtime, instruction, input.text);

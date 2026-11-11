@@ -1,30 +1,40 @@
 /**
- * Cluster proof for Magic Editor X live collaboration, run by
+ * Cluster proof for Magic Editor X live collaboration (2.1), run by
  * scripts/cluster-acceptance.mjs against several Strapi processes that share
  * one PostgreSQL database behind a non-sticky round-robin balancer.
  *
- * Checks:
- * 1. two editors connected to different processes edit the same field at the
- *    same time (concurrent typing in one paragraph plus new blocks) and
- *    converge to the same document that contains every edit;
- * 2. a third client that joins through the balancer receives the merged state;
- * 3. the process of one editor is killed; the editor reconnects through the
- *    balancer to another process, keeps editing, and nothing acknowledged is
- *    lost; after the process restarts, a fresh client sees everything;
- * 4. automatic snapshots are created exactly once: when the last editors of a
- *    room leave from two processes at the same time, one snapshot exists for
- *    that state; time-bucket snapshots exist at most once per bucket.
+ * Every client is the real admin collaboration client
+ * (admin/src/editor/collab-client.js, loaded by node-client.mjs) around a
+ * simulated editor. During the chaos phase (MEX_CLUSTER_DURATION_S, default
+ * 150 s, so at least two one-minute snapshot buckets pass):
+ * - MEX_CLUSTER_CLIENTS (default 12) clients connect through the balancer and
+ *   insert unique markers into paragraphs, table cells and list items, add
+ *   blocks, table rows and list items, all at the same time;
+ * - random processes are killed (SIGKILL) and restarted;
+ * - random processes are cut off from all clients (network partition at the
+ *   balancer) for a few seconds;
+ * - random clients go offline for a few seconds and keep editing.
+ * Then: every client converges to the same document, every marker is present
+ * (zero lost edits), no client has unsent edits, a fresh client sees the same
+ * state; time-bucket and session-end versions exist exactly once per key; a
+ * permission change reaches a client on another process within the SLA; the
+ * AI rate limit is shared by all processes.
  * Prints a result table and exits non-zero on any failure.
  */
 import crypto from 'node:crypto';
+import http from 'node:http';
 import { io } from 'socket.io-client';
-import * as Y from 'yjs';
 import pg from 'pg';
-import { applyEditorDataToDoc, docToEditorData } from '../../shared/ydoc.mjs';
+import { loadCollabClient, simulatedEditor, ioRef } from './node-client.mjs';
 
+ioRef.io = io;
+const { createCollabClient } = await loadCollabClient();
 const balancerPort = Number(process.env.MEX_CLUSTER_BALANCER_PORT);
 const ports = String(process.env.MEX_CLUSTER_PORTS).split(',').map(Number);
 const BALANCER = `http://127.0.0.1:${balancerPort}`;
+const DURATION_MS = Number(process.env.MEX_CLUSTER_DURATION_S || 150) * 1000;
+const CLIENTS = Number(process.env.MEX_CLUSTER_CLIENTS || 12);
+const PERMISSION_SLA_MS = 5000;
 const url = (port) => `http://127.0.0.1:${port}`;
 const results = [];
 const record = (check, ok, detail) => {
@@ -32,6 +42,7 @@ const record = (check, ok, detail) => {
   console.log(`${ok ? 'PASS' : 'FAIL'} ${check}: ${detail}`);
 };
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const rnd = (n) => Math.floor(Math.random() * n);
 
 const call = async (base, method, path, { token, body } = {}) => {
   const headers = { accept: 'application/json' };
@@ -52,279 +63,357 @@ const call = async (base, method, path, { token, body } = {}) => {
   return { status: response.status, body: json };
 };
 
-// --- setup: admin, article --------------------------------------------------
+// --- setup -------------------------------------------------------------------
 const password = `Mx1!${crypto.randomBytes(12).toString('base64url')}`;
-const email = 'cluster-admin@example.test';
 let response = await call(BALANCER, 'POST', '/admin/register-admin', {
-  body: { firstname: 'Cluster', lastname: 'Admin', email, password },
+  body: { firstname: 'Cluster', lastname: 'Admin', email: 'cluster-admin@example.test', password },
 });
 if (response.status !== 200) throw new Error(`register-admin ${response.status}`);
 const token = response.body.data.token;
+const seed = {
+  time: 1,
+  version: '2.31.7',
+  blocks: [
+    { id: 'p1', type: 'paragraph', data: { text: 'Start' } },
+    {
+      id: 't1',
+      type: 'table',
+      data: {
+        withHeadings: false,
+        content: [
+          ['a', 'b'],
+          ['c', 'd'],
+        ],
+      },
+    },
+    {
+      id: 'l1',
+      type: 'list',
+      data: { style: 'unordered', meta: {}, items: [{ content: 'one', meta: {}, items: [] }] },
+    },
+    { id: 'p2', type: 'paragraph', data: { text: 'End' } },
+  ],
+};
 response = await call(BALANCER, 'POST', '/content-manager/collection-types/api::article.article', {
   token,
-  body: {
-    title: 'Cluster',
-    body: { time: 1, version: '2.31.7', blocks: [{ id: 'c1', type: 'paragraph', data: { text: 'Start' } }] },
-  },
+  body: { title: 'Cluster', body: seed },
 });
 if (response.status !== 201) throw new Error(`create article ${response.status}`);
 const documentId = response.body.data.documentId;
 const target = { uid: 'api::article.article', documentId, locale: 'en', field: 'body' };
 const room = `${target.uid}|${target.documentId}|en|body`;
 
-// --- clients ----------------------------------------------------------------
-/**
- * A collaboration client bound to one HTTP base (process or balancer).
- * Mirrors admin/src/editor/collab-client.js: unacknowledged updates are kept
- * and sent again after a reconnect.
- */
-const client = (name, sessionBase, socketBase) =>
-  new Promise((resolve, reject) => {
-    const doc = new Y.Doc();
-    let pending = null;
-    let acked = 0;
-    let socket = null;
-    let resync = null;
-    let resolved = false;
-    const requestToken = async (base) => {
-      const result = await call(base, 'POST', '/magic-editor-x/collaboration/session', {
-        token,
-        body: {
-          ...target,
-          initialValue: { time: 1, blocks: [{ id: 'c1', type: 'paragraph', data: { text: 'Start' } }] },
-        },
-      });
-      if (result.status !== 200) throw new Error(`${name} session ${result.status}`);
-      return result.body.data;
-    };
-    const flush = () => {
-      if (!pending || !socket || !socket.connected) return;
-      const update = pending;
-      pending = null;
-      socket.timeout(5000).emit('mx:update', update, (error, reply) => {
-        if (error || !reply || !reply.ok) pending = pending ? Y.mergeUpdates([update, pending]) : update;
-        else acked += 1;
-      });
-    };
-    doc.on('update', (update, origin) => {
-      if (origin === 'remote') return;
-      pending = pending ? Y.mergeUpdates([pending, update]) : update;
-      flush();
+const session =
+  (authToken, base = BALANCER, gate = () => true) =>
+  async () => {
+    if (!gate()) throw Object.assign(new Error('offline'), { response: { status: 0 } });
+    const result = await call(base, 'POST', '/magic-editor-x/collaboration/session', {
+      token: authToken,
+      body: target,
     });
-    const open = async (sBase, wBase) => {
-      const first = await requestToken(sBase);
-      let firstToken = first.token;
-      socket = io(wBase, {
-        path: first.path,
-        transports: ['websocket'],
-        reconnectionDelay: 300,
-        reconnectionDelayMax: 1000,
-        auth: (cb) => {
-          if (firstToken) {
-            const t = firstToken;
-            firstToken = null;
-            cb({ token: t });
-          } else
-            requestToken(sBase).then(
-              (next) => cb({ token: next.token }),
-              () => cb({ token: '' })
-            );
-        },
-      });
-      socket.on('mx:sync', ({ update, stateVector }) => {
-        Y.applyUpdate(doc, new Uint8Array(update), 'remote');
-        const missing = Y.encodeStateAsUpdate(doc, new Uint8Array(stateVector));
-        if (missing.byteLength > 2) pending = pending ? Y.mergeUpdates([pending, missing]) : missing;
-        flush();
-        if (!resolved) {
-          resolved = true;
-          resolve(api);
-        }
-      });
-      socket.on('mx:update', (update) => Y.applyUpdate(doc, new Uint8Array(update), 'remote'));
-      socket.on('connect_error', () => {});
-      clearInterval(resync);
-      resync = setInterval(
-        () => socket.connected && socket.emit('mx:resync', Y.encodeStateVector(doc)),
-        2000
-      );
-    };
-    const api = {
-      name,
-      doc,
-      data: () => docToEditorData(doc),
-      edit: (mutator) => applyEditorDataToDoc(doc, mutator(docToEditorData(doc)), 'local'),
-      pendingBytes: () => (pending ? pending.byteLength : 0),
-      acked: () => acked,
-      /** Opens a new connection with the same document (a browser reconnecting through the load balancer). */
-      reconnect: async (sBase, wBase) => {
-        socket.removeAllListeners();
-        socket.disconnect();
-        await open(sBase, wBase);
-      },
-      close: () => {
-        clearInterval(resync);
-        socket.disconnect();
-      },
-    };
-    open(sessionBase(), socketBase()).catch(reject);
-  });
+    if (result.status !== 200)
+      throw Object.assign(new Error(`session ${result.status}`), { response: { status: result.status } });
+    return result.body.data;
+  };
 
-const textOf = (data, id) =>
-  (data.blocks.find((block) => block.id === id) || { data: { text: '' } }).data.text;
-
-// 1. two processes, concurrent edits
-const a = await client(
-  'A',
-  () => url(ports[0]),
-  () => url(ports[0])
-);
-const b = await client(
-  'B',
-  () => url(ports[1]),
-  () => url(ports[1])
-);
-const markers = [];
-for (let round = 0; round < 30; round += 1) {
-  const ma = `a${round};`;
-  const mb = `b${round};`;
-  markers.push(ma, mb);
-  a.edit((data) => ({
-    ...data,
-    blocks: data.blocks.map((block) =>
-      block.id === 'c1' ? { ...block, data: { text: `${ma}${block.data.text}` } } : block
-    ),
-  }));
-  b.edit((data) => ({
-    ...data,
-    blocks: data.blocks.map((block) =>
-      block.id === 'c1' ? { ...block, data: { text: `${block.data.text}${mb}` } } : block
-    ),
-  }));
-  if (round % 5 === 0) {
-    a.edit((data) => ({
-      ...data,
-      blocks: [
-        ...data.blocks,
-        { id: `ab${round}`, type: 'paragraph', data: { text: `block from A ${round}` } },
-      ],
-    }));
-    b.edit((data) => ({
-      ...data,
-      blocks: [
-        { id: `bb${round}`, type: 'header', data: { text: `heading from B ${round}`, level: 2 } },
-        ...data.blocks,
-      ],
-    }));
+const waitLive = async (list, ms = 60000) => {
+  const start = Date.now();
+  while (Date.now() - start < ms) {
+    if (list.every((sim) => sim.state.status === 'live')) return true;
+    await sleep(200);
   }
-  await sleep(40);
+  return false;
+};
+
+// --- clients -----------------------------------------------------------------
+const clients = [];
+for (let i = 0; i < CLIENTS; i += 1) {
+  const net = { online: true, sockets: [] };
+  const sim = simulatedEditor({
+    name: `c${i}`,
+    createCollabClient,
+    url: BALANCER,
+    requestSession: session(token, BALANCER, () => net.online),
+    onSocket: (socket) => net.sockets.push(socket),
+  });
+  sim.net = net;
+  clients.push(sim);
 }
-let converged = false;
-for (let i = 0; i < 60 && !converged; i += 1) {
-  await sleep(250);
-  converged = JSON.stringify(a.data().blocks) === JSON.stringify(b.data().blocks);
+record('all clients reach the live state', await waitLive(clients), `${CLIENTS} clients via the balancer`);
+
+// --- chaos phase ---------------------------------------------------------------
+const markers = [];
+let counter = 0;
+const slotEdit = (sim) => {
+  const marker = `[${sim.name}m${counter++}]`;
+  const ok = sim.edit((doc) => {
+    const slots = [];
+    doc.blocks.forEach((block) => {
+      if (block.type === 'paragraph') slots.push((f) => (block.data.text = f(block.data.text)));
+      if (block.type === 'table')
+        block.data.content.forEach((row) => row.forEach((_, k) => slots.push((f) => (row[k] = f(row[k])))));
+      if (block.type === 'list')
+        block.data.items.forEach((item) => slots.push((f) => (item.content = f(item.content))));
+    });
+    const r = Math.random();
+    const table = doc.blocks.find((block) => block.type === 'table');
+    const list = doc.blocks.find((block) => block.type === 'list');
+    if (r < 0.08) {
+      doc.blocks.splice(rnd(doc.blocks.length + 1), 0, {
+        id: `b${sim.name}x${counter}`,
+        type: 'paragraph',
+        data: { text: marker },
+      });
+    } else if (r < 0.12 && table) {
+      table.data.content.push([marker, '']);
+    } else if (r < 0.15 && list) {
+      list.data.items.push({ content: marker, meta: {}, items: [] });
+    } else {
+      slots[rnd(slots.length)]((text) => {
+        const s = String(text);
+        let at = rnd(s.length + 1);
+        const open = s.lastIndexOf('[', at - 1);
+        const close = s.lastIndexOf(']', at - 1);
+        if (open > close) at = open; // never split another marker
+        return s.slice(0, at) + marker + s.slice(at);
+      });
+    }
+  });
+  if (ok) markers.push(marker);
+};
+
+const down = new Set();
+const events = { kills: 0, partitions: 0, offline: 0 };
+const chaosEnd = Date.now() + DURATION_MS;
+process.on('message', (message) => {
+  if (message && message.restarted) down.delete(message.restarted);
+});
+const editing = (async () => {
+  while (Date.now() < chaosEnd) {
+    for (const sim of clients) if (Math.random() < 0.35) slotEdit(sim);
+    await sleep(150 + rnd(200));
+  }
+})();
+const chaos = (async () => {
+  while (Date.now() < chaosEnd - 20000) {
+    await sleep(8000 + rnd(6000));
+    const kind = rnd(3);
+    if (kind === 0 && down.size < 2) {
+      const port = ports[1 + rnd(ports.length - 1)];
+      if (down.has(port)) continue;
+      down.add(port);
+      events.kills += 1;
+      process.send?.({ kill: port });
+      setTimeout(() => process.send?.({ restart: port }), 4000);
+    } else if (kind === 1) {
+      events.partitions += 1;
+      process.send?.({ partition: ports[rnd(ports.length)], ms: 6000 });
+    } else {
+      const sim = clients[rnd(clients.length)];
+      events.offline += 1;
+      sim.net.online = false;
+      for (const socket of sim.net.sockets) if (socket.io && socket.io.engine) socket.io.engine.close();
+      setTimeout(() => {
+        sim.net.online = true;
+      }, 5000);
+    }
+  }
+})();
+await Promise.all([editing, chaos]);
+for (const sim of clients) sim.net.online = true;
+while (down.size > 0) await sleep(500);
+
+// --- convergence ---------------------------------------------------------------
+const settleStart = Date.now();
+let settled = false;
+while (!settled && Date.now() - settleStart < 120000) {
+  await sleep(1000);
+  const first = JSON.stringify(clients[0].client.getData().blocks);
+  settled =
+    clients.every((sim) => sim.state.status === 'live' && !sim.state.pending) &&
+    clients.every((sim) => JSON.stringify(sim.client.getData().blocks) === first);
 }
-const merged = textOf(a.data(), 'c1');
 record(
-  'two processes converge',
-  converged,
-  `ports ${ports[0]} and ${ports[1]}, ${a.data().blocks.length} blocks`
+  'chaos events happened',
+  events.kills > 0 && events.partitions > 0 && events.offline > 0,
+  `${events.kills} process kills, ${events.partitions} partitions, ${events.offline} client offline periods in ${Math.round(DURATION_MS / 1000)} s`
 );
 record(
-  'no concurrent edit lost',
-  markers.every((marker) => merged.includes(marker)),
-  `${markers.filter((m) => merged.includes(m)).length}/${markers.length} markers`
+  'every client converges with no unsent edits',
+  settled,
+  `after ${Math.round((Date.now() - settleStart) / 1000)} s`
 );
+const finalText = JSON.stringify(clients[0].client.getData());
+const lost = markers.filter((marker) => !finalText.includes(marker));
 record(
-  'concurrent block inserts kept',
-  [0, 5, 10, 15, 20, 25].every(
-    (round) =>
-      a.data().blocks.some((x) => x.id === `ab${round}`) && a.data().blocks.some((x) => x.id === `bb${round}`)
-  ),
-  'A appends, B prepends'
+  'zero lost edits',
+  lost.length === 0,
+  `${markers.length - lost.length}/${markers.length} edits present${lost.length ? `; lost ${lost.slice(0, 5).join(',')}` : ''}`
+);
+const dupes = markers.filter((marker) => finalText.split(marker).length > 2);
+record('no duplicated edits', dupes.length === 0, `${dupes.length} duplicates`);
+const rendered = clients.map((sim) => JSON.stringify(sim.editor.blocks));
+record(
+  'rendered editors equal the shared state',
+  rendered.every((value) => value === JSON.stringify(clients[0].client.getData().blocks)),
+  `${clients[0].editor.blocks.length} blocks`
+);
+const lastPort = ports[ports.length - 1];
+const fresh = simulatedEditor({
+  name: 'fresh',
+  createCollabClient,
+  url: url(lastPort),
+  requestSession: session(token, url(lastPort)),
+});
+await waitLive([fresh], 30000);
+await sleep(1000);
+record(
+  'a fresh client on another process sees the same state',
+  JSON.stringify(fresh.client.getData().blocks) === JSON.stringify(clients[0].client.getData().blocks),
+  `port ${lastPort}`
 );
 
-// 2. third client through the balancer
-const c = await client(
-  'C',
-  () => BALANCER,
-  () => BALANCER
-);
-await sleep(500);
+// --- permission revocation across processes ------------------------------------
+const suffix = crypto.randomBytes(3).toString('hex');
+const role = await call(url(ports[0]), 'POST', '/admin/roles', {
+  token,
+  body: { name: `Cluster ${suffix}`, description: 'temp' },
+});
+const roleId = role.body.data.id;
+const P = (action, subject = null, fields = null) => ({
+  action,
+  subject,
+  properties: fields ? { fields, locales: ['en'] } : {},
+  conditions: [],
+});
+const fields = ['title', 'body', 'sections.heading', 'sections.body'];
+const perms = (update, read = true) => [
+  ...(read ? [P('plugin::content-manager.explorer.read', 'api::article.article', fields)] : []),
+  ...(update ? [P('plugin::content-manager.explorer.update', 'api::article.article', fields)] : []),
+  P('plugin::magic-editor-x.access'),
+  P('plugin::magic-editor-x.collaborate'),
+];
+await call(url(ports[0]), 'PUT', `/admin/roles/${roleId}/permissions`, {
+  token,
+  body: { permissions: perms(true) },
+});
+const userEmail = `cluster-${suffix}@example.test`;
+const created = await call(url(ports[0]), 'POST', '/admin/users', {
+  token,
+  body: { firstname: 'Rita', lastname: 'Revoke', email: userEmail, roles: [roleId] },
+});
+const userPassword = `Mx1!${crypto.randomBytes(12).toString('base64url')}`;
+await call(url(ports[0]), 'POST', '/admin/register', {
+  body: {
+    registrationToken: created.body.data.registrationToken,
+    userInfo: { firstname: 'Rita', lastname: 'Revoke', password: userPassword },
+  },
+});
+const userToken = (
+  await call(url(ports[0]), 'POST', '/admin/login', { body: { email: userEmail, password: userPassword } })
+).body.data.token;
+const revokee = simulatedEditor({
+  name: 'revokee',
+  createCollabClient,
+  url: url(ports[2]),
+  requestSession: session(userToken, url(ports[2])),
+});
+await waitLive([revokee], 30000);
+let start = Date.now();
+await call(url(ports[5]), 'PUT', `/admin/roles/${roleId}/permissions`, {
+  token,
+  body: { permissions: perms(false) },
+});
+while (revokee.state.canEdit && Date.now() - start < 15000) await sleep(50);
+const downgradeMs = Date.now() - start;
 record(
-  'late joiner via balancer gets merged state',
-  JSON.stringify(c.data().blocks) === JSON.stringify(a.data().blocks),
-  `${c.data().blocks.length} blocks`
+  'downgrade to read-only reaches another process within the SLA',
+  !revokee.state.canEdit && downgradeMs < PERMISSION_SLA_MS,
+  `${downgradeMs} ms (change on ${ports[5]}, socket on ${ports[2]})`
+);
+start = Date.now();
+await call(url(ports[6]), 'PUT', `/admin/roles/${roleId}/permissions`, {
+  token,
+  body: { permissions: perms(false, false) },
+});
+while (revokee.state.status !== 'denied' && Date.now() - start < 15000) await sleep(50);
+const revokeMs = Date.now() - start;
+record(
+  'revocation ends the session on another process within the SLA',
+  revokee.state.status === 'denied' && revokeMs < PERMISSION_SLA_MS,
+  `${revokeMs} ms (change on ${ports[6]}, socket on ${ports[2]})`
+);
+revokee.client.destroy();
+
+// --- AI rate limit shared across processes ---------------------------------------
+const fake = http.createServer((req, res) => {
+  req.resume();
+  req.on('end', () => {
+    res.setHeader('content-type', 'application/json');
+    res.end(JSON.stringify({ choices: [{ message: { content: 'ok' }, finish_reason: 'stop' }] }));
+  });
+});
+await new Promise((resolve) => fake.listen(0, '127.0.0.1', resolve));
+const aiSettings = await call(url(ports[0]), 'PUT', '/magic-editor-x/settings', {
+  token,
+  body: {
+    ai: {
+      enabled: true,
+      provider: 'openai',
+      baseUrl: `http://127.0.0.1:${fake.address().port}/v1`,
+      model: 'synthetic',
+      maxInputChars: 2000,
+      maxOutputTokens: 256,
+      apiKey: 'sk-synthetic-cluster-key',
+    },
+  },
+});
+if (new Date().getSeconds() > 40) await sleep((61 - new Date().getSeconds()) * 1000);
+const statuses = [];
+for (let i = 0; i < 32; i += 1) {
+  const r = await call(url(ports[i % ports.length]), 'POST', '/magic-editor-x/ai/improve', {
+    token,
+    body: { text: `Hello ${i}` },
+  });
+  statuses.push(r.status);
+}
+fake.close();
+const okCount = statuses.filter((status) => status === 200).length;
+const limited = statuses.filter((status) => status === 429).length;
+record(
+  'AI rate limit is shared by all processes',
+  aiSettings.status === 200 && okCount === 20 && limited === 12,
+  `${okCount} answered, ${limited} refused with 429 across ${ports.length} processes (limit 20/min); settings ${aiSettings.status}`
 );
 
-// 3. kill the process of client A while it edits; it reconnects elsewhere
-const killPort = ports[0];
-process.send?.({ kill: killPort });
-await new Promise((resolve) =>
-  process.once('message', (message) => message && message.killed === killPort && resolve())
-);
-for (let i = 0; i < 10; i += 1) {
-  a.edit((data) => ({
-    ...data,
-    blocks: data.blocks.map((block) =>
-      block.id === 'c1' ? { ...block, data: { text: `${block.data.text}k${i};` } } : block
-    ),
-  }));
-  await sleep(100);
-}
-// A's process is gone: it reconnects through the balancer with the same document and unsent edits.
-await a.reconnect(BALANCER, BALANCER);
-let recovered = false;
-for (let i = 0; i < 80 && !recovered; i += 1) {
-  await sleep(250);
-  recovered =
-    a.pendingBytes() === 0 && [...Array(10).keys()].every((n) => textOf(b.data(), 'c1').includes(`k${n};`));
-}
-record(
-  'edits during a process crash are not lost',
-  recovered,
-  `client A reconnected after port ${killPort} was killed`
-);
-process.send?.({ restart: killPort });
-await new Promise((resolve) =>
-  process.once('message', (message) => message && message.restarted === killPort && resolve())
-);
-const d = await client(
-  'D',
-  () => url(killPort),
-  () => url(killPort)
-);
-await sleep(500);
-record(
-  'restarted process serves the full room',
-  JSON.stringify(d.data().blocks) === JSON.stringify(b.data().blocks),
-  `fresh client on ${killPort}`
-);
-
-// 4. exactly-once snapshots
+// --- versions exactly once ---------------------------------------------------------
+for (const sim of [...clients, fresh]) sim.client.destroy();
+await sleep(6000);
 const db = new pg.Client({ connectionString: process.env.MEX_CLUSTER_PG_URL });
 await db.connect();
-for (const x of [a, b, c, d]) x.close();
-await sleep(4000);
-const rows = (
+const locks = (
+  await db.query('select key, owner from magic_editor_x_locks where key like $1', [`snap:${room}:%`])
+).rows;
+const tLocks = locks.filter((row) => /:t\d+$/.test(row.key));
+const endLocks = locks.filter((row) => /:end\d+$/.test(row.key));
+const versions = (
   await db.query(
     "select trigger, content_hash, version from magic_editor_doc_snapshots where content_type = $1 and entry_id = $2 and field_name = 'body' order by version",
     [target.uid, target.documentId]
   )
 ).rows;
-const hashes = rows.map((row) => row.content_hash);
+const auto = versions.filter((row) => row.trigger === 'auto');
 record(
-  'session-end snapshot exactly once',
-  rows.filter((row) => row.trigger === 'auto').length >= 1 && new Set(hashes).size === hashes.length,
-  `${rows.length} snapshot(s), versions ${rows.map((r) => r.version).join(',')}`
+  'time-bucket versions: one lease per bucket across all processes',
+  tLocks.length >= 2 && new Set(tLocks.map((row) => row.key)).size === tLocks.length,
+  `${tLocks.length} buckets, taken by ${new Set(tLocks.map((row) => row.owner)).size} different process(es)`
 );
-const locks = (await db.query('select key from magic_editor_x_locks where key like $1', [`snap:${room}:%`]))
-  .rows;
-const endLocks = locks.filter((row) => row.key.includes(':end'));
 record(
-  'snapshot leases unique per key',
-  new Set(locks.map((row) => row.key)).size === locks.length,
-  `${endLocks.length} session-end lease(s), ${locks.length - endLocks.length} time-bucket lease(s)`
+  'automatic versions exactly once per key',
+  auto.length >= 1 &&
+    auto.length <= tLocks.length + endLocks.length &&
+    new Set(versions.map((row) => row.version)).size === versions.length,
+  `${auto.length} automatic versions for ${tLocks.length} bucket and ${endLocks.length} session-end leases; version numbers unique`
 );
 const stored = (
   await db.query(

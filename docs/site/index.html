@@ -12,6 +12,9 @@
     <meta name="theme-color" content="#f5f7fb" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#10131f" media="(prefers-color-scheme: dark)" />
     <link rel="canonical" href="https://schero94.github.io/Magic-Editor-X/" />
+    <link rel="icon" href="./img/icon.svg" type="image/svg+xml" />
+    <link rel="icon" href="./img/icon-128.png" type="image/png" sizes="128x128" />
+    <link rel="apple-touch-icon" href="./img/icon-512.png" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Magic Editor X" />
     <meta property="og:title" content="Magic Editor X: Editor.js block editor for Strapi 5" />
@@ -46,7 +49,7 @@
     <header class="topbar">
       <div class="topbar-inner">
         <a class="brand" href="#main-content" aria-label="Magic Editor X documentation home">
-          <span class="brand-mark" aria-hidden="true">MX</span>
+          <img class="brand-logo" src="./img/icon.svg" alt="" width="32" height="32" />
           <span>Magic Editor X</span>
         </a>
         <nav class="top-links" aria-label="Primary navigation">
@@ -146,8 +149,9 @@
             <article class="card">
               <h3>Live collaboration</h3>
               <p>
-                Several admins edit the same field with character-level merging, presence avatars and read-only
-                viewers, also across several servers without sticky sessions.
+                Several admins edit the same field at once: texts, table cells, list items, tunes and custom
+                fields merge without conflicts, with coloured carets, presence, per-user undo, offline editing
+                and read-only viewers, also across several servers without sticky sessions.
               </p>
             </article>
             <article class="card">
@@ -183,6 +187,36 @@
                 loading="lazy"
               />
               <figcaption>Live collaboration</figcaption>
+            </figure>
+            <figure class="shot">
+              <img
+                src="./img/collaboration-presence-1440.png"
+                alt="Two admins in one field: a coloured caret and selection with the name of the other admin and a marker at the block being edited"
+                width="1440"
+                height="900"
+                loading="lazy"
+              />
+              <figcaption>Carets and selections of others</figcaption>
+            </figure>
+            <figure class="shot">
+              <img
+                src="./img/collaboration-table-1440.png"
+                alt="A table edited by two admins at the same time; both cell edits are kept"
+                width="1440"
+                height="900"
+                loading="lazy"
+              />
+              <figcaption>Conflict-free table edit</figcaption>
+            </figure>
+            <figure class="shot">
+              <img
+                src="./img/collaboration-offline-1440.png"
+                alt="The editor while the connection is gone: the Offline badge and a note that changes are kept"
+                width="1440"
+                height="900"
+                loading="lazy"
+              />
+              <figcaption>Offline editing, sent after the reconnect</figcaption>
             </figure>
             <figure class="shot">
               <img
@@ -310,7 +344,9 @@
             <li>The browser uses the WebSocket transport only; allow WebSocket upgrades on <code>collaboration.path</code>.</li>
             <li>All processes share the database and the same <code>ADMIN_JWT_SECRET</code>, which signs the one-time session tokens.</li>
             <li>Every edit is stored before it is acknowledged; other processes pick it up every <code>collaboration.pollIntervalMs</code>.</li>
-            <li>Room seeding, compaction, automatic versions and cleanup run once across all processes.</li>
+            <li>Room seeding, compaction, automatic versions and cleanup run once across all processes; a room with unsaved edits gets a final version before it is cleaned up.</li>
+            <li>Permission changes reach every process within about a second; AI and session rate limits are shared by all processes.</li>
+            <li>Tested with 8 processes, 12 concurrent editors, killed and restarted processes, network partitions and offline clients: no edit lost.</li>
           </ul>
         </section>
 
@@ -371,7 +407,7 @@
             <li>Every value is normalised and sanitised on save, from the Content Manager, the Content API or code.</li>
             <li>Link previews and images by URL only reach public addresses, pinned after DNS resolution, with size, type and time limits.</li>
             <li>Uploads are checked by their content and stored through the Media Library.</li>
-            <li>Collaboration tokens are signed, short-lived and single-use; viewers cannot write.</li>
+            <li>Collaboration tokens are signed, short-lived and single-use; every update is checked before it is stored or relayed; remote content is sanitised before it is shown; viewers cannot write.</li>
             <li>The AI key is encrypted with AES-256-GCM and never returned; logs contain no content.</li>
           </ul>
         </section>

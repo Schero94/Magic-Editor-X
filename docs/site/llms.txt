@@ -9,13 +9,13 @@ Key facts for code generation:
 - Values are normalised and sanitised on every Document Service write; invalid or oversized values (over 5 MiB, 5000 blocks or depth 24) answer 400.
 - Inline HTML may contain b, strong, i, em, u, s, mark, code, a, br, span (cdx-tooltip), sub, sup. Escape plain-text fields when rendering.
 - Admin routes only, under `/magic-editor-x`, each gated by `admin::hasPermissions` with `plugin::magic-editor-x.access|collaborate|ai.use|custom-blocks.manage|settings.read|settings.update`. Version history and collaboration also check Content Manager read/update permissions per document, locale and field; denied answers 404.
-- Collaboration: `POST /magic-editor-x/collaboration/session` returns a one-time signed token; Socket.IO on `collaboration.path` with the WebSocket transport only; events `mx:sync`, `mx:update`, `mx:resync`, `mx:presence`, `mx:cursor`, `mx:role`, `mx:error`. Works without sticky sessions; all processes share the database and `ADMIN_JWT_SECRET`.
+- Collaboration: `POST /magic-editor-x/collaboration/session` returns a one-time signed token; Socket.IO on `collaboration.path` with the WebSocket transport only; handshake `auth: { token, protocol: 3 }`; events `mx:welcome`, `mx:sync`, `mx:update`, `mx:resync`, `mx:presence`, `mx:cursor`, `mx:role`, `mx:error`. Block data is structured in Yjs (schema 3: maps, arrays, texts per field), so concurrent edits of different cells, items, tunes and fields merge. Works without sticky sessions; all processes share the database and `ADMIN_JWT_SECRET`.
 - AI: `POST /magic-editor-x/ai/:action` with `{ text, language?, tone? }`; actions improve, grammar, shorten, expand, summarize, simplify, translate, tone, continue. The key never reaches the browser.
 
 ## Docs
 
 - [README](https://github.com/Schero94/Magic-Editor-X/blob/main/README.md): install, configuration, collaboration on several instances, AI provider, data format, routes, permissions, security, migration
-- [AGENTS.md](https://github.com/Schero94/Magic-Editor-X/blob/main/AGENTS.md): exact API contract, collaboration protocol, Yjs schema, rules for coding agents
+- [AGENTS.md](https://github.com/Schero94/Magic-Editor-X/blob/main/AGENTS.md): exact API contract, collaboration protocol, collaboration document model, rules for coding agents
 - [llms-full.txt](https://schero94.github.io/Magic-Editor-X/llms-full.txt): README and AGENTS.md in one file
 
 ## Optional

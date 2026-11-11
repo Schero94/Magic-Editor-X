@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useIntl } from 'react-intl';
+import { useHref, useNavigate } from 'react-router-dom';
 import EditorJS from '@editorjs/editorjs';
 import { Box, Button, Field, Flex, Loader, Typography, VisuallyHidden } from '@strapi/design-system';
 import { useFetchClient, useNotification, useStrapiApp } from '@strapi/strapi/admin';
 import styled, { createGlobalStyle } from 'styled-components';
 import { buildTools, editorI18n, createUndoManager, createDragDrop } from '../../editor/tools';
 import { editorStyles } from '../../editor/tools/styles';
-import { prepareEditorValue, sanitizeInline } from '../../editor/sanitize';
-import { applyToEditor, rememberBlocks } from '../../editor/apply-remote';
+import { createCspGuard } from '../../editor/tools/csp-guard';
+import { prepareEditorValue, prepareRemoteData, sanitizeInline } from '../../editor/sanitize';
+import { applyToEditor, blockKey, rememberBlocks } from '../../editor/apply-remote';
 import { computeStats } from '../../../../shared/editor-data.mjs';
 import { stableStringify } from '../../../../shared/ydoc.mjs';
 import { useEditorConfig } from '../../hooks/useEditorConfig';
@@ -18,6 +20,8 @@ import { useCollaboration } from './useCollaboration';
 import { EditorToolbar } from './EditorToolbar';
 import { HistoryModal } from './HistoryModal';
 import { AiDialog } from './AiDialog';
+import { RemoteCarets, offsetOf } from './RemoteCarets';
+import { usePresenceAnnouncements } from './usePresenceAnnouncements';
 
 /**
  * Magic Editor X field input for the Content Manager.
@@ -31,6 +35,9 @@ import { AiDialog } from './AiDialog';
 const SAVE_DEBOUNCE_MS = 150;
 
 const EditorStyles = createGlobalStyle`${editorStyles}`;
+
+/** Settings page that explains the CSP sources (registered in admin/src/index.js). */
+const SETTINGS_PATH = '/settings/magic-editor-x/configuration';
 
 const Frame = styled(Box)`
   min-width: 0;
@@ -54,6 +61,12 @@ const Frame = styled(Box)`
     overflow: hidden;
   `
       : ''}
+`;
+
+const EditorArea = styled.div`
+  position: relative;
+  min-width: 0;
+  ${({ $fullscreen }) => ($fullscreen ? 'flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0;' : '')}
 `;
 
 const Holder = styled.div`
@@ -110,6 +123,13 @@ const EditorField = ({
   const MediaLibraryDialog = useStrapiApp('MagicEditorX', (state) => state.components['media-library']);
   const { config, customBlocks, error: configError, loading: configLoading, retry } = useEditorConfig();
   const target = useFieldTarget(name);
+  const navigate = useNavigate();
+  const settingsHref = useHref(SETTINGS_PATH);
+  // The editor is not rebuilt on a locale switch; the link picker reads the current locale through this ref.
+  const contentLocaleRef = useRef(target.locale);
+  useEffect(() => {
+    contentLocaleRef.current = target.locale;
+  }, [target.locale]);
 
   const t = useCallback(
     (id, defaultMessage, values) => formatMessage({ id: getTranslation(id), defaultMessage }, values),
@@ -128,6 +148,13 @@ const EditorField = ({
   const pendingLocalRef = useRef(false);
   const syncedOnceRef = useRef(false);
   const historyButtonRef = useRef(null);
+  const areaRef = useRef(null);
+  const remoteCacheRef = useRef(new WeakMap());
+  // True once the user interacted with the editor. Before that, changes Editor.js
+  // makes on its own (normalising 1.x content while rendering) only move the
+  // baseline and never mark the form as changed.
+  const userTouchedRef = useRef(false);
+  const [contentVersion, setContentVersion] = useState(0);
   const onChangeRef = useRef(onChange);
   const [ready, setReady] = useState(false);
   const [stats, setStats] = useState({ blocks: 0, words: 0, characters: 0 });
@@ -152,7 +179,7 @@ const EditorField = ({
 
   /** Emits editor content to the Content Manager form when it changed. */
   const emit = useCallback(
-    (data) => {
+    (data, { baselineOnly = false } = {}) => {
       const meaningful =
         data &&
         Array.isArray(data.blocks) &&
@@ -166,6 +193,7 @@ const EditorField = ({
       if (key === lastEmittedRawRef.current) return;
       lastEmittedRawRef.current = key;
       lastEmittedRef.current = renderedKey(next);
+      if (baselineOnly) return;
       // Editor.js reuses the tune objects of a block between saves, and the
       // Content Manager form freezes what it stores. Hand over a copy so the
       // editor can keep writing to its own objects.
@@ -188,6 +216,11 @@ const EditorField = ({
           const data = await editor.save();
           rememberBlocks(knownRef.current, data);
           setStats(computeStats(data));
+          setContentVersion((version) => version + 1);
+          if (!userTouchedRef.current) {
+            emit(data, { baselineOnly: true });
+            return;
+          }
           emit(data);
           if (collabRef.current) collabRef.current.pushLocal(data);
           if (undoRef.current) undoRef.current.record();
@@ -252,12 +285,18 @@ const EditorField = ({
       }
       if (!['Shift', 'Control', 'Alt', 'Meta'].includes(event.key)) leaveArmed = false;
     };
+    const onTouch = () => {
+      userTouchedRef.current = true;
+    };
+    const touchEvents = ['pointerdown', 'keydown', 'input', 'paste', 'drop'];
+    touchEvents.forEach((type) => holder.addEventListener(type, onTouch, true));
     window.addEventListener('keydown', onKeyDown, true);
     holder.addEventListener('focusout', onFocusOut);
     holder.addEventListener('input', onInput);
     holder.addEventListener('click', onClick);
     holder.addEventListener('keyup', onKeyUp);
     return () => {
+      touchEvents.forEach((type) => holder.removeEventListener(type, onTouch, true));
       holder.removeEventListener('click', onClick);
       holder.removeEventListener('keyup', onKeyUp);
       holder.removeEventListener('focusout', onFocusOut);
@@ -276,6 +315,7 @@ const EditorField = ({
       try {
         await applyToEditor(editor, data || { blocks: [] }, knownRef.current);
         setStats(computeStats(data));
+        setContentVersion((version) => version + 1);
         if (emitToForm) emit(data);
         else {
           const shown = data && data.blocks && data.blocks.length ? data : null;
@@ -320,15 +360,30 @@ const EditorField = ({
     },
     onRemoteData: async () => {
       const client = collabRef.current;
-      if (!client) return;
+      const editor = editorRef.current;
+      if (!client || !editor) return;
       await flushLocal(client);
-      const shared = client.getData();
+      const { data, catchUp } = client.snapshot();
+      // Remote content is untrusted: it is sanitised with the shared policy
+      // before Editor.js renders it.
+      // Blocks whose shared content equals what this editor itself produced are
+      // the user's own edits: they are not rendered again (that would move the
+      // caret and close open tool panels when the sanitiser normalises them).
+      const own = new Set(
+        data.blocks.filter((block) => knownRef.current.get(block.id) === blockKey(block)).map((b) => b.id)
+      );
+      const shared = prepareRemoteData(data, remoteCacheRef.current);
+      shared.blocks.forEach((block) => {
+        if (own.has(block.id)) knownRef.current.set(block.id, blockKey(block));
+      });
       // The first room state only shows what is stored (normalised); it must
       // not mark the form as changed. Later remote edits do.
       const first = !syncedOnceRef.current;
       syncedOnceRef.current = true;
       await applyExternal(shared, { emitToForm: !first });
-      client.markShown(shared);
+      // The editor's own serialisation of what it now shows is the base of the next local diff.
+      const shown = await editor.save().catch(() => null);
+      client.markShown(catchUp, shown || shared);
     },
   });
   useEffect(() => {
@@ -336,6 +391,18 @@ const EditorField = ({
   }, [collaboration.client]);
 
   const readOnly = Boolean(disabled) || (collaboration.status === 'live' && !collaboration.canEdit);
+  const collabUndo = collaboration.active && collaboration.client && collaboration.canEdit;
+
+  // Undo/redo during live collaboration only revert the user's own changes.
+  useEffect(() => {
+    if (!ready || !undoRef.current) return undefined;
+    undoRef.current.setDelegate(collabUndo ? collaboration.client : null);
+    return () => {
+      if (undoRef.current) undoRef.current.setDelegate(null);
+    };
+  }, [ready, collabUndo, collaboration.client]);
+
+  const announcement = usePresenceAnnouncements(collaboration.peers, t);
 
   // Upload helpers (multipart through the admin fetch client).
   const upload = useCallback(
@@ -409,6 +476,12 @@ const EditorField = ({
     setStats(computeStats(initial));
     let destroyed = false;
     let dragDrop = null;
+    // Registered before Editor.js renders, so violations of the first render are seen.
+    const cspGuard = createCspGuard(holderRef.current, {
+      t,
+      settingsHref: permissions.settingsRead ? settingsHref : null,
+      onOpenSettings: () => navigate(SETTINGS_PATH),
+    });
     const editor = new EditorJS({
       holder: holderRef.current,
       data: initial || undefined,
@@ -421,6 +494,7 @@ const EditorField = ({
       tools: buildTools({
         t,
         fetchClient: { get, post },
+        getContentLocale: () => contentLocaleRef.current,
         uploadImage: (file) => upload(API.imageByFile, 'image', file),
         uploadImageByUrl,
         uploadFile: (file) => upload(API.fileUpload, 'file', file),
@@ -448,6 +522,7 @@ const EditorField = ({
     });
     return () => {
       destroyed = true;
+      cspGuard.destroy();
       clearTimeout(saveTimerRef.current);
       setReady(false);
       if (undoRef.current) undoRef.current.destroy();
@@ -512,7 +587,19 @@ const EditorField = ({
           return;
         const index = editor.blocks.getCurrentBlockIndex();
         const block = index >= 0 ? editor.blocks.getBlockByIndex(index) : null;
-        collaboration.client.sendCursor(block ? { blockId: block.id, offset: selection.anchorOffset } : null);
+        const content =
+          block && block.holder && (block.holder.querySelector('.ce-block__content') || block.holder);
+        if (!block || !content) {
+          collaboration.client.sendCursor(null);
+          return;
+        }
+        const anchor = offsetOf(content, selection.anchorNode, selection.anchorOffset);
+        const focus = offsetOf(content, selection.focusNode, selection.focusOffset);
+        collaboration.client.sendCursor({
+          blockId: block.id,
+          anchor: anchor ?? 0,
+          focus: focus ?? anchor ?? 0,
+        });
       }, 120);
     };
     document.addEventListener('selectionchange', onSelection);
@@ -594,7 +681,11 @@ const EditorField = ({
       const prepared = prepareEditorValue(content);
       if (!prepared.data) return false;
       await applyExternal(prepared.data, { emitToForm: true });
-      if (collabRef.current) collabRef.current.pushLocal(prepared.data);
+      if (collabRef.current && editorRef.current) {
+        const shown = await editorRef.current.save().catch(() => prepared.data);
+        collabRef.current.stopCapturing();
+        collabRef.current.pushLocal(shown);
+      }
       if (undoRef.current) undoRef.current.record();
       return true;
     },
@@ -657,8 +748,8 @@ const EditorField = ({
             readOnly={readOnly}
             fullscreen={fullscreen}
             onToggleFullscreen={() => setFullscreen((value) => !value)}
-            canUndo={undoState.canUndo}
-            canRedo={undoState.canRedo}
+            canUndo={collabUndo ? collaboration.canUndo : undoState.canUndo}
+            canRedo={collabUndo ? collaboration.canRedo : undoState.canRedo}
             onUndo={() => undoRef.current && undoRef.current.undo()}
             onRedo={() => undoRef.current && undoRef.current.redo()}
             historyAvailable={Boolean(target.uid && target.documentId)}
@@ -682,15 +773,29 @@ const EditorField = ({
               <Loader small>{t('editor.loading', 'Loading the editor')}</Loader>
             </Flex>
           ) : null}
-          <Holder
-            ref={holderRef}
-            className="mex-editor"
-            $minHeight={minHeight}
-            $fullscreen={fullscreen}
-            data-testid="magic-editor-x"
-            aria-busy={!ready}
-            aria-describedby={`${name}-mex-keyboard`}
-          />
+          <EditorArea ref={areaRef} $fullscreen={fullscreen}>
+            <Holder
+              ref={holderRef}
+              className="mex-editor"
+              $minHeight={minHeight}
+              $fullscreen={fullscreen}
+              data-testid="magic-editor-x"
+              aria-busy={!ready}
+              aria-describedby={`${name}-mex-keyboard`}
+            />
+            {collaboration.active && collaboration.peers.length > 0 ? (
+              <RemoteCarets
+                containerRef={areaRef}
+                holderRef={holderRef}
+                peers={collaboration.peers}
+                version={contentVersion}
+                t={t}
+              />
+            ) : null}
+          </EditorArea>
+          <VisuallyHidden aria-live="polite" aria-atomic="true">
+            {announcement}
+          </VisuallyHidden>
           <VisuallyHidden id={`${name}-mex-keyboard`}>
             {t(
               'editor.keyboard',

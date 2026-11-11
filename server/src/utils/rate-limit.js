@@ -3,8 +3,9 @@
 /**
  * Fixed-window rate limiter kept in process memory.
  * Buckets are keyed by route identity plus the authenticated admin, never by
- * the raw path or a client-supplied header. With several processes each one
- * counts separately (documented in the README).
+ * the raw path or a client-supplied header. Used as the fallback when the
+ * shared database counter (store.hit) is unavailable, and for per-socket
+ * limits (a socket lives in exactly one process).
  */
 
 /**
