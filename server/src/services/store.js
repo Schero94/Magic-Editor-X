@@ -1,5 +1,6 @@
 'use strict';
 
+const { createHash } = require('node:crypto');
 const { createLogger } = require('../utils/logger');
 
 /**
@@ -24,6 +25,22 @@ const TABLES = Object.freeze({
   locks: 'magic_editor_x_locks',
   counters: 'magic_editor_x_counters',
 });
+
+const ABORT = 'magic-editor-x:abort-transaction';
+
+/**
+ * Lock-table key of a room's generation row.
+ * @param {string} room - Room key.
+ * @returns {string} Key (max 255 characters; long room keys are hashed).
+ */
+const generationKey = (room) => {
+  const key = `gen:${room}`;
+  if (key.length <= 255) return key;
+  return `gen#${createHash('sha256').update(room).digest('hex')}`;
+};
+
+/** Expiry of rows that must never be pruned (signals, generations). */
+const FOREVER = () => Date.now() + 10 * 365 * 24 * 3600 * 1000;
 
 module.exports = ({ strapi }) => {
   const logger = createLogger(strapi);
@@ -243,13 +260,19 @@ module.exports = ({ strapi }) => {
     },
 
     /**
-     * Appends one Yjs update.
+     * Appends one Yjs update. With `options.epoch`, the row is only written
+     * while the room is still at that generation: the generation row
+     * (`gen:<room>` in the locks table) is read with a shared lock in the same
+     * transaction, so a compaction that switches the generation either waits
+     * for this write or makes it fail with `code: 'STALE_GENERATION'`.
      * @param {string} room - Room key.
      * @param {Uint8Array} update - Yjs update.
      * @param {'seed'|'update'|'compact'} [kind='update'] - Row kind.
+     * @param {{ epoch?: string }} [options] - Generation the update was checked against.
      * @returns {Promise<number>} The row id.
+     * @throws {Error} `code: 'STALE_GENERATION'` when the room moved to another generation.
      */
-    async appendUpdate(room, update, kind = 'update') {
+    async appendUpdate(room, update, kind = 'update', options = {}) {
       const row = {
         room,
         kind,
@@ -257,9 +280,131 @@ module.exports = ({ strapi }) => {
         size: update.byteLength,
         created_at: Date.now(),
       };
-      const result = await table(TABLES.updates).insert(row, ['id']);
-      const first = Array.isArray(result) ? result[0] : result;
-      return Number(typeof first === 'object' && first !== null ? first.id : first);
+      const insert = async (trx) => {
+        const query = table(TABLES.updates);
+        const result = await (trx ? query.transacting(trx) : query).insert(row, ['id']);
+        const first = Array.isArray(result) ? result[0] : result;
+        return Number(typeof first === 'object' && first !== null ? first.id : first);
+      };
+      if (typeof options.epoch !== 'string') return insert(null);
+      return db().transaction(async (trx) => {
+        const generation = await table(TABLES.locks)
+          .transacting(trx)
+          .where({ key: generationKey(room) })
+          .forShare()
+          .first('owner');
+        if (generation && String(generation.owner) !== options.epoch) {
+          const error = new Error('The room moved to a new generation');
+          error.code = 'STALE_GENERATION';
+          throw error;
+        }
+        return insert(trx);
+      });
+    },
+
+    /**
+     * Records the generation (epoch) of a room unless one is recorded already.
+     * @param {string} room - Room key.
+     * @param {string} epoch - Generation of the stored rows.
+     * @returns {Promise<void>}
+     */
+    async ensureGeneration(room, epoch) {
+      const key = generationKey(room);
+      const existing = await table(TABLES.locks).where({ key }).first('owner');
+      if (existing) return;
+      try {
+        await table(TABLES.locks).insert({ key, owner: String(epoch || ''), expires_at: FOREVER() });
+      } catch {
+        // another process recorded it first
+      }
+    },
+
+    /**
+     * Forgets the generation of a room (before a new room is seeded).
+     * @param {string} room - Room key.
+     * @returns {Promise<void>}
+     */
+    async deleteGeneration(room) {
+      await table(TABLES.locks)
+        .where({ key: generationKey(room) })
+        .del();
+    },
+
+    /**
+     * Current generation of a room ('' when none is recorded).
+     * @param {string} room - Room key.
+     * @returns {Promise<string|null>} Epoch, or null when no generation row exists.
+     */
+    async getGeneration(room) {
+      const row = await table(TABLES.locks)
+        .where({ key: generationKey(room) })
+        .first('owner');
+      return row ? String(row.owner) : null;
+    },
+
+    /**
+     * Replaces a whole room generation with a fresh seed in one transaction
+     * (room compaction). Succeeds only when the room is still at generation
+     * `fromEpoch` and no row was written after `lastId`; otherwise nothing
+     * changes. The new seed keeps `createdAt` of the last old row, so the
+     * compaction itself does not count as activity (room TTL, versions).
+     * @param {string} room - Room key.
+     * @param {{ ids: number[], lastId: number, lastAt: number, fromEpoch: string, toEpoch: string, seed: Uint8Array }} input - Generation switch.
+     * @returns {Promise<number>} Id of the new seed row, or 0 when the room changed meanwhile.
+     */
+    async replaceGeneration(room, { ids, lastId, lastAt, fromEpoch, toEpoch, seed }) {
+      return db()
+        .transaction(async (trx) => {
+          const key = generationKey(room);
+          const generation = await table(TABLES.locks)
+            .transacting(trx)
+            .where({ key })
+            .forUpdate()
+            .first('owner');
+          if (generation && String(generation.owner) !== fromEpoch) return 0;
+          if (generation) {
+            await table(TABLES.locks)
+              .transacting(trx)
+              .where({ key })
+              .update({ owner: toEpoch, expires_at: FOREVER() });
+          } else {
+            await table(TABLES.locks).transacting(trx).insert({ key, owner: toEpoch, expires_at: FOREVER() });
+          }
+          const [newer] = await table(TABLES.updates)
+            .transacting(trx)
+            .where({ room })
+            .andWhere('id', '>', lastId)
+            .count({ count: 'id' });
+          if (Number(newer?.count || 0) > 0) throw new Error(ABORT);
+          const result = await table(TABLES.updates)
+            .transacting(trx)
+            .insert(
+              {
+                room,
+                kind: 'seed',
+                data: Buffer.from(seed).toString('base64'),
+                size: seed.byteLength,
+                created_at: lastAt || Date.now(),
+              },
+              ['id']
+            );
+          let deleted = 0;
+          for (let i = 0; i < ids.length; i += 500) {
+            const chunk = ids.slice(i, i + 500);
+            deleted += await table(TABLES.updates)
+              .transacting(trx)
+              .whereIn('id', chunk)
+              .andWhere({ room })
+              .del();
+          }
+          if (deleted !== ids.length) throw new Error(ABORT);
+          const first = Array.isArray(result) ? result[0] : result;
+          return Number(typeof first === 'object' && first !== null ? first.id : first);
+        })
+        .catch((error) => {
+          if (error && error.message === ABORT) return 0;
+          throw error;
+        });
     },
 
     /**
@@ -333,21 +478,32 @@ module.exports = ({ strapi }) => {
      * @returns {Promise<void>}
      */
     async replaceRows(room, ids, update) {
-      await db().transaction(async (trx) => {
-        await table(TABLES.updates)
-          .transacting(trx)
-          .insert({
-            room,
-            kind: 'compact',
-            data: Buffer.from(update).toString('base64'),
-            size: update.byteLength,
-            created_at: Date.now(),
-          });
-        for (let i = 0; i < ids.length; i += 500) {
-          const chunk = ids.slice(i, i + 500);
-          await table(TABLES.updates).transacting(trx).whereIn('id', chunk).andWhere({ room }).del();
-        }
-      });
+      await db()
+        .transaction(async (trx) => {
+          await table(TABLES.updates)
+            .transacting(trx)
+            .insert({
+              room,
+              kind: 'compact',
+              data: Buffer.from(update).toString('base64'),
+              size: update.byteLength,
+              created_at: Date.now(),
+            });
+          let deleted = 0;
+          for (let i = 0; i < ids.length; i += 500) {
+            const chunk = ids.slice(i, i + 500);
+            deleted += await table(TABLES.updates)
+              .transacting(trx)
+              .whereIn('id', chunk)
+              .andWhere({ room })
+              .del();
+          }
+          // Rows already replaced by a new generation: the merged old state must not be stored.
+          if (deleted !== ids.length) throw new Error(ABORT);
+        })
+        .catch((error) => {
+          if (!error || error.message !== ABORT) throw error;
+        });
     },
 
     /**
@@ -358,7 +514,7 @@ module.exports = ({ strapi }) => {
     async deleteRoom(room) {
       await table(TABLES.updates).where({ room }).del();
       await table(TABLES.locks)
-        .where({ key: `seed:${room}` })
+        .whereIn('key', [`seed:${room}`.slice(0, 255), generationKey(room)])
         .del();
     },
 

@@ -51,6 +51,7 @@ const RESEND_WINDOW_MS = 5000;
 const COMPACT_THRESHOLD = 200;
 const MAX_ROOM_BYTES = 64 * 1024 * 1024;
 const MAX_INVALID_UPDATES = 5;
+const MAX_RETIRED_CLIENTS = 10000;
 /** Design System colour families for presence; the admin resolves them per theme. */
 const COLORS = ['primary', 'danger', 'success', 'warning', 'secondary', 'alternative'];
 
@@ -115,6 +116,26 @@ const cleanCursor = (cursor) => {
     };
   }
   return { idle };
+};
+
+/**
+ * True when an update writes or deletes items of clients that belong to an
+ * older room generation (such updates are answered RETRY; the client moves
+ * to the new generation and re-applies its edit there).
+ * @param {Uint8Array} update - Yjs update.
+ * @param {Set<number>} retired - Client ids of older generations.
+ * @returns {boolean} Result.
+ */
+const touchesRetiredClients = (update, retired) => {
+  if (!retired || retired.size === 0) return false;
+  try {
+    const decoded = Y.decodeUpdate(update);
+    if (decoded.structs.some((struct) => retired.has(struct.id.client))) return true;
+    for (const client of decoded.ds.clients.keys()) if (retired.has(client)) return true;
+    return false;
+  } catch {
+    return false;
+  }
 };
 
 /**
@@ -235,6 +256,8 @@ module.exports = ({ strapi }) => {
         for (const row of rows) if (row.id > state.watermark) state.seen.set(row.id, now);
         if (state.doc) state.doc.destroy();
         state.doc = doc;
+        state.loadedAt = now;
+        if (rows.length) await store().ensureGeneration(room, epochOf(doc));
         return doc;
       })().finally(() => {
         state.loading = null;
@@ -271,11 +294,14 @@ module.exports = ({ strapi }) => {
       const again = await store().roomStats(room);
       if (again.count === 0) {
         const content = await loadContent();
+        const epoch = randomUUID();
+        await store().deleteGeneration(room);
         await store().appendUpdate(
           room,
-          createSeedUpdate(content || { time: Date.now(), blocks: [], version: '2.31.7' }, randomUUID()),
+          createSeedUpdate(content || { time: Date.now(), blocks: [], version: '2.31.7' }, epoch),
           'seed'
         );
+        await store().ensureGeneration(room, epoch);
         return true;
       }
       return false;
@@ -366,6 +392,52 @@ module.exports = ({ strapi }) => {
   };
 
   /**
+   * Moves a room to the generation stored in the database (after a
+   * compaction or a re-seed): the old in-memory document is dropped (its
+   * memory is freed), the new one is loaded and every local socket gets the
+   * full new state with its epoch. Clients keep their connection; they see
+   * the new epoch, start over with fresh documents and re-apply edits that
+   * were never acknowledged. When loading fails, the sockets are reset.
+   * @param {string} room - Room key.
+   * @returns {Promise<void>}
+   */
+  const switchGeneration = async (room) => {
+    const state = rooms.get(room);
+    if (!state) return;
+    if (state.switching) return state.switching;
+    state.switching = (async () => {
+      if (state.doc) {
+        // Updates from clients of the old generation are never merged into the new one.
+        const retired = state.retired || new Set();
+        for (const client of Y.decodeStateVector(Y.encodeStateVector(state.doc)).keys()) {
+          if (retired.size >= MAX_RETIRED_CLIENTS) break;
+          retired.add(client);
+        }
+        state.retired = retired;
+      }
+      dropDoc(room);
+      try {
+        const doc = await ensureDoc(room);
+        const payload = {
+          update: Y.encodeStateAsUpdate(doc),
+          stateVector: Y.encodeStateVector(doc),
+          epoch: epochOf(doc),
+        };
+        for (const socket of state.sockets) socket.emit('mx:sync', payload);
+      } catch (error) {
+        logger.warn('room generation switch failed', {
+          code: error && error.code,
+          name: error && error.name,
+        });
+        resetRoom(room, 'ROOM_RESET');
+      }
+    })().finally(() => {
+      state.switching = null;
+    });
+    return state.switching;
+  };
+
+  /**
    * One polling tick: relay updates written by other processes, keep the
    * in-memory documents current and refresh presence.
    * @returns {Promise<void>}
@@ -382,22 +454,24 @@ module.exports = ({ strapi }) => {
         const state = rooms.get(row.room);
         if (!state || row.id <= state.watermark || state.seen.has(row.id)) continue;
         state.seen.set(row.id, now);
-        if (row.kind === 'seed' && state.doc) {
-          // A new room generation (the old room was cleaned up): clients start over.
-          const probe = new Y.Doc();
-          let reset = false;
-          try {
-            Y.applyUpdate(probe, row.update);
-            reset = epochOf(probe) !== epochOf(state.doc);
-          } catch {
-            reset = false;
-          } finally {
-            probe.destroy();
+        if (row.kind === 'seed') {
+          // A seed is a whole room generation: it is never relayed as an update.
+          // A new epoch (compaction or a room that was cleaned up and seeded
+          // again) moves the room and its sockets to the new generation.
+          let next = true;
+          if (state.doc) {
+            const probe = new Y.Doc();
+            try {
+              Y.applyUpdate(probe, row.update);
+              next = epochOf(probe) !== epochOf(state.doc);
+            } catch {
+              next = true;
+            } finally {
+              probe.destroy();
+            }
           }
-          if (reset) {
-            resetRoom(row.room, 'ROOM_RESET');
-            continue;
-          }
+          if (next && (state.doc || state.sockets.size > 0)) await switchGeneration(row.room);
+          continue;
         }
         if (state.doc) {
           try {
@@ -444,6 +518,99 @@ module.exports = ({ strapi }) => {
       await store().replaceRows(room, ids, update);
     } finally {
       await store().release(key, PROCESS_ID);
+    }
+  };
+
+  /**
+   * Rebuilds a long-lived room as a new generation when it is idle and its
+   * Yjs state is much larger than a fresh copy of the same content (Yjs keeps
+   * metadata of every deleted character for as long as a document lives).
+   * Runs under the room's compaction lease and succeeds at most once per
+   * generation across the cluster (`replaceGeneration` checks the epoch and
+   * that nothing was written meanwhile).
+   * @param {string} room - Room key.
+   * @param {{ idleMs: number, minBytes: number, ratio: number, force?: boolean }} limits - Thresholds (`force` skips the size checks, tests only).
+   * @returns {Promise<{ compacted: boolean, before?: number, after?: number }>} Result.
+   */
+  const compactGeneration = async (room, limits) => {
+    const state = rooms.get(room);
+    if (!state || !state.doc || state.switching) return { compacted: false };
+    const stats = await store().roomStats(room);
+    if (stats.count === 0 || Date.now() - stats.lastAt < limits.idleMs) return { compacted: false };
+    if (!limits.force && stats.bytes < limits.minBytes) return { compacted: false };
+    const before = Y.encodeStateAsUpdate(state.doc).byteLength;
+    if (!limits.force) {
+      if (before < limits.minBytes) return { compacted: false };
+      const fresh = createSeedUpdate(docToEditorData(state.doc), 'probe').byteLength;
+      if (before < fresh * limits.ratio) return { compacted: false };
+    }
+    const key = `compact:${room}`.slice(0, 255);
+    if (!(await store().acquire(key, PROCESS_ID, 60000))) return { compacted: false };
+    try {
+      const rows = await store().readRoom(room);
+      if (rows.length === 0) return { compacted: false };
+      const last = rows[rows.length - 1];
+      if (Date.now() - Math.max(...rows.map((row) => row.createdAt || 0)) < limits.idleMs)
+        return { compacted: false };
+      const doc = new Y.Doc();
+      let fromEpoch;
+      let data;
+      try {
+        for (const row of rows) {
+          try {
+            Y.applyUpdate(doc, row.update);
+          } catch {
+            // a damaged row is skipped, as when the room is loaded
+          }
+        }
+        fromEpoch = epochOf(doc);
+        data = docToEditorData(doc);
+      } finally {
+        doc.destroy();
+      }
+      const generation = await store().getGeneration(room);
+      if (generation !== null && generation !== fromEpoch) return { compacted: false };
+      const toEpoch = randomUUID();
+      const seed = createSeedUpdate(data, toEpoch);
+      const id = await store().replaceGeneration(room, {
+        ids: rows.map((row) => row.id),
+        lastId: last.id,
+        lastAt: Math.max(...rows.map((row) => row.createdAt || 0)),
+        fromEpoch,
+        toEpoch,
+        seed,
+      });
+      if (!id) return { compacted: false };
+      state.seen.set(id, Date.now());
+      await switchGeneration(room);
+      logger.info('collaboration room compacted', { before, after: seed.byteLength, rows: rows.length });
+      return { compacted: true, before, after: seed.byteLength };
+    } finally {
+      await store()
+        .release(key, PROCESS_ID)
+        .catch(() => {});
+    }
+  };
+
+  /** Checks every live room of this process for compaction. */
+  const compactionTick = async () => {
+    const options = conf('compaction', {}) || {};
+    if (options.enabled === false) return;
+    const limits = {
+      idleMs: Math.max(15, Number(options.idleSeconds) || 60) * 1000,
+      minBytes: Number(options.minBytes) || 256 * 1024,
+      ratio: Number(options.ratio) || 4,
+    };
+    for (const [room, state] of Array.from(rooms)) {
+      if (state.sockets.size === 0 || !state.doc) continue;
+      try {
+        await compactGeneration(room, limits);
+      } catch (error) {
+        logger.warn('collaboration room compaction failed', {
+          code: error && error.code,
+          name: error && error.name,
+        });
+      }
     }
   };
 
@@ -754,7 +921,10 @@ module.exports = ({ strapi }) => {
       if (!updates.hit('u', now).allowed || bytesWindow.bytes > maxBytesPer10s)
         return reply({ ok: false, code: 'RATE_LIMITED' });
       try {
+        if (state.switching) await state.switching;
         const roomDoc = await ensureDoc(room);
+        if (state.retired && touchesRetiredClients(update, state.retired))
+          return reply({ ok: false, code: 'RETRY' });
         const result = applyCheckedUpdate(roomDoc, update);
         if (!result.ok) {
           if (result.dirty) dropDoc(room);
@@ -776,8 +946,14 @@ module.exports = ({ strapi }) => {
         }
         let id;
         try {
-          id = await store().appendUpdate(room, update, 'update');
+          id = await store().appendUpdate(room, update, 'update', { epoch: epochOf(roomDoc) });
         } catch (error) {
+          if (error && error.code === 'STALE_GENERATION') {
+            // Another process compacted the room: move to the new generation; the
+            // client keeps the edit and re-applies it there.
+            switchGeneration(room).catch(() => {});
+            return reply({ ok: false, code: 'RETRY' });
+          }
           // The in-memory document already holds the update; rebuild it from the database.
           dropDoc(room);
           throw error;
@@ -977,6 +1153,10 @@ module.exports = ({ strapi }) => {
       every(poll, Math.max(50, Number(conf('pollIntervalMs', 400))));
       every(maintenanceTick, HEARTBEAT_MS);
       every(snapshotTick, 5000);
+      every(
+        compactionTick,
+        Math.max(1, Number((conf('compaction', {}) || {}).checkIntervalSeconds) || 30) * 1000
+      );
       every(signalTick, SIGNAL_CHECK_MS);
       every(revalidate, Math.max(5, Number(conf('revalidateSeconds', 60))) * 1000);
     },
@@ -1016,6 +1196,33 @@ module.exports = ({ strapi }) => {
     pollNow: poll,
     /** Test hook: runs one maintenance tick. */
     maintenanceNow: maintenanceTick,
+    /** Test hook: runs one compaction check. */
+    compactionNow: compactionTick,
+    /**
+     * Test and operations hook: compacts one room now (still under the lease
+     * and the generation check).
+     * @param {string} room - Room key.
+     * @param {{ idleMs?: number, force?: boolean }} [options] - Overrides.
+     * @returns {Promise<{ compacted: boolean, before?: number, after?: number }>} Result.
+     */
+    compactRoom: (room, options = {}) =>
+      compactGeneration(room, {
+        idleMs: options.idleMs ?? 0,
+        minBytes: 0,
+        ratio: 1,
+        force: options.force === true,
+      }),
+    /**
+     * Memory view of the rooms of this process (no content).
+     * @returns {Array<{ room: string, sockets: number, bytes: number, epoch: string }>} Rooms.
+     */
+    roomsInfo: () =>
+      Array.from(rooms.entries()).map(([room, state]) => ({
+        room,
+        sockets: state.sockets.size,
+        bytes: state.doc ? Y.encodeStateAsUpdate(state.doc).byteLength : 0,
+        epoch: state.doc ? epochOf(state.doc) : '',
+      })),
   };
 };
 

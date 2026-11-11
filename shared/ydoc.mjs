@@ -92,18 +92,15 @@ export const applyTextDiff = (ytext, next) => {
 };
 
 /**
- * Applies a local text edit (base -> local) to a shared text that may already
- * contain other changes. The edit position is mapped through those changes so
- * concurrent typing at different places is kept.
+ * Fallback of `applyTextEdit` for very long or very different texts: one
+ * edit region, mapped through the common prefix and suffix of the shared text.
  * @param {Y.Text} ytext - Shared text.
  * @param {string} base - Text the editor started from.
  * @param {string} local - Text the editor has now.
  * @returns {boolean} True when the shared text changed.
  */
-export const applyTextEdit = (ytext, base, local) => {
-  if (base === local) return false;
+const applyTextEditApprox = (ytext, base, local) => {
   const shared = ytext.toString();
-  if (shared === base) return applyTextDiff(ytext, local);
   let start = 0;
   while (start < base.length && start < local.length && base.charCodeAt(start) === local.charCodeAt(start))
     start += 1;
@@ -134,6 +131,219 @@ export const applyTextEdit = (ytext, base, local) => {
   const inserted = local.slice(start, endLocal);
   if (inserted) ytext.insert(Math.min(from, ytext.length), inserted);
   return true;
+};
+
+const MAX_DIFF_LENGTH = 200000;
+const MAX_DIFF_EDITS = 4000;
+
+/**
+ * Character matches of a shortest edit script between two strings (Myers'
+ * O(ND) algorithm).
+ * @param {string} a - Old text.
+ * @param {string} b - New text.
+ * @returns {Int32Array|null} For every index of `a`, the index of the same character in `b` (-1 when deleted), or null when the texts are too long or too different.
+ */
+export const matchCharacters = (a, b) => {
+  const n = a.length;
+  const m = b.length;
+  if (n + m > MAX_DIFF_LENGTH) return null;
+  const limit = Math.min(n + m, MAX_DIFF_EDITS);
+  const offset = limit + 1;
+  const v = new Int32Array(2 * limit + 3);
+  const trace = [];
+  let found = -1;
+  for (let d = 0; d <= limit && found < 0; d += 1) {
+    trace.push(v.slice());
+    for (let k = -d; k <= d; k += 2) {
+      let x =
+        k === -d || (k !== d && v[offset + k - 1] < v[offset + k + 1])
+          ? v[offset + k + 1]
+          : v[offset + k - 1] + 1;
+      let y = x - k;
+      while (x < n && y < m && a.charCodeAt(x) === b.charCodeAt(y)) {
+        x += 1;
+        y += 1;
+      }
+      v[offset + k] = x;
+      if (x >= n && y >= m) {
+        found = d;
+        break;
+      }
+    }
+  }
+  if (found < 0) return null;
+  const match = new Int32Array(n).fill(-1);
+  let x = n;
+  let y = m;
+  for (let d = found; d > 0; d -= 1) {
+    const previous = trace[d];
+    const k = x - y;
+    const prevK =
+      k === -d || (k !== d && previous[offset + k - 1] < previous[offset + k + 1]) ? k + 1 : k - 1;
+    const prevX = previous[offset + prevK];
+    const prevY = prevX - prevK;
+    while (x > prevX && y > prevY) {
+      x -= 1;
+      y -= 1;
+      match[x] = y;
+    }
+    x = prevX;
+    y = prevY;
+  }
+  while (x > 0 && y > 0) {
+    x -= 1;
+    y -= 1;
+    match[x] = y;
+  }
+  return match;
+};
+
+const isOpenBoundary = (char) => char === undefined || char === '[' || char === '<' || /\s/.test(char);
+const isCloseBoundary = (char) => char === undefined || char === ']' || char === '>' || /\s/.test(char);
+
+/**
+ * Moves single insertions and deletions of a character diff to the
+ * neighbouring position that lines up with markup and word boundaries
+ * (a minimal diff of "[a][b]" -> "[a][x][b]" may insert "x][" after the
+ * second "[", which breaks three-way merges; this moves it to "[x]").
+ * @param {string} a - Old text.
+ * @param {string} b - New text.
+ * @param {Int32Array} match - Result of `matchCharacters(a, b)`.
+ * @returns {Int32Array} Equivalent matches with aligned edits.
+ */
+const alignEdits = (a, b, match) => {
+  const ops = [];
+  let i = 0;
+  let j = 0;
+  const push = (type, text) => {
+    const last = ops[ops.length - 1];
+    if (last && last.type === type) last.text += text;
+    else ops.push({ type, text });
+  };
+  while (i < a.length || j < b.length) {
+    if (i < a.length && match[i] === j) {
+      push('=', a[i]);
+      i += 1;
+      j += 1;
+    } else if (i < a.length && match[i] < 0) {
+      push('-', a[i]);
+      i += 1;
+    } else {
+      push('+', b[j]);
+      j += 1;
+    }
+  }
+  const score = (before, text, after) =>
+    (isCloseBoundary(before) ? 1 : 0) +
+    (isOpenBoundary(text[0]) || isCloseBoundary(before) ? 1 : 0) +
+    (isCloseBoundary(text[text.length - 1]) || isOpenBoundary(after) ? 1 : 0) +
+    (isOpenBoundary(after) ? 1 : 0);
+  for (let k = 1; k < ops.length - 1; k += 1) {
+    const op = ops[k];
+    const prev = ops[k - 1];
+    const next = ops[k + 1];
+    if (op.type === '=' || prev.type !== '=' || next.type !== '=') continue;
+    let left = prev.text;
+    let text = op.text;
+    let right = next.text;
+    while (left && left[left.length - 1] === text[text.length - 1]) {
+      right = text[text.length - 1] + right;
+      text = left[left.length - 1] + text.slice(0, -1);
+      left = left.slice(0, -1);
+    }
+    let best = { left, text, right, score: score(left[left.length - 1], text, right[0]) };
+    while (right && right[0] === text[0]) {
+      left += text[0];
+      text = text.slice(1) + right[0];
+      right = right.slice(1);
+      const value = score(left[left.length - 1], text, right[0]);
+      if (value > best.score) best = { left, text, right, score: value };
+    }
+    prev.text = best.left;
+    op.text = best.text;
+    next.text = best.right;
+  }
+  const out = new Int32Array(a.length).fill(-1);
+  i = 0;
+  j = 0;
+  for (const op of ops) {
+    for (let c = 0; c < op.text.length; c += 1) {
+      if (op.type === '=') {
+        out[i] = j;
+        i += 1;
+        j += 1;
+      } else if (op.type === '-') i += 1;
+      else j += 1;
+    }
+  }
+  return out;
+};
+
+/**
+ * Applies a local text edit (base -> local) to a shared text that may already
+ * contain other changes (three-way). Every changed region of the local edit is
+ * mapped through a character diff of base and shared text, so concurrent
+ * changes anywhere else in the text are kept, and an edit the shared text
+ * already holds is not applied twice.
+ * @param {Y.Text} ytext - Shared text.
+ * @param {string} base - Text the editor started from.
+ * @param {string} local - Text the editor has now.
+ * @returns {boolean} True when the shared text changed.
+ */
+export const applyTextEdit = (ytext, base, local) => {
+  if (base === local) return false;
+  const shared = ytext.toString();
+  // The shared text already holds this edit (for example an edit that was
+  // stored but whose acknowledgement was lost before a new room generation).
+  if (shared === local) return false;
+  if (shared === base) return applyTextDiff(ytext, local);
+  const sharedMatch = matchCharacters(base, shared);
+  const localMatch = sharedMatch && matchCharacters(base, local);
+  if (!sharedMatch || !localMatch) return applyTextEditApprox(ytext, base, local);
+  const toShared = alignEdits(base, shared, sharedMatch);
+  const toLocal = alignEdits(base, local, localMatch);
+  // Hunks of the local edit: base range [a0, a1) replaced by local text.
+  const hunks = [];
+  let i = 0;
+  let j = 0;
+  while (i < base.length || j < local.length) {
+    if (i < base.length && toLocal[i] === j) {
+      i += 1;
+      j += 1;
+      continue;
+    }
+    const a0 = i;
+    while (i < base.length && toLocal[i] < 0) i += 1;
+    const next = i < base.length ? toLocal[i] : local.length;
+    hunks.push({ a0, a1: i, text: local.slice(j, next) });
+    j = next;
+  }
+  let changed = false;
+  for (let h = hunks.length - 1; h >= 0; h -= 1) {
+    const { a0, a1, text } = hunks[h];
+    let at = 0;
+    for (let k = a0 - 1; k >= 0; k -= 1) {
+      if (toShared[k] >= 0) {
+        at = toShared[k] + 1;
+        break;
+      }
+    }
+    // Delete only base characters the shared text still has (right to left).
+    for (let k = a1 - 1; k >= a0; k -= 1) {
+      if (toShared[k] < 0) continue;
+      let first = k;
+      while (first - 1 >= a0 && toShared[first - 1] >= 0 && toShared[first - 1] === toShared[first] - 1)
+        first -= 1;
+      ytext.delete(toShared[first], toShared[k] - toShared[first] + 1);
+      changed = true;
+      k = first;
+    }
+    if (text) {
+      ytext.insert(Math.min(at, ytext.length), text);
+      changed = true;
+    }
+  }
+  return changed;
 };
 
 /**
@@ -375,6 +585,8 @@ const alignIndexes = (base, current) => {
 const mergeValue = (current, base, local, depth) => {
   if (base !== undefined && equal(base, local)) return 'same';
   if (depth > MAX_DEPTH) return 'replace';
+  // Already shared (an edit applied twice, for example after a new room generation).
+  if (current !== undefined && equal(readShared(current, depth), local)) return 'same';
   if (typeof local === 'string' && current instanceof Y.Text) {
     applyTextEdit(current, typeof base === 'string' ? base : current.toString(), local);
     return 'merged';

@@ -32,6 +32,7 @@ const ACK_TIMEOUT_MS = 10000;
 const RETRY_BASE_MS = 500;
 const RETRY_MAX_MS = 15000;
 const IDLE_AFTER_MS = 60000;
+const SERVER_LOG_BATCH = 100;
 
 /** Empty Yjs update (no structs, no deletes). */
 const isEmptyUpdate = (update) => !update || update.byteLength <= 2;
@@ -94,8 +95,12 @@ export const createCollabClient = ({
   let seededBySelf = false;
   let epoch = null;
   let attempt = 0;
-  let confirmed = { blocks: [] };
-  let lastLocal = null;
+  // What the server has acknowledged or sent (as Yjs updates, merged in
+  // batches): the base for re-applying unsent edits after a new room
+  // generation, so only the unsent edits are re-applied, never remote ones.
+  let serverState = null;
+  let serverLog = [];
+  let restoreView = null;
   let rescue = null;
   let lastActivity = Date.now();
   let lastCursor = null;
@@ -130,7 +135,7 @@ export const createCollabClient = ({
       inFlight = false;
       if (sentWith !== replica || destroyed) return;
       if (!error && reply && reply.ok) {
-        if (!pending) confirmed = replica.read();
+        recordServer(update);
         setState({});
         flush();
         return;
@@ -154,6 +159,25 @@ export const createCollabClient = ({
     setState({});
   };
 
+  const recordServer = (update) => {
+    serverLog.push(update);
+    if (serverLog.length >= SERVER_LOG_BATCH) {
+      serverState = Y.mergeUpdates(serverState ? [serverState, ...serverLog] : serverLog);
+      serverLog = [];
+    }
+  };
+
+  /** Content the server is known to hold (acknowledged and received updates). */
+  const serverContent = () => {
+    const doc = new Y.Doc();
+    try {
+      for (const update of serverState ? [serverState, ...serverLog] : serverLog) Y.applyUpdate(doc, update);
+      return docToEditorData(doc);
+    } finally {
+      doc.destroy();
+    }
+  };
+
   const createDocs = () => {
     if (replica) replica.destroy();
     replica = createReplica({
@@ -169,6 +193,8 @@ export const createCollabClient = ({
     pending = null;
     inFlight = false;
     synced = false;
+    serverState = null;
+    serverLog = [];
     undoState();
   };
 
@@ -179,11 +205,16 @@ export const createCollabClient = ({
    * @param {boolean} keepUnsent - Re-apply unacknowledged edits.
    */
   startOver = (keepUnsent) => {
-    const unsent = keepUnsent && (pending || inFlight) ? lastLocal : null;
-    const base = confirmed;
+    // Unsent edits = what this replica holds beyond what the server holds.
+    const unsent = keepUnsent && (pending || inFlight) && replica ? replica.read() : null;
+    const base = unsent ? serverContent() : null;
+    // What the editor shows: the next local diff starts from it, so content the
+    // editor has not rendered yet (the new state) is never taken for a deletion.
+    const view = synced && replica ? replica.view() : null;
     createDocs();
     epoch = null;
     rescue = unsent ? { base, local: unsent } : null;
+    restoreView = view;
     if (socket && socket.connected) socket.emit('mx:resync', new Uint8Array([0]));
   };
 
@@ -290,7 +321,9 @@ export const createCollabClient = ({
     socket.on('mx:sync', (message) => {
       if (!message || !message.update) return;
       if (epoch !== null && message.epoch !== undefined && message.epoch !== epoch) startOver(true);
-      replica.applyRemote(new Uint8Array(message.update));
+      const update = new Uint8Array(message.update);
+      recordServer(update);
+      replica.applyRemote(update);
       epoch = message.epoch !== undefined ? message.epoch : replica.epoch();
       if (message.stateVector && state.canEdit) {
         const missing = Y.encodeStateAsUpdate(replica.doc, new Uint8Array(message.stateVector));
@@ -301,13 +334,14 @@ export const createCollabClient = ({
       if (first) {
         const shown = replica.snapshot();
         replica.markShown(shown.catchUp);
-        if (!pending && !inFlight) confirmed = shown.data;
       }
       if (rescue) {
         const { base, local } = rescue;
         rescue = null;
         if (state.canEdit) replica.rebase(base, local);
       }
+      if (first && restoreView) replica.setView(restoreView);
+      if (first) restoreView = null;
       setState({ status: 'live' });
       // Later syncs render only when they changed something (the replica
       // reports that through onShouldRender).
@@ -319,7 +353,10 @@ export const createCollabClient = ({
         });
     });
     socket.on('mx:update', (update) => {
-      if (replica) replica.applyRemote(new Uint8Array(update));
+      if (!replica) return;
+      const bytes = new Uint8Array(update);
+      recordServer(bytes);
+      replica.applyRemote(bytes);
     });
     socket.on('mx:presence', (peers) => {
       setState({
@@ -374,7 +411,6 @@ export const createCollabClient = ({
      */
     pushLocal(data) {
       if (destroyed || !synced || !state.canEdit) return;
-      lastLocal = data;
       lastActivity = Date.now();
       if (idle) {
         idle = false;
