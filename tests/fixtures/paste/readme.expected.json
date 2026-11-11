@@ -1,0 +1,147 @@
+[
+  {
+    "type": "header",
+    "data": {
+      "text": "Example Widget",
+      "level": 1
+    }
+  },
+  {
+    "type": "paragraph",
+    "data": {
+      "text": "A <b>small</b> library for <i>synthetic</i> data. See <a href=\"https://docs.example.com/widget\">the docs</a> or <code class=\"inline-code\">npm i widget</code>."
+    }
+  },
+  {
+    "type": "header",
+    "data": {
+      "text": "Install",
+      "level": 2
+    }
+  },
+  {
+    "type": "codeFlask",
+    "data": {
+      "code": "npm install example-widget",
+      "language": "bash"
+    }
+  },
+  {
+    "type": "header",
+    "data": {
+      "text": "Features",
+      "level": 2
+    }
+  },
+  {
+    "type": "list",
+    "data": {
+      "style": "unordered",
+      "meta": {},
+      "items": [
+        {
+          "content": "Fast",
+          "meta": {},
+          "items": [
+            {
+              "content": "Really fast",
+              "meta": {},
+              "items": []
+            }
+          ]
+        },
+        {
+          "content": "Small",
+          "meta": {},
+          "items": []
+        }
+      ]
+    }
+  },
+  {
+    "type": "list",
+    "data": {
+      "style": "ordered",
+      "meta": {
+        "start": 3,
+        "counterType": "numeric"
+      },
+      "items": [
+        {
+          "content": "Third",
+          "meta": {},
+          "items": []
+        },
+        {
+          "content": "Fourth",
+          "meta": {},
+          "items": []
+        }
+      ]
+    }
+  },
+  {
+    "type": "checklist",
+    "data": {
+      "items": [
+        {
+          "text": "Tests",
+          "checked": true
+        },
+        {
+          "text": "Docs",
+          "checked": false
+        }
+      ]
+    }
+  },
+  {
+    "type": "quote",
+    "data": {
+      "text": "Note: this is a quote with two lines",
+      "caption": "",
+      "alignment": "left"
+    }
+  },
+  {
+    "type": "table",
+    "data": {
+      "withHeadings": true,
+      "stretched": false,
+      "content": [
+        ["Option", "Default"],
+        ["<code class=\"inline-code\">size</code>", "10"],
+        ["<s class=\"cdx-strikethrough\">old</s>", "—"]
+      ]
+    }
+  },
+  {
+    "type": "delimiter",
+    "data": {}
+  },
+  {
+    "type": "image",
+    "data": {
+      "file": {
+        "url": "https://cdn.example.com/diagram.png",
+        "alt": "Diagram"
+      },
+      "caption": "Architecture",
+      "withBorder": false,
+      "withBackground": false,
+      "stretched": false
+    }
+  },
+  {
+    "type": "paragraph",
+    "data": {
+      "text": "Line one<br>line two &amp; more."
+    }
+  },
+  {
+    "type": "paragraph",
+    "data": {
+      "text": "<b>raw</b> html"
+    }
+  }
+]

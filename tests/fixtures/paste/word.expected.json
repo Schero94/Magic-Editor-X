@@ -1,0 +1,80 @@
+[
+  {
+    "type": "header",
+    "data": {
+      "text": "Quarterly field notes",
+      "level": 1
+    }
+  },
+  {
+    "type": "header",
+    "data": {
+      "text": "Summary",
+      "level": 2
+    }
+  },
+  {
+    "type": "paragraph",
+    "data": {
+      "text": "This report covers the <b>synthetic</b> trial at <i>Example Farm</i>, see <a href=\"https://example.com/trial?utm_source=word\">the trial page</a>."
+    }
+  },
+  {
+    "type": "list",
+    "data": {
+      "style": "unordered",
+      "meta": {},
+      "items": [
+        {
+          "content": "Soil samples",
+          "meta": {},
+          "items": [
+            {
+              "content": "North field",
+              "meta": {},
+              "items": []
+            }
+          ]
+        },
+        {
+          "content": "Water <b>quality</b>",
+          "meta": {},
+          "items": []
+        }
+      ]
+    }
+  },
+  {
+    "type": "list",
+    "data": {
+      "style": "ordered",
+      "meta": {
+        "start": 1,
+        "counterType": "numeric"
+      },
+      "items": [
+        {
+          "content": "Collect",
+          "meta": {},
+          "items": []
+        },
+        {
+          "content": "Analyse",
+          "meta": {},
+          "items": []
+        }
+      ]
+    }
+  },
+  {
+    "type": "table",
+    "data": {
+      "withHeadings": false,
+      "stretched": false,
+      "content": [
+        ["<b>Plot</b>", "<b>Yield</b>"],
+        ["A", "4.2 t"]
+      ]
+    }
+  }
+]
