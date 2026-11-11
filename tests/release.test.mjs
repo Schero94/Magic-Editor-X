@@ -134,6 +134,7 @@ test('the package ships only build output and the top-level docs', () => {
   const pkg = JSON.parse(read('package.json'));
   assert.deepEqual(pkg.files, [
     'dist',
+    'bin',
     'strapi-admin.js',
     'strapi-server.js',
     'README.md',
@@ -142,5 +143,8 @@ test('the package ships only build output and the top-level docs', () => {
   ]);
   for (const entry of pkg.files) assert.doesNotMatch(entry, /docs|tests|pics|scripts/);
   assert.equal(pkg.name, 'magic-editor-x');
+  // The CLI is self-contained (Node built-ins and the project's own @strapi/strapi).
+  assert.deepEqual(pkg.bin, { 'magic-editor-x': 'bin/magic-editor-x.mjs' });
+  assert.doesNotMatch(read('bin/magic-editor-x.mjs'), /from '\.\.?\//);
   assert.equal(pkg.homepage, 'https://schero94.github.io/Magic-Editor-X/');
 });

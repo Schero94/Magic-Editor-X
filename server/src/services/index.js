@@ -11,4 +11,5 @@ module.exports = {
   history: require('./history'),
   collaboration: require('./collaboration'),
   migrations: require('./migrations'),
+  migrate: require('./migrate'),
 };

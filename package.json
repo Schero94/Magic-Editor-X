@@ -44,8 +44,12 @@
       "default": "./dist/server/index.js"
     }
   },
+  "bin": {
+    "magic-editor-x": "bin/magic-editor-x.mjs"
+  },
   "files": [
     "dist",
+    "bin",
     "strapi-admin.js",
     "strapi-server.js",
     "README.md",
