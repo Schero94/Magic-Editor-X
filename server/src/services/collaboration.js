@@ -495,15 +495,28 @@ module.exports = ({ strapi }) => {
     }
   };
 
+  /**
+   * Automatic versions per time bucket: when a bucket ends, the room's state
+   * is stored once (lease `snap:<room>:t<bucket>`) if it changed during that
+   * bucket. Taking the version at the end of the period keeps the last state
+   * of it and does not create a version seconds after someone starts typing.
+   */
   const snapshotTick = async () => {
     const minutes = Number(conf('snapshotIntervalMinutes', 10));
     if (!minutes) return;
-    const bucket = Math.floor(Date.now() / (minutes * 60000));
+    const length = minutes * 60000;
+    const bucket = Math.floor(Date.now() / length);
     for (const [room, state] of rooms) {
-      if (state.sockets.size === 0 || state.lastBucket === bucket) continue;
+      if (state.sockets.size === 0) continue;
+      if (state.lastBucket === undefined) {
+        state.lastBucket = bucket;
+        continue;
+      }
+      if (state.lastBucket === bucket) continue;
+      const previous = bucket - 1;
       try {
         const stats = await store().roomStats(room);
-        if (stats.lastAt > Date.now() - minutes * 60000) await autoSnapshot(room, `t${bucket}`);
+        if (stats.lastAt >= previous * length) await autoSnapshot(room, `t${previous}`);
         state.lastBucket = bucket;
       } catch (error) {
         logger.warn('automatic snapshot failed', { code: error && error.code, name: error && error.name });
