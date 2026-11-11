@@ -112,24 +112,34 @@ export class ToggleTool {
   }
 
   applyChildren() {
+    // Every DOM write below is skipped when nothing changes: Editor.js reports
+    // DOM mutations inside a block as an update, which calls this again.
     if (!this.wrapper) return;
     const open = this.data.status === 'open';
-    this.button.setAttribute('aria-expanded', open ? 'true' : 'false');
-    this.wrapper.classList.toggle('mex-toggle--closed', !open);
+    const expanded = open ? 'true' : 'false';
+    if (this.button.getAttribute('aria-expanded') !== expanded)
+      this.button.setAttribute('aria-expanded', expanded);
+    if (this.wrapper.classList.contains('mex-toggle--closed') === open)
+      this.wrapper.classList.toggle('mex-toggle--closed', !open);
     const indexes = toggleChildIndexes(this.index(), this.data.items, this.api.blocks.getBlocksCount());
-    this.clearMarks();
-    for (const index of indexes) {
-      const child = this.api.blocks.getBlockByIndex(index);
-      if (!child || !child.holder) continue;
-      child.holder.classList.add(CHILD);
-      child.holder.classList.toggle(HIDDEN, !open);
-      this.marked.push(child.holder);
+    const holders = indexes
+      .map((index) => this.api.blocks.getBlockByIndex(index))
+      .filter((child) => child && child.holder)
+      .map((child) => child.holder);
+    for (const holder of this.marked) {
+      if (!holders.includes(holder)) holder.classList.remove(CHILD, HIDDEN);
     }
-    this.count.textContent = indexes.length
+    for (const holder of holders) {
+      if (!holder.classList.contains(CHILD)) holder.classList.add(CHILD);
+      if (holder.classList.contains(HIDDEN) === open) holder.classList.toggle(HIDDEN, !open);
+    }
+    this.marked = holders;
+    const label = indexes.length
       ? this.t('tools.toggle.count', '{count, plural, one {# block} other {# blocks}}', {
           count: indexes.length,
         })
       : '';
+    if (this.count.textContent !== label) this.count.textContent = label;
   }
 
   changed() {

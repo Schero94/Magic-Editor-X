@@ -28,7 +28,7 @@ import { AiDialog } from './AiDialog';
  * restores and form resets are applied with the fewest block operations.
  */
 
-const SAVE_DEBOUNCE_MS = 250;
+const SAVE_DEBOUNCE_MS = 150;
 
 const EditorStyles = createGlobalStyle`${editorStyles}`;
 
@@ -112,6 +112,7 @@ const EditorField = ({
   const applyingRef = useRef(false);
   const saveTimerRef = useRef(null);
   const collabRef = useRef(null);
+  const pendingLocalRef = useRef(false);
   const onChangeRef = useRef(onChange);
   const [ready, setReady] = useState(false);
   const [stats, setStats] = useState({ blocks: 0, words: 0, characters: 0 });
@@ -149,30 +150,58 @@ const EditorField = ({
       const key = contentKey(next);
       if (key === lastEmittedRef.current) return;
       lastEmittedRef.current = key;
-      onChangeRef.current(name, next);
+      // Editor.js reuses the tune objects of a block between saves, and the
+      // Content Manager form freezes what it stores. Hand over a copy so the
+      // editor can keep writing to its own objects.
+      onChangeRef.current(name, next ? JSON.parse(JSON.stringify(next)) : null);
     },
     [name]
   );
 
-  /** Saves the editor (debounced) after a local change. */
-  const scheduleSave = useCallback(() => {
-    if (applyingRef.current) return;
-    clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(async () => {
-      const editor = editorRef.current;
-      if (!editor || applyingRef.current) return;
-      try {
-        const data = await editor.save();
-        rememberBlocks(knownRef.current, data);
-        setStats(computeStats(data));
-        emit(data);
-        if (collabRef.current) collabRef.current.pushLocal(data);
-        if (undoRef.current) undoRef.current.record();
-      } catch {
-        // Editor.js rejects saves while a block is being re-rendered; the next change saves again.
-      }
-    }, SAVE_DEBOUNCE_MS);
-  }, [emit]);
+  /** Saves the editor (debounced) after a local change; `delay` 0 saves at once. */
+  const scheduleSave = useCallback(
+    (delay = SAVE_DEBOUNCE_MS) => {
+      if (applyingRef.current) return;
+      pendingLocalRef.current = true;
+      clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = setTimeout(async () => {
+        const editor = editorRef.current;
+        if (!editor || applyingRef.current) return;
+        pendingLocalRef.current = false;
+        try {
+          const data = await editor.save();
+          rememberBlocks(knownRef.current, data);
+          setStats(computeStats(data));
+          emit(data);
+          if (collabRef.current) collabRef.current.pushLocal(data);
+          if (undoRef.current) undoRef.current.record();
+        } catch {
+          // Editor.js rejects saves while a block is being re-rendered; the next change saves again.
+        }
+      }, delay);
+    },
+    [emit]
+  );
+
+  // Editor.js reports changes with a delay. When focus leaves the editor (for
+  // example to click Save), store the current content right away so the
+  // Content Manager never saves an older value.
+  useEffect(() => {
+    const holder = holderRef.current;
+    if (!holder || !ready) return undefined;
+    const onFocusOut = (event) => {
+      if (!event.relatedTarget || !holder.contains(event.relatedTarget)) scheduleSave(0);
+    };
+    // Typing is saved shortly after each input event instead of waiting for
+    // Editor.js' own (slower) change notification.
+    const onInput = () => scheduleSave(40);
+    holder.addEventListener('focusout', onFocusOut);
+    holder.addEventListener('input', onInput);
+    return () => {
+      holder.removeEventListener('focusout', onFocusOut);
+      holder.removeEventListener('input', onInput);
+    };
+  }, [ready, scheduleSave]);
 
   /** Applies a document from outside (collaboration, history, form reset). */
   const applyExternal = useCallback(
@@ -194,6 +223,20 @@ const EditorField = ({
     [emit]
   );
 
+  /** Saves pending local edits into the shared document before remote content is shown. */
+  const flushLocal = async (client) => {
+    const editor = editorRef.current;
+    if (!editor || !client || !pendingLocalRef.current) return;
+    clearTimeout(saveTimerRef.current);
+    pendingLocalRef.current = false;
+    try {
+      const local = await editor.save();
+      client.pushLocal(local);
+    } catch {
+      // the next change is saved again
+    }
+  };
+
   const collaboration = useCollaboration({
     target: collaborationTarget,
     getLocalData: () => {
@@ -201,7 +244,21 @@ const EditorField = ({
       return prepared.data;
     },
     ready,
-    onRemoteData: (data) => applyExternal(data, { emitToForm: true }),
+    onFirstSync: async (seeded, client) => {
+      const editor = editorRef.current;
+      if (!seeded || !editor) return;
+      const local = await editor.save().catch(() => null);
+      if (local && local.blocks.length > 0 && contentKey(local) !== contentKey(client.getData()))
+        client.pushLocal(local);
+    },
+    onRemoteData: async () => {
+      const client = collabRef.current;
+      if (!client) return;
+      await flushLocal(client);
+      const shared = client.getData();
+      await applyExternal(shared, { emitToForm: true });
+      client.markShown(shared);
+    },
   });
   useEffect(() => {
     collabRef.current = collaboration.client;
@@ -299,6 +356,7 @@ const EditorField = ({
         attachmentTypes: config.uploads.attachmentTypes,
       }),
       onChange: () => scheduleSave(),
+
       onReady: () => {
         if (destroyed) return;
         editorRef.current = editor;
@@ -399,10 +457,9 @@ const EditorField = ({
         return;
       }
       const editor = editorRef.current;
-      if (!editor || images.length === 0) return;
-      const start = Number.isInteger(request.blockIndex)
-        ? request.blockIndex
-        : editor.blocks.getBlocksCount();
+      if (!editor) return;
+      const placeholder = Number.isInteger(request.blockIndex) ? request.blockIndex : null;
+      const start = placeholder !== null ? placeholder : editor.blocks.getBlocksCount();
       images.forEach((asset, offset) => {
         editor.blocks.insert(
           'image',
@@ -428,6 +485,12 @@ const EditorField = ({
           offset === images.length - 1
         );
       });
+      // The Media Library toolbox entry leaves a placeholder block; it is never stored.
+      if (placeholder !== null) {
+        const index = placeholder + images.length;
+        const block = editor.blocks.getBlockByIndex(index);
+        if (block && block.name === 'mediaLib') editor.blocks.delete(index);
+      }
       scheduleSave();
     },
     [mediaRequest, scheduleSave]
@@ -436,7 +499,15 @@ const EditorField = ({
   const closeMediaLibrary = useCallback(() => {
     const request = mediaRequest || {};
     setMediaRequest(null);
-    if (typeof request.onSelect === 'function') request.onSelect([]);
+    if (typeof request.onSelect === 'function') {
+      request.onSelect([]);
+      return;
+    }
+    const editor = editorRef.current;
+    if (editor && Number.isInteger(request.blockIndex)) {
+      const block = editor.blocks.getBlockByIndex(request.blockIndex);
+      if (block && block.name === 'mediaLib') editor.blocks.delete(request.blockIndex);
+    }
   }, [mediaRequest]);
 
   /** Replaces the editor content with a snapshot; the form becomes dirty and the user saves as usual. */
