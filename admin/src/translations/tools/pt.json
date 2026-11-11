@@ -148,5 +148,11 @@
   "tools.ui.nothingFound": "Nada encontrado",
   "tools.ui.stub": "Este bloco não pode ser apresentado. O seu conteúdo é mantido ao guardar.",
   "tools.warning.message": "Mensagem",
-  "tools.warning.title": "Título"
+  "tools.warning.title": "Título",
+  "tools.csp.embedBlocked": "Este conteúdo incorporado está bloqueado pela sua Content Security Policy.",
+  "tools.csp.imageBlocked": "Esta imagem está bloqueada pela sua Content Security Policy.",
+  "tools.csp.hostBlocked": "O painel de administração não permite conteúdo de {host}. O bloco é guardado sem alterações e continua a aparecer no seu site.",
+  "tools.csp.blockedGeneric": "O painel de administração não permite este conteúdo. O bloco é guardado sem alterações e continua a aparecer no seu site.",
+  "tools.csp.howTo": "Como permitir",
+  "tools.csp.askAdmin": "Peça a um administrador que o permita na Content Security Policy."
 }

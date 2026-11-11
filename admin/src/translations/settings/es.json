@@ -224,5 +224,20 @@
   "settings.validation.range": "Introduzca un número entero de {min} a {max}.",
   "settings.validation.reenterKey": "Introduzca la clave de API de nuevo cuando cambie el proveedor o la URL base.",
   "settings.validation.required": "Este campo es obligatorio.",
-  "settings.validation.url": "Introduzca una URL http o https válida sin nombre de usuario ni contraseña."
+  "settings.validation.url": "Introduzca una URL http o https válida sin nombre de usuario ni contraseña.",
+  "settings.csp.title": "Content Security Policy",
+  "settings.csp.subtitle": "La Content Security Policy del panel se define en config/middlewares.js. El plugin nunca la cambia.",
+  "settings.csp.alertTitle": "Algunas vistas previas del editor están bloqueadas",
+  "settings.csp.alertBody": "Su Content Security Policy bloquea contenido que muestra el editor. El contenido guardado no se ve afectado; los editores ven un marcador en su lugar. Para permitirlo, añada las fuentes siguientes al middleware strapi::security y reinicie Strapi.",
+  "settings.csp.frames": "Contenido incrustado (frame-src)",
+  "settings.csp.framesBlocked": "Bloqueado: {sources}",
+  "settings.csp.images": "Imágenes externas (img-src)",
+  "settings.csp.imagesBlocked": "Bloqueado: imágenes de otros hosts (por ejemplo, vistas previas de enlaces)",
+  "settings.csp.imagesHint": "El fragmento añade https:. Puede indicar sus hosts de imágenes en su lugar.",
+  "settings.csp.allowed": "Permitido",
+  "settings.csp.codeLabel": "Fragmento para config/middlewares.js",
+  "settings.csp.copy": "Copiar el fragmento",
+  "settings.csp.copied": "Fragmento copiado al portapapeles.",
+  "settings.csp.copyFailed": "El navegador no permitió copiar. El fragmento está seleccionado; cópielo con Ctrl+C o Cmd+C.",
+  "settings.csp.mergeHint": "Conserve sus otras directivas (por ejemplo, los hosts de su proveedor de subida) y reinicie Strapi después del cambio."
 }

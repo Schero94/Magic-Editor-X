@@ -358,9 +358,54 @@ Content-Type: application/json
 - **Secrets:** the AI key is encrypted with AES-256-GCM (random IV, versioned format) and never returned. Changing the provider or base URL requires entering the key again, so a stored key cannot be sent to another host.
 - **Logs** contain operation names and error codes only, never content, URLs with queries, tokens, user ids or email addresses.
 - **Stored data:** custom block definitions, versions (field content and the admin who saved it), live rooms (Yjs updates, removed `collaboration.roomTtlMinutes` after the last person left) and presence rows (admin display name, colour, caret position; removed when the socket closes or after missed heartbeats).
-- **Content Security Policy:** Editor.js and the Design System add inline styles, which Strapi's default `style-src 'unsafe-inline'` allows. The socket connects to the same origin as the admin, which `connect-src 'self'` covers; add the `wss:` origin only when the admin runs on another host. Embed iframes need `frame-src` only on your frontend.
+- **Content Security Policy:** Editor.js and the Design System add inline styles, which Strapi's default `style-src 'unsafe-inline'` allows. The socket connects to the same origin as the admin, which `connect-src 'self'` covers; add the `wss:` origin only when the admin runs on another host. Embeds and external images in the editor preview need `frame-src` and `img-src` sources; see [Content Security Policy](#content-security-policy) below.
 
 Report vulnerabilities privately through GitHub security advisories on the repository.
+
+### Content Security Policy
+
+Strapi's default admin CSP (`strapi::security`) has no `frame-src`, so embed iframes fall back to `default-src 'self'`, and its `img-src` allows only `'self'`, `data:`, `blob:` and `market-assets.strapi.io`. YouTube, Vimeo and the other embeds, and images from other hosts (for example link preview images), are therefore blocked in the editor preview. The stored content is not affected and your frontend has its own CSP.
+
+The plugin never changes the CSP. Instead:
+
+- **Settings > Magic Editor X > Configuration** shows a "Content Security Policy" notice when sources are missing: what is blocked and the exact `config/middlewares.js` snippet, with a copy button. The server reads the effective `strapi::security` configuration once at startup (string and object entries, `useDefaults`, `frame-src`, `child-src`, `default-src`, `img-src`) and returns it in `GET /magic-editor-x/settings` as `data.environment.csp` (`{ active, frameSrcMissing, imgSrcMissing, snippet }`). Only CSP sources are returned; browsers receive them in every response header anyway.
+- **In the editor**, a blocked embed or image is replaced by a placeholder inside the block ("This embed is blocked by your Content Security Policy.") with a link to the settings page for admins who can read the settings. The block data is saved unchanged.
+
+The snippet for Strapi's defaults (merge it into your existing `strapi::security` entry and keep your other directives, for example the hosts of your upload provider; Strapi merges arrays with its defaults by position):
+
+```js
+// config/middlewares.js
+module.exports = [
+  // ...other middlewares
+  {
+    name: 'strapi::security',
+    config: {
+      contentSecurityPolicy: {
+        useDefaults: true,
+        directives: {
+          'frame-src': [
+            "'self'",
+            'https://www.youtube.com',
+            'https://player.vimeo.com',
+            'https://platform.twitter.com',
+            'https://www.instagram.com',
+            'https://codepen.io',
+            'https://imgur.com',
+            'https://assets.pinterest.com',
+            'https://miro.com',
+            'https://www.figma.com',
+            'https://www.facebook.com',
+          ],
+          'img-src': ["'self'", 'data:', 'blob:', 'https://market-assets.strapi.io', 'https:'],
+        },
+      },
+    },
+  },
+  // ...other middlewares
+];
+```
+
+Add only the services you use. Instead of `https:` in `img-src` you can list your image hosts; the notice then counts external images as allowed. GitHub gist embeds load a `data:` iframe that inherits the admin CSP and needs a remote script, so they stay blocked under a strict policy, and Imgur's embed URL uses `http:`, which an `https` admin blocks as mixed content.
 
 ## Troubleshooting
 

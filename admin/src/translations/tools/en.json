@@ -148,5 +148,11 @@
   "tools.ui.nothingFound": "Nothing found",
   "tools.ui.stub": "This block cannot be shown. Its content is kept when you save.",
   "tools.warning.message": "Message",
-  "tools.warning.title": "Title"
+  "tools.warning.title": "Title",
+  "tools.csp.embedBlocked": "This embed is blocked by your Content Security Policy.",
+  "tools.csp.imageBlocked": "This image is blocked by your Content Security Policy.",
+  "tools.csp.hostBlocked": "The admin does not allow content from {host}. The block is saved unchanged and still appears on your website.",
+  "tools.csp.blockedGeneric": "The admin does not allow this content. The block is saved unchanged and still appears on your website.",
+  "tools.csp.howTo": "How to allow it",
+  "tools.csp.askAdmin": "Ask an administrator to allow it in the Content Security Policy."
 }

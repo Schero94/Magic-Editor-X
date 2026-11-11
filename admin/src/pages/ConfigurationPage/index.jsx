@@ -6,6 +6,7 @@ import { ConfirmAction, DraftSync, PageShell, useT } from '../../components/ui';
 import { useConfigurationForm } from './useConfigurationForm';
 import { AiSection } from './AiSection';
 import { EnvironmentSection } from './EnvironmentSection';
+import { CspSection } from './CspSection';
 
 const RBAC = [...PERMISSIONS.settingsRead, ...PERMISSIONS.settingsUpdate];
 
@@ -185,6 +186,7 @@ const ConfigurationPage = () => {
       ) : null}
       <AiSection form={form} readOnly={readOnly} onTest={onTest} />
       <EnvironmentSection environment={form.dto.environment} />
+      <CspSection csp={form.dto.environment && form.dto.environment.csp} />
       <Form method="PUT" initialValues={form.saved}>
         <DraftSync values={form.draft} />
         <Blocker />

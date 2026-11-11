@@ -1146,6 +1146,63 @@ export const editorStyles = css`
       font-size: ${f(1)};
     }
 
+    /* Placeholder for embeds and images the admin CSP blocks (csp-guard.js). */
+    .mex-csp-blocked {
+      display: flex;
+      align-items: flex-start;
+      gap: ${s(3)};
+      max-width: 100%;
+      box-sizing: border-box;
+      padding: ${s(4)};
+      border: 1px solid ${c('warning200')};
+      border-inline-start: 4px solid ${c('warning600')};
+      border-radius: ${radius};
+      background: ${c('warning100')};
+      color: ${c('neutral800')};
+      font-size: ${f(2)};
+      line-height: 1.5;
+      overflow-wrap: anywhere;
+    }
+
+    .mex-csp-blocked + iframe,
+    .mex-csp-blocked + img {
+      display: none !important;
+    }
+
+    .mex-csp-blocked__icon {
+      flex: 0 0 auto;
+      display: inline-flex;
+      color: ${c('warning700')};
+    }
+
+    .mex-csp-blocked__text {
+      display: flex;
+      flex-direction: column;
+      gap: ${s(1)};
+      min-width: 0;
+    }
+
+    .mex-csp-blocked__text p {
+      margin: 0;
+    }
+
+    .mex-csp-blocked__title {
+      font-weight: 600;
+    }
+
+    .mex-csp-blocked__link {
+      align-self: flex-start;
+      color: ${c('primary700')};
+      font-weight: 600;
+      text-decoration: underline;
+    }
+
+    .mex-csp-blocked__link:focus-visible {
+      outline: 2px solid ${c('primary600')};
+      outline-offset: 2px;
+      border-radius: ${radius};
+    }
+
     ${({ theme }) => theme.breakpoints.medium} {
       .ce-block__content {
         padding-inline-start: ${s(10)};

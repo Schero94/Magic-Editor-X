@@ -224,5 +224,20 @@
   "settings.validation.range": "Geben Sie eine ganze Zahl von {min} bis {max} ein.",
   "settings.validation.reenterKey": "Geben Sie den API-Schlüssel erneut ein, wenn Sie Anbieter oder Basis-URL ändern.",
   "settings.validation.required": "Dieses Feld ist erforderlich.",
-  "settings.validation.url": "Geben Sie eine gültige http- oder https-URL ohne Benutzername oder Passwort ein."
+  "settings.validation.url": "Geben Sie eine gültige http- oder https-URL ohne Benutzername oder Passwort ein.",
+  "settings.csp.title": "Content Security Policy",
+  "settings.csp.subtitle": "Die Content Security Policy des Admins wird in config/middlewares.js festgelegt. Das Plugin ändert sie nie.",
+  "settings.csp.alertTitle": "Einige Vorschauen im Editor werden blockiert",
+  "settings.csp.alertBody": "Ihre Content Security Policy blockiert Inhalte, die der Editor anzeigt. Gespeicherte Inhalte sind nicht betroffen; Redakteure sehen stattdessen einen Platzhalter. Um sie zu erlauben, fügen Sie die folgenden Quellen der Middleware strapi::security hinzu und starten Sie Strapi neu.",
+  "settings.csp.frames": "Einbettungen (frame-src)",
+  "settings.csp.framesBlocked": "Blockiert: {sources}",
+  "settings.csp.images": "Externe Bilder (img-src)",
+  "settings.csp.imagesBlocked": "Blockiert: Bilder von anderen Hosts (zum Beispiel Linkvorschauen)",
+  "settings.csp.imagesHint": "Das Snippet fügt https: hinzu. Sie können stattdessen Ihre Bild-Hosts auflisten.",
+  "settings.csp.allowed": "Erlaubt",
+  "settings.csp.codeLabel": "Snippet für config/middlewares.js",
+  "settings.csp.copy": "Snippet kopieren",
+  "settings.csp.copied": "Snippet in die Zwischenablage kopiert.",
+  "settings.csp.copyFailed": "Der Browser hat das Kopieren nicht erlaubt. Das Snippet ist markiert; kopieren Sie es mit Strg+C oder Cmd+C.",
+  "settings.csp.mergeHint": "Behalten Sie Ihre anderen Direktiven (zum Beispiel die Hosts Ihres Upload-Providers) und starten Sie Strapi nach der Änderung neu."
 }

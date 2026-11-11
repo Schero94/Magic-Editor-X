@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useIntl } from 'react-intl';
+import { useHref, useNavigate } from 'react-router-dom';
 import EditorJS from '@editorjs/editorjs';
 import { Box, Button, Field, Flex, Loader, Typography, VisuallyHidden } from '@strapi/design-system';
 import { useFetchClient, useNotification, useStrapiApp } from '@strapi/strapi/admin';
 import styled, { createGlobalStyle } from 'styled-components';
 import { buildTools, editorI18n, createUndoManager, createDragDrop } from '../../editor/tools';
 import { editorStyles } from '../../editor/tools/styles';
+import { createCspGuard } from '../../editor/tools/csp-guard';
 import { prepareEditorValue, sanitizeInline } from '../../editor/sanitize';
 import { applyToEditor, rememberBlocks } from '../../editor/apply-remote';
 import { computeStats } from '../../../../shared/editor-data.mjs';
@@ -33,6 +35,9 @@ import { usePresenceAnnouncements } from './usePresenceAnnouncements';
 const SAVE_DEBOUNCE_MS = 150;
 
 const EditorStyles = createGlobalStyle`${editorStyles}`;
+
+/** Settings page that explains the CSP sources (registered in admin/src/index.js). */
+const SETTINGS_PATH = '/settings/magic-editor-x/configuration';
 
 const Frame = styled(Box)`
   min-width: 0;
@@ -118,6 +123,8 @@ const EditorField = ({
   const MediaLibraryDialog = useStrapiApp('MagicEditorX', (state) => state.components['media-library']);
   const { config, customBlocks, error: configError, loading: configLoading, retry } = useEditorConfig();
   const target = useFieldTarget(name);
+  const navigate = useNavigate();
+  const settingsHref = useHref(SETTINGS_PATH);
 
   const t = useCallback(
     (id, defaultMessage, values) => formatMessage({ id: getTranslation(id), defaultMessage }, values),
@@ -439,6 +446,12 @@ const EditorField = ({
     setStats(computeStats(initial));
     let destroyed = false;
     let dragDrop = null;
+    // Registered before Editor.js renders, so violations of the first render are seen.
+    const cspGuard = createCspGuard(holderRef.current, {
+      t,
+      settingsHref: permissions.settingsRead ? settingsHref : null,
+      onOpenSettings: () => navigate(SETTINGS_PATH),
+    });
     const editor = new EditorJS({
       holder: holderRef.current,
       data: initial || undefined,
@@ -478,6 +491,7 @@ const EditorField = ({
     });
     return () => {
       destroyed = true;
+      cspGuard.destroy();
       clearTimeout(saveTimerRef.current);
       setReady(false);
       if (undoRef.current) undoRef.current.destroy();

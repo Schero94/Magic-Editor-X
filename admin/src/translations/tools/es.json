@@ -148,5 +148,11 @@
   "tools.ui.nothingFound": "No se encontró nada",
   "tools.ui.stub": "Este bloque no se puede mostrar. Su contenido se conserva al guardar.",
   "tools.warning.message": "Mensaje",
-  "tools.warning.title": "Título"
+  "tools.warning.title": "Título",
+  "tools.csp.embedBlocked": "Este contenido incrustado está bloqueado por su Content Security Policy.",
+  "tools.csp.imageBlocked": "Esta imagen está bloqueada por su Content Security Policy.",
+  "tools.csp.hostBlocked": "El panel de administración no permite contenido de {host}. El bloque se guarda sin cambios y sigue apareciendo en su sitio web.",
+  "tools.csp.blockedGeneric": "El panel de administración no permite este contenido. El bloque se guarda sin cambios y sigue apareciendo en su sitio web.",
+  "tools.csp.howTo": "Cómo permitirlo",
+  "tools.csp.askAdmin": "Pida a un administrador que lo permita en la Content Security Policy."
 }
