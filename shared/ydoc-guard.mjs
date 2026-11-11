@@ -252,6 +252,11 @@ export const applyCheckedUpdate = (doc, update) => {
     touched = { ids: touched.ids, order: touched.order || next.order, meta: touched.meta || next.meta };
     if (transaction.changed.size > 0 || transaction.deleteSet.clients.size > 0) changed = true;
   };
+  // Structs that integrate without a visible change (for example into a block
+  // that was deleted or replaced meanwhile) still advance the state vector.
+  // Such an update must be stored, or later updates of the same client
+  // depend on clocks no other process and no reload ever sees.
+  const vectorBefore = Y.encodeStateVector(doc);
   doc.on('afterTransaction', listener);
   try {
     Y.applyUpdate(doc, update, 'checked');
@@ -264,5 +269,10 @@ export const applyCheckedUpdate = (doc, update) => {
   if (store.pendingStructs || store.pendingDs) return { ok: false, code: 'MISSING_DEPENDENCY', dirty: true };
   const error = validateTouched(doc, touched);
   if (error) return { ok: false, code: error, dirty: true };
+  if (!changed) {
+    const vectorAfter = Y.encodeStateVector(doc);
+    changed =
+      vectorAfter.length !== vectorBefore.length || vectorAfter.some((byte, i) => byte !== vectorBefore[i]);
+  }
   return { ok: true, changed };
 };

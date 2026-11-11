@@ -535,3 +535,138 @@ for (let seed = FROM; seed < FROM + SEEDS; seed += 1) {
     }
   });
 }
+
+test('everybody but one goes offline on a long document, the room is compacted, all unsent edits arrive once', async () => {
+  const random = prng(4242);
+  const rnd = (n) => Math.floor(random() * n);
+  const longDoc = {
+    time: 1,
+    version: '2.31.7',
+    blocks: Array.from({ length: 120 }, (_, i) => ({
+      id: `b${i}`,
+      type: 'paragraph',
+      data: { text: `Text ${i}` },
+    })),
+  };
+  const knex = await openDatabase();
+  const a = await startInstance(createInstance(knex));
+  const b = await startInstance(createInstance(knex));
+  const sims = [];
+  try {
+    await a.store.init();
+    await a.store.appendUpdate(ROOM, createSeedUpdate(longDoc, 'long-1'), 'seed');
+    await a.store.ensureGeneration(ROOM, 'long-1');
+    for (let i = 0; i < 8; i += 1) {
+      const instance = i % 2 ? b : a;
+      const net = { online: true, sockets: [] };
+      const sim = simulatedEditor({
+        name: `c${i}`,
+        createCollabClient,
+        url: instance.url,
+        requestSession: async () => {
+          if (!net.online) throw Object.assign(new Error('offline'), { response: { status: 0 } });
+          return { token: tokenFor(instance), path: '/magic-editor-x/realtime', canEdit: true };
+        },
+        onSocket: (socket) => net.sockets.push(socket),
+      });
+      sim.net = net;
+      sims.push(sim);
+    }
+    while (!sims.every((sim) => sim.state.status === 'live')) await sleep(20);
+    await sleep(300);
+    const markers = [];
+    let counter = 0;
+    const mark = (sim) => {
+      const marker = `[${sim.name}m${(counter += 1)}]`;
+      const ok = sim.edit((doc) => {
+        if (random() < 0.2) {
+          doc.blocks.splice(rnd(doc.blocks.length + 1), 0, {
+            id: `n${counter}`,
+            type: 'paragraph',
+            data: { text: marker },
+          });
+          return;
+        }
+        const candidates = doc.blocks.filter((block) => block.id !== 'churn');
+        const block = candidates[rnd(candidates.length)];
+        const text = block.data.text;
+        let at = rnd(text.length + 1);
+        const open = text.lastIndexOf('[', at - 1);
+        const close = text.lastIndexOf(']', at - 1);
+        if (open > close) at = open;
+        block.data.text = text.slice(0, at) + marker + text.slice(at);
+      });
+      if (ok) markers.push(marker);
+    };
+    // Several people create the same block at once and keep rewriting it.
+    const churn = (sim) =>
+      sim.edit((doc) => {
+        const block = doc.blocks.find((item) => item.id === 'churn');
+        if (!block) doc.blocks.push({ id: 'churn', type: 'paragraph', data: { text: 'Churn' } });
+        else block.data.text = block.data.text === 'Churn' ? 'Churn xxxx' : 'Churn';
+      });
+    const settle = async () => {
+      const until = Date.now() + 30000;
+      while (Date.now() < until) {
+        await sleep(200);
+        const first = JSON.stringify(sims[0].client.getData().blocks);
+        if (
+          sims.every(
+            (sim) =>
+              sim.state.status === 'live' &&
+              !sim.state.pending &&
+              JSON.stringify(sim.client.getData().blocks) === first
+          )
+        )
+          return true;
+      }
+      return false;
+    };
+    const check = (label) => {
+      const text = JSON.stringify(sims[0].client.getData());
+      assert.deepEqual(
+        [markers.filter((m) => !text.includes(m)), markers.filter((m) => text.split(m).length > 2)],
+        [[], []],
+        `lost or duplicated ${label}`
+      );
+    };
+    for (let round = 0; round < 20; round += 1) {
+      for (const sim of sims) {
+        mark(sim);
+        churn(sim);
+      }
+      await sleep(30);
+    }
+    assert.ok(await settle(), 'converged before compaction');
+    check('before compaction');
+    for (const sim of sims.slice(1)) {
+      sim.net.online = false;
+      for (const socket of sim.net.sockets) if (socket.io && socket.io.engine) socket.io.engine.close();
+    }
+    await sleep(300);
+    for (let round = 0; round < 5; round += 1)
+      for (const sim of sims.slice(1)) {
+        mark(sim);
+        churn(sim);
+      }
+    let result = { compacted: false };
+    for (let attempt = 0; attempt < 50 && !result.compacted; attempt += 1) {
+      result = await a.collab.compactRoom(ROOM, { force: true, idleMs: 0 });
+      if (!result.compacted) await sleep(50);
+    }
+    assert.ok(result.compacted);
+    for (const sim of sims) {
+      sim.net.online = true;
+      for (const socket of sim.net.sockets) if (!socket.connected) socket.connect();
+    }
+    assert.ok(await settle(), 'converged after compaction');
+    check('after compaction');
+    const stored = await roomData(b.store);
+    assert.equal(JSON.stringify(stored.data.blocks), JSON.stringify(sims[0].client.getData().blocks));
+  } finally {
+    for (const sim of sims) sim.client.destroy();
+    await stopInstance(a);
+    await stopInstance(b);
+    await knex.destroy();
+  }
+});

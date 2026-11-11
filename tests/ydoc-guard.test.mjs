@@ -183,3 +183,29 @@ test('fuzzed byte flips never throw out of the guard', () => {
     if (result.ok) assert.doesNotThrow(() => docToEditorData(room));
   }
 });
+
+test('an update without a visible change is still reported as changed (it must be stored)', () => {
+  // A client types into a block that another person replaced meanwhile: the
+  // text integrates into the deleted entry (no visible change), but the
+  // client's clock advances. If the server did not store it, every later
+  // update of that client would wait for it forever (RETRY) on other
+  // processes and after a reload.
+  const seed = createSeedUpdate(
+    { time: 1, version: '2.31.7', blocks: [{ id: 'p1', type: 'paragraph', data: { text: 'Hello' } }] },
+    'e1'
+  );
+  const server = new Y.Doc();
+  Y.applyUpdate(server, seed);
+  const client = new Y.Doc();
+  Y.applyUpdate(client, seed);
+  const entry = new Y.Map();
+  server.getMap('blocks').set('p1', entry);
+  entry.set('type', 'paragraph');
+  const data = new Y.Map();
+  entry.set('data', data);
+  data.set('text', new Y.Text('New'));
+  const vector = Y.encodeStateVector(client);
+  client.getMap('blocks').get('p1').get('data').get('text').insert(5, ' world');
+  const result = applyCheckedUpdate(server, Y.encodeStateAsUpdate(client, vector));
+  assert.deepEqual(result, { ok: true, changed: true });
+});
