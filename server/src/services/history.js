@@ -38,6 +38,26 @@ const fieldKey = ({ uid, documentId, locale, field }) => `${uid}|${documentId}|$
  */
 const contentHash = (content) => sha256(stableStringify(content ? content.blocks : []));
 
+/** Longest version name. */
+const MAX_LABEL_LENGTH = 120;
+
+/**
+ * Normalises a version name: plain text, trimmed, control characters removed,
+ * bounded. Empty names become null.
+ * @param {unknown} value - Candidate label.
+ * @returns {string|null} Label or null.
+ */
+const normalizeLabel = (value) => {
+  if (typeof value !== 'string') return null;
+  const text = value
+    // eslint-disable-next-line no-control-regex -- control characters are removed from names
+    .replace(/[\u0000-\u001f\u007f]+/g, ' ')
+    .trim()
+    .slice(0, MAX_LABEL_LENGTH)
+    .trim();
+  return text || null;
+};
+
 module.exports = ({ strapi }) => {
   const query = () => strapi.db.query(UID);
   const store = () => strapi.plugin('magic-editor-x').service('store');
@@ -63,6 +83,7 @@ module.exports = ({ strapi }) => {
       id: row.documentId,
       version: row.version,
       trigger: row.trigger || 'manual',
+      label: typeof row.label === 'string' && row.label ? row.label : null,
       createdAt: row.createdAt,
       createdBy: userName(row.createdBy),
       stats: computeStats(row.jsonContent),
@@ -120,7 +141,8 @@ module.exports = ({ strapi }) => {
      * Creates a snapshot unless the latest one already has the same content.
      * @param {{ uid: string, documentId: string, locale?: string|null, field: string }} target - Field.
      * @param {unknown} content - Editor data (any stored shape).
-     * @param {{ trigger?: 'manual'|'auto'|'restore', userId?: number|null }} [options] - Metadata.
+     * @param {{ trigger?: 'manual'|'auto'|'restore', userId?: number|null, label?: string|null }} [options] - Metadata.
+     *   A `label` names the new version; when the content equals the latest version, the latest one is named instead.
      * @returns {Promise<{ created: boolean, snapshot: object }>} Result.
      * @throws {errors.ValidationError} When the content is not editor data.
      */
@@ -147,7 +169,16 @@ module.exports = ({ strapi }) => {
           limit: 1,
           populate: { createdBy: { select: ['firstname', 'lastname', 'username'] } },
         });
-        if (latest && latest.contentHash === hash) return { created: false, snapshot: toDto(latest) };
+        const label = normalizeLabel(options.label);
+        if (latest && latest.contentHash === hash) {
+          if (!label) return { created: false, snapshot: toDto(latest) };
+          const named = await query().update({
+            where: { id: latest.id },
+            data: { label },
+            populate: { createdBy: { select: ['firstname', 'lastname', 'username'] } },
+          });
+          return { created: false, snapshot: toDto(named || { ...latest, label }) };
+        }
         const row = await query().create({
           data: {
             roomId: fieldKey(target),
@@ -159,6 +190,7 @@ module.exports = ({ strapi }) => {
             trigger: options.trigger || 'manual',
             contentHash: hash,
             jsonContent: clean,
+            label,
             createdBy: options.userId || null,
           },
           populate: { createdBy: { select: ['firstname', 'lastname', 'username'] } },
@@ -168,6 +200,27 @@ module.exports = ({ strapi }) => {
       } finally {
         await store().release(key, PROCESS_ID);
       }
+    },
+
+    /**
+     * Names or renames a version. An empty label removes the name.
+     * @param {string} documentId - Version id.
+     * @param {string|null} label - New label (plain text, max 120 characters).
+     * @returns {Promise<object>} The version without content.
+     * @throws {errors.NotFoundError} When the version does not exist.
+     * @sideeffect Updates the `label` column of one version row.
+     */
+    async rename(documentId, label) {
+      if (typeof documentId !== 'string' || !/^[a-z0-9]{1,64}$/.test(documentId))
+        throw new errors.NotFoundError('Not found');
+      const row = await query().findOne({ where: { documentId }, select: ['id'] });
+      if (!row) throw new errors.NotFoundError('Not found');
+      const updated = await query().update({
+        where: { id: row.id },
+        data: { label: normalizeLabel(label) },
+        populate: { createdBy: { select: ['firstname', 'lastname', 'username'] } },
+      });
+      return toDto(updated);
     },
 
     /**
@@ -192,3 +245,5 @@ module.exports = ({ strapi }) => {
 
 module.exports.fieldKey = fieldKey;
 module.exports.contentHash = contentHash;
+module.exports.normalizeLabel = normalizeLabel;
+module.exports.MAX_LABEL_LENGTH = MAX_LABEL_LENGTH;

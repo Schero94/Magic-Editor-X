@@ -35,6 +35,7 @@ const adminRoutes = [
   ['GET', '/history', 'history.list', [ACTIONS.access]],
   ['GET', '/history/:id', 'history.findOne', [ACTIONS.access]],
   ['POST', '/history', 'history.create', [ACTIONS.access]],
+  ['PUT', '/history/:id', 'history.rename', [ACTIONS.access]],
 
   ['POST', '/ai/:action', 'ai.run', [ACTIONS.access, ACTIONS.ai]],
 

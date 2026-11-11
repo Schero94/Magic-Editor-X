@@ -40,6 +40,8 @@ module.exports = {
         /** manual | auto | restore | legacy */
         trigger: { type: 'string' },
         contentHash: { type: 'string' },
+        /** Optional version name (2.2, plain text, max 120 characters). */
+        label: { type: 'string', maxLength: 120 },
         jsonContent: { type: 'json' },
         /** 1.x Yjs state (base64). Read once by the 2.0 migration, never written again. */
         yjsSnapshot: { type: 'text' },
