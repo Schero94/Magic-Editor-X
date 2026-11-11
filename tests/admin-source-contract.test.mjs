@@ -61,3 +61,14 @@ test('no px font sizes and no custom media widths', () => {
 test('no admin token read from browser storage', () => {
   assert.deepEqual(offenders(/(localStorage|sessionStorage)\.getItem\(\s*['"]jwtToken/), []);
 });
+
+test('remote collaboration content is sanitised before the editor renders it (MEX-21-01)', () => {
+  const field = readFileSync(join(root, 'components/EditorField/index.jsx'), 'utf8');
+  const handler = field.slice(
+    field.indexOf('onRemoteData: async'),
+    field.indexOf('onRemoteData: async') + 1200
+  );
+  assert.match(handler, /client\.snapshot\(\)/);
+  assert.match(handler, /prepareEditorValue\(data\)/);
+  assert.ok(handler.indexOf('prepareEditorValue(data)') < handler.indexOf('applyExternal('));
+});

@@ -82,6 +82,19 @@ export const createReplica = ({
     },
 
     /**
+     * Applies an edit made against an older state (`from` -> `data`) to the
+     * current one, for example unsent edits after the room was replaced.
+     * @param {object} from - State the edit started from.
+     * @param {object} data - Edited state.
+     * @returns {boolean} True when something changed.
+     */
+    rebase(from, data) {
+      const changed = applyLocalChanges(shadow, from, data, SHADOW_EDIT);
+      base = docToEditorData(shadow);
+      return changed;
+    },
+
+    /**
      * Reads the state the editor should show, with a token for `markShown`.
      * @returns {{ data: object, catchUp: Uint8Array }} Data and catch-up update.
      */

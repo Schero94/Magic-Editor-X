@@ -1,5 +1,46 @@
 # Changelog
 
+## [Unreleased]
+
+Magic Editor X 2.1 makes live collaboration conflict-free for every kind of block, adds presence with carets, hardens the realtime server and closes the remaining limitations of 2.0. No migration is needed; stored content keeps the same Editor.js JSON.
+
+### Highlights
+
+- **Conflict-free structured collaboration.** Every table cell, list item, checklist entry, tune (alignment, text variant, indent) and custom block field is merged separately (collaboration schema 3). Two people can edit different cells of one table, different items of one list, or the text and alignment of one paragraph at the same time and both changes are kept. Same-value conflicts resolve the same way on every screen.
+- **Presence.** Coloured carets and selections of the others, an "editing this block" marker, avatars with first name and last initial (never e-mail addresses), away state, polite screen-reader announcements of joins and leaves, light and dark theme, reduced motion respected.
+- **Robust connections.** Offline editing with automatic resync, exponential backoff with jitter, immediate reconnect after sleep, tab switch or network return, no duplicated content after a reconnect or a room reset, clean leave on tab close, new states Reconnecting and Offline in the toolbar.
+- **Per-user undo.** Undo and redo during live editing only revert your own changes.
+- **Permission changes apply within about a second** on every process (role, permission and user changes); losing update access makes the editor read-only, losing read access ends live editing.
+- **Hardened realtime server.** Every update is checked before it is stored or relayed (allowed structures only, dependencies present, valid blocks), remote content is sanitised before the editor renders it, rate limits per socket and per admin, protocol version check.
+- **No lost work.** Rooms that are cleaned up with edits nobody saved get a final version first.
+- **Cluster-wide limits.** The AI rate limit and the new session limit are shared by all processes.
+- **Content Security Policy notice.** Settings > Magic Editor X > Configuration shows when the admin CSP blocks editor embeds (`frame-src`) or external images (`img-src`), with a ready-to-copy `config/middlewares.js` snippet. The plugin never changes the CSP. Blocked embeds and images show an accessible placeholder in the editor instead of a broken frame.
+- **Internal links.** "Link to an entry" in the link tool searches entries of your content types and inserts a link; only types and entries you can read in the Content Manager appear. No paid add-on is needed.
+
+### Added
+
+- Admin routes `GET /magic-editor-x/links/types` and `GET /magic-editor-x/links/search`.
+- `GET /magic-editor-x/settings` returns `data.environment.csp` (`active`, `frameSrcMissing`, `imgSrcMissing`, `snippet`).
+- Config keys `collaboration.maxConnectionsPerAdmin` (20), `collaboration.maxRoomsPerAdmin` (20), `collaboration.revalidateSeconds` (60), `collaboration.rateLimit` (`sessionsPerMinute` 60, `updatesPer10s` 300, `bytesPer10s` 8 MiB) and `links.urlPattern` (placeholders `{documentId}`, `{locale}`, `{slug}`, `{collection}`, `{singular}`; default `/{collection}/{documentId}`).
+- Internal links keep a plain `href` and carry `data-mex-uid`, `data-mex-document-id` and `data-mex-locale`; the shared sanitiser allows them on `<a>` only, with validated values.
+- Table `magic_editor_x_counters` (created on startup) for cluster-wide rate limits.
+- `scripts/soak.mjs` and a cluster acceptance run with process kills, network partitions, offline clients and 12 concurrent clients.
+
+### Changed
+
+- Collaboration protocol 3: the handshake carries `auth: { token, protocol: 3 }`; refusals arrive as `connect_error` with `data.code`. A browser tab still running the 2.0 admin is asked to reload.
+- `POST /magic-editor-x/collaboration/session` also returns `seeded` and `protocol` and answers 429 above `collaboration.rateLimit.sessionsPerMinute`.
+- `ai.requestsPerMinute` is counted per admin across all processes (was per process).
+- Presence colours are Design System colour families instead of fixed hex values.
+
+### Security
+
+- See [docs/security-audit-2.1.md](./docs/security-audit-2.1.md): sanitising of remote content before rendering (MEX-21-01), update validation (MEX-21-02, -03), permission changes within seconds (MEX-21-04), rate limits (MEX-21-05, -06), protocol check (MEX-21-07), presence (MEX-21-08), no lost edits (MEX-21-09).
+
+### Migration
+
+- No action needed. Rebuild the admin (`npm run build`) after updating. Live rooms created by 2.0 keep working and are converted on the first edit; open 2.0 browser tabs show "Reload the page to keep editing live".
+
 # [2.0.0](https://github.com/Schero94/Magic-Editor-X/compare/v1.6.0...v2.0.0) (2026-11-11)
 
 

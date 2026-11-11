@@ -1,7 +1,7 @@
 import * as Y from 'yjs';
 import { io } from 'socket.io-client';
 import { createReplica } from '../../../shared/collab-replica.mjs';
-import { applyLocalChanges, docToEditorData } from '../../../shared/ydoc.mjs';
+import { docToEditorData } from '../../../shared/ydoc.mjs';
 
 /**
  * Browser side of live collaboration for one editor field (protocol 3).
@@ -306,7 +306,7 @@ export const createCollabClient = ({
       if (rescue) {
         const { base, local } = rescue;
         rescue = null;
-        if (state.canEdit) applyLocalChanges(replica.shadow, base, local);
+        if (state.canEdit) replica.rebase(base, local);
       }
       setState({ status: 'live' });
       Promise.resolve(first && typeof onFirstSync === 'function' ? onFirstSync(seededBySelf) : null)
