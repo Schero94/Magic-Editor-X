@@ -1,3 +1,16 @@
+# [1.6.0](https://github.com/Schero94/magic-editor-x/compare/v1.5.1...v1.6.0) (2026-11-11)
+
+
+### Bug Fixes
+
+* align CI installs with lockfile settings ([ada3976](https://github.com/Schero94/magic-editor-x/commit/ada3976ad7c9424d5091bbc7f24da139e64b3e69))
+* make release failure notices tolerant of missing labels ([5232838](https://github.com/Schero94/magic-editor-x/commit/5232838540d682ad10ac53e2e1266be4827d09bb))
+
+
+### Features
+
+* secure editor routes and improve admin UX ([6801414](https://github.com/Schero94/magic-editor-x/commit/68014146e94dc28a7e81c3301002c2e4305f143b))
+
 ## [1.5.1](https://github.com/Schero94/magic-editor-x/compare/v1.5.0...v1.5.1) (2026-02-12)
 
 
