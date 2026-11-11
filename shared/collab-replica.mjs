@@ -35,12 +35,14 @@ const SHADOW_SYNC = Object.freeze({ name: 'magic-editor-x-shadow-sync' });
  * @param {(update: Uint8Array) => void} [options.onLocalUpdate] - Called with every update that must reach the server (local edits, undo, redo).
  * @param {() => void} [options.onShouldRender] - Called when `doc` changed in a way the editor does not show yet (remote, undo, redo).
  * @param {number} [options.captureTimeout=500] - Undo grouping window in ms.
+ * @param {number} [options.maxUndoSteps=200] - Undo steps kept; older ones are dropped so long sessions do not keep every deleted item alive.
  * @returns {object} Replica API.
  */
 export const createReplica = ({
   onLocalUpdate = () => {},
   onShouldRender = () => {},
   captureTimeout = 500,
+  maxUndoSteps = 200,
 } = {}) => {
   const doc = new Y.Doc();
   const shadow = new Y.Doc();
@@ -49,6 +51,10 @@ export const createReplica = ({
   const undo = new Y.UndoManager([doc.getArray('order'), doc.getMap('blocks')], {
     trackedOrigins: new Set([LOCAL_ORIGIN]),
     captureTimeout,
+  });
+
+  undo.on('stack-item-added', () => {
+    while (undo.undoStack.length > maxUndoSteps) undo.undoStack.shift();
   });
 
   shadow.on('update', (update, origin) => {
