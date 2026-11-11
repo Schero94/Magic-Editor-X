@@ -1,6 +1,12 @@
 # Changelog
 
-## [Unreleased]
+# [2.1.0](https://github.com/Schero94/Magic-Editor-X/compare/v2.0.0...v2.1.0) (2026-11-11)
+
+
+### Features
+
+* conflict-free structured collaboration, presence and hardened realtime (2.1.0) ([#4](https://github.com/Schero94/Magic-Editor-X/issues/4)) ([edc2fac](https://github.com/Schero94/Magic-Editor-X/commit/edc2face5e1da174de8d95c86480792b411de86a))
+
 
 Magic Editor X 2.1 makes live collaboration conflict-free for every kind of block, adds presence with carets, hardens the realtime server and closes the remaining limitations of 2.0. No migration is needed; stored content keeps the same Editor.js JSON.
 
