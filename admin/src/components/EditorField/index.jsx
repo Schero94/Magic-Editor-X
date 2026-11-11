@@ -83,6 +83,15 @@ const minHeightOf = (value) => {
  */
 const contentKey = (data) => stableStringify(data && Array.isArray(data.blocks) ? data.blocks : []);
 
+/**
+ * Fingerprint of content as the field would render it (normalised and
+ * sanitised). Comparing raw editor output with a sanitised form value would
+ * re-render blocks that did not change.
+ * @param {unknown} value - Field value.
+ * @returns {string} Fingerprint.
+ */
+const renderedKey = (value) => contentKey(prepareEditorValue(value).data);
+
 const EditorField = ({
   name,
   value,
@@ -112,6 +121,7 @@ const EditorField = ({
   const undoRef = useRef(null);
   const knownRef = useRef(new Map());
   const lastEmittedRef = useRef(null);
+  const lastEmittedRawRef = useRef(null);
   const applyingRef = useRef(false);
   const saveTimerRef = useRef(null);
   const collabRef = useRef(null);
@@ -153,8 +163,9 @@ const EditorField = ({
         );
       const next = meaningful ? data : null;
       const key = contentKey(next);
-      if (key === lastEmittedRef.current) return;
-      lastEmittedRef.current = key;
+      if (key === lastEmittedRawRef.current) return;
+      lastEmittedRawRef.current = key;
+      lastEmittedRef.current = renderedKey(next);
       // Editor.js reuses the tune objects of a block between saves, and the
       // Content Manager form freezes what it stores. Hand over a copy so the
       // editor can keep writing to its own objects.
@@ -255,7 +266,11 @@ const EditorField = ({
         await applyToEditor(editor, data || { blocks: [] }, knownRef.current);
         setStats(computeStats(data));
         if (emitToForm) emit(data);
-        else lastEmittedRef.current = contentKey(data && data.blocks && data.blocks.length ? data : null);
+        else {
+          const shown = data && data.blocks && data.blocks.length ? data : null;
+          lastEmittedRawRef.current = contentKey(shown);
+          lastEmittedRef.current = renderedKey(shown);
+        }
       } finally {
         applyingRef.current = false;
         if (undoRef.current) undoRef.current.resume();
@@ -378,6 +393,7 @@ const EditorField = ({
     setValueError(prepared.error);
     const initial = prepared.data;
     lastEmittedRef.current = contentKey(initial);
+    lastEmittedRawRef.current = contentKey(initial);
     rememberBlocks(knownRef.current, initial || { blocks: [] });
     setStats(computeStats(initial));
     let destroyed = false;
