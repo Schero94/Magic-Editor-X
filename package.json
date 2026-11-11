@@ -1,16 +1,34 @@
 {
   "name": "magic-editor-x",
   "version": "1.5.1",
-  "description": "Advanced block-based editor for Strapi v5 with Editor.js, Media Library integration, and real-time collaboration support",
+  "description": "Free, open-source block editor for Strapi 5: Editor.js custom field with Media Library uploads, custom blocks, version history, live collaboration across several servers and an optional AI assistant with your own provider.",
   "keywords": [
     "strapi",
-    "plugin",
+    "strapi-plugin",
+    "strapi-v5",
+    "strapi5",
     "editor-js",
-    "wysiwyg",
+    "editorjs",
     "block-editor",
-    "strapi-v5"
+    "rich-text",
+    "wysiwyg",
+    "custom-field",
+    "collaboration",
+    "yjs",
+    "version-history",
+    "ai"
   ],
+  "license": "MIT",
+  "author": "Schero D.",
   "type": "commonjs",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Schero94/Magic-Editor-X.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Schero94/Magic-Editor-X/issues"
+  },
+  "homepage": "https://schero94.github.io/Magic-Editor-X/",
   "exports": {
     "./package.json": "./package.json",
     "./strapi-admin": {
@@ -28,76 +46,79 @@
   },
   "files": [
     "dist",
+    "strapi-admin.js",
+    "strapi-server.js",
     "README.md",
     "LICENSE",
-    "COPYRIGHT_NOTICE.txt",
-    "pics"
+    "CHANGELOG.md"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
-    "build": "strapi-plugin build && node scripts/build-server-bundle.mjs && npm run verify:runtime",
-    "test": "node --test tests/*.test.js",
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "prebuild": "npm run clean",
+    "build": "strapi-plugin build && node scripts/build-server-bundle.mjs",
+    "postbuild": "npm run verify:runtime",
     "watch": "strapi-plugin watch",
     "watch:link": "strapi-plugin watch:link",
     "verify": "strapi-plugin verify",
-    "verify:runtime": "node scripts/verify-server-bundle.mjs"
-  },
-  "engines": {
-    "node": ">=22.22.2 <23"
+    "verify:runtime": "node scripts/verify-server-bundle.mjs",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "node --test --test-concurrency=4 \"tests/*.test.mjs\"",
+    "test:integration": "node --test --test-concurrency=1 \"tests/integration/*.test.mjs\"",
+    "prepack": "npm run build",
+    "docs:llms": "node scripts/build-llms-full.mjs"
   },
   "dependencies": {
-    "@calumk/editorjs-codeflask": "^1.0.10",
-    "@editorjs/attaches": "^1.3.0",
-    "@editorjs/checklist": "^1.6.0",
-    "@editorjs/code": "^2.9.3",
-    "@editorjs/delimiter": "^1.4.2",
+    "@editorjs/attaches": "^1.3.2",
+    "@editorjs/code": "^2.9.4",
     "@editorjs/editorjs": "^2.31.7",
-    "@editorjs/embed": "^2.7.6",
+    "@editorjs/embed": "^2.8.0",
     "@editorjs/header": "^2.8.9",
-    "@editorjs/image": "^2.10.1",
-    "@editorjs/inline-code": "^1.5.1",
-    "@editorjs/link": "^2.6.2",
-    "@editorjs/marker": "^1.4.0",
-    "@editorjs/nested-list": "^1.4.3",
-    "@editorjs/paragraph": "^2.11.6",
-    "@editorjs/personality": "^2.0.2",
-    "@editorjs/quote": "^2.7.2",
-    "@editorjs/raw": "^2.5.0",
-    "@editorjs/simple-image": "^1.6.0",
+    "@editorjs/image": "^2.10.3",
+    "@editorjs/inline-code": "^1.5.2",
+    "@editorjs/list": "^2.0.9",
+    "@editorjs/paragraph": "^2.11.7",
+    "@editorjs/quote": "^2.7.6",
+    "@editorjs/raw": "^2.5.1",
     "@editorjs/table": "^2.4.6",
-    "@editorjs/text-variant-tune": "^1.0.2",
-    "@editorjs/underline": "^1.2.1",
-    "@editorjs/warning": "^1.4.0",
-    "@heroicons/react": "^2.2.0",
-    "@sotaproject/strikethrough": "^1.0.1",
-    "editorjs-alert": "^1.1.4",
-    "editorjs-drag-drop": "^1.1.16",
-    "editorjs-indent-tune": "^1.4.3",
-    "editorjs-text-alignment-blocktune": "^1.0.3",
-    "editorjs-toggle-block": "^0.3.16",
-    "editorjs-tooltip": "^1.2.2",
-    "editorjs-undo": "^2.0.28",
+    "@editorjs/warning": "^1.4.1",
+    "editorjs-indent-tune": "^1.4.4",
+    "dompurify": "^3.4.17",
     "ipaddr.js": "^2.5.0",
-    "open-graph-scraper": "^6.12.0",
+    "open-graph-scraper": "^6.13.0",
     "prismjs": "^1.30.0",
+    "sanitize-html": "^2.18.1",
     "socket.io": "^4.8.4",
     "socket.io-client": "^4.8.4",
-    "y-indexeddb": "^9.0.12",
-    "y-socket.io": "^1.1.3",
-    "yjs": "^13.6.33"
+    "yjs": "^13.6.33",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@semantic-release/changelog": "^7.0.0",
     "@semantic-release/commit-analyzer": "^13.0.1",
     "@semantic-release/git": "^11.0.1",
     "@semantic-release/github": "^12.0.10",
     "@semantic-release/npm": "^13.2.0",
     "@semantic-release/release-notes-generator": "^14.1.1",
-    "@strapi/design-system": "^2.2.4",
-    "@strapi/icons": "^2.2.4",
+    "@strapi/design-system": "2.2.4",
+    "@strapi/icons": "2.2.4",
     "@strapi/sdk-plugin": "^6.1.1",
-    "@strapi/strapi": "^5.57.0",
+    "@strapi/strapi": "^5.61.1",
+    "@strapi/utils": "^5.61.1",
+    "better-sqlite3": "^13.0.3",
     "esbuild": "^0.28.2",
-    "prettier": "^3.9.10",
+    "eslint": "^10.14.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.14.0",
+    "pg": "^8.23.1",
+    "prettier": "^3.10.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-intl": "^6.8.9",
@@ -106,31 +127,34 @@
     "styled-components": "^6.6.0"
   },
   "peerDependencies": {
-    "@strapi/sdk-plugin": "^6.1.1",
-    "@strapi/strapi": "^5.57.0",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
+    "@strapi/design-system": "^2.2.0",
+    "@strapi/icons": "^2.2.0",
+    "@strapi/strapi": "^5.38.0",
+    "@strapi/utils": "^5.38.0",
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0",
     "react-intl": "^6.6.2",
-    "react-router-dom": "^6.30.6",
+    "react-router-dom": "^6.30.0",
     "styled-components": "^6.0.0"
   },
-  "overrides": {
-    "prismjs": "^1.30.0",
-    "axios": "^1.20.0",
-    "handlebars": "^4.7.10",
-    "postcss": "^8.5.30",
-    "uuid": "^11.1.1"
+  "peerDependenciesMeta": {
+    "@strapi/design-system": {
+      "optional": true
+    },
+    "@strapi/icons": {
+      "optional": true
+    },
+    "react-intl": {
+      "optional": true
+    }
+  },
+  "engines": {
+    "node": ">=22.0.0 <=26.x.x"
   },
   "strapi": {
     "kind": "plugin",
     "name": "magic-editor-x",
     "displayName": "Magic Editor X",
     "description": "Advanced block-based editor with Editor.js for Strapi v5"
-  },
-  "license": "MIT",
-  "author": "Schero D. <schero1894@gmail.com>",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/Schero94/magic-editor-x.git"
   }
 }
