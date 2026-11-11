@@ -1,13 +1,9 @@
-/**
- * Magic Editor X - Plugin Icon
- * Uses Strapi's built-in Feather icon to match the sidebar
- */
-import React from 'react';
 import { Feather } from '@strapi/icons';
 
-const PluginIcon = () => (
-  <Feather />
-);
+/**
+ * Icon of the custom field and settings section.
+ * @returns {JSX.Element} Icon.
+ */
+export const PluginIcon = () => <Feather aria-hidden />;
 
-export { PluginIcon };
 export default PluginIcon;

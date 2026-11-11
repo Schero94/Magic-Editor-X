@@ -1,111 +1,113 @@
-/**
- * Magic Editor X - Admin Entry Point
- * Strapi v5 Custom Field Registration
- * @see https://docs.strapi.io/cms/features/custom-fields
- */
 import { PLUGIN_ID } from './pluginId';
-import { Initializer } from './components/Initializer';
 import { PluginIcon } from './components/PluginIcon';
-import pluginPermissions from './permissions';
+import { PERMISSIONS } from './permissions';
+import { getTranslation } from './utils/getTranslation';
 
-// Import CSS globally so it's available in Custom Field
-import './components/EditorJS/styles.css';
-import './styles/ai-assistant.css';
+/**
+ * Translations are split by area (common, editor, tools, settings); each
+ * locale loads and merges its four files. English is the fallback.
+ */
+const LOADERS = {
+  en: () => [
+    import('./translations/common/en.json'),
+    import('./translations/editor/en.json'),
+    import('./translations/tools/en.json'),
+    import('./translations/settings/en.json'),
+  ],
+  de: () => [
+    import('./translations/common/de.json'),
+    import('./translations/editor/de.json'),
+    import('./translations/tools/de.json'),
+    import('./translations/settings/de.json'),
+  ],
+  fr: () => [
+    import('./translations/common/fr.json'),
+    import('./translations/editor/fr.json'),
+    import('./translations/tools/fr.json'),
+    import('./translations/settings/fr.json'),
+  ],
+  es: () => [
+    import('./translations/common/es.json'),
+    import('./translations/editor/es.json'),
+    import('./translations/tools/es.json'),
+    import('./translations/settings/es.json'),
+  ],
+  pt: () => [
+    import('./translations/common/pt.json'),
+    import('./translations/editor/pt.json'),
+    import('./translations/tools/pt.json'),
+    import('./translations/settings/pt.json'),
+  ],
+};
 
-// Prefix translation keys with pluginId (required for Strapi)
-const prefixPluginTranslations = (data, pluginId) => {
-  const prefixed = {};
-  Object.keys(data).forEach((key) => {
-    prefixed[`${pluginId}.${key}`] = data[key];
-  });
-  return prefixed;
+/**
+ * Loads and merges the translation files of one locale.
+ * @param {string} locale - Admin locale.
+ * @returns {Promise<Record<string, string>>} Messages with plugin-prefixed ids.
+ */
+const loadMessages = async (locale) => {
+  const loader = LOADERS[locale] || LOADERS[locale.split('-')[0]] || LOADERS.en;
+  const modules = await Promise.all(loader());
+  const merged = Object.assign({}, ...modules.map((module) => module.default || module));
+  return Object.fromEntries(Object.entries(merged).map(([key, value]) => [getTranslation(key), value]));
 };
 
 export default {
   /**
-   * Register the plugin and custom field
+   * Registers the plugin, the custom field and the settings links.
+   * @param {object} app - Strapi admin app.
    */
   register(app) {
-    // Register the plugin
-    app.registerPlugin({
-      id: PLUGIN_ID,
-      initializer: Initializer,
-      isReady: false,
-      name: PLUGIN_ID,
-    });
+    app.registerPlugin({ id: PLUGIN_ID, name: PLUGIN_ID });
 
-    // Register the Custom Field
-    // @see https://docs.strapi.io/cms/features/custom-fields
     app.customFields.register({
       name: 'richtext',
-      pluginId: PLUGIN_ID, // Must match server-side plugin name
-      type: 'json', // Data type - stores Editor.js JSON content natively
-      
-      intlLabel: {
-        id: `${PLUGIN_ID}.richtext.label`,
-        defaultMessage: 'Magic Editor X',
-      },
-      
+      pluginId: PLUGIN_ID,
+      type: 'json',
+      intlLabel: { id: getTranslation('field.label'), defaultMessage: 'Magic Editor X' },
       intlDescription: {
-        id: `${PLUGIN_ID}.richtext.description`,
-        defaultMessage: 'Advanced block-based rich text editor powered by Editor.js',
+        id: getTranslation('field.description'),
+        defaultMessage: 'Block editor with media, embeds, custom blocks, history and live collaboration',
       },
-      
-      // Icon must be a React component, not a promise
       icon: PluginIcon,
-      
-      // Input component for Content Manager
       components: {
-        Input: async () => 
-          import('./components/EditorJS').then((module) => ({
-            default: module.default,
-          })),
+        Input: () => import('./components/EditorField'),
       },
-      
-      // Options for Content-Type Builder
       options: {
         base: [
           {
-            sectionTitle: {
-              id: `${PLUGIN_ID}.richtext.section.editor`,
-              defaultMessage: 'Editor Settings',
-            },
+            sectionTitle: { id: getTranslation('field.options.section'), defaultMessage: 'Editor' },
             items: [
               {
                 intlLabel: {
-                  id: `${PLUGIN_ID}.richtext.placeholder.label`,
+                  id: getTranslation('field.options.placeholder.label'),
                   defaultMessage: 'Placeholder',
+                },
+                description: {
+                  id: getTranslation('field.options.placeholder.description'),
+                  defaultMessage: 'Text shown while the editor is empty',
                 },
                 name: 'options.placeholder',
                 type: 'text',
-                defaultValue: 'Start writing your content...',
-                description: {
-                  id: `${PLUGIN_ID}.richtext.placeholder.description`,
-                  defaultMessage: 'Placeholder text shown when editor is empty',
-                },
               },
             ],
           },
         ],
         advanced: [
           {
-            sectionTitle: {
-              id: `${PLUGIN_ID}.richtext.section.advanced`,
-              defaultMessage: 'Advanced Settings',
-            },
+            sectionTitle: { id: getTranslation('field.options.advanced'), defaultMessage: 'Layout' },
             items: [
               {
                 intlLabel: {
-                  id: `${PLUGIN_ID}.richtext.minHeight.label`,
-                  defaultMessage: 'Minimum Height',
+                  id: getTranslation('field.options.minHeight.label'),
+                  defaultMessage: 'Minimum height (px)',
+                },
+                description: {
+                  id: getTranslation('field.options.minHeight.description'),
+                  defaultMessage: 'Height of the empty editor, between 120 and 2000 pixels',
                 },
                 name: 'options.minHeight',
                 type: 'number',
-                defaultValue: 300,
-                description: {
-                  id: `${PLUGIN_ID}.richtext.minHeight.description`,
-                  defaultMessage: 'Minimum height of the editor in pixels',
-                },
               },
             ],
           },
@@ -113,107 +115,45 @@ export default {
       },
     });
 
-    // Optional: Add menu link for plugin settings/info page
-    app.addMenuLink({
-      to: `plugins/${PLUGIN_ID}`,
-      icon: PluginIcon,
-      intlLabel: {
-        id: `${PLUGIN_ID}.plugin.name`,
-        defaultMessage: 'Magic Editor X',
-      },
-      // Use lazy import without async wrapper to avoid deprecation warning
-      Component: () => import('./pages/App'),
-      permissions: pluginPermissions.access,
-    });
-
-    // Add Settings section (License & Upgrade)
-    app.createSettingSection(
+    app.addSettingsLink(
       {
-        intlLabel: { id: `${PLUGIN_ID}.settings.section`, defaultMessage: 'Magic Editor X' },
         id: PLUGIN_ID,
-        // path relative to /settings
-        to: PLUGIN_ID,
+        intlLabel: { id: getTranslation('settings.section'), defaultMessage: 'Magic Editor X' },
       },
       [
         {
-          intlLabel: {
-            id: `${PLUGIN_ID}.settings.customBlocks`,
-            defaultMessage: 'Custom Blocks',
-          },
-          id: 'custom-blocks',
-          permissions: pluginPermissions.access,
-          // relative path (no leading slash)
+          id: `${PLUGIN_ID}-configuration`,
+          intlLabel: { id: getTranslation('settings.link.configuration'), defaultMessage: 'Configuration' },
+          to: `${PLUGIN_ID}/configuration`,
+          permissions: PERMISSIONS.settingsRead,
+          Component: () => import('./pages/ConfigurationPage'),
+        },
+        {
+          id: `${PLUGIN_ID}-custom-blocks`,
+          intlLabel: { id: getTranslation('settings.link.customBlocks'), defaultMessage: 'Custom blocks' },
           to: `${PLUGIN_ID}/custom-blocks`,
+          permissions: PERMISSIONS.customBlocksManage,
           Component: () => import('./pages/CustomBlocksPage'),
-        },
-        {
-          intlLabel: {
-            id: `${PLUGIN_ID}.settings.upgrade`,
-            defaultMessage: 'Upgrade',
-          },
-          id: 'upgrade',
-          permissions: pluginPermissions.access,
-          // relative path (no leading slash)
-          to: `${PLUGIN_ID}/upgrade`,
-          Component: () => import('./pages/LicensePage'),
-        },
-        {
-          intlLabel: {
-            id: `${PLUGIN_ID}.settings.license`,
-            defaultMessage: 'License Details',
-          },
-          id: 'license',
-          permissions: pluginPermissions.access,
-          // relative path (no leading slash)
-          to: `${PLUGIN_ID}/license`,
-          Component: () => import('./pages/Settings'),
         },
       ]
     );
-
-    console.log('[Magic Editor X] Custom field registered in admin panel');
   },
 
-  /**
-   * Bootstrap the plugin
-   */
-  async bootstrap(app) {
-    // Inject Live Collaboration Panel into Content Manager sidebar (like Session Manager)
-    const { default: LiveCollaborationPanel } = await import('./components/LiveCollaborationPanel');
-    
-    try {
-      const contentManagerPlugin = app.getPlugin('content-manager');
-      if (contentManagerPlugin && contentManagerPlugin.apis) {
-        contentManagerPlugin.apis.addEditViewSidePanel([LiveCollaborationPanel]);
-        console.log('[Magic Editor X] [SUCCESS] LiveCollaborationPanel injected into sidebar');
-      }
-    } catch (error) {
-      console.error('[Magic Editor X] Error injecting panel:', error);
-    }
-
-    console.log('[Magic Editor X] Plugin bootstrapped');
-  },
+  bootstrap() {},
 
   /**
-   * Register translations
+   * @param {{ locales: string[] }} options - Admin locales.
+   * @returns {Promise<Array<{ data: object, locale: string }>>} Translations.
    */
   async registerTrads({ locales }) {
-    const importedTrads = await Promise.all(
+    return Promise.all(
       locales.map(async (locale) => {
         try {
-          const { default: data } = await import(`./translations/${locale}.json`);
-          return { data: prefixPluginTranslations(data, PLUGIN_ID), locale };
+          return { data: await loadMessages(locale), locale };
         } catch {
-          try {
-            const { default: data } = await import('./translations/en.json');
-            return { data: prefixPluginTranslations(data, PLUGIN_ID), locale };
-          } catch {
-            return { data: {}, locale };
-          }
+          return { data: {}, locale };
         }
       })
     );
-
-    return importedTrads;
   },
 };

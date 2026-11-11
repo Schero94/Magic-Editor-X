@@ -1,0 +1,10 @@
+{
+  "field.label": "Magic Editor X",
+  "field.description": "Éditeur par blocs avec médias, intégrations, blocs personnalisés, historique et édition collaborative en direct",
+  "field.options.section": "Éditeur",
+  "field.options.placeholder.label": "Texte indicatif",
+  "field.options.placeholder.description": "Texte affiché tant que l’éditeur est vide",
+  "field.options.advanced": "Mise en page",
+  "field.options.minHeight.label": "Hauteur minimale (px)",
+  "field.options.minHeight.description": "Hauteur de l’éditeur vide, entre 120 et 2000 pixels"
+}
