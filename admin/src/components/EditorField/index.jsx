@@ -211,6 +211,13 @@ const EditorField = ({
     // Typing is saved shortly after each input event instead of waiting for
     // Editor.js' own (slower) change notification.
     const onInput = () => scheduleSave(40);
+    // Block menu actions (alignment, text variant, indent, move, delete) do
+    // not fire input events, and Editor.js reports them only after ~400 ms.
+    // Save right after any click or Enter inside the editor instead.
+    const onClick = () => scheduleSave(40);
+    const onKeyUp = (event) => {
+      if (event.key === 'Enter') scheduleSave(40);
+    };
     // Editor.js uses Tab to open its block menu. Escape followed by Tab leaves
     // the editor, so keyboard users are never trapped inside it.
     let leaveArmed = false;
@@ -248,7 +255,11 @@ const EditorField = ({
     window.addEventListener('keydown', onKeyDown, true);
     holder.addEventListener('focusout', onFocusOut);
     holder.addEventListener('input', onInput);
+    holder.addEventListener('click', onClick);
+    holder.addEventListener('keyup', onKeyUp);
     return () => {
+      holder.removeEventListener('click', onClick);
+      holder.removeEventListener('keyup', onKeyUp);
       holder.removeEventListener('focusout', onFocusOut);
       holder.removeEventListener('input', onInput);
       window.removeEventListener('keydown', onKeyDown, true);
