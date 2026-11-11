@@ -5,21 +5,54 @@ import {
   Box,
   Button,
   Dialog,
+  Field,
   Flex,
   IconButton,
   Loader,
   Modal,
+  Tabs,
+  TextInput,
   Typography,
 } from '@strapi/design-system';
-import { ArrowClockwise, Eye } from '@strapi/icons';
+import { ArrowClockwise, Eye, Pencil } from '@strapi/icons';
 import { ConfirmDialog, useFetchClient, useNotification } from '@strapi/strapi/admin';
+import styled from 'styled-components';
 import { API, readApiError } from '../../utils/api';
+import { VersionDiff } from './VersionDiff';
 
 /**
- * Version history of one field: list snapshots, save the current content as a
- * version, preview and restore. Restoring replaces the editor content; the
- * entry is stored when the user saves it in the Content Manager.
+ * Version history of one field: list snapshots, save (and name) the current
+ * content as a version, rename versions, preview a version, compare it with
+ * the current editor content and restore the whole version or single blocks.
+ * Restoring replaces editor content; the entry is stored when the user saves
+ * it in the Content Manager.
  */
+
+const MAX_LABEL_LENGTH = 120;
+
+/**
+ * Footer that wraps on narrow screens. Without wrapping, the Design System
+ * footer (a non-wrapping Flex) squeezes "Save current version" at 320 px until
+ * its label breaks onto a second line that overflows the fixed-height button,
+ * so part of the white label is drawn outside the primary background (the
+ * low contrast measured in the 2.1 acceptance).
+ */
+const Footer = styled(Modal.Footer)`
+  flex-wrap: wrap;
+  gap: ${({ theme }) => theme.spaces[2]};
+`;
+
+/** Button whose label may wrap without leaving its background. */
+const WrappingButton = styled(Button)`
+  max-width: 100%;
+  height: auto;
+  min-height: ${({ theme }) => theme.sizes.button.M.initial || '4.4rem'};
+  padding-block: ${({ theme }) => theme.spaces[2]};
+  text-align: center;
+  ${({ theme }) => theme.breakpoints.medium} {
+    min-height: ${({ theme }) => theme.sizes.button.M.medium || '3.6rem'};
+  }
+`;
 
 const TRIGGERS = {
   manual: { key: 'editor.history.trigger.manual', text: 'Saved' },
@@ -55,16 +88,22 @@ const previewLines = (content) => {
  * @param {object} props - Props.
  * @returns {JSX.Element} Modal.
  */
-export const HistoryModal = ({ t, target, readContent, onRestore, onClose, canEdit }) => {
+export const HistoryModal = ({ t, target, readContent, onRestore, onRestoreBlock, onClose, canEdit }) => {
   const { formatDate } = useIntl();
-  const { get, post } = useFetchClient();
+  const { get, post, put } = useFetchClient();
   const { toggleNotification } = useNotification();
   const [state, setState] = useState({ loading: true, error: false, items: [], meta: {} });
   const [saving, setSaving] = useState(false);
   const [preview, setPreview] = useState(null);
   const [confirm, setConfirm] = useState(null);
   const [restoring, setRestoring] = useState(false);
+  const [label, setLabel] = useState('');
+  const [renaming, setRenaming] = useState(null);
+  const [renameBusy, setRenameBusy] = useState(false);
+  const [tab, setTab] = useState('preview');
+  const [diff, setDiff] = useState(null);
   const saveButton = useRef(null);
+  const renameButtons = useRef(new Map());
 
   const fetchList = useCallback(
     () =>
@@ -96,14 +135,26 @@ export const HistoryModal = ({ t, target, readContent, onRestore, onClose, canEd
     setSaving(true);
     try {
       const content = await readContent();
-      const { data } = await post(API.history, { ...target, locale: target.locale || null, content });
+      const name = label.trim();
+      const { data } = await post(API.history, {
+        ...target,
+        locale: target.locale || null,
+        content,
+        ...(name ? { label: name } : {}),
+      });
+      const created = Boolean(data.meta && data.meta.created);
       toggleNotification({
         type: 'success',
-        message:
-          data.meta && data.meta.created
-            ? t('editor.history.saved', 'Version saved.')
+        message: created
+          ? t('editor.history.saved', 'Version saved.')
+          : name
+            ? t(
+                'editor.history.namedLatest',
+                'Nothing changed since the last version, so the name was given to it.'
+              )
             : t('editor.history.unchanged', 'Nothing changed since the last version.'),
       });
+      setLabel('');
       await load();
     } catch (error) {
       toggleNotification({
@@ -117,6 +168,13 @@ export const HistoryModal = ({ t, target, readContent, onRestore, onClose, canEd
   };
 
   const showPreview = async (item) => {
+    if (preview && preview.item.id === item.id) {
+      setPreview(null);
+      setDiff(null);
+      return;
+    }
+    setTab('preview');
+    setDiff(null);
     setPreview({ item, loading: true, lines: [] });
     try {
       const { data } = await get(API.historyItem(item.id));
@@ -128,6 +186,69 @@ export const HistoryModal = ({ t, target, readContent, onRestore, onClose, canEd
       });
     } catch {
       setPreview({ item, loading: false, error: true, lines: [] });
+    }
+  };
+
+  /** Loads the current editor content and shows the changes since the previewed version. */
+  const showChanges = async () => {
+    setTab('changes');
+    if (!preview || !preview.content || (diff && diff.id === preview.item.id)) return;
+    setDiff({ id: preview.item.id, loading: true });
+    try {
+      const current = await readContent();
+      setDiff({ id: preview.item.id, loading: false, current: current || { blocks: [] } });
+    } catch {
+      setDiff({ id: preview.item.id, loading: false, error: true });
+    }
+  };
+
+  /** Restores one block of the previewed version into the editor. */
+  const restoreBlock = async (entry, position) => {
+    try {
+      const applied = await onRestoreBlock(entry.before, position);
+      if (applied === false) throw new Error('not applied');
+      toggleNotification({
+        type: 'success',
+        message: t('editor.history.diff.blockRestored', 'Block restored. Save the entry to keep it.'),
+      });
+      const current = await readContent();
+      setDiff({ id: preview.item.id, loading: false, current: current || { blocks: [] } });
+    } catch {
+      toggleNotification({
+        type: 'danger',
+        message: t('editor.history.diff.restoreFailed', 'The block could not be restored.'),
+      });
+    }
+  };
+
+  /** Leaves the rename form and puts focus back on the rename button. */
+  const endRename = (id) => {
+    setRenaming(null);
+    window.requestAnimationFrame(() => {
+      const button = renameButtons.current.get(id);
+      if (button) button.focus();
+    });
+  };
+
+  const saveRename = async (event) => {
+    if (event) event.preventDefault();
+    if (!renaming || renameBusy) return;
+    if (renaming.value.trim().length > MAX_LABEL_LENGTH) return;
+    setRenameBusy(true);
+    try {
+      await put(API.historyItem(renaming.id), { label: renaming.value.trim() || null });
+      toggleNotification({ type: 'success', message: t('editor.history.renamed', 'Version name saved.') });
+      const id = renaming.id;
+      await load();
+      endRename(id);
+    } catch (error) {
+      toggleNotification({
+        type: 'danger',
+        message:
+          readApiError(error).message || t('editor.history.renameFailed', 'The name could not be saved.'),
+      });
+    } finally {
+      setRenameBusy(false);
     }
   };
 
@@ -157,6 +278,8 @@ export const HistoryModal = ({ t, target, readContent, onRestore, onClose, canEd
   };
 
   const canWrite = canEdit && state.meta.canRestore !== false;
+  const canName = canWrite && state.meta.canCreate !== false;
+  const labelTooLong = label.trim().length > MAX_LABEL_LENGTH;
 
   return (
     <Modal.Root open onOpenChange={(open) => !open && onClose()}>
@@ -172,6 +295,32 @@ export const HistoryModal = ({ t, target, readContent, onRestore, onClose, canEd
                 'Versions of this field. Restoring replaces the editor content; save the entry to keep it.'
               )}
             </Typography>
+            {canName ? (
+              <Field.Root
+                name="mex-version-label"
+                hint={t(
+                  'editor.history.labelHint',
+                  'Optional. For example "Before legal review". Up to 120 characters.'
+                )}
+                error={
+                  labelTooLong ? t('editor.history.labelTooLong', 'Use 120 characters or fewer.') : undefined
+                }
+              >
+                <Field.Label>{t('editor.history.labelField', 'Name of the new version')}</Field.Label>
+                <TextInput
+                  value={label}
+                  onChange={(event) => setLabel(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' && !labelTooLong && !saving) {
+                      event.preventDefault();
+                      saveVersion();
+                    }
+                  }}
+                />
+                <Field.Hint />
+                <Field.Error />
+              </Field.Root>
+            ) : null}
             {state.loading ? (
               <Flex justifyContent="center" padding={4}>
                 <Loader small>{t('editor.history.loading', 'Loading versions')}</Loader>
@@ -216,10 +365,20 @@ export const HistoryModal = ({ t, target, readContent, onRestore, onClose, canEd
                     >
                       <Flex gap={3} justifyContent="space-between" wrap="wrap">
                         <Flex direction="column" alignItems="flex-start" gap={1} minWidth={0}>
-                          <Flex gap={2} wrap="wrap">
-                            <Typography variant="omega" fontWeight="bold">
-                              {t('editor.history.version', 'Version {version}', { version: item.version })}
+                          <Flex gap={2} wrap="wrap" minWidth={0}>
+                            <Typography
+                              variant="omega"
+                              fontWeight="bold"
+                              style={{ overflowWrap: 'anywhere' }}
+                            >
+                              {item.label ||
+                                t('editor.history.version', 'Version {version}', { version: item.version })}
                             </Typography>
+                            {item.label ? (
+                              <Typography variant="pi" textColor="neutral600">
+                                {t('editor.history.version', 'Version {version}', { version: item.version })}
+                              </Typography>
+                            ) : null}
                             <Badge>{t(trigger.key, trigger.text)}</Badge>
                           </Flex>
                           <Typography variant="pi" textColor="neutral600">
@@ -247,10 +406,26 @@ export const HistoryModal = ({ t, target, readContent, onRestore, onClose, canEd
                               version: item.version,
                             })}
                             variant="tertiary"
+                            aria-expanded={Boolean(preview && preview.item.id === item.id)}
                             onClick={() => showPreview(item)}
                           >
                             <Eye />
                           </IconButton>
+                          {canName ? (
+                            <IconButton
+                              ref={(node) => {
+                                if (node) renameButtons.current.set(item.id, node);
+                                else renameButtons.current.delete(item.id);
+                              }}
+                              label={t('editor.history.rename', 'Rename version {version}', {
+                                version: item.version,
+                              })}
+                              variant="tertiary"
+                              onClick={() => setRenaming({ id: item.id, value: item.label || '' })}
+                            >
+                              <Pencil />
+                            </IconButton>
+                          ) : null}
                           {canWrite && item.restorable ? (
                             <Button variant="secondary" onClick={() => setConfirm(item)}>
                               {t('editor.history.restore', 'Restore')}
@@ -258,8 +433,108 @@ export const HistoryModal = ({ t, target, readContent, onRestore, onClose, canEd
                           ) : null}
                         </Flex>
                       </Flex>
+                      {renaming && renaming.id === item.id ? (
+                        <Box tag="form" marginTop={3} onSubmit={saveRename} noValidate>
+                          <Flex direction="column" alignItems="stretch" gap={2}>
+                            <Field.Root
+                              name={`mex-version-label-${item.id}`}
+                              hint={t('editor.history.renameHint', 'Leave empty to remove the name.')}
+                              error={
+                                renaming.value.trim().length > MAX_LABEL_LENGTH
+                                  ? t('editor.history.labelTooLong', 'Use 120 characters or fewer.')
+                                  : undefined
+                              }
+                            >
+                              <Field.Label>{t('editor.history.renameLabel', 'Version name')}</Field.Label>
+                              <TextInput
+                                autoFocus
+                                value={renaming.value}
+                                onChange={(event) => setRenaming({ ...renaming, value: event.target.value })}
+                                onKeyDown={(event) => {
+                                  if (event.key === 'Escape') {
+                                    event.preventDefault();
+                                    event.stopPropagation();
+                                    endRename(item.id);
+                                  }
+                                }}
+                              />
+                              <Field.Hint />
+                              <Field.Error />
+                            </Field.Root>
+                            <Flex gap={2} wrap="wrap">
+                              <Button type="submit" size="S" loading={renameBusy}>
+                                {t('editor.history.renameSave', 'Save name')}
+                              </Button>
+                              <Button
+                                type="button"
+                                size="S"
+                                variant="tertiary"
+                                onClick={() => endRename(item.id)}
+                              >
+                                {t('editor.history.renameCancel', 'Cancel')}
+                              </Button>
+                            </Flex>
+                          </Flex>
+                        </Box>
+                      ) : null}
                       {preview && preview.item.id === item.id ? (
-                        <Box marginTop={3} padding={3} background="neutral100" hasRadius>
+                        <Box marginTop={3} padding={3} background="neutral100" hasRadius minWidth={0}>
+                          {preview.content ? (
+                            <Tabs.Root
+                              value={tab}
+                              onValueChange={(value) =>
+                                value === 'changes' ? showChanges() : setTab('preview')
+                              }
+                            >
+                              <Tabs.List aria-label={t('editor.history.tabs', 'Version views')}>
+                                <Tabs.Trigger value="preview">
+                                  {t('editor.history.tab.preview', 'Preview')}
+                                </Tabs.Trigger>
+                                <Tabs.Trigger value="changes">
+                                  {t('editor.history.tab.changes', 'Changes')}
+                                </Tabs.Trigger>
+                              </Tabs.List>
+                              <Tabs.Content value="preview">
+                                <Box paddingTop={3}>
+                                  {preview.lines.map((line, index) => (
+                                    <Typography
+                                      key={index}
+                                      tag="p"
+                                      variant="pi"
+                                      textColor="neutral800"
+                                      style={{ overflowWrap: 'anywhere' }}
+                                    >
+                                      {line}
+                                    </Typography>
+                                  ))}
+                                </Box>
+                              </Tabs.Content>
+                              <Tabs.Content value="changes">
+                                <Box paddingTop={3}>
+                                  {!diff || diff.loading ? (
+                                    <Loader small>
+                                      {t('editor.history.diff.loading', 'Comparing with the current content')}
+                                    </Loader>
+                                  ) : null}
+                                  {diff && diff.error ? (
+                                    <Typography textColor="danger600">
+                                      {t('editor.history.diff.error', 'The changes could not be shown.')}
+                                    </Typography>
+                                  ) : null}
+                                  {diff && diff.current ? (
+                                    <VersionDiff
+                                      t={t}
+                                      version={preview.content}
+                                      current={diff.current}
+                                      versionNumber={item.version}
+                                      canRestore={Boolean(canWrite && typeof onRestoreBlock === 'function')}
+                                      onRestoreBlock={restoreBlock}
+                                    />
+                                  ) : null}
+                                </Box>
+                              </Tabs.Content>
+                            </Tabs.Root>
+                          ) : null}
                           {preview.loading ? (
                             <Loader small>{t('editor.history.previewLoading', 'Loading preview')}</Loader>
                           ) : null}
@@ -268,17 +543,6 @@ export const HistoryModal = ({ t, target, readContent, onRestore, onClose, canEd
                               {t('editor.history.previewError', 'The preview could not be loaded.')}
                             </Typography>
                           ) : null}
-                          {preview.lines.map((line, index) => (
-                            <Typography
-                              key={index}
-                              tag="p"
-                              variant="pi"
-                              textColor="neutral800"
-                              style={{ overflowWrap: 'anywhere' }}
-                            >
-                              {line}
-                            </Typography>
-                          ))}
                         </Box>
                       ) : null}
                     </Box>
@@ -288,16 +552,16 @@ export const HistoryModal = ({ t, target, readContent, onRestore, onClose, canEd
             ) : null}
           </Flex>
         </Modal.Body>
-        <Modal.Footer>
+        <Footer>
           <Modal.Close>
-            <Button variant="tertiary">{t('editor.history.cancel', 'Close')}</Button>
+            <WrappingButton variant="tertiary">{t('editor.history.cancel', 'Close')}</WrappingButton>
           </Modal.Close>
           {canWrite ? (
-            <Button ref={saveButton} onClick={saveVersion} loading={saving}>
+            <WrappingButton ref={saveButton} onClick={saveVersion} loading={saving} disabled={labelTooLong}>
               {t('editor.history.save', 'Save current version')}
-            </Button>
+            </WrappingButton>
           ) : null}
-        </Modal.Footer>
+        </Footer>
       </Modal.Content>
       <Dialog.Root open={Boolean(confirm)} onOpenChange={(open) => !open && !restoring && setConfirm(null)}>
         {confirm ? (
