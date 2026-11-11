@@ -3,6 +3,8 @@ import {
   INLINE_TAGS,
   INLINE_ATTRIBUTES,
   INLINE_CLASSES,
+  INTERNAL_LINK_ATTRIBUTES,
+  cleanInternalLinkAttributes,
   sanitizeUrl,
   sanitizeEditorData,
 } from '../../../shared/sanitize-policy.mjs';
@@ -39,6 +41,19 @@ const instance = () => {
   purify.addHook('afterSanitizeAttributes', (node) => {
     if (node.nodeName === 'A' && node.getAttribute('target') === '_blank')
       node.setAttribute('rel', 'noopener noreferrer');
+    // Internal-link attributes: only on <a>, only valid values, uid and documentId together.
+    if (typeof node.hasAttribute !== 'function') return;
+    if (!INTERNAL_LINK_ATTRIBUTES.some((name) => node.hasAttribute(name))) return;
+    const kept =
+      node.nodeName === 'A'
+        ? cleanInternalLinkAttributes(
+            Object.fromEntries(INTERNAL_LINK_ATTRIBUTES.map((name) => [name, node.getAttribute(name)]))
+          )
+        : {};
+    for (const name of INTERNAL_LINK_ATTRIBUTES) {
+      if (kept[name]) node.setAttribute(name, kept[name]);
+      else node.removeAttribute(name);
+    }
   });
   return purify;
 };

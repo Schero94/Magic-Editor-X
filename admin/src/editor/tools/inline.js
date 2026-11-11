@@ -1,5 +1,7 @@
-import { ICONS, el } from './dom';
+import { ICONS, el, button } from './dom';
 import { sanitizeUrl } from '../sanitize';
+import { createLinkPicker } from './link-picker';
+import { readInternalLink, internalLinkAttributes } from './logic.mjs';
 
 /**
  * Inline tools (Editor.js inline toolbar). Bold and italic come from the
@@ -7,7 +9,8 @@ import { sanitizeUrl } from '../sanitize';
  * markup 1.x stored:
  * marker `<mark class="cdx-marker">`, underline `<u class="cdx-underline">`,
  * strikethrough `<s class="cdx-strikethrough">`, tooltip
- * `<span class="cdx-tooltip" data-tooltip>`, hyperlink `<a href target rel>`,
+ * `<span class="cdx-tooltip" data-tooltip>`, hyperlink `<a href target rel>`
+ * (internal links add `data-mex-uid`, `data-mex-document-id`, `data-mex-locale`),
  * and the AI trigger.
  *
  * Wrapping uses Range APIs (extractContents/insertNode) like the official
@@ -171,7 +174,11 @@ class AttributeInlineTool {
         this.api.inlineToolbar.close();
       }
     });
-    this.input.addEventListener('blur', () => this.commit());
+    this.input.addEventListener('blur', (event) => {
+      // Moving to another control of the same actions panel (checkbox, entry picker) is not "done".
+      if (this.actions && event.relatedTarget && this.actions.contains(event.relatedTarget)) return;
+      this.commit();
+    });
     this.actions = el('div', { className: 'mex-inline-actions', children: [this.input] });
     this.actions.hidden = true;
     return this.actions;
@@ -264,14 +271,35 @@ export class TooltipTool extends AttributeInlineTool {
   }
 }
 
-/** Hyperlink: `<a href target rel>` with validated URLs. */
+/**
+ * Hyperlink: `<a href target rel>` with validated URLs. With a fetch client the
+ * actions panel also offers "Link to an entry": the picked entry's `href`
+ * comes from the server (config `links.urlPattern`) and the reference is kept
+ * in `data-mex-uid`, `data-mex-document-id` and `data-mex-locale`.
+ */
 export class HyperlinkTool extends AttributeInlineTool {
   static get title() {
     return 'Link';
   }
 
   static get sanitize() {
-    return { a: { href: true, target: true, rel: true } };
+    return {
+      a: {
+        href: true,
+        target: true,
+        rel: true,
+        'data-mex-uid': true,
+        'data-mex-document-id': true,
+        'data-mex-locale': true,
+      },
+    };
+  }
+
+  constructor(options) {
+    super(options);
+    this.internal = null;
+    this.picker = null;
+    this.pickerToggle = null;
   }
 
   get shortcut() {
@@ -302,11 +330,60 @@ export class HyperlinkTool extends AttributeInlineTool {
         children: [this.newTab, el('span', { text: this.t('tools.hyperlink.newTab', 'Open in a new tab') })],
       })
     );
+    if (this.config.fetchClient && typeof this.config.fetchClient.get === 'function')
+      this.renderPicker(actions);
     return actions;
+  }
+
+  /**
+   * Adds the "Link to an entry" toggle and the picker to the actions panel.
+   * @param {HTMLElement} actions - Actions panel.
+   */
+  renderPicker(actions) {
+    this.picker = createLinkPicker({
+      t: (id, fallback, values) => this.t(id, fallback, values),
+      fetchClient: this.config.fetchClient,
+      getLocale: this.config.getLocale,
+      onPick: (item) => this.applyInternal(item),
+      onClose: () => {
+        if (this.pickerToggle) this.pickerToggle.setAttribute('aria-expanded', 'false');
+        if (this.input) this.input.focus();
+      },
+    });
+    this.pickerToggle = button(this.t('tools.hyperlink.internal.open', 'Link to an entry'), {
+      icon: ICONS.entry,
+    });
+    this.pickerToggle.classList.add('mex-link-picker__toggle');
+    this.pickerToggle.setAttribute('aria-expanded', 'false');
+    this.pickerToggle.setAttribute('aria-controls', this.picker.element.id);
+    this.pickerToggle.addEventListener('click', () => {
+      if (this.picker.isOpen()) {
+        this.picker.close();
+        return;
+      }
+      this.pickerToggle.setAttribute('aria-expanded', 'true');
+      this.picker.open();
+    });
+    actions.append(this.pickerToggle, this.picker.element);
+  }
+
+  /**
+   * Writes a picked entry into the current link and closes the toolbar.
+   * @param {{ href: string, uid: string, documentId: string, locale: string|null }} item - Search result.
+   */
+  applyInternal(item) {
+    if (!this.input) return;
+    this.internal = { href: item.href, uid: item.uid, documentId: item.documentId, locale: item.locale };
+    this.input.value = item.href;
+    // Links inside the site open in the same tab.
+    if (this.newTab) this.newTab.checked = false;
+    this.commit();
+    this.api.inlineToolbar.close();
   }
 
   readValue(node) {
     if (this.newTab) this.newTab.checked = node.getAttribute('target') === '_blank';
+    this.internal = readInternalLink(node);
     return node.getAttribute('href') || '';
   }
 
@@ -317,6 +394,10 @@ export class HyperlinkTool extends AttributeInlineTool {
     const safe = sanitizeUrl(url);
     if (!safe) return false;
     node.setAttribute('href', safe);
+    for (const [name, attribute] of Object.entries(internalLinkAttributes(this.internal, safe))) {
+      if (attribute) node.setAttribute(name, attribute);
+      else node.removeAttribute(name);
+    }
     if (this.newTab && this.newTab.checked) {
       node.setAttribute('target', '_blank');
       node.setAttribute('rel', 'noopener noreferrer');

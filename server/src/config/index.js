@@ -1,6 +1,7 @@
 'use strict';
 
 const { z } = require('zod');
+const { isValidLinkPattern, MAX_LINK_PATTERN_LENGTH } = require('../../../shared/link-pattern.mjs');
 
 /**
  * Plugin configuration (config/plugins.js -> 'magic-editor-x': { config: {...} }).
@@ -79,6 +80,13 @@ const defaults = {
     /** Snapshots kept per field and locale; older ones are removed. */
     maxSnapshotsPerField: 50,
   },
+  links: {
+    /**
+     * href of internal links, e.g. '/{locale}/{collection}/{slug}' or 'https://www.example.com/{collection}/{documentId}'.
+     * Placeholders: {documentId}, {locale}, {slug}, {collection}, {singular}. Empty uses '/{collection}/{documentId}'.
+     */
+    urlPattern: '',
+  },
 };
 
 const positiveInt = (max) => z.number().int().min(1).max(max);
@@ -131,6 +139,9 @@ const configSchema = z.looseObject({
     }),
   }),
   history: z.looseObject({ maxSnapshotsPerField: positiveInt(1000) }),
+  links: z.looseObject({
+    urlPattern: z.string().max(MAX_LINK_PATTERN_LENGTH).refine(isValidLinkPattern),
+  }),
 });
 
 module.exports = {

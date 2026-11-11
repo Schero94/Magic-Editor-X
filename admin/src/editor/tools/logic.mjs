@@ -421,3 +421,50 @@ export const dropIndex = (rects, y, fromIndex) => {
   const to = insertBefore > fromIndex ? insertBefore - 1 : insertBefore;
   return Math.max(0, Math.min(rects.length - 1, to));
 };
+
+/**
+ * Next active option of a listbox for arrow-key navigation (wraps around).
+ * @param {number} current - Active index (-1 for none).
+ * @param {number} delta - +1 (down) or -1 (up).
+ * @param {number} length - Number of options.
+ * @returns {number} New index, -1 when the list is empty.
+ */
+export const moveActiveIndex = (current, delta, length) => {
+  if (!Number.isInteger(length) || length <= 0) return -1;
+  if (!Number.isInteger(current) || current < 0 || current >= length) return delta < 0 ? length - 1 : 0;
+  return (current + delta + length) % length;
+};
+
+/**
+ * Reads the internal-link reference of an `<a>` element.
+ * @param {{ getAttribute: (name: string) => string|null }|null} node - Link element.
+ * @returns {{ href: string, uid: string, documentId: string, locale: string|null }|null} Reference or null.
+ */
+export const readInternalLink = (node) => {
+  if (!node || typeof node.getAttribute !== 'function') return null;
+  const uid = node.getAttribute('data-mex-uid');
+  const documentId = node.getAttribute('data-mex-document-id');
+  if (!uid || !documentId) return null;
+  return {
+    href: node.getAttribute('href') || '',
+    uid,
+    documentId,
+    locale: node.getAttribute('data-mex-locale') || null,
+  };
+};
+
+/**
+ * Data attributes to write for a link. They are kept only while the href is
+ * the one the picker produced; a hand-edited address turns it into a plain link.
+ * @param {{ href: string, uid: string, documentId: string, locale?: string|null }|null} internal - Picked entry.
+ * @param {string} href - The href that is written.
+ * @returns {Record<string, string|null>} Attribute values (null removes the attribute).
+ */
+export const internalLinkAttributes = (internal, href) => {
+  const keep = Boolean(internal && internal.uid && internal.documentId && internal.href === href);
+  return {
+    'data-mex-uid': keep ? internal.uid : null,
+    'data-mex-document-id': keep ? internal.documentId : null,
+    'data-mex-locale': keep && internal.locale ? internal.locale : null,
+  };
+};

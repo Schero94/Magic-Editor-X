@@ -9,11 +9,13 @@ const {
   LINK_SCHEMES,
   sanitizeEditorData,
   sanitizeTarget,
+  INTERNAL_LINK_ATTRIBUTES,
+  cleanInternalLinkAttributes,
 } = require('../../../shared/sanitize-policy.mjs');
 
 /**
- * Adds rel="noopener noreferrer" to links that open a new tab and drops
- * invalid targets.
+ * Adds rel="noopener noreferrer" to links that open a new tab, drops invalid
+ * targets and keeps internal-link data attributes only when they are valid.
  * @param {string} tagName - Tag name.
  * @param {Record<string, string>} attribs - Attributes.
  * @returns {{ tagName: string, attribs: Record<string, string> }} Transformed tag.
@@ -40,6 +42,8 @@ const transformLink = (tagName, attribs) => {
       .filter((value) => /^[a-z-]{1,20}$/.test(value))
       .join(' ');
   }
+  for (const name of INTERNAL_LINK_ATTRIBUTES) delete out[name];
+  Object.assign(out, cleanInternalLinkAttributes(attribs));
   return { tagName, attribs: out };
 };
 

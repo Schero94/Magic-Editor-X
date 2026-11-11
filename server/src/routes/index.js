@@ -18,6 +18,8 @@ const adminRoutes = [
   ['POST', '/image/byUrl', 'editor.uploadImageUrl', [ACTIONS.access, UPLOAD_CREATE]],
   ['POST', '/file/upload', 'editor.uploadAttachment', [ACTIONS.access, UPLOAD_CREATE]],
   ['GET', '/content-types', 'editor.contentTypes', [ACTIONS.access]],
+  ['GET', '/links/types', 'links.types', [ACTIONS.access]],
+  ['GET', '/links/search', 'links.search', [ACTIONS.access]],
 
   ['GET', '/custom-blocks', 'customBlocks.list', [ACTIONS.access]],
   ['GET', '/custom-blocks/export', 'customBlocks.export', [ACTIONS.customBlocksManage]],

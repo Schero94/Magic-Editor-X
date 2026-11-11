@@ -125,6 +125,11 @@ const EditorField = ({
   const target = useFieldTarget(name);
   const navigate = useNavigate();
   const settingsHref = useHref(SETTINGS_PATH);
+  // The editor is not rebuilt on a locale switch; the link picker reads the current locale through this ref.
+  const contentLocaleRef = useRef(target.locale);
+  useEffect(() => {
+    contentLocaleRef.current = target.locale;
+  }, [target.locale]);
 
   const t = useCallback(
     (id, defaultMessage, values) => formatMessage({ id: getTranslation(id), defaultMessage }, values),
@@ -464,6 +469,7 @@ const EditorField = ({
       tools: buildTools({
         t,
         fetchClient: { get, post },
+        getContentLocale: () => contentLocaleRef.current,
         uploadImage: (file) => upload(API.imageByFile, 'image', file),
         uploadImageByUrl,
         uploadFile: (file) => upload(API.fileUpload, 'file', file),
