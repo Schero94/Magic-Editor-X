@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Magic Editor X">
+<defs><linearGradient id="g" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse"><stop stop-color="#15803D"/><stop offset="1" stop-color="#84CC16"/></linearGradient></defs>
+<rect width="512" height="512" rx="112" fill="url(#g)"/>
+<rect x="3" y="3" width="506" height="506" rx="109" fill="none" stroke="#fff" stroke-opacity=".18" stroke-width="6"/>
+<rect x="96" y="136" width="250" height="74" rx="22" fill="#fff"/>
+<path d="M114 273H300" stroke="#fff" stroke-width="36" stroke-linecap="round"/>
+<path d="M360 232V314" stroke="#fff" stroke-width="22" stroke-linecap="round"/>
+<path d="M336 232H384M336 314H384" stroke="#fff" stroke-width="16" stroke-linecap="round"/>
+<rect x="96" y="336" width="196" height="74" rx="22" fill="#fff"/>
+<path d="M388 64Q400.0 112.0 448 124Q400.0 136.0 388 184Q376.0 136.0 328 124Q376.0 112.0 388 64Z" fill="#fff" stroke="url(#g)" stroke-width="28" stroke-linejoin="round" paint-order="stroke"/>
+</svg>

@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Schero94/Magic-Editor-X/main/docs/site/img/icon.svg" alt="Magic Editor X" width="96" height="96" />
+</p>
+
 # Magic Editor X
 
 Block editor for Strapi 5: an [Editor.js](https://editorjs.io/) custom field with Media Library uploads, custom blocks, version history, live collaboration across several servers and an optional AI assistant that uses your own provider. Free and open source under the MIT license.

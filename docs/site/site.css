@@ -28,6 +28,7 @@ code { font-size: .92em; }
 .topbar { position: sticky; top: 0; z-index: 5; background: rgba(17, 22, 39, .97); color: #f7f8fc; border-bottom: 1px solid rgba(255,255,255,.1); backdrop-filter: blur(12px); }
 .topbar-inner { max-width: 1220px; margin: 0 auto; padding: .8rem 1.5rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
 .brand { display: flex; align-items: center; gap: .7rem; min-width: 0; color: #fff; text-decoration: none; font-weight: 750; letter-spacing: -.02em; }
+.brand-logo { width: 2rem; height: 2rem; flex: 0 0 auto; border-radius: 9px; }
 .brand-mark { display: grid; place-items: center; width: 2rem; height: 2rem; flex: 0 0 auto; border-radius: 9px; background: linear-gradient(140deg, var(--purple), var(--cyan)); color: #fff; font-size: .8rem; }
 .top-links { display: flex; align-items: center; gap: 1.15rem; }
 .top-links a { color: #d7def0; font-size: .88rem; font-weight: 600; text-decoration: none; }
