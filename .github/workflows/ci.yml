@@ -1,0 +1,75 @@
+# Checks every pull request and push to a non-main branch on the Node versions
+# Strapi 5.61 supports: lint, formatting, build (with the server bundle runtime
+# check), unit tests, package verification, package contents and a production
+# audit. A second job checks that the lockfile installs with npm 10 and npm 11.
+# The integration and multi-process suites need a Strapi host; CONTRIBUTING.md
+# describes how to run them.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches-ignore:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['22', '24']
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - name: Install dependencies (no lifecycle scripts)
+        run: npm ci --ignore-scripts
+      - name: Lint
+        run: npm run lint
+      - name: Format check
+        run: npm run format:check
+      - name: Build (includes verify:runtime)
+        run: npm run build
+      - name: Tests
+        run: npm test
+      - name: Verify package
+        run: npm run verify
+      - name: Server bundle runtime check
+        run: npm run verify:runtime
+      - name: Package contents
+        run: npm pack --dry-run
+      - name: Production audit
+        run: npm audit --omit=dev --audit-level=high
+
+  lockfile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22'
+      - name: Lockfile installs with npm 10
+        run: npx --yes npm@10 ci --dry-run --ignore-scripts
+      - name: Lockfile installs with npm 11
+        run: npx --yes npm@11 ci --dry-run --ignore-scripts

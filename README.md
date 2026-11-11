@@ -1,1073 +1,416 @@
 # Magic Editor X
 
-**Advanced Block-Based Content Editor for Strapi v5 with Real-Time Collaboration**
+Block editor for Strapi 5: an [Editor.js](https://editorjs.io/) custom field with Media Library uploads, custom blocks, version history, live collaboration across several servers and an optional AI assistant that uses your own provider. Free and open source under the MIT license.
 
-[![NPM Version](https://img.shields.io/npm/v/magic-editor-x.svg)](https://www.npmjs.com/package/magic-editor-x)
-[![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Strapi v5](https://img.shields.io/badge/Strapi-v5-7C3AED.svg)](https://strapi.io)
-[![Editor.js](https://img.shields.io/badge/Editor.js-2.31.0-000.svg)](https://editorjs.io)
+[![npm](https://img.shields.io/npm/v/magic-editor-x)](https://www.npmjs.com/package/magic-editor-x)
+[![license: MIT](https://img.shields.io/badge/license-MIT-blue)](./LICENSE)
 
-> **ALPHA RELEASE v1.4.0-alpha.1** - Custom Blocks with Tier-based Limits now available! Create your own editor blocks without writing code.
+Live docs: <https://schero94.github.io/Magic-Editor-X/>
 
-Project site: https://schero94.github.io/Magic-Editor-X/
+## Contents
 
----
+- [Features](#features)
+- [Screenshots](#screenshots)
+- [Core concepts](#core-concepts)
+- [Screens](#screens)
+- [Compatibility](#compatibility)
+- [Install](#install)
+- [Configuration](#configuration)
+- [Live collaboration](#live-collaboration)
+- [Running several instances](#running-several-instances)
+- [AI assistant](#ai-assistant)
+- [Data format](#data-format)
+- [Admin API and permissions](#admin-api-and-permissions)
+- [Security and privacy](#security-and-privacy)
+- [Troubleshooting](#troubleshooting)
+- [Migrating from 1.x](#migrating-from-1x)
+- [Development and tests](#development-and-tests)
+- [Maintenance status](#maintenance-status)
+- [Languages](#languages)
+- [License](#license)
 
-## What's New in v1.4.0-alpha.1
+## Features
 
-### Custom Blocks (Contentful-style)
+Every feature is available in every installation. There is nothing to activate, no tiers and no usage limits, and the plugin makes no outgoing requests unless you use a feature that needs one (link previews, image by URL, AI assistant).
 
-Create custom editor blocks directly from the Admin UI - no code required!
-
-- **Simple Blocks** - Text/HTML blocks with configurable fields (text, textarea, select, color, checkbox)
-- **Embedded Entry Blocks** - Reference other Strapi content types with preview fields (like Contentful Inline Entries)
-- **HTML Templates** - Define custom templates with `{{fieldName}}` placeholders
-- **Replaces Dynamic Zones** - Simpler alternative for structured content within the editor
-
-### Tier-Based Limits
-
-| Feature | FREE | PREMIUM | ADVANCED |
-|---------|------|---------|----------|
-| Simple Blocks | 3 | 10 (combined) | Unlimited |
-| Embedded Entry | - | 10 (combined) | Unlimited |
-| Export/Import | - | - | Yes |
-| API Access | - | - | Yes |
-
-### Previous Updates (v1.2.0)
-
-- **Character-Level Collaboration** - Multiple users can now type in the same paragraph simultaneously without conflicts
-- **Webtools Links Integration** - Optional integration with PluginPal's Webtools Links addon for internal/external link management
-- **Direct Link Editing** - Click on any link to instantly open the link editor modal
-- **Improved Fullscreen Mode** - Blocks now stretch to full width, Media Library modal works correctly
-
----
-
-## Introduction
-
-Magic Editor X is a production-ready Strapi v5 Custom Field that brings the power of Editor.js to your content management workflow. Unlike traditional WYSIWYG replacements or plugins that override Strapi's default editor, Magic Editor X integrates as a **proper Custom Field** in Strapi's Content-Type Builder, giving you complete control over when and where to use it.
-
-Built on proven technologies like Editor.js for the editing interface and Y.js for conflict-free real-time collaboration, this plugin provides a modern, extensible content editing experience that scales from solo developers to large editorial teams.
-
-### Why Magic Editor X? :)
-
-**For Developers:**
-- Clean JSON output instead of unstructured HTML
-- 25+ pre-configured Editor.js tools out of the box
-- Type-safe content structure with versioned schemas
-- Real-time collaboration with CRDT (Conflict-free Replicated Data Types)
-- Full TypeScript support with proper type definitions
-- Extensible architecture for custom block types
-
-**For Content Teams:**
-- Familiar Medium-style block editor experience
-- Live collaborative editing with presence indicators
-- Keyboard shortcuts for fast content creation
-- Inline formatting without toolbar clutter
-- Media Library integration for asset management
-- AI-powered content suggestions (premium)
-
----
+- **Custom field** `plugin::magic-editor-x.richtext` (stored as JSON) for collection types, single types, components and dynamic zones, including localised fields and Draft & Publish.
+- **Block tools** (block name in brackets, the same names 1.x used):
+  - text: paragraph (`paragraph`), heading H1 to H6 (`header`), list with nesting, ordered and unordered (`list`), checklist (`checklist`), quote (`quote`), warning (`warning`), alert in eight colours (`alert`), collapsible toggle (`toggle`), delimiter (`delimiter`), table (`table`);
+  - code: plain code (`code`), code with syntax highlighting (`codeFlask`; Prism with JavaScript, TypeScript, JSX/TSX, JSON, HTML, CSS/SCSS, PHP, Python, Ruby, Go, Rust, Java, Kotlin, Swift, C, C++, C#, SQL, Bash, YAML, Markdown, GraphQL, Docker and diff);
+  - media: image upload by file or URL into the Media Library (`image`), picking images from the Media Library (`mediaLib`, inserts `image` blocks), image by URL without upload (`simpleImage`), file attachments (`attaches`), embeds such as YouTube, Vimeo, CodePen, GitHub, Figma and others (`embed`);
+  - other: link preview card (`linkTool`), person card (`personality`), call-to-action button (`button`), raw HTML (`raw`).
+- **Inline tools:** bold, italic, link with target and rel (`hyperlink`), marker, underline, strikethrough, inline code, tooltip, and the AI assistant when it is enabled.
+- **Block tunes:** alignment (`alignmentTune`), text variant call-out / citation / details (`textVariant`), indent (`indentTune`).
+- **Editing:** undo and redo, drag and drop of blocks, full screen mode, block and word count.
+- **Custom blocks:** define your own blocks in Settings: simple blocks with fields (text, textarea, URL, number, select, checkbox, image, colour) and an optional HTML template, or embedded-entry blocks that link an entry of another content type. Import and export as JSON.
+- **Version history:** save versions of a field, preview and restore them; automatic versions during live sessions.
+- **Live collaboration:** several admins edit the same field at the same time with character-level merging, presence avatars and read-only viewers. Works with several Node processes behind a load balancer without sticky sessions.
+- **AI assistant:** improve, fix grammar, shorten, expand, summarize, simplify, translate, change tone and continue writing, using Anthropic, OpenAI or any OpenAI-compatible server (for example a local model) with your own key.
+- **Strapi-native admin:** built with the Strapi Design System, light and dark mode, keyboard accessible, admin in English, German, French, Spanish and Portuguese.
+- **Safe content:** every value is normalised and sanitised on the server when it is saved, from the Content Manager, the Content API or code.
 
 ## Screenshots
 
-### Editor Interface
-![Magic Editor X Interface](https://raw.githubusercontent.com/Schero94/magic-editor-x/main/pics/editorX.png)
-
-### Real-Time Collaboration
-![Live Collaboration](https://raw.githubusercontent.com/Schero94/magic-editor-x/main/pics/collab-magiceditorX.png)
-
-### Collaboration Widget
-![Collaboration Panel](https://raw.githubusercontent.com/Schero94/magic-editor-x/main/pics/liveCollabwidget1.png)
-
----
-
-## Architecture Overview
-
-Magic Editor X follows a clean client-server architecture with three main components:
-
-### Client-Side (Admin Panel)
-
-```
-admin/
-├── src/
-│   ├── components/
-│   │   ├── EditorJS/           # Main editor component
-│   │   ├── EditorTools/        # Custom tools (Button, Hyperlink, AI, WebtoolsLink)
-│   │   ├── MediaLib/           # Strapi Media Library adapter
-│   │   └── LiveCollaborationPanel.jsx  # Collaboration UI
-│   ├── hooks/
-│   │   ├── useMagicCollaboration.js    # Y.js & Socket.io integration
-│   │   ├── useWebtoolsLinks.js         # 🆕 Webtools Links addon integration
-│   │   ├── useAIAssistant.js           # AI features
-│   │   └── useLicense.js               # License management
-│   ├── utils/
-│   │   └── YTextBinding.js     # 🆕 Y.Text <-> contenteditable binding
-│   ├── config/
-│   │   └── tools.js            # Editor.js tools configuration
-│   └── index.js                # Plugin registration
-```
-
-**Key Technologies:**
-- **React 18** - UI components with hooks
-- **Editor.js 2.31** - Block-based editor core
-- **Y.js 13.6** - CRDT for real-time sync
-- **Socket.io-client 4.8** - WebSocket communication
-- **IndexedDB** - Local persistence via y-indexeddb
-
-### Server-Side (Strapi Backend)
-
-```
-server/
-├── src/
-│   ├── controllers/
-│   │   ├── editor-controller.js        # Image upload, link previews
-│   │   ├── collaboration-controller.js # Permission management
-│   │   ├── realtime-controller.js      # Session tokens
-│   │   └── license-controller.js       # License validation
-│   ├── services/
-│   │   ├── realtime-service.js         # Y.js document management
-│   │   ├── access-service.js           # Permission checks
-│   │   ├── license-service.js          # License API
-│   │   └── snapshot-service.js         # Document snapshots
-│   ├── routes/
-│   │   ├── admin.js            # Admin panel routes
-│   │   └── content-api.js      # Public API routes
-│   └── config/
-│       └── index.js            # Plugin configuration
-```
-
-**Key Technologies:**
-- **Socket.io 4.8** - WebSocket server
-- **Y.js 13.6** - Server-side CRDT state
-- **Open Graph Scraper** - Link metadata extraction
-- **Strapi 5.57 or later in the 5.x line** - Backend framework
-
-### Data Flow
-
-1. **Editor Changes** → Y.js Document (CRDT) → Socket.io → Server → Other Clients
-2. **Image Upload** → Strapi Controller → Strapi Upload Service → Media Library
-3. **Link Preview** → Backend Scraper → OpenGraph Metadata → Client
-4. **Collaboration** → Permission Check → Session Token → WebSocket Connection
-
----
-
-## Features Deep Dive
-
-### 1. Block-Based Content Structure
-
-Magic Editor X stores content as structured JSON, not HTML. Each block has a unique ID, type, and data object:
-
-```json
-{
-  "time": 1699999999999,
-  "blocks": [
-    {
-      "id": "abc123",
-      "type": "header",
-      "data": {
-        "text": "Hello World",
-        "level": 2
-      }
-    },
-    {
-      "id": "def456",
-      "type": "paragraph",
-      "data": {
-        "text": "This is <b>bold</b> and <i>italic</i> text."
-      }
-    },
-    {
-      "id": "ghi789",
-      "type": "list",
-      "data": {
-        "style": "unordered",
-        "items": [
-          {
-            "content": "First item",
-            "items": []
-          },
-          {
-            "content": "Second item with nested list",
-            "items": [
-              {
-                "content": "Nested item",
-                "items": []
-              }
-            ]
-          }
-        ]
-      }
-    }
-  ],
-  "version": "2.31.0"
-}
-```
-
-**Benefits:**
-- Predictable, type-safe content structure
-- Easy to parse, transform, and render
-- Version control friendly (no HTML diffs)
-- Can be validated against JSON schemas
-- Simple to migrate between systems
-
-### 2. Real-Time Collaboration (CRDT Technology)
-
-Magic Editor X uses Y.js, a battle-tested CRDT implementation, to enable true real-time collaboration without conflicts:
-
-**How It Works:**
-
-1. **Y.Doc Creation** - Each content entry gets a shared Y.js document
-2. **Local Changes** - Edits create CRDT operations (not plain text diffs)
-3. **Sync Protocol** - Operations are sent via Socket.io to the server
-4. **Server Broadcast** - Server distributes operations to all connected clients
-5. **Automatic Merge** - Y.js guarantees conflict-free merges (no "last write wins")
-6. **Persistence** - Changes are stored in IndexedDB for offline capability
-
-**🆕 Character-Level Collaboration (v1.2.0)**
-
-Starting with v1.2.0, Magic Editor X supports **simultaneous editing within the same block**. Multiple users can type in the same paragraph at the same time without conflicts:
-
-```
-┌─────────────────────────────────────────────────────────┐
-│  Before v1.2.0: Block-Level Sync                        │
-│  User A edits Block 1 → User B's Block 1 changes lost   │
-├─────────────────────────────────────────────────────────┤
-│  After v1.2.0: Character-Level Sync                     │
-│  User A types "Hello" → User B types "World" → "HelloWorld" │
-│  Both changes merge seamlessly!                          │
-└─────────────────────────────────────────────────────────┘
-```
-
-**Hybrid Data Structure:**
-- `Y.Map` for block metadata (type, tunes, order)
-- `Y.Text` for character-level content (rich text with formatting)
-- `Y.Map` for document metadata (blockOrder, timestamps)
-
-**Example: Collaborative Editing Flow**
-
-```javascript
-// Client A types "Hello" at position 0
-const update = Y.encodeStateAsUpdate(yDoc);
-socket.emit('collab:update', update);
-
-// Server broadcasts to all clients
-socket.broadcast.to(roomId).emit('collab:update', update);
-
-// Client B applies the update
-Y.applyUpdate(yDoc, update);
-// Editor automatically re-renders with "Hello"
-```
-
-**Presence & Cursors:**
-
-```javascript
-// Awareness protocol for presence
-awareness.setLocalStateField('cursor', {
-  blockId: 'abc123',
-  position: 42,
-  user: {
-    id: 'user-1',
-    name: 'John Doe',
-    color: '#FF6B6B'
-  }
-});
-
-// Other clients receive cursor updates
-awareness.on('change', ({ added, updated, removed }) => {
-  // Render remote cursor indicators
-  renderCursors(awareness.getStates());
-});
-```
-
-### 3. 25+ Editor.js Tools
-
-Magic Editor X comes with a comprehensive collection of tools, categorized for easy reference:
-
-#### Block Tools (21 Tools)
-
-| Tool | Description | Package | Shortcut |
-|------|-------------|---------|----------|
-| **Header** | H1-H6 headings with alignment | `@editorjs/header` | `CMD+SHIFT+H` |
-| **Paragraph** | Text blocks with inline formatting | `@editorjs/paragraph` | - |
-| **Nested List** | Multi-level ordered/unordered lists | `@editorjs/nested-list` | `CMD+SHIFT+L` |
-| **Checklist** | Interactive todo lists | `@editorjs/checklist` | `CMD+SHIFT+C` |
-| **Quote** | Blockquotes with caption | `@editorjs/quote` | `CMD+SHIFT+Q` |
-| **Warning** | Alert boxes | `@editorjs/warning` | `CMD+SHIFT+W` |
-| **Code** | Basic code blocks | `@editorjs/code` | `CMD+SHIFT+P` |
-| **Code (Highlight)** | Syntax-highlighted code | `@calumk/editorjs-codeflask` | - |
-| **Delimiter** | Visual section separator | `@editorjs/delimiter` | `CMD+SHIFT+D` |
-| **Table** | Create/edit tables | `@editorjs/table` | `CMD+SHIFT+T` |
-| **Embed** | YouTube, Vimeo, Twitter, etc. | `@editorjs/embed` | - |
-| **Raw HTML** | Insert raw HTML | `@editorjs/raw` | - |
-| **Image** | Upload by file or URL | `@editorjs/image` | - |
-| **Simple Image** | Image by URL only | `@editorjs/simple-image` | - |
-| **Link Preview** | Rich link cards with metadata | `@editorjs/link` | - |
-| **Attaches** | File attachments | `@editorjs/attaches` | - |
-| **Media Library** | Strapi Media Library picker | Custom | - |
-| **Personality** | Author/person cards | `@editorjs/personality` | - |
-| **Alert** | Colored alert messages | `editorjs-alert` | `CMD+SHIFT+A` |
-| **Toggle** | Collapsible content blocks | `editorjs-toggle-block` | - |
-| **Button** | CTA buttons | Custom | - |
-
-#### Inline Tools (7 Tools)
-
-| Tool | Description | Package | Shortcut |
-|------|-------------|---------|----------|
-| **Bold** | Bold text | Built-in | `CMD+B` |
-| **Italic** | Italic text | Built-in | `CMD+I` |
-| **Marker** | Highlight text | `@editorjs/marker` | `CMD+SHIFT+M` |
-| **Inline Code** | Code formatting | `@editorjs/inline-code` | `CMD+SHIFT+I` |
-| **Underline** | Underline text | `@editorjs/underline` | `CMD+U` |
-| **Strikethrough** | Strike through text | `@sotaproject/strikethrough` | `CMD+SHIFT+S` |
-| **Hyperlink** | Links with target/rel | Custom | `CMD+K` |
-| **Tooltip** | Add tooltips to text | `editorjs-tooltip` | - |
-
-#### Block Tunes (3 Tunes)
-
-| Tune | Description | Package |
-|------|-------------|---------|
-| **Alignment** | Left, center, right, justify | `editorjs-text-alignment-blocktune` |
-| **Indent** | Multi-level indentation | `editorjs-indent-tune` |
-| **Text Variant** | Call-out, citation, details styles | `@editorjs/text-variant-tune` |
-
-#### Plugins (2 Plugins)
-
-| Plugin | Description | Package |
-|--------|-------------|---------|
-| **Undo/Redo** | History management | `editorjs-undo` |
-| **Drag & Drop** | Reorder blocks by dragging | `editorjs-drag-drop` |
-
-### Custom Blocks (User-Defined)
-
-Magic Editor X allows you to create your own custom blocks without writing code! This feature is similar to Contentful's embedded entries and can replace Strapi's Components + Dynamic Zones setup.
-
-#### Creating Custom Blocks via Admin UI
-
-1. Go to **Settings > Magic Editor X > Custom Blocks**
-2. Click **Create Block**
-3. Fill in the form:
-   - **Block Name** - Unique identifier (e.g., `productCard`)
-   - **Display Label** - Shown in the editor toolbox
-   - **Block Type**:
-     - **Simple Block** - Text/HTML content with custom fields
-     - **Embedded Entry** - Links to existing Strapi content
-4. Configure additional options (fields, template, icon)
-5. Click **Create Block**
-
-The new block appears immediately in the editor toolbox!
-
-#### Block Types
-
-**Simple Blocks:**
-Custom text/HTML blocks with configurable fields.
-
-| Option | Description |
-|--------|-------------|
-| Placeholder | Hint text for empty content |
-| Template | Custom HTML with `{{fieldName}}` placeholders |
-| Fields | Add custom fields (text, select, color, checkbox) |
-| Styles | Custom CSS as JSON object |
-
-**Embedded Entry Blocks:**
-Embed existing Strapi content directly in your editor.
-
-| Option | Description |
-|--------|-------------|
-| Content Type | Target content type (e.g., `api::product.product`) |
-| Title Field | Field to display as entry title |
-| Display Fields | Fields shown in preview |
-
-#### Creating Custom Blocks via Config (Developers)
-
-For developers who prefer code-based configuration:
-
-```javascript
-// config/plugins.js
-'magic-editor-x': {
-  enabled: true,
-  config: {
-    customBlocks: [
-      {
-        name: 'productCard',
-        label: 'Product Card',
-        blockType: 'embedded-entry',
-        contentType: 'api::product.product',
-        displayFields: ['title', 'price', 'thumbnail'],
-        titleField: 'title',
-        icon: '<svg>...</svg>',
-      },
-      {
-        name: 'callToAction',
-        label: 'Call to Action',
-        blockType: 'simple',
-        placeholder: 'Enter CTA text...',
-        fields: [
-          { name: 'buttonText', label: 'Button Text', type: 'text' },
-          { name: 'buttonUrl', label: 'Button URL', type: 'text' },
-          { name: 'variant', label: 'Style', type: 'select', options: ['primary', 'secondary'] },
-        ],
-        template: `
-          <div class="cta-block">
-            <p data-field="content">{{content}}</p>
-            <a href="{{buttonUrl}}" class="btn btn-{{variant}}">{{buttonText}}</a>
-          </div>
-        `,
-      },
-    ],
-  },
-},
-```
-
-#### Import/Export Custom Blocks
-
-Custom blocks can be exported and imported between environments:
-
-1. Go to **Settings > Magic Editor X > Custom Blocks**
-2. Click **Export** to download a JSON file
-3. On another instance, click **Import** and select the file
-
-#### Custom Block Output Format
-
-Custom blocks save their data in the standard Editor.js format:
-
-```json
-{
-  "type": "productCard",
-  "data": {
-    "entry": {
-      "id": 42,
-      "documentId": "abc123",
-      "title": "Product Name",
-      "price": 99.99
-    },
-    "contentType": "api::product.product"
-  }
-}
-```
-
-### 4. Media Library Integration
-
-Seamless integration with Strapi's built-in Media Library:
-
-```javascript
-// Custom MediaLibAdapter bridges Editor.js and Strapi
-class MediaLibAdapter {
-  static get toolbox() {
-    return {
-      title: 'Media Library',
-      icon: '<svg>...</svg>'
-    };
-  }
-
-  render() {
-    const button = document.createElement('button');
-    button.textContent = 'Choose from Media Library';
-    button.onclick = () => {
-      // Opens Strapi's Media Library modal
-      this.config.mediaLibToggleFunc();
-    };
-    return button;
-  }
-
-  save(blockContent) {
-    return {
-      url: blockContent.url,
-      caption: blockContent.caption,
-      alt: blockContent.alt
-    };
-  }
-}
-```
-
-### 5. Webtools Links Integration (Optional)
-
-Magic Editor X integrates seamlessly with the [Webtools Links addon](https://www.pluginpal.io/plugin/webtools) by PluginPal for enhanced link management:
-
-**Features:**
-- 🔗 **Internal Link Picker** - Select pages/entries from your Strapi content
-- 🌐 **External URL Support** - Paste external URLs with validation
-- ✏️ **Edit Existing Links** - Click on a link to edit its URL and text
-- 🔍 **Link Detection** - Automatically detects when cursor is inside a link
-
-**Setup:**
-
-1. Install the Webtools Links addon (requires Webtools license)
-2. Magic Editor X auto-detects the addon and enables the Link Picker button
-
-**Usage:**
-
-```javascript
-// The integration uses Strapi's plugin API
-const getPlugin = useStrapiApp('WebtoolsLinks', (state) => state.getPlugin);
-const linksPlugin = getPlugin('webtools-addon-links');
-const { openLinkPicker } = linksPlugin?.apis;
-
-// Open picker with existing link data (for editing)
-const result = await openLinkPicker({
-  linkType: 'both',           // 'internal', 'external', or 'both'
-  initialHref: existingUrl,   // Pre-fill for editing
-  initialText: selectedText   // Pre-fill link text
-});
-```
-
-**Without Webtools:**
-
-If Webtools is not installed, a subtle promo link appears in the editor footer pointing to the addon store page.
-
----
-
-### 6. AI-Powered Features (Premium)
-
-Built-in AI assistant for content enhancement:
-
-**Grammar Check:**
-```javascript
-// Automatically fix grammar and spelling
-aiAssistant.check(text) → corrected text
-```
-
-**Style Improvement:**
-```javascript
-// Make text more professional, casual, or friendly
-aiAssistant.rewrite(text, style: 'professional') → improved text
-```
-
-**Content Generation:**
-```javascript
-// Generate content based on prompts
-aiAssistant.generate(prompt) → generated content
-```
-
----
-
-## Installation & Setup
-
-### 1. Install Package
+|                                                                                   |                                                                                |
+| --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| ![Editor in the Content Manager, light mode](docs/site/img/editor-light-1440.png) | ![Editor in dark mode](docs/site/img/editor-dark-1440.png)                     |
+| ![Two admins editing the same field](docs/site/img/collaboration-1440.png)        | ![Version history dialog](docs/site/img/history-1440.png)                      |
+| ![AI assistant dialog](docs/site/img/ai-1440.png)                                 | ![Settings, configuration page](docs/site/img/settings-configuration-1440.png) |
+| ![Settings, custom blocks list](docs/site/img/settings-custom-blocks-1440.png)    | ![Custom block form](docs/site/img/custom-block-modal-1440.png)                |
+
+![Editor on a 390 px wide screen](docs/site/img/editor-mobile-390.png)
+
+All screenshots use synthetic data.
+
+## Core concepts
+
+| Term         | Meaning                                                                                                                                                 |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Field        | One Magic Editor X attribute of a content type or component. Its value is an Editor.js document.                                                        |
+| Block        | One entry of the document's `blocks` array, for example a paragraph or an image. Each block has an `id`, a `type` (the block name) and `data`.          |
+| Custom block | A block type defined in Settings > Magic Editor X > Custom blocks. Its name becomes the block `type`.                                                   |
+| Version      | A stored copy (snapshot) of one field of one document in one locale, listed in the version history.                                                     |
+| Room         | The live editing session of one field of one document in one locale. A room exists while people edit and for `collaboration.roomTtlMinutes` afterwards. |
+| Viewer       | Someone in a room who can read the document but not update it. Viewers see changes live but cannot type.                                                |
+
+## Screens
+
+| Screen          | Where                                                  | Who can open it                                                                                                                                                 |
+| --------------- | ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Editor field    | Content Manager, edit view                             | Everyone who can read the field. Uploads, version history and the AI assistant need the permissions in [Admin API and permissions](#admin-api-and-permissions). |
+| Version history | Clock button in the editor toolbar of a saved document | `access` and Content Manager read on the document; saving and restoring need update.                                                                            |
+| AI assistant    | Inline toolbar (select text)                           | `access` and `ai.use`, when an administrator turned the assistant on.                                                                                           |
+| Configuration   | Settings > Magic Editor X > Configuration              | `settings.read` (view), `settings.update` (edit).                                                                                                               |
+| Custom blocks   | Settings > Magic Editor X > Custom blocks              | `custom-blocks.manage`.                                                                                                                                         |
+
+## Compatibility
+
+| Plugin | Strapi                                         | Node     | Notes                                                                                                                       |
+| ------ | ---------------------------------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------- |
+| 2.x    | 5.38 or later (acceptance host: Strapi 5.61.1) | 22 or 24 | SQLite, PostgreSQL and MySQL/MariaDB through the Strapi database connection. Acceptance runs used SQLite and PostgreSQL 16. |
+| 1.x    | 5.x                                            | 22       | No longer developed.                                                                                                        |
+
+The admin uses the React, React Router, react-intl, styled-components and Design System versions of the Strapi admin (React 18, Design System 2.2.4).
+
+## Install
 
 ```bash
 npm install magic-editor-x
-# or
-yarn add magic-editor-x
-# or
-pnpm add magic-editor-x
 ```
 
-### 2. Enable Plugin
+Enable the plugin in `config/plugins.ts` (or `config/plugins.js`):
 
-Create or update `config/plugins.ts` (or `.js`):
-
-```typescript
-export default () => ({
+```ts
+export default ({ env }) => ({
   'magic-editor-x': {
     enabled: true,
     config: {
-      // Editor Configuration
-      enabledTools: [
-        'header', 'paragraph', 'list', 'checklist', 'quote',
-        'warning', 'code', 'delimiter', 'table', 'embed',
-        'raw', 'image', 'mediaLib', 'linkTool'
-      ],
-      
-      // Upload Limits
-      maxImageSize: 10 * 1024 * 1024, // 10MB
-      allowedImageTypes: [
-        'image/jpeg', 'image/png', 'image/gif', 
-        'image/webp', 'image/svg+xml'
-      ],
-      
-      // Link Previews
-      linkPreviewTimeout: 10000, // 10 seconds
-      
-      // Real-Time Collaboration
-      collaboration: {
-        enabled: true,
-        sessionTTL: 2 * 60 * 1000, // 2 minutes
-        wsPath: '/magic-editor-x/realtime',
-        wsUrl: null, // Auto-detect or set custom URL
-        allowedOrigins: ['http://localhost:1337'],
-        allowedAdminRoles: ['strapi-super-admin'],
-        allowedAdminUserIds: [],
-      },
-
-      // API Response Settings
-      api: {
-        autoParseJSON: true, // Auto-parse JSON strings to objects in API responses
-      },
+      // optional, see Configuration
     },
   },
 });
 ```
 
-### 3. Content Security Policy (Optional)
-
-For link previews with external images, update `config/middlewares.ts`:
-
-```typescript
-export default [
-  'strapi::logger',
-  'strapi::errors',
-  {
-    name: 'strapi::security',
-    config: {
-      contentSecurityPolicy: {
-        useDefaults: true,
-        directives: {
-          'connect-src': ["'self'", 'https:'],
-          'img-src': [
-            "'self'",
-            'data:',
-            'blob:',
-            'market-assets.strapi.io',
-            '*', // Allow external images for link previews
-          ],
-          'media-src': [
-            "'self'",
-            'data:',
-            'blob:',
-            'market-assets.strapi.io',
-          ],
-          upgradeInsecureRequests: null,
-        },
-      },
-    },
-  },
-  'strapi::cors',
-  'strapi::poweredBy',
-  'strapi::query',
-  'strapi::body',
-  'strapi::session',
-  'strapi::favicon',
-  'strapi::public',
-];
-```
-
-### 4. Build & Start
+Then rebuild the admin and restart:
 
 ```bash
-# Build admin panel with plugin
 npm run build
-
-# Start in development mode
 npm run develop
-
-# Or in production
-npm run start
 ```
 
-### 5. Add Field to Content Type
+Add the field in the Content-Type Builder: **Add another field > Custom > Magic Editor X**. In its settings you can set a placeholder and a minimum height (120 to 2000 px).
 
-1. Navigate to **Content-Type Builder**
-2. Select a content type or create a new one
-3. Click **Add another field**
-4. Go to the **Custom** tab
-5. Select **Magic Editor X**
-6. Configure field name and options
-7. Click **Finish** and save the content type
+After the first start, Super Admins can use everything. Other roles need the plugin actions listed in [Admin API and permissions](#admin-api-and-permissions) (Settings > Administration Panel > Roles > Plugins > Magic Editor X).
 
----
+## Configuration
 
-## Configuration Reference
+### Reference
 
-### Plugin Configuration
+All keys are optional. Infrastructure options live in `config/plugins`; the AI provider is edited at runtime in Settings > Magic Editor X > Configuration.
 
-All options for `config/plugins.ts`:
+| Key                                     | Type                                     | Default                      | Effect                                                                                                                                               |
+| --------------------------------------- | ---------------------------------------- | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `debug`                                 | boolean                                  | `false`                      | Writes debug log lines (never content or personal data).                                                                                             |
+| `rawHtml`                               | `'sanitize'` \| `'allow'` \| `'disable'` | `'sanitize'`                 | Raw HTML block on save: `sanitize` removes scripts, event handlers, iframes and unsafe URLs; `allow` stores the HTML as typed; `disable` empties it. |
+| `sanitizeOnSave`                        | boolean                                  | `true`                       | Normalise and sanitise Magic Editor X values on every Document Service write. Turning this off is not recommended.                                   |
+| `encryptionKey`                         | string (32+ characters)                  | unset                        | Key for the stored AI provider key. Prefer the `MAGIC_EDITOR_X_ENCRYPTION_KEY` environment variable.                                                 |
+| `uploads.maxImageBytes`                 | integer                                  | `10485760` (10 MiB)          | Largest image accepted by file or URL (hard cap 500 MiB).                                                                                            |
+| `uploads.maxFileBytes`                  | integer                                  | `20971520` (20 MiB)          | Largest attachment.                                                                                                                                  |
+| `linkPreview.enabled`                   | boolean                                  | `true`                       | Link preview cards. When `false`, `GET /magic-editor-x/link` answers 404.                                                                            |
+| `linkPreview.timeoutMs`                 | integer                                  | `8000`                       | Time limit for fetching a page (1000 to 30000).                                                                                                      |
+| `api.autoParseJSON`                     | boolean                                  | `true`                       | Turn 1.x JSON strings into objects in Content API GET responses.                                                                                     |
+| `ai.allowPrivateBaseUrl`                | boolean                                  | `false`                      | Allow AI base URLs on loopback or private networks (for local models). Owner decision; not editable in the admin.                                    |
+| `ai.apiKey`                             | string                                   | unset                        | Provider key from the environment. When set it wins over a key stored in the settings.                                                               |
+| `ai.requestsPerMinute`                  | integer                                  | `20`                         | AI requests per admin per minute, counted per process.                                                                                               |
+| `ai.timeoutMs`                          | integer                                  | `60000`                      | Time limit for one provider request.                                                                                                                 |
+| `collaboration.enabled`                 | boolean                                  | `true`                       | Live collaboration and its Socket.IO server.                                                                                                         |
+| `collaboration.path`                    | string                                   | `'/magic-editor-x/realtime'` | Socket.IO path on the Strapi HTTP server.                                                                                                            |
+| `collaboration.allowedOrigins`          | string[]                                 | `[]`                         | Extra browser origins allowed to open the socket. The admin URL and the server URL are always allowed.                                               |
+| `collaboration.pollIntervalMs`          | integer                                  | `400`                        | How often each process reads updates written by other processes (50 to 10000).                                                                       |
+| `collaboration.roomTtlMinutes`          | integer                                  | `30`                         | Keep a room's live state this long after the last person left.                                                                                       |
+| `collaboration.maxMessageBytes`         | integer                                  | `2097152` (2 MiB)            | Largest accepted socket message.                                                                                                                     |
+| `collaboration.snapshotIntervalMinutes` | integer                                  | `10`                         | Automatic version while people edit live. `0` turns it off.                                                                                          |
+| `collaboration.tokenTtlSeconds`         | integer                                  | `60`                         | Lifetime of the one-time token that opens the socket.                                                                                                |
+| `history.maxSnapshotsPerField`          | integer                                  | `50`                         | Versions kept per field and locale; older ones are deleted.                                                                                          |
 
-```typescript
-interface MagicEditorXConfig {
-  // Tool Selection
-  enabledTools?: string[]; // Default: all tools
-  
-  // Upload Settings
-  maxImageSize?: number; // Bytes, default: 10MB
-  allowedImageTypes?: string[]; // MIME types
-  
-  // Link Preview Settings
-  linkPreviewTimeout?: number; // Milliseconds, default: 10000
-  
-  // API Response Settings
-  api?: {
-    autoParseJSON: boolean; // Auto-parse JSON strings to objects, default: true
-  };
-  
-  // Collaboration Settings
-  collaboration?: {
-    enabled: boolean; // Default: true
-    sessionTTL: number; // Milliseconds, default: 120000 (2 min)
-    wsPath: string; // WebSocket path, default: '/magic-editor-x/realtime'
-    wsUrl: string | null; // Custom WebSocket URL (for proxies)
-    allowedOrigins: string[]; // CORS origins
-    allowedAdminRoles: string[]; // Roles that can collaborate
-    allowedAdminUserIds: number[]; // Specific user IDs
-  };
+The validator rejects wrong types and ranges at startup and names the key, never the value. Keys from 1.x that no longer exist are ignored with a warning; see [Migrating from 1.x](#migrating-from-1x).
+
+### Environment variables
+
+| Name                            | Required                                | Default | Effect                                                                                                                                                                                                                                                                                                                                                                                       |
+| ------------------------------- | --------------------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `MAGIC_EDITOR_X_ENCRYPTION_KEY` | Only to store an AI key in the settings | unset   | 32 or more characters. Encrypts the AI provider key (AES-256-GCM). Without it the settings page cannot store a key; you can still pass one with `ai.apiKey`. Generate one with `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`. Keep it stable: a different key makes a stored provider key unreadable, and the settings page then asks you to enter it again. |
+
+The plugin also uses Strapi's own `admin.auth.secret` (`ADMIN_JWT_SECRET`) to sign collaboration tokens. Every process of a cluster must use the same value.
+
+### AI settings (admin)
+
+Settings > Magic Editor X > Configuration stores these values in the Strapi store:
+
+| Setting              | Default                                                                                                    | Range                                                                        |
+| -------------------- | ---------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| Enabled              | off                                                                                                        |                                                                              |
+| Provider             | `anthropic`                                                                                                | `anthropic`, `openai`, `openai-compatible`                                   |
+| Base URL             | provider default (`https://api.anthropic.com`, `https://api.openai.com`); required for `openai-compatible` | https, or private hosts when `ai.allowPrivateBaseUrl` is on                  |
+| Model                | `claude-opus-5-5` (Anthropic), `gpt-6-luna` (OpenAI)                                                       | letters, digits and `._:/@-`                                                 |
+| API key              | none                                                                                                       | never returned; changing the provider or base URL requires entering it again |
+| Max input characters | 8000                                                                                                       | 200 to 50000                                                                 |
+| Max output tokens    | 4096                                                                                                       | 64 to 16000                                                                  |
+
+## Live collaboration
+
+When a document has been saved once, the editor joins the room of its field. Everyone with Content Manager read access to that document, locale and field and the `collaborate` action can join; people with update access can type, others watch as viewers.
+
+- Edits merge at character level when two people type in the same text field of a block, and per block otherwise. Every client and server converge on the same document (Yjs CRDT).
+- Presence avatars show who is in the room; the badge shows the connection state (Connecting, Syncing, Live, Reconnecting).
+- Changes made by others become part of your form. Save the entry as usual to store them.
+- Text typed during a short network or server interruption is kept and sent after the reconnect.
+- A new entry that has not been saved yet has no room.
+- Access is checked again every five minutes; an admin who loses access is disconnected.
+
+## Running several instances
+
+Collaboration works with several Node processes and several machines that share one database, for example Railway with 2 replicas and pm2 with 4 processes each, behind a load balancer **without sticky sessions**. No Redis is needed.
+
+How it works:
+
+- The browser connects with the WebSocket transport only. A WebSocket connection is one long-lived request, so it does not need sticky routing. Your proxy must allow WebSocket upgrades on `collaboration.path` (default `/magic-editor-x/realtime`) and send them to Strapi.
+- The session token is signed with a key derived from `admin.auth.secret`, so any process can accept a token issued by another one. All processes must use the same `ADMIN_JWT_SECRET`.
+- Every update is written to the table `magic_editor_x_collab_updates` before it is acknowledged. Other processes read new rows every `collaboration.pollIntervalMs` and send them to their own sockets.
+- Presence is stored in `magic_editor_x_collab_presence` with heartbeats; leases and one-time keys in `magic_editor_x_locks`. Seeding a room, compaction, automatic versions and cleanup each run once across all processes.
+- Clients resynchronise their state every 20 seconds and after each reconnect, so a process restart loses nothing that was acknowledged.
+
+The plugin creates these three tables on startup. They are not content types, so Strapi's schema sync leaves them alone.
+
+Behind a proxy, also set `server.proxy` in `config/server` (`koa: true` and the number of trusted hops in `maxIpsCount`) so Strapi sees the real client address.
+
+The acceptance run with several processes is described in [CONTRIBUTING.md](./CONTRIBUTING.md).
+
+## AI assistant
+
+The assistant is off until an administrator turns it on in Settings > Magic Editor X > Configuration and gives it a provider:
+
+| Provider                                                | Request                                                                             | Default model (2026-11-11) |
+| ------------------------------------------------------- | ----------------------------------------------------------------------------------- | -------------------------- |
+| Anthropic                                               | `POST {base}/v1/messages`, headers `x-api-key` and `anthropic-version: 2026-10-21`  | `claude-opus-5-5`          |
+| OpenAI                                                  | `POST {base}/v1/chat/completions`, `Authorization: Bearer`, `max_completion_tokens` | `gpt-6-luna`               |
+| OpenAI-compatible (Ollama, vLLM, LM Studio and similar) | `POST {base}/v1/chat/completions`, optional bearer key, `max_tokens`                | none; you name the model   |
+
+- The key stays on the server. It is encrypted at rest with `MAGIC_EDITOR_X_ENCRYPTION_KEY` or read from `ai.apiKey`, and it is never sent to the browser or written to logs.
+- The selected text (with its inline formatting) and a fixed instruction are sent to the provider. Nothing else from the document is sent. The text is never logged.
+- Base URLs must be public https URLs. Loopback and private hosts are allowed only with `ai.allowPrivateBaseUrl: true` in `config/plugins`. Redirects are not followed.
+- Input is limited by "Max input characters", output by "Max output tokens". Each admin can send `ai.requestsPerMinute` requests per minute per process.
+- The answer is sanitised to the inline tags the editor uses before it reaches the browser. The admin reviews the suggestion and chooses Replace selection; nothing changes before that.
+
+## Data format
+
+The field stores an Editor.js document as JSON:
+
+```json
+{
+  "time": 1762866000000,
+  "version": "2.31.7",
+  "blocks": [
+    { "id": "kq1x9w0abc", "type": "header", "data": { "text": "Release notes", "level": 2 } },
+    {
+      "id": "kq1x9w0abd",
+      "type": "paragraph",
+      "data": { "text": "Read the <a href=\"https://example.test\">guide</a>." },
+      "tunes": { "alignmentTune": { "alignment": "left" } }
+    }
+  ]
 }
 ```
 
-### Field Options
+Data of each block type as stored after sanitising (`shared/sanitize-policy.mjs`):
 
-When adding the field in Content-Type Builder:
+| Block                       | `data`                                                                                                                                                   |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `paragraph`                 | `{ text }` (inline HTML)                                                                                                                                 |
+| `header`                    | `{ text, level: 1-6 }`                                                                                                                                   |
+| `list`                      | `{ style: 'ordered' \| 'unordered' \| 'checklist', meta?: { start?, counterType? }, items: [{ content, meta?, items: [...] }] }`                         |
+| `checklist`                 | `{ items: [{ text, checked }] }`                                                                                                                         |
+| `quote`                     | `{ text, caption, alignment: 'left' \| 'center' }`                                                                                                       |
+| `warning`                   | `{ title, message }`                                                                                                                                     |
+| `alert`                     | `{ type: 'primary' \| 'secondary' \| 'info' \| 'success' \| 'warning' \| 'danger' \| 'light' \| 'dark', align: 'left' \| 'center' \| 'right', message }` |
+| `toggle`                    | `{ text, status: 'open' \| 'closed', fk?, items }` (the next `items` blocks are its content)                                                             |
+| `code`                      | `{ code }` (plain text)                                                                                                                                  |
+| `codeFlask`                 | `{ code, language, showlinenumbers? }`                                                                                                                   |
+| `raw`                       | `{ html }` (see `rawHtml`)                                                                                                                               |
+| `table`                     | `{ withHeadings, stretched, content: string[][] }`                                                                                                       |
+| `image`                     | `{ file: { url, mime?, alt?, width?, height?, size?, formats?, id?, documentId? }, caption, withBorder, withBackground, stretched }`                     |
+| `simpleImage`               | `{ url, caption, withBorder, withBackground, stretched }`                                                                                                |
+| `linkTool`                  | `{ link, meta: { title, description, site_name?, image?: { url } } }`                                                                                    |
+| `attaches`                  | `{ file: { url, name?, extension?, size?, title? }, title }`                                                                                             |
+| `embed`                     | `{ service, source, embed, width?, height?, caption }` (`embed` is always https)                                                                         |
+| `personality`               | `{ name, description, link, photo }`                                                                                                                     |
+| `button`                    | `{ text, link, style, openInNewTab }`                                                                                                                    |
+| `delimiter`                 | `{}`                                                                                                                                                     |
+| custom simple block         | `{ content, <field values>, blockType: 'simple', blockName }`                                                                                            |
+| custom embedded-entry block | `{ entry: { id, documentId, title, <display fields> }, contentType, displayMode }`                                                                       |
 
-**Base Settings:**
-- **Placeholder** - Placeholder text (default: "Start writing or press Tab...")
-- **Required** - Make field mandatory
-- **Private** - Exclude from API responses
+Inline HTML may contain `b`, `strong`, `i`, `em`, `u`, `s`, `mark`, `code`, `a` (`href`, `target`, `rel`, `title`), `br`, `span` (class `cdx-tooltip` with `data-tooltip`), `sub` and `sup`. Links allow `http`, `https`, `mailto`, `tel` and relative URLs. Escape plain-text fields (`code`, `personality`, `button.text`, link card text) when you render them.
 
-**Advanced Settings:**
-- **Minimum Height** - Editor height in pixels (default: 300)
-- **Max Length** - Maximum characters (optional)
-- **Min Length** - Minimum characters (optional)
+Tunes are stored per block in `tunes`: `alignmentTune: { alignment }`, `textVariant: '' | 'call-out' | 'citation' | 'details'`, `indentTune: { indentLevel }`.
 
----
+The Content API returns the object as stored. Entries saved with 1.x may still contain a JSON string until they are saved again; with `api.autoParseJSON` (default) the plugin parses such strings in Content API GET responses.
 
-## API Response Format
+## Admin API and permissions
 
-### Automatic JSON Parsing
+### Permissions
 
-Magic Editor X automatically transforms JSON string fields into structured objects in API responses for better developer experience.
+| Action                                        | Label in Roles                                                          | Gates                                                                                                                                                                |
+| --------------------------------------------- | ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `plugin::magic-editor-x.access`               | Use the editor (uploads, link previews, custom blocks, version history) | Editor configuration, link previews, uploads (with the Media Library permission), content type list, custom block list, version history, collaboration and AI routes |
+| `plugin::magic-editor-x.collaborate`          | Edit together in real time                                              | Joining live rooms                                                                                                                                                   |
+| `plugin::magic-editor-x.ai.use`               | Use the AI assistant                                                    | AI requests                                                                                                                                                          |
+| `plugin::magic-editor-x.custom-blocks.manage` | Manage custom blocks                                                    | Settings > Custom blocks and its routes                                                                                                                              |
+| `plugin::magic-editor-x.settings.read`        | Read settings                                                           | Settings > Configuration (read)                                                                                                                                      |
+| `plugin::magic-editor-x.settings.update`      | Update settings                                                         | Saving settings, testing the AI connection                                                                                                                           |
 
-**Without auto-parsing (raw Strapi response):**
+Uploads also need the Media Library action `plugin::upload.assets.create`. Version history and collaboration also apply the Content Manager permissions of the document: read access (including conditions such as "is creator", locale and field permissions) to list versions and join a room, update access to save versions, restore and type. A document you cannot read answers 404, the same as a document that does not exist.
+
+Super Admins have all actions. The `access` action keeps its 1.x id, so roles that had it keep using the editor.
+
+### Routes
+
+All routes are admin routes served at `/magic-editor-x/...` and need an admin session (`Authorization: Bearer <admin JWT>`). There are no Content API routes. Errors use the Strapi envelope `{ "data": null, "error": { "status", "name", "message", "details" } }`; validation errors carry `details.fieldErrors` keyed by field path. Editor.js tool routes answer `{ "success": 0, "message" }` on errors, as the tools expect.
+
+| Method | Path                                          | Actions                                              | Body / query                                                                             | Response                                                                               |
+| ------ | --------------------------------------------- | ---------------------------------------------------- | ---------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| GET    | `/magic-editor-x/config`                      | access                                               |                                                                                          | `{ data: { collaboration, ai, uploads, linkPreview, rawHtml, permissions } }`          |
+| GET    | `/magic-editor-x/link`                        | access                                               | `?url=`                                                                                  | `{ success: 1, link, meta }`                                                           |
+| POST   | `/magic-editor-x/image/byFile`                | access, upload                                       | multipart `image`                                                                        | `{ success: 1, file: { url, ... } }`                                                   |
+| POST   | `/magic-editor-x/image/byUrl`                 | access, upload                                       | `{ url }`                                                                                | `{ success: 1, file }`                                                                 |
+| POST   | `/magic-editor-x/file/upload`                 | access, upload                                       | multipart `file`                                                                         | `{ success: 1, file: { url, name, title, size, extension } }`                          |
+| GET    | `/magic-editor-x/content-types`               | access                                               |                                                                                          | `{ data: [{ uid, kind, displayName, attributes }] }` (types you can read)              |
+| GET    | `/magic-editor-x/custom-blocks`               | access (`?all=true` also needs custom-blocks.manage) | `?all=true`                                                                              | `{ data: [block] }`                                                                    |
+| GET    | `/magic-editor-x/custom-blocks/export`        | custom-blocks.manage                                 |                                                                                          | `{ data: { format: 'magic-editor-x/custom-blocks', version: 2, exportedAt, blocks } }` |
+| POST   | `/magic-editor-x/custom-blocks/import`        | custom-blocks.manage                                 | export document                                                                          | `{ data: { created: [name], skipped: [{ name, reason }] } }`                           |
+| PUT    | `/magic-editor-x/custom-blocks/order`         | custom-blocks.manage                                 | `{ ids }` (every block once)                                                             | `{ data: [block] }`                                                                    |
+| POST   | `/magic-editor-x/custom-blocks`               | custom-blocks.manage                                 | block definition                                                                         | 201 `{ data: block }`                                                                  |
+| PUT    | `/magic-editor-x/custom-blocks/:id`           | custom-blocks.manage                                 | full block definition                                                                    | `{ data: block }`                                                                      |
+| DELETE | `/magic-editor-x/custom-blocks/:id`           | custom-blocks.manage                                 |                                                                                          | `{ data: { id } }`                                                                     |
+| POST   | `/magic-editor-x/custom-blocks/:id/duplicate` | custom-blocks.manage                                 |                                                                                          | 201 `{ data: block }`                                                                  |
+| POST   | `/magic-editor-x/collaboration/session`       | access, collaborate                                  | `{ uid, documentId, locale?, field, initialValue? }`                                     | `{ data: { token, path, canEdit, expiresAt } }`                                        |
+| GET    | `/magic-editor-x/history`                     | access                                               | `?uid&documentId&locale&field`                                                           | `{ data: [version], meta: { canRestore, canCreate } }`                                 |
+| GET    | `/magic-editor-x/history/:id`                 | access                                               |                                                                                          | `{ data: { ...version, content } }`                                                    |
+| POST   | `/magic-editor-x/history`                     | access                                               | `{ uid, documentId, locale?, field, content }`                                           | 201 new version, 200 with `meta.created: false` when unchanged                         |
+| POST   | `/magic-editor-x/ai/:action`                  | access, ai.use                                       | `{ text, language?, tone? }`                                                             | `{ data: { text } }`                                                                   |
+| GET    | `/magic-editor-x/settings`                    | settings.read                                        |                                                                                          | `{ data: { ai, environment } }` (no secrets)                                           |
+| PUT    | `/magic-editor-x/settings`                    | settings.read, settings.update                       | `{ ai: { enabled, provider, baseUrl, model, maxInputChars, maxOutputTokens, apiKey? } }` | `{ data: { ai, environment } }`                                                        |
+| POST   | `/magic-editor-x/settings/ai/test`            | settings.read, settings.update                       | `{ ai: {...} }`                                                                          | `{ data: { ok: true } }`                                                               |
+
+`upload` means `plugin::upload.assets.create`. AI actions: `improve`, `grammar`, `shorten`, `expand`, `summarize`, `simplify`, `translate` (with `language`), `tone` (with `tone`), `continue`. Provider problems answer with `name: 'AIProviderError'` and `details.code` (`DISABLED`, `NOT_CONFIGURED`, `NO_API_KEY`, `AUTH_FAILED`, `PROVIDER_RATE_LIMIT`, `TIMEOUT`, `REFUSED`, `PROVIDER_ERROR`). Too long text answers 413, too many requests 429.
+
+Example: save a version.
+
+```http
+POST /magic-editor-x/history
+Authorization: Bearer <admin JWT>
+Content-Type: application/json
+
+{ "uid": "api::article.article", "documentId": "k9d2w4xq8m1n0p3r5t7v9b1c", "locale": "en", "field": "body",
+  "content": { "blocks": [{ "id": "a1", "type": "paragraph", "data": { "text": "Hello" } }] } }
+```
+
 ```json
 {
   "data": {
-    "id": 1,
-    "documentId": "abc123",
-    "editorX": "{\"time\":1699999999999,\"blocks\":[{\"id\":\"xyz\",\"type\":\"paragraph\",\"data\":{\"text\":\"Hello\"}}],\"version\":\"2.31.0\"}"
-  }
+    "id": "s8f2k1x0w9q7e5r3t1y6u4i2",
+    "version": 3,
+    "trigger": "manual",
+    "createdAt": "2026-11-11T09:30:00.000Z",
+    "createdBy": "Anna Beispiel",
+    "stats": { "blocks": 1, "words": 1, "characters": 5 },
+    "restorable": true
+  },
+  "meta": { "created": true }
 }
 ```
 
-**With auto-parsing (Magic Editor X middleware active):**
-```json
-{
-  "data": {
-    "id": 1,
-    "documentId": "abc123",
-    "editorX": {
-      "time": 1699999999999,
-      "blocks": [
-        {
-          "id": "xyz",
-          "type": "paragraph",
-          "data": {
-            "text": "Hello"
-          }
-        }
-      ],
-      "version": "2.31.0"
-    }
-  }
-}
-```
+## Security and privacy
 
-**Configuration:**
+- **Stored content:** every Magic Editor X value is normalised and sanitised on save by a Document Service middleware (Content Manager, Content API, imports and code). Unknown keys of known block types are dropped, URLs are checked, inline HTML is limited to the tags above and the raw HTML block follows `rawHtml`. Values over 5 MiB, with more than 5000 blocks or nested deeper than 24 levels are rejected with 400, never truncated. The admin sanitises again before rendering (DOMPurify with the same rules).
+- **Outgoing requests:** link previews and images by URL only fetch public http(s) addresses: the host is resolved once, every address must be public, the connection is pinned to that address, redirects are re-checked (at most 3), and size, type and time are limited. The AI provider is called only when an administrator configured it.
+- **Uploads** are checked by their first bytes (not by the file name or the browser's MIME type) and stored through the Media Library with the admin as creator.
+- **Collaboration:** tokens are signed, expire after `collaboration.tokenTtlSeconds` and work once; the socket accepts the admin and server origins and `collaboration.allowedOrigins`; messages are size-limited and must be valid Yjs updates; viewers cannot write.
+- **Secrets:** the AI key is encrypted with AES-256-GCM (random IV, versioned format) and never returned. Changing the provider or base URL requires entering the key again, so a stored key cannot be sent to another host.
+- **Logs** contain operation names and error codes only, never content, URLs with queries, tokens, user ids or email addresses.
+- **Stored data:** custom block definitions, versions (field content and the admin who saved it), live rooms (Yjs updates, removed `collaboration.roomTtlMinutes` after the last person left) and presence rows (admin display name, colour, caret position; removed when the socket closes or after missed heartbeats).
+- **Content Security Policy:** Editor.js and the Design System add inline styles, which Strapi's default `style-src 'unsafe-inline'` allows. The socket connects to the same origin as the admin, which `connect-src 'self'` covers; add the `wss:` origin only when the admin runs on another host. Embed iframes need `frame-src` only on your frontend.
 
-Auto-parsing is enabled by default. To disable it, add to `config/plugins.ts`:
-
-```typescript
-{
-  'magic-editor-x': {
-    config: {
-      api: {
-        autoParseJSON: false // Disable automatic JSON parsing
-      }
-    }
-  }
-}
-```
-
-**Manual Parsing (if auto-parse is disabled):**
-
-```javascript
-// Client-side parsing
-const response = await fetch('/api/articles/1');
-const data = await response.json();
-
-// Parse Editor.js field manually
-const editorContent = JSON.parse(data.data.editorX);
-console.log(editorContent.blocks); // Array of blocks
-```
-
----
-
-## API Reference
-
-The plugin currently registers admin routes only. It does not register public Content API routes. Admin routes use Strapi's admin API base and require authentication and the route-specific permissions defined in `server/src/routes/admin.js`.
-
-Editor routes include `GET /magic-editor-x/link`, `POST /magic-editor-x/image/byFile`, `POST /magic-editor-x/image/byUrl`, and `POST /magic-editor-x/file/upload`. Link preview and URL upload accept remote URLs; the implementation restricts these requests to public HTTP(S) destinations and applies response size, MIME-type, redirect, and timeout limits. Upload routes require the admin plugin access and Strapi upload-create permissions.
-
-Other admin route groups manage collaboration sessions and permissions, license status and limits, snapshots, and custom blocks. Collaboration session creation checks the configured collaboration access rules. See `server/src/routes/admin.js` for the current route and policy definitions.
-
----
-
-## Collaboration System
-
-### Permission Model
-
-Magic Editor X uses a flexible role-based permission system:
-
-**Roles:**
-- **Owner** - Full control (edit, delete, manage permissions)
-- **Editor** - Can edit content
-- **Viewer** - Read-only access
-
-**Permission Scope:**
-- Per content type (e.g., `api::article.article`)
-- Per user or role
-- Inherits from Strapi's built-in RBAC
-
-### Managing Collaborators
-
-Navigate to **Plugins > Magic Editor X > Collaboration** to:
-
-1. **Add Collaborator**
-   - Select user
-   - Choose content type
-   - Assign role (Viewer, Editor, Owner)
-   
-2. **Update Permission**
-   - Change role
-   - Modify content type access
-
-3. **Remove Collaborator**
-   - Revoke access
-
-### Collaboration Limits
-
-Limits are enforced based on your license:
-
-| License | Concurrent Collaborators |
-|---------|-------------------------|
-| FREE | 2 |
-| PREMIUM | 10 |
-| ADVANCED | Unlimited |
-
-**Note:** The editor itself is completely free. You only pay for extended collaboration features.
-
----
-
-## Pricing
-
-Magic Editor X follows a freemium model:
-
-| Feature | FREE | PREMIUM | ADVANCED |
-|---------|------|---------|----------|
-| **Price** | $0 | $9.90/mo | $24.90/mo |
-| Full Editor | Yes | Yes | Yes |
-| All 25+ Tools | Yes | Yes | Yes |
-| Real-Time Sync | Yes | Yes | Yes |
-| Collaborators | 2 | 10 | Unlimited |
-| Version History | - | Yes | Yes |
-| AI Assistant | - | Pay-per-use | Included |
-| Priority Support | - | Email | Email + Chat |
-| Custom Blocks | - | - | Yes |
-
-**Get started:** https://store.magicdx.dev/
-
----
-
-## Development & Extension
-
-### Custom Block Types
-
-Create your own block tools:
-
-```javascript
-// custom-tools/MyCustomTool.js
-export default class MyCustomTool {
-  static get toolbox() {
-    return {
-      title: 'My Tool',
-      icon: '<svg>...</svg>'
-    };
-  }
-
-  constructor({ data, api, config }) {
-    this.data = data;
-    this.api = api;
-    this.config = config;
-  }
-
-  render() {
-    const wrapper = document.createElement('div');
-    wrapper.classList.add('my-custom-tool');
-    // Add your UI
-    return wrapper;
-  }
-
-  save(blockContent) {
-    return {
-      // Your data structure
-      text: blockContent.querySelector('input').value
-    };
-  }
-
-  static get sanitize() {
-    return {
-      text: {} // Sanitizer config
-    };
-  }
-}
-```
-
-**Register in `config/tools.js`:**
-
-```javascript
-import MyCustomTool from './custom-tools/MyCustomTool';
-
-export const getTools = ({ mediaLibToggleFunc, pluginId }) => {
-  return {
-    // ... existing tools
-    myCustomTool: {
-      class: MyCustomTool,
-      config: {
-        // Your config
-      }
-    }
-  };
-};
-```
-
-### Extending Collaboration
-
-Hook into collaboration events:
-
-```javascript
-// In your component
-const { awareness } = useMagicCollaboration({
-  enabled: true,
-  roomId: 'my-room',
-  onRemoteUpdate: () => {
-    console.log('Remote update received');
-  }
-});
-
-// Listen to presence changes
-awareness.on('change', ({ added, updated, removed }) => {
-  console.log('Users joined:', added);
-  console.log('Users updated:', updated);
-  console.log('Users left:', removed);
-});
-```
-
----
+Report vulnerabilities privately through GitHub security advisories on the repository.
 
 ## Troubleshooting
 
-### Common Issues
+| Symptom                                                           | Cause                                                                                               | Fix                                                                                                                     |
+| ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| The field shows "The editor could not be loaded."                 | The role lacks `plugin::magic-editor-x.access`, or the server is unreachable                        | Grant the action; check the server log.                                                                                 |
+| No upload or "You do not have permission to upload files"         | The role lacks `plugin::upload.assets.create`                                                       | Grant Media Library create to the role.                                                                                 |
+| No version history (clock) button                                 | The entry was never saved                                                                           | Save the entry once.                                                                                                    |
+| Badge shows "Live editing unavailable"                            | No `collaborate` action, no read access to the document, or `collaboration.enabled: false`          | Grant the action or check the Content Manager permissions.                                                              |
+| Badge stays at "Connecting" or "Reconnecting"                     | The proxy does not forward WebSocket upgrades on `collaboration.path`, or the origin is not allowed | Allow upgrades on the path; add the admin origin to `collaboration.allowedOrigins` when the admin runs on another host. |
+| Settings say the API key cannot be stored                         | `MAGIC_EDITOR_X_ENCRYPTION_KEY` is missing or shorter than 32 characters                            | Set the variable and restart, or use `ai.apiKey`.                                                                       |
+| Settings say the stored key is unreadable                         | The encryption key changed                                                                          | Enter the provider key again.                                                                                           |
+| AI error "The AI provider rejected the key."                      | Wrong key for this provider                                                                         | Enter the key again and use Test connection.                                                                            |
+| Startup error `[magic-editor-x] invalid configuration for: <key>` | Wrong type or range in `config/plugins`                                                             | Fix the named key (see the reference table).                                                                            |
+| 400 "A Magic Editor X field contains invalid content"             | The value is not editor JSON, too large or too deep                                                 | Send an Editor.js object within the limits.                                                                             |
 
-**1. Editor Not Loading**
+## Migrating from 1.x
 
-Check browser console for errors. Common causes:
-- Plugin not enabled in `config/plugins.ts`
-- Build not run after installation (`npm run build`)
-- CSP blocking external resources
+2.0 is a major release. Stored content keeps working; routes, permissions and configuration changed. The full guide is in the [CHANGELOG](./CHANGELOG.md). In short:
 
-**2. Image Upload Failing**
+1. Update the package and rebuild the admin: `npm install magic-editor-x@2 && npm run build`.
+2. Remove 1.x configuration keys (`enabledTools`, `linkPreviewTimeout`, `maxImageSize`, `maxFileSize`, `allowedImageTypes`, `collaboration.wsPath`, `wsUrl`, `sessionTTL`, `allowedAdminRoles`, `allowedAdminUserIds`, `cors`) and use the new keys above.
+3. Grant the new actions to your roles: `collaborate`, `ai.use`, `custom-blocks.manage`, `settings.read`, `settings.update`. Collaboration grants from 1.x are replaced by Content Manager permissions; Strapi drops the old tables on the first start.
+4. If you used the AI assistant, configure your own provider in Settings > Magic Editor X > Configuration.
+5. If your raw HTML blocks need scripts or iframes, set `rawHtml: 'allow'`.
 
-Verify:
-- Strapi Upload plugin is enabled
-- File size within limits (default 10MB)
-- File type is allowed
-- User has upload permissions
+On the first start the plugin converts 1.x versions that only contained collaboration state and cleans custom block icons and templates. Both run once across all processes.
 
-**3. Collaboration Not Working**
-
-Debug checklist:
-- WebSocket connection established (check Network tab)
-- Session token valid (check `/realtime/session-token` response)
-- User has collaboration permissions
-- Firewall/proxy allows WebSocket connections
-
-**4. Link Previews Not Showing**
-
-Ensure:
-- CSP allows `img-src: '*'` in middlewares config
-- Target site returns OpenGraph metadata
-- Link preview timeout not too short (default: 10s)
-
-### Enable Debug Logging
-
-Add to `config/plugins.ts`:
-
-```typescript
-{
-  'magic-editor-x': {
-    config: {
-      debug: true // Enable verbose logging
-    }
-  }
-}
-```
-
----
-
-## Roadmap
-
-### ✅ Completed
-- **Version History** - Track all content changes with snapshot restore (v1.1.0)
-- **Character-Level Collaboration** - Simultaneous editing in same block (v1.2.0)
-- **Webtools Links Integration** - Internal/external link picker (v1.2.0)
-
-### 🚧 In Progress
-- **Comments & Annotations** - Inline comments for editorial workflow
-- **Custom Blocks API** - Simplified API for creating custom tools
-
-### 📋 Planned
-- **Advanced AI** - Content suggestions, auto-completion, tone analysis
-- **Offline Mode** - Full offline editing with sync on reconnect
-- **Import/Export** - Markdown, HTML, DOCX conversion
-- **Templates** - Pre-built content templates
-- **Block Permissions** - Per-block editing restrictions
-
----
-
-## Resources
-
-- **Documentation:** https://docs.magicdx.dev/
-- **Store:** https://store.magicdx.dev/
-- **GitHub:** https://github.com/Schero94/magic-editor-x
-- **Strapi Custom Fields:** https://docs.strapi.io/cms/features/custom-fields
-- **Editor.js:** https://editorjs.io/
-- **Y.js:** https://docs.yjs.dev/
-
----
-
-## Contributing
-
-Contributions are welcome! Please:
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-**Development Setup:**
+## Development and tests
 
 ```bash
-git clone https://github.com/Schero94/magic-editor-x.git
-cd magic-editor-x
-npm install
-npm run watch:link
+npm ci
+npm run lint
+npm run format:check
+npm test                  # unit tests, no Strapi host needed
+npm run build             # admin and server bundles, then a runtime check
+npm run verify
+MEX_HOST_URL=http://127.0.0.1:1421 MEX_CREDS=/path/to/creds.json npm run test:integration
 ```
 
----
+[CONTRIBUTING.md](./CONTRIBUTING.md) explains the isolated acceptance host, the integration suite on SQLite and PostgreSQL and the multi-process acceptance run. [AGENTS.md](./AGENTS.md) is the contract for coding agents.
+
+## Maintenance status
+
+Actively maintained. Releases are made with semantic-release from `main`; every release runs lint, tests, build, package verification and a production dependency audit first. Supported line: Strapi 5.
+
+## Languages
+
+The admin is translated into English, German (formal Sie), French, Spanish and Portuguese.
 
 ## License
 
-MIT License - See [LICENSE](LICENSE) for details
-
-Copyright (c) 2024-2025 Schero D.
-
----
-
-## Support
-
-- **Email:** support@magicdx.dev
-- **Issues:** https://github.com/Schero94/magic-editor-x/issues
-- **Discord:** https://discord.gg/magicdx
-
----
-
-**Built with dedication by [Schero D.](https://github.com/Schero94)**
-
-Part of the MagicDX Plugin Suite for Strapi
+[MIT](./LICENSE) © 2025-2026 Schero D.

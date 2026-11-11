@@ -1,3 +1,108 @@
+# Changelog
+
+## [Unreleased]
+
+Magic Editor X 2.0 is a major release. It is free and MIT licensed: the license system, tiers and limits are gone and every feature is available to everyone. Stored content from 1.x keeps rendering and editing. Routes, permissions and configuration changed; follow the migration guide below.
+
+### Highlights
+
+- Everything is free: custom blocks without limits, version history, live collaboration, import and export, AI assistant. No license keys, no calls to a license server.
+- Strapi-native admin built with the Design System: the editor field, Settings > Magic Editor X > Configuration and Settings > Magic Editor X > Custom blocks, light and dark mode, five languages (en, de, fr, es, pt).
+- Live collaboration rebuilt on Yjs with character-level merging. It works with several Node processes behind a load balancer without sticky sessions and keeps acknowledged edits through process restarts.
+- Version history per field and locale with manual and automatic versions, preview and restore.
+- AI assistant with your own provider: Anthropic, OpenAI or any OpenAI-compatible server, key stored encrypted on the server.
+- Every Magic Editor X value is normalised and sanitised on save.
+- Access to collaboration and version history follows Content Manager permissions per document, locale and field.
+
+### Migrating from 1.x
+
+#### 1. Update and rebuild
+
+```bash
+npm install magic-editor-x@2
+npm run build
+```
+
+Requirements: Strapi 5.38 or later (tested with 5.61.1) and Node 22 or 24.
+
+#### 2. License system removed
+
+The license integration is removed completely: license keys, automatic free licenses, tiers, limits, the "Upgrade" and "License Details" settings pages, the plugin home page and every request to the license server and to the hosted AI service. Remove any license key from your environment; it is no longer read. These routes no longer exist: `/magic-editor-x/license/*`, `/magic-editor-x/custom-blocks/limits`, `/magic-editor-x/custom-blocks/can-create/:blockType`.
+
+#### 3. Admin API
+
+All routes are admin routes under `/magic-editor-x`. The plugin still has no Content API routes.
+
+| 1.x | 2.0 |
+| --- | --- |
+| `GET /link` | `GET /link` (unchanged; private addresses rejected) |
+| `POST /image/byFile`, `POST /image/byUrl`, `POST /file/upload` | unchanged paths; multipart field `image` (or `files.image`) and `file` |
+| `POST /collab/session` | `POST /collaboration/session` with `{ uid, documentId, locale, field, initialValue }` |
+| `GET/POST/PUT/DELETE /collaboration/permissions`, `GET /collaboration/users`, `GET /collaboration/check-access` | removed (Content Manager permissions decide) |
+| `GET /snapshots/:roomId`, `POST /snapshots/:roomId`, `POST /snapshots/restore/:documentId` | `GET /history?uid&documentId&locale&field`, `POST /history`, `GET /history/:id` (restore happens in the editor) |
+| `GET /custom-blocks/:id`, `POST /custom-blocks/:id/toggle`, `POST /custom-blocks/reorder` | removed; use `PUT /custom-blocks/:id` with `enabled` and `PUT /custom-blocks/order` |
+| `GET /custom-blocks`, `POST /custom-blocks`, `PUT /custom-blocks/:id`, `DELETE /custom-blocks/:id`, `POST /custom-blocks/:id/duplicate`, `GET /custom-blocks/export`, `POST /custom-blocks/import`, `GET /content-types` | kept; strict validation, custom block ids are `documentId`s, `PUT` takes the full definition |
+| | new: `GET /config`, `POST /ai/:action`, `GET /settings`, `PUT /settings`, `POST /settings/ai/test` |
+
+Every route now requires an admin session and an RBAC action. The README lists the full table.
+
+#### 4. Permissions
+
+| Action | 1.x | 2.0 |
+| --- | --- | --- |
+| `plugin::magic-editor-x.access` | everything | editor features: configuration, link previews, uploads (plus `plugin::upload.assets.create`), custom block list, content type list, version history |
+| `plugin::magic-editor-x.collaborate` | | new: join live rooms |
+| `plugin::magic-editor-x.ai.use` | | new: AI assistant |
+| `plugin::magic-editor-x.custom-blocks.manage` | | new: create, edit, delete, import and export custom blocks |
+| `plugin::magic-editor-x.settings.read` / `settings.update` | | new: Settings > Configuration |
+
+Grant the new actions to your roles in Settings > Administration Panel > Roles. Super Admins have them automatically.
+
+Collaboration grants (viewer, editor, owner per user) are replaced by Content Manager permissions: an admin can join a room and see versions when they can read the document, locale and field, and can type, save versions and restore when they can update it. The `collaborate` action is required in addition. Strapi drops the 1.x tables `magic_editor_collab_sessions` and `magic_editor_collab_permissions` (and their link tables) on the first start of 2.0, because the content types no longer exist.
+
+#### 5. Configuration
+
+| 1.x key | 2.0 |
+| --- | --- |
+| `enabledTools` | removed; all tools are available |
+| `linkPreviewTimeout` | `linkPreview.timeoutMs` (default 8000) |
+| `maxImageSize` | `uploads.maxImageBytes` (default 10 MiB) |
+| `maxFileSize` | `uploads.maxFileBytes` (default 20 MiB) |
+| `allowedImageTypes` | removed; JPEG, PNG, GIF, WebP and AVIF are detected by content |
+| `collaboration.enabled` | kept |
+| `collaboration.wsPath` | `collaboration.path` |
+| `collaboration.wsUrl`, `collaboration.sessionTTL`, `collaboration.allowedAdminRoles`, `collaboration.allowedAdminUserIds`, `collaboration.cors` | removed |
+| `api.autoParseJSON` | kept (default `true`) |
+| `debug` | kept |
+
+New keys: `rawHtml`, `sanitizeOnSave`, `encryptionKey`, `linkPreview.enabled`, `ai.allowPrivateBaseUrl`, `ai.apiKey`, `ai.requestsPerMinute`, `ai.timeoutMs`, `collaboration.allowedOrigins`, `collaboration.pollIntervalMs`, `collaboration.roomTtlMinutes`, `collaboration.maxMessageBytes`, `collaboration.snapshotIntervalMinutes`, `collaboration.tokenTtlSeconds`, `history.maxSnapshotsPerField`, and the environment variable `MAGIC_EDITOR_X_ENCRYPTION_KEY`. Removed 1.x keys are ignored with a warning at startup. Wrong types or ranges stop the startup with a message naming the key.
+
+#### 6. Stored content
+
+- All block names are unchanged (`paragraph`, `header`, `list`, `checklist`, `quote`, `warning`, `alert`, `toggle`, `code`, `codeFlask`, `delimiter`, `table`, `embed`, `raw`, `image`, `simpleImage`, `linkTool`, `attaches`, `personality`, `button`, custom block names). Unmaintained community tools were replaced by in-repo tools that read and write the same data.
+- 1.x stored values as JSON strings. 2.0 reads them and stores an object the next time an entry is saved. Until then `api.autoParseJSON` turns such strings into objects in Content API responses.
+- `list` now uses `@editorjs/list` 2. It reads the 1.x nested-list data; after the next save list items also contain `meta` (`{ content, meta, items }`), a superset of the old shape.
+- Values are sanitised on every save. Inline HTML keeps the tags the editor produces; scripts, event handlers and `javascript:` URLs are removed; `embed` URLs must be https.
+- The Raw HTML block is sanitised by default (`rawHtml: 'sanitize'`), which removes scripts and iframes. Set `rawHtml: 'allow'` to store raw HTML as typed.
+- Values larger than 5 MiB, with more than 5000 blocks or nested deeper than 24 levels are rejected with 400.
+
+#### 7. Automatic migrations
+
+On the first start one process runs these steps once and records them in the plugin store:
+
+- `2.0.0-snapshots`: 1.x versions that only stored the collaboration state (`yjsSnapshot`) are converted to Editor.js JSON and sanitised. Versions that cannot be converted are kept and marked.
+- `2.0.0-custom-blocks`: icons and templates of existing custom blocks are sanitised.
+
+1.x live collaboration rooms are not carried over. Unsaved collaborative changes from 1.x sessions are not migrated; save entries before upgrading.
+
+#### 8. AI assistant
+
+The 1.x assistant used a hosted service tied to the license. 2.0 calls your own provider. Turn it on in Settings > Magic Editor X > Configuration, choose Anthropic, OpenAI or an OpenAI-compatible server, enter a model and a key, and grant `ai.use` to the roles that should use it. To store a key in the settings, set `MAGIC_EDITOR_X_ENCRYPTION_KEY`; otherwise pass it with `ai.apiKey`.
+
+#### 9. Removed packages
+
+`@calumk/editorjs-codeflask`, `@editorjs/nested-list` (replaced by `@editorjs/list`), `@editorjs/checklist`, `@editorjs/delimiter`, `@editorjs/link`, `@editorjs/marker`, `@editorjs/personality`, `@editorjs/simple-image`, `@editorjs/text-variant-tune`, `@editorjs/underline`, `@sotaproject/strikethrough`, `editorjs-alert`, `editorjs-drag-drop`, `editorjs-text-alignment-blocktune`, `editorjs-toggle-block`, `editorjs-tooltip`, `editorjs-undo`, `y-indexeddb`, `y-socket.io`, `@heroicons/react`. They were unmaintained or no longer needed. The Webtools link picker integration is removed.
+
 ## [1.5.1](https://github.com/Schero94/magic-editor-x/compare/v1.5.0...v1.5.1) (2026-02-12)
 
 
