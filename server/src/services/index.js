@@ -1,20 +1,13 @@
-/**
- * Magic Editor X - Services
- */
 'use strict';
 
-const editorService = require('./editor-service');
-const realtimeService = require('./realtime-service');
-const accessService = require('./access-service');
-const snapshotService = require('./snapshot-service');
-const licenseService = require('./license-service');
-const customBlockService = require('./custom-block-service');
-
 module.exports = {
-  editorService,
-  realtimeService,
-  accessService,
-  snapshotService,
-  licenseService,
-  customBlockService,
+  store: require('./store'),
+  access: require('./access'),
+  editor: require('./editor'),
+  settings: require('./settings'),
+  ai: require('./ai'),
+  'custom-blocks': require('./custom-blocks'),
+  history: require('./history'),
+  collaboration: require('./collaboration'),
+  migrations: require('./migrations'),
 };

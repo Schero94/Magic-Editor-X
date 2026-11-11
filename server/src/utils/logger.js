@@ -1,50 +1,52 @@
-/**
- * Magic Editor X - Logger Utility
- * Conditional logging based on plugin debug configuration
- */
 'use strict';
 
-const pluginId = 'magic-editor-x';
+/**
+ * Plugin logger. Every line is prefixed with the plugin id and carries only
+ * operation names and error names/codes: never content, URLs with queries,
+ * user ids, email addresses, IPs, tokens or raw error objects.
+ */
+
+const PREFIX = '[magic-editor-x]';
 
 /**
- * Creates a logger instance that respects the debug configuration
- * @param {object} strapi - Strapi instance
- * @returns {object} Logger with info, warn, error, debug methods
+ * Reduces an error to fields that are safe to log.
+ * @param {unknown} error - Any thrown value.
+ * @returns {{ name?: string, code?: string|number }} Safe fields.
  */
-module.exports = (strapi) => {
-  const getConfig = () => strapi.config.get(`plugin::${pluginId}`, {});
+const safeError = (error) => {
+  if (!error || typeof error !== 'object') return {};
+  const out = {};
+  if (typeof error.name === 'string') out.name = error.name.slice(0, 80);
+  if (typeof error.code === 'string' || typeof error.code === 'number')
+    out.code = String(error.code).slice(0, 80);
+  return out;
+};
 
+/**
+ * Creates the logger for a Strapi instance.
+ * @param {import('@strapi/strapi').Core.Strapi} strapi - Strapi instance.
+ * @returns {{ debug: Function, info: Function, warn: Function, error: Function }} Logger.
+ */
+const createLogger = (strapi) => {
+  const debugEnabled = () => {
+    try {
+      return Boolean(strapi.config.get('plugin::magic-editor-x.debug'));
+    } catch {
+      return false;
+    }
+  };
+  const write = (level, message, meta) => {
+    const log = strapi?.log?.[level];
+    if (typeof log !== 'function') return;
+    if (meta && Object.keys(meta).length > 0) log(`${PREFIX} ${message}`, meta);
+    else log(`${PREFIX} ${message}`);
+  };
   return {
-    /**
-     * Log info message (only when debug: true)
-     */
-    info: (message, ...args) => {
-      if (getConfig().debug) {
-        strapi.log.info(`[Magic Editor X] ${message}`, ...args);
-      }
-    },
-
-    /**
-     * Log warning message (always shown)
-     */
-    warn: (message, ...args) => {
-      strapi.log.warn(`[Magic Editor X] ${message}`, ...args);
-    },
-
-    /**
-     * Log error message (always shown)
-     */
-    error: (message, ...args) => {
-      strapi.log.error(`[Magic Editor X] ${message}`, ...args);
-    },
-
-    /**
-     * Log debug message (only when debug: true)
-     */
-    debug: (message, ...args) => {
-      if (getConfig().debug) {
-        strapi.log.debug(`[Magic Editor X] ${message}`, ...args);
-      }
-    },
+    debug: (message, meta) => debugEnabled() && write('debug', message, meta),
+    info: (message, meta) => write('info', message, meta),
+    warn: (message, meta) => write('warn', message, meta),
+    error: (message, error) => write('error', message, safeError(error)),
   };
 };
+
+module.exports = { createLogger, safeError };
