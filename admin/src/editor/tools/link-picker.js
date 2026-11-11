@@ -194,7 +194,6 @@ export const createLinkPicker = ({ t, fetchClient, getLocale, onPick, onClose })
       window.clearTimeout(timer);
       timer = window.setTimeout(run, 250);
     });
-    search.addEventListener('keydown', onKeyDown);
     typeSelect.addEventListener('change', run);
     typeSelect.addEventListener('keydown', (event) => {
       if (event.key === 'Escape') {
@@ -216,7 +215,24 @@ export const createLinkPicker = ({ t, fetchClient, getLocale, onPick, onClose })
     );
   };
 
+  // Editor.js handles Enter, arrows and Escape in a capture listener on the
+  // document (inline toolbar keyboard navigation) and closes the toolbar. A
+  // capture listener on window runs first, so keys typed inside the picker
+  // stay in the picker.
+  const guard = (event) => {
+    if (element.hidden || !element.contains(event.target)) return;
+    if (!['Enter', 'ArrowDown', 'ArrowUp', 'Escape', 'Tab'].includes(event.key)) return;
+    event.stopPropagation();
+    if (event.key === 'Tab') return;
+    if (event.target === search) onKeyDown(event);
+    else if (event.key === 'Escape') {
+      event.preventDefault();
+      close();
+    }
+  };
+
   const open = async () => {
+    window.addEventListener('keydown', guard, true);
     element.hidden = false;
     element.replaceChildren(status);
     setStatus(t('tools.hyperlink.internal.loading', 'Loading content types'));
@@ -237,6 +253,7 @@ export const createLinkPicker = ({ t, fetchClient, getLocale, onPick, onClose })
   };
 
   function close() {
+    window.removeEventListener('keydown', guard, true);
     window.clearTimeout(timer);
     requestId += 1;
     element.hidden = true;
