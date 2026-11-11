@@ -5,6 +5,12 @@
  *
  * Usage: node --expose-gc scripts/soak.mjs --url http://127.0.0.1:<port> --creds <creds.json>
  *          --pid <strapi pid> [--minutes 30] [--clients 6]
+ *          [--burst 120 --pause 20] [--pg postgres://…/mex_…]
+ *
+ * --burst/--pause: edit for `burst` seconds, then stay idle for `pause`
+ * seconds (room compaction needs an idle room; 0 = edit without pauses).
+ * --pg: also samples the stored room (rows, bytes) and counts room
+ * generations (compactions) from the database of the host.
  *
  * Every client is the real admin collaboration client. Each one types into
  * paragraphs and table cells and removes text again, so the visible document
@@ -15,6 +21,7 @@
 import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { io } from 'socket.io-client';
+import pg from 'pg';
 import { loadCollabClient, simulatedEditor, ioRef } from './cluster/node-client.mjs';
 
 const args = process.argv.slice(2);
@@ -27,6 +34,11 @@ const creds = JSON.parse(fs.readFileSync(option('creds'), 'utf8'));
 const pid = Number(option('pid'));
 const minutes = Number(option('minutes', '30'));
 const count = Number(option('clients', '6'));
+const burstMs = Number(option('burst', '0')) * 1000;
+const pauseMs = Number(option('pause', '0')) * 1000;
+const pgUrl = option('pg', '');
+const pgdb = pgUrl ? new pg.Client({ connectionString: pgUrl }) : null;
+if (pgdb) await pgdb.connect();
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const call = async (method, path, token, body) => {
   const response = await fetch(BASE + path, {
@@ -76,18 +88,47 @@ const clients = Array.from({ length: count }, (_, i) =>
 );
 while (!clients.every((sim) => sim.state.status === 'live')) await sleep(200);
 
+const room = `${target.uid}|${target.documentId}|en|${target.field}`;
 const samples = [];
-const sample = () => {
+const generations = new Set();
+const sample = async () => {
   if (global.gc) global.gc();
   const rss =
     Number(execFileSync('ps', ['-o', 'rss=', '-p', String(pid)], { encoding: 'utf8' }).trim()) * 1024;
-  samples.push({ at: Date.now(), serverRss: rss, clientHeap: process.memoryUsage().heapUsed });
+  const entry = { at: Date.now(), serverRss: rss, clientHeap: process.memoryUsage().heapUsed, edits };
+  if (pgdb) {
+    const stored = (
+      await pgdb.query(
+        'select count(*)::int as rows, coalesce(sum(size), 0)::int as bytes from magic_editor_x_collab_updates where room = $1',
+        [room]
+      )
+    ).rows[0];
+    const gen = (await pgdb.query('select owner from magic_editor_x_locks where key = $1', [`gen:${room}`]))
+      .rows[0];
+    if (gen) generations.add(gen.owner);
+    Object.assign(entry, { roomRows: stored.rows, roomBytes: stored.bytes });
+  }
+  samples.push(entry);
 };
 const end = Date.now() + minutes * 60000;
 let edits = 0;
 let next = Date.now();
-sample();
+let burstEnd = burstMs ? Date.now() + burstMs : Infinity;
+await sample();
 while (Date.now() < end) {
+  if (Date.now() >= burstEnd) {
+    // Idle period: nobody types (compaction may run), sampling continues.
+    const resume = Math.min(end, Date.now() + pauseMs);
+    while (Date.now() < resume) {
+      await sleep(1000);
+      if (Date.now() >= next) {
+        await sample();
+        next = Date.now() + 30000;
+      }
+    }
+    burstEnd = Date.now() + burstMs;
+    continue;
+  }
   for (const sim of clients) {
     const tag = ` ${sim.name}-${edits}`;
     sim.edit((doc) => {
@@ -105,12 +146,12 @@ while (Date.now() < end) {
   }
   await sleep(250);
   if (Date.now() >= next) {
-    sample();
+    await sample();
     next = Date.now() + 30000;
   }
 }
 await sleep(5000);
-sample();
+await sample();
 const same = clients.every(
   (sim) => JSON.stringify(sim.client.getData()) === JSON.stringify(clients[0].client.getData())
 );
@@ -137,10 +178,28 @@ console.log(
         max: mb(Math.max(...samples.map((s) => s.clientHeap))),
       },
       samples: samples.length,
+      ...(pgdb
+        ? {
+            roomBytes: {
+              firstThird: mb(avg(first, 'roomBytes')),
+              lastThird: mb(avg(last, 'roomBytes')),
+              max: mb(Math.max(...samples.map((s) => s.roomBytes))),
+            },
+            generations: generations.size,
+          }
+        : {}),
+      series: samples.map((s) => ({
+        min: Math.round((s.at - samples[0].at) / 6000) / 10,
+        edits: s.edits,
+        serverMB: Math.round(s.serverRss / 104857.6) / 10,
+        clientMB: Math.round(s.clientHeap / 104857.6) / 10,
+        ...(pgdb ? { roomKB: Math.round(s.roomBytes / 102.4) / 10, rows: s.roomRows } : {}),
+      })),
     },
     null,
     2
   )
 );
 for (const sim of clients) sim.client.destroy();
+if (pgdb) await pgdb.end();
 process.exit(same ? 0 : 1);

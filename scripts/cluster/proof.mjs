@@ -134,7 +134,12 @@ for (let i = 0; i < CLIENTS; i += 1) {
     createCollabClient,
     url: BALANCER,
     requestSession: session(token, BALANCER, () => net.online),
-    onSocket: (socket) => net.sockets.push(socket),
+    onSocket: (socket) => {
+      net.sockets.push(socket);
+      socket.on('disconnect', () => {
+        net.disconnects = (net.disconnects || 0) + 1;
+      });
+    },
   });
   sim.net = net;
   clients.push(sim);
@@ -149,7 +154,9 @@ const slotEdit = (sim) => {
   const ok = sim.edit((doc) => {
     const slots = [];
     doc.blocks.forEach((block) => {
-      if (block.type === 'paragraph') slots.push((f) => (block.data.text = f(block.data.text)));
+      // The compaction phase rewrites the "churn" block as a whole; markers go elsewhere.
+      if (block.type === 'paragraph' && block.id !== 'churn')
+        slots.push((f) => (block.data.text = f(block.data.text)));
       if (block.type === 'table')
         block.data.content.forEach((row) => row.forEach((_, k) => slots.push((f) => (row[k] = f(row[k])))));
       if (block.type === 'list')
@@ -158,7 +165,8 @@ const slotEdit = (sim) => {
     const r = Math.random();
     const table = doc.blocks.find((block) => block.type === 'table');
     const list = doc.blocks.find((block) => block.type === 'list');
-    if (r < 0.08) {
+    // An editor that has not rendered the room yet has no slots: add a block instead.
+    if (r < 0.08 || slots.length === 0) {
       doc.blocks.splice(rnd(doc.blocks.length + 1), 0, {
         id: `b${sim.name}x${counter}`,
         type: 'paragraph',
@@ -272,6 +280,129 @@ record(
   JSON.stringify(fresh.client.getData().blocks) === JSON.stringify(clients[0].client.getData().blocks),
   `port ${lastPort}`
 );
+
+// --- room compaction across processes ---------------------------------------------
+// The hosts run with small compaction thresholds (MEX_COMPACT_* in
+// cluster-acceptance.mjs). Everybody types and deletes (tombstones), one
+// client goes offline and keeps typing, then the room is idle: exactly one
+// process must rebuild it as a new generation, every process and online
+// client must switch without reconnecting, and the offline client's edits
+// must arrive once after it comes back.
+if (process.env.MEX_COMPACT_IDLE_S) {
+  const idleMs = Number(process.env.MEX_COMPACT_IDLE_S) * 1000;
+  const pgdb = new pg.Client({ connectionString: process.env.MEX_CLUSTER_PG_URL });
+  await pgdb.connect();
+  const generation = async () =>
+    (await pgdb.query('select owner from magic_editor_x_locks where key = $1', [`gen:${room}`])).rows[0]
+      ?.owner || null;
+  const churnStart = markers.length;
+  const churnEnd = Date.now() + 10000;
+  while (Date.now() < churnEnd) {
+    for (const sim of clients) {
+      sim.edit((doc) => {
+        const block = doc.blocks.find((item) => item.id === 'churn');
+        if (!block) doc.blocks.push({ id: 'churn', type: 'paragraph', data: { text: 'Churn' } });
+        else block.data.text = block.data.text === 'Churn' ? `Churn ${'x'.repeat(60)}` : 'Churn';
+      });
+      if (Math.random() < 0.2) slotEdit(sim);
+    }
+    await sleep(100);
+  }
+  const genBefore = await generation();
+  const phaseStart = markers.length;
+  const pendingAtIdle = clients
+    .filter((sim) => sim.state.pending || sim.state.status !== 'live')
+    .map((sim) => `${sim.name}:${sim.state.status}${sim.state.pending ? '+pending' : ''}`);
+  const snapshotsAtIdle = new Map(clients.map((sim) => [sim.name, JSON.stringify(sim.client.getData())]));
+  const offlineSim = clients[clients.length - 1];
+  offlineSim.net.online = false;
+  for (const socket of offlineSim.net.sockets) if (socket.io && socket.io.engine) socket.io.engine.close();
+  await sleep(500);
+  for (let i = 0; i < 3; i += 1) slotEdit(offlineSim);
+  const online = clients.slice(0, -1);
+  const disconnectsBefore = online.map((sim) => sim.net.disconnects || 0);
+  const idleStart = Date.now();
+  let genAfter = genBefore;
+  while (genAfter === genBefore && Date.now() - idleStart < idleMs + 60000) {
+    await sleep(500);
+    genAfter = await generation();
+  }
+  const switchMs = Date.now() - idleStart;
+  const rows = (
+    await pgdb.query('select kind from magic_editor_x_collab_updates where room = $1 order by id', [room])
+  ).rows;
+  record(
+    'idle room is compacted into a new generation once',
+    genAfter !== genBefore &&
+      rows.length >= 1 &&
+      rows[0].kind === 'seed' &&
+      rows.filter((r) => r.kind === 'seed').length === 1,
+    `after ${Math.round(switchMs / 1000)} s idle (threshold ${idleMs / 1000} s); ${rows.length} row(s) left, first ${rows[0] && rows[0].kind}`
+  );
+  await sleep(3000);
+  const sameState = online.every(
+    (sim) => JSON.stringify(sim.client.getData().blocks) === JSON.stringify(online[0].client.getData().blocks)
+  );
+  record(
+    'online clients on every process switch without reconnecting',
+    sameState &&
+      online.every((sim, i) => (sim.net.disconnects || 0) === disconnectsBefore[i]) &&
+      online.every((sim) => sim.state.status === 'live'),
+    `${online.length} clients, ${online.reduce((n, sim, i) => n + (sim.net.disconnects || 0) - disconnectsBefore[i], 0)} disconnects`
+  );
+  offlineSim.net.online = true;
+  for (const socket of offlineSim.net.sockets) if (!socket.connected) socket.connect();
+  const burstEnd = Date.now() + 8000;
+  while (Date.now() < burstEnd) {
+    for (const sim of clients) if (Math.random() < 0.35) slotEdit(sim);
+    await sleep(200);
+  }
+  const settleCompaction = Date.now();
+  let converged = false;
+  while (!converged && Date.now() - settleCompaction < 60000) {
+    await sleep(500);
+    const first = JSON.stringify(clients[0].client.getData().blocks);
+    converged =
+      clients.every((sim) => sim.state.status === 'live' && !sim.state.pending) &&
+      clients.every((sim) => JSON.stringify(sim.client.getData().blocks) === first);
+  }
+  const text = JSON.stringify(clients[0].client.getData());
+  const lostAfter = markers.filter((marker) => !text.includes(marker));
+  const dupesAfter = markers.filter((marker) => text.split(marker).length > 2);
+  record(
+    'after compaction: converged, offline edits kept, nothing lost or duplicated',
+    converged && lostAfter.length === 0 && dupesAfter.length === 0,
+    `${markers.length - lostAfter.length}/${markers.length} edits, ${dupesAfter.length} duplicates, converged ${converged}${
+      lostAfter.length
+        ? `; lost ${lostAfter.slice(0, 8).join(',')} (offline client ${offlineSim.name}, ${markers.length} markers, churn from ${churnStart}, offline phase from ${phaseStart}; not settled at idle: ${pendingAtIdle.join(' ') || 'none'}; holders at idle: ${lostAfter
+            .slice(0, 3)
+            .map(
+              (m) =>
+                `${m}=${[...snapshotsAtIdle]
+                  .filter(([, text]) => text.includes(m))
+                  .map(([name]) => name)
+                  .join('/')}`
+            )
+            .join(' ')})`
+        : ''
+    }`
+  );
+  const late = simulatedEditor({
+    name: 'late',
+    createCollabClient,
+    url: url(ports[3]),
+    requestSession: session(token, url(ports[3])),
+  });
+  await waitLive([late], 30000);
+  await sleep(1000);
+  record(
+    'a fresh client after compaction sees the same state',
+    JSON.stringify(late.client.getData().blocks) === JSON.stringify(clients[0].client.getData().blocks),
+    `port ${ports[3]}`
+  );
+  late.client.destroy();
+  await pgdb.end();
+}
 
 // --- permission revocation across processes ------------------------------------
 const suffix = crypto.randomBytes(3).toString('hex');
