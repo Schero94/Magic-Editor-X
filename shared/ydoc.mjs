@@ -287,6 +287,173 @@ export const applyEditorDataToDoc = (doc, data, origin = 'local') => {
 };
 
 /**
+ * Applies a local text edit (base -> local) to a shared text that may already
+ * contain remote edits. The edit position is mapped through the remote change
+ * so concurrent typing at different places is kept.
+ * @param {Y.Text} ytext - Shared text.
+ * @param {string} base - Text the editor started from.
+ * @param {string} local - Text the editor has now.
+ * @returns {boolean} True when the shared text changed.
+ */
+export const applyTextEdit = (ytext, base, local) => {
+  if (base === local) return false;
+  const shared = ytext.toString();
+  if (shared === base) return applyTextDiff(ytext, local);
+  let start = 0;
+  while (start < base.length && start < local.length && base.charCodeAt(start) === local.charCodeAt(start))
+    start += 1;
+  let endBase = base.length;
+  let endLocal = local.length;
+  while (
+    endBase > start &&
+    endLocal > start &&
+    base.charCodeAt(endBase - 1) === local.charCodeAt(endLocal - 1)
+  ) {
+    endBase -= 1;
+    endLocal -= 1;
+  }
+  // Where did the remote change happen relative to base?
+  let rp = 0;
+  while (rp < base.length && rp < shared.length && base.charCodeAt(rp) === shared.charCodeAt(rp)) rp += 1;
+  let rsBase = base.length;
+  let rsShared = shared.length;
+  while (rsBase > rp && rsShared > rp && base.charCodeAt(rsBase - 1) === shared.charCodeAt(rsShared - 1)) {
+    rsBase -= 1;
+    rsShared -= 1;
+  }
+  const shift = shared.length - base.length;
+  const map = (index) =>
+    index <= rp ? index : index >= rsBase ? index + shift : Math.min(index + shift, shared.length);
+  const from = map(start);
+  const to = Math.max(from, map(endBase));
+  if (to > from) ytext.delete(from, Math.min(to, shared.length) - from);
+  const inserted = local.slice(start, endLocal);
+  if (inserted) ytext.insert(Math.min(from, ytext.length), inserted);
+  return true;
+};
+
+/**
+ * Applies only what changed locally (base -> local) to the shared document,
+ * leaving remote changes made since `base` untouched. Used for live editing:
+ * the editor's content is a snapshot that can be older than the shared
+ * document, so overwriting the shared state with it would undo other people's
+ * edits.
+ * @param {Y.Doc} doc - Shared document.
+ * @param {{ blocks: Array<object> }} base - Content the editor last showed or sent.
+ * @param {{ time?: number, blocks: Array<object>, version?: string }} local - Content of the editor now.
+ * @param {unknown} [origin] - Transaction origin.
+ * @returns {boolean} True when the shared document changed.
+ */
+export const applyLocalChanges = (doc, base, local, origin = 'local') => {
+  const { meta, order, blocks } = getTypes(doc);
+  const baseById = new Map((base.blocks || []).map((block) => [block.id, block]));
+  const localIds = (local.blocks || []).map((block) => block.id);
+  const localSet = new Set(localIds);
+  let changed = false;
+  doc.transact(() => {
+    if (meta.get('schema') !== YDOC_SCHEMA) meta.set('schema', YDOC_SCHEMA);
+    // 1. blocks deleted locally
+    for (const id of baseById.keys()) {
+      if (localSet.has(id)) continue;
+      const current = order.toArray();
+      for (let i = current.length - 1; i >= 0; i -= 1) {
+        if (current[i] === id) {
+          order.delete(i, 1);
+          changed = true;
+        }
+      }
+    }
+    // 2. blocks added or moved locally: place them after their local predecessor
+    const baseIds = (base.blocks || []).map((block) => block.id).filter((id) => localSet.has(id));
+    const keep = lcsKeepIds(baseIds, localIds);
+    localIds.forEach((id, index) => {
+      if (baseById.has(id) && keep.has(id)) return;
+      const current = order.toArray();
+      for (let i = current.length - 1; i >= 0; i -= 1) {
+        if (current[i] === id) order.delete(i, 1);
+      }
+      const after = order.toArray();
+      let position = 0;
+      for (let p = index - 1; p >= 0; p -= 1) {
+        const at = after.indexOf(localIds[p]);
+        if (at >= 0) {
+          position = at + 1;
+          break;
+        }
+      }
+      order.insert(position, [id]);
+      changed = true;
+    });
+    // 3. block content changed locally
+    for (const block of local.blocks || []) {
+      const before = baseById.get(block.id);
+      let entry = blocks.get(block.id);
+      if (!(entry instanceof Y.Map)) {
+        entry = new Y.Map();
+        blocks.set(block.id, entry);
+        entry.set('type', block.type);
+        entry.set('tunes', isPlainObject(block.tunes) ? block.tunes : {});
+        writeData(entry, isPlainObject(block.data) ? block.data : {});
+        changed = true;
+        continue;
+      }
+      if (!before) {
+        changed = writeData(entry, isPlainObject(block.data) ? block.data : {}) || changed;
+        continue;
+      }
+      if (before.type !== block.type) {
+        entry.set('type', block.type);
+        changed = true;
+      }
+      if (stableStringify(before.tunes || {}) !== stableStringify(block.tunes || {})) {
+        entry.set('tunes', isPlainObject(block.tunes) ? block.tunes : {});
+        changed = true;
+      }
+      let dataMap = entry.get('data');
+      if (!(dataMap instanceof Y.Map)) {
+        dataMap = new Y.Map();
+        entry.set('data', dataMap);
+      }
+      const baseData = isPlainObject(before.data) ? before.data : {};
+      const localData = isPlainObject(block.data) ? block.data : {};
+      for (const key of new Set([...Object.keys(baseData), ...Object.keys(localData)])) {
+        const a = baseData[key];
+        const b = localData[key];
+        if (stableStringify(a) === stableStringify(b)) continue;
+        changed = true;
+        if (!(key in localData)) {
+          dataMap.delete(key);
+        } else if (typeof b === 'string') {
+          const current = dataMap.get(key);
+          if (current instanceof Y.Text)
+            applyTextEdit(current, typeof a === 'string' ? a : current.toString(), b);
+          else {
+            const text = new Y.Text();
+            dataMap.set(key, text);
+            text.insert(0, b);
+          }
+        } else {
+          dataMap.set(key, b === undefined ? null : b);
+        }
+      }
+    }
+    if (changed && local.time) meta.set('time', local.time);
+  }, origin);
+  return changed;
+};
+
+/**
+ * Ids of the longest common subsequence of two id lists.
+ * @param {string[]} a - First list.
+ * @param {string[]} b - Second list.
+ * @returns {Set<string>} Ids that keep their relative order.
+ */
+const lcsKeepIds = (a, b) => {
+  const indexes = lcsKeep(a, b);
+  return new Set(Array.from(indexes).map((i) => a[i]));
+};
+
+/**
  * Creates a Y update that contains the given document, for seeding a new room.
  * @param {{ time?: number, blocks: Array<object>, version?: string }} data - Normalised editor data.
  * @returns {Uint8Array} Yjs update.

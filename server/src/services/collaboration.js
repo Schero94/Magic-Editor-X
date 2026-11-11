@@ -159,26 +159,55 @@ module.exports = ({ strapi }) => {
    * @param {number} ttlMs - Lease length (room lifetime).
    * @returns {Promise<void>}
    */
-  const ensureSeed = async (room, content, ttlMs) => {
+  const ensureSeed = async (room, loadContent, ttlMs) => {
     const stats = await store().roomStats(room);
-    if (stats.count > 0) return;
+    if (stats.count > 0) return false;
     const seedKey = `seed:${room}`.slice(0, 255);
     if (await store().acquire(seedKey, PROCESS_ID, ttlMs)) {
       const again = await store().roomStats(room);
       if (again.count === 0) {
+        const content = await loadContent();
         await store().appendUpdate(
           room,
           createSeedUpdate(content || { time: Date.now(), blocks: [], version: '2.31.7' }),
           'seed'
         );
+        return true;
       }
-      return;
+      return false;
     }
     // Another process is seeding; wait briefly for its row.
     for (let i = 0; i < 40; i += 1) {
-      if ((await store().roomStats(room)).count > 0) return;
+      if ((await store().roomStats(room)).count > 0) return false;
       await new Promise((resolve) => setTimeout(resolve, 50));
     }
+    return false;
+  };
+
+  /**
+   * Reads the stored (draft) value of a field, following component and
+   * dynamic-zone paths such as `sections.0.body`.
+   * @param {{ uid: string, documentId: string, locale: string|null, field: string }} target - Field.
+   * @returns {Promise<unknown>} Stored value or undefined.
+   */
+  const readStoredValue = async (target) => {
+    const parts = target.field.split('.');
+    const top = parts[0];
+    const contentType = strapi.contentType(target.uid);
+    const attribute = contentType && contentType.attributes[top];
+    const populate = attribute && ['component', 'dynamiczone'].includes(attribute.type) ? { [top]: true } : undefined;
+    const document = await strapi.documents(target.uid).findOne({
+      documentId: target.documentId,
+      locale: target.locale || undefined,
+      status: 'draft',
+      ...(populate ? { populate } : {}),
+    });
+    let value = document;
+    for (const part of parts) {
+      if (value === null || value === undefined) return undefined;
+      value = value[/^\d+$/.test(part) ? Number(part) : part];
+    }
+    return value;
   };
 
   /**
@@ -533,17 +562,27 @@ module.exports = ({ strapi }) => {
       const result = await access().checkField({ userAbility, uid, documentId, locale, field });
       const target = { uid, documentId, locale: result.locale, field };
       const room = history().fieldKey(target);
-      if (result.canUpdate) {
-        let content;
-        try {
-          content = cleanEditorValue(initialValue, {
-            rawHtml: strapi.config.get('plugin::magic-editor-x.rawHtml') || 'sanitize',
-          });
-        } catch {
-          throw new errors.ValidationError('The initial content is not valid editor data');
-        }
-        await ensureSeed(room, content, Number(conf('roomTtlMinutes', 30)) * 60000);
-      }
+      const rawHtml = strapi.config.get('plugin::magic-editor-x.rawHtml') || 'sanitize';
+      // New rooms start from the stored draft. The value the browser sends is
+      // only used when nothing is stored yet and the caller may edit.
+      const seeded = await ensureSeed(
+        room,
+        async () => {
+          let stored;
+          try {
+            stored = cleanEditorValue(await readStoredValue(target), { rawHtml });
+          } catch {
+            stored = null;
+          }
+          if (stored || !result.canUpdate) return stored;
+          try {
+            return cleanEditorValue(initialValue, { rawHtml });
+          } catch {
+            return null;
+          }
+        },
+        Number(conf('roomTtlMinutes', 30)) * 60000
+      );
       const ttl = Number(conf('tokenTtlSeconds', 60)) * 1000;
       const claims = {
         room,
@@ -559,6 +598,7 @@ module.exports = ({ strapi }) => {
         token: signToken(claims, getTokenKey(strapi)),
         path: conf('path', '/magic-editor-x/realtime'),
         canEdit: result.canUpdate,
+        seeded,
         expiresAt: claims.exp,
       };
     },

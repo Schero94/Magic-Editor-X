@@ -1,6 +1,6 @@
 import * as Y from 'yjs';
 import { io } from 'socket.io-client';
-import { applyEditorDataToDoc, docToEditorData } from '../../../shared/ydoc.mjs';
+import { applyLocalChanges, docToEditorData } from '../../../shared/ydoc.mjs';
 
 /**
  * Browser side of live collaboration for one editor field.
@@ -33,7 +33,14 @@ const isEmptyUpdate = (update) => !update || update.byteLength <= 2;
  * @param {Function} [options.socketFactory] - Replaces socket.io-client (tests).
  * @returns {{ pushLocal: (data: object) => void, sendCursor: (cursor: object|null) => void, getData: () => object, hasContent: () => boolean, destroy: () => void }} Client.
  */
-export const createCollabClient = ({ requestSession, url, onRemoteData, onState, socketFactory = io }) => {
+export const createCollabClient = ({
+  requestSession,
+  url,
+  onRemoteData,
+  onFirstSync,
+  onState,
+  socketFactory = io,
+}) => {
   const doc = new Y.Doc();
   let socket = null;
   let destroyed = false;
@@ -43,6 +50,8 @@ export const createCollabClient = ({ requestSession, url, onRemoteData, onState,
   let notifyTimer = null;
   let firstToken = null;
   let synced = false;
+  let seededBySelf = false;
+  let base = { blocks: [] };
 
   const setState = (patch) => {
     state = { ...state, ...patch };
@@ -82,6 +91,7 @@ export const createCollabClient = ({ requestSession, url, onRemoteData, onState,
     const session = await requestSession();
     if (destroyed) return;
     firstToken = session.token;
+    seededBySelf = session.seeded === true;
     setState({ canEdit: session.canEdit });
     socket = socketFactory(url, {
       path: session.path,
@@ -119,10 +129,18 @@ export const createCollabClient = ({ requestSession, url, onRemoteData, onState,
           pending = pending ? Y.mergeUpdates([pending, missing]) : missing;
         }
       }
+      const first = !synced;
       synced = true;
+      if (first) base = docToEditorData(doc);
       setState({ status: 'live' });
-      notifyRemote();
-      flush();
+      // The person who created the room may have typed before the connection
+      // was ready: let the field add those edits before the room is shown.
+      Promise.resolve(first && typeof onFirstSync === 'function' ? onFirstSync(seededBySelf) : null)
+        .catch(() => null)
+        .then(() => {
+          notifyRemote();
+          flush();
+        });
     });
     socket.on('mx:update', (update) => Y.applyUpdate(doc, new Uint8Array(update), 'remote'));
     socket.on('mx:presence', (peers) => {
@@ -149,7 +167,12 @@ export const createCollabClient = ({ requestSession, url, onRemoteData, onState,
     /** Applies the local editor content to the shared document. */
     pushLocal(data) {
       if (destroyed || !synced || !state.canEdit) return;
-      applyEditorDataToDoc(doc, data, 'local');
+      applyLocalChanges(doc, base, data, 'local');
+      base = data;
+    },
+    /** Records what the editor shows now (after remote content was applied). */
+    markShown(data) {
+      base = data;
     },
     /** Shares the caret position with the room. */
     sendCursor(cursor) {

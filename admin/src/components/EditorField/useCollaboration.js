@@ -14,15 +14,17 @@ const INITIAL = { status: 'off', canEdit: false, peers: [], error: null, color: 
  * @param {(data: object) => void} options.onRemoteData - Applies the shared document.
  * @returns {{ active: boolean, status: string, canEdit: boolean, peers: object[], error: string|null, client: object|null }} State.
  */
-export const useCollaboration = ({ target, getLocalData, ready, onRemoteData }) => {
+export const useCollaboration = ({ target, getLocalData, ready, onRemoteData, onFirstSync }) => {
   const { post } = useFetchClient();
   const [state, setState] = useState(INITIAL);
   const [client, setClient] = useState(null);
   const getLocalRef = useRef(getLocalData);
   const onRemoteRef = useRef(onRemoteData);
+  const onFirstSyncRef = useRef(onFirstSync);
   useEffect(() => {
     getLocalRef.current = getLocalData;
     onRemoteRef.current = onRemoteData;
+    onFirstSyncRef.current = onFirstSync;
   });
 
   const key =
@@ -44,6 +46,7 @@ export const useCollaboration = ({ target, getLocalData, ready, onRemoteData }) 
         return data.data;
       },
       onRemoteData: (data) => onRemoteRef.current(data),
+      onFirstSync: (seeded) => (onFirstSyncRef.current ? onFirstSyncRef.current(seeded, instance) : null),
       onState: (next) => setState(next),
     });
     setClient(instance);

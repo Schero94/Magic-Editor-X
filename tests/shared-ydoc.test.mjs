@@ -125,3 +125,32 @@ test('seeding the same content twice yields the same document', () => {
   Y.applyUpdate(y, createSeedUpdate(data));
   assert.deepEqual(docToEditorData(y).blocks, data.blocks);
 });
+
+test('a stale local snapshot does not undo remote edits', async () => {
+  const { applyLocalChanges } = await import('../shared/ydoc.mjs');
+  const base = doc([p('a1', 'Shared start')]);
+  const { a, b, sync } = pair(base);
+  // A types at the end; B, still showing the old text, adds a paragraph.
+  applyLocalChanges(a, base, doc([p('a1', 'Shared start from A')]));
+  sync();
+  applyLocalChanges(b, base, doc([p('a1', 'Shared start'), p('b1', 'from B')]));
+  sync();
+  const result = docToEditorData(a);
+  assert.deepEqual(
+    result.blocks.map((block) => block.data.text),
+    ['Shared start from A', 'from B']
+  );
+  assert.deepEqual(docToEditorData(b), result);
+});
+
+test('local typing is mapped through concurrent remote typing in the same text', async () => {
+  const { applyLocalChanges } = await import('../shared/ydoc.mjs');
+  const base = doc([p('a1', 'Hello world')]);
+  const { a, b, sync } = pair(base);
+  applyLocalChanges(a, base, doc([p('a1', 'Hello big world')]));
+  sync();
+  applyLocalChanges(b, base, doc([p('a1', 'Hello world!')]));
+  sync();
+  assert.equal(docToEditorData(a).blocks[0].data.text, 'Hello big world!');
+  assert.deepEqual(docToEditorData(a), docToEditorData(b));
+});
