@@ -377,9 +377,16 @@ export const editorStyles = css`
       border-color: ${c('neutral200')};
     }
 
+    .cdx-search-field:focus-within {
+      border-color: ${c('primary600')};
+    }
+
     .cdx-search-field__input {
       color: ${c('neutral800')};
       font-size: ${f(2)};
+      border: 0;
+      outline: none;
+      box-shadow: none;
     }
 
     .ce-inline-tool,

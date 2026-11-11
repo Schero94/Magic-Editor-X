@@ -106,6 +106,10 @@ export function buildTools(ctx) {
       inlineToolbar: inline,
       tunes: ['indentTune'],
       shortcut: 'CMD+SHIFT+L',
+      // The dedicated `checklist` tool keeps the 1.x data shape, so the list offers only its two list styles.
+      toolbox: (Array.isArray(List.toolbox) ? List.toolbox : [List.toolbox]).filter(
+        (item) => !item || !item.data || item.data.style !== 'checklist'
+      ),
       config: { defaultStyle: 'unordered' },
     },
     checklist: { class: ChecklistTool, inlineToolbar: inline, shortcut: 'CMD+SHIFT+C', config: {} },

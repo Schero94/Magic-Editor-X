@@ -58,12 +58,9 @@ const Frame = styled(Box)`
 
 const Holder = styled.div`
   min-width: 0;
-  padding: ${({ theme }) => `${theme.spaces[4]} ${theme.spaces[4]} ${theme.spaces[4]} ${theme.spaces[9]}`};
+  padding: ${({ theme }) => `${theme.spaces[4]} ${theme.spaces[4]} ${theme.spaces[4]} ${theme.spaces[7]}`};
   min-height: ${({ $minHeight }) => `${$minHeight}px`};
   ${({ $fullscreen }) => ($fullscreen ? 'flex: 1 1 auto; overflow: auto;' : '')}
-  ${({ theme }) => theme.breakpoints.medium} {
-    padding-left: ${({ theme }) => theme.spaces[10]};
-  }
 `;
 
 /**
@@ -140,7 +137,15 @@ const EditorField = ({
   /** Emits editor content to the Content Manager form when it changed. */
   const emit = useCallback(
     (data) => {
-      const next = data && data.blocks && data.blocks.length > 0 ? data : null;
+      const meaningful =
+        data &&
+        Array.isArray(data.blocks) &&
+        data.blocks.some(
+          (block) =>
+            block.type !== 'paragraph' ||
+            String((block.data && block.data.text) || '').replace(/<br\s*\/?>|&nbsp;|\s/g, '') !== ''
+        );
+      const next = meaningful ? data : null;
       const key = contentKey(next);
       if (key === lastEmittedRef.current) return;
       lastEmittedRef.current = key;

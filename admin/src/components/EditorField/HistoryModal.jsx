@@ -76,7 +76,8 @@ export const HistoryModal = ({ t, target, readContent, onRestore, onClose, canEd
           field: target.field,
         },
       }).then(
-        ({ data }) => setState({ loading: false, error: false, items: data.data || [], meta: data.meta || {} }),
+        ({ data }) =>
+          setState({ loading: false, error: false, items: data.data || [], meta: data.meta || {} }),
         () => setState((current) => ({ ...current, loading: false, error: true }))
       ),
     [get, target.uid, target.documentId, target.locale, target.field]
