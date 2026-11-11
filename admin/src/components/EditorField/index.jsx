@@ -150,6 +150,10 @@ const EditorField = ({
   const historyButtonRef = useRef(null);
   const areaRef = useRef(null);
   const remoteCacheRef = useRef(new WeakMap());
+  // True once the user interacted with the editor. Before that, changes Editor.js
+  // makes on its own (normalising 1.x content while rendering) only move the
+  // baseline and never mark the form as changed.
+  const userTouchedRef = useRef(false);
   const [contentVersion, setContentVersion] = useState(0);
   const onChangeRef = useRef(onChange);
   const [ready, setReady] = useState(false);
@@ -175,7 +179,7 @@ const EditorField = ({
 
   /** Emits editor content to the Content Manager form when it changed. */
   const emit = useCallback(
-    (data) => {
+    (data, { baselineOnly = false } = {}) => {
       const meaningful =
         data &&
         Array.isArray(data.blocks) &&
@@ -189,6 +193,7 @@ const EditorField = ({
       if (key === lastEmittedRawRef.current) return;
       lastEmittedRawRef.current = key;
       lastEmittedRef.current = renderedKey(next);
+      if (baselineOnly) return;
       // Editor.js reuses the tune objects of a block between saves, and the
       // Content Manager form freezes what it stores. Hand over a copy so the
       // editor can keep writing to its own objects.
@@ -212,6 +217,10 @@ const EditorField = ({
           rememberBlocks(knownRef.current, data);
           setStats(computeStats(data));
           setContentVersion((version) => version + 1);
+          if (!userTouchedRef.current) {
+            emit(data, { baselineOnly: true });
+            return;
+          }
           emit(data);
           if (collabRef.current) collabRef.current.pushLocal(data);
           if (undoRef.current) undoRef.current.record();
@@ -276,12 +285,18 @@ const EditorField = ({
       }
       if (!['Shift', 'Control', 'Alt', 'Meta'].includes(event.key)) leaveArmed = false;
     };
+    const onTouch = () => {
+      userTouchedRef.current = true;
+    };
+    const touchEvents = ['pointerdown', 'keydown', 'input', 'paste', 'drop'];
+    touchEvents.forEach((type) => holder.addEventListener(type, onTouch, true));
     window.addEventListener('keydown', onKeyDown, true);
     holder.addEventListener('focusout', onFocusOut);
     holder.addEventListener('input', onInput);
     holder.addEventListener('click', onClick);
     holder.addEventListener('keyup', onKeyUp);
     return () => {
+      touchEvents.forEach((type) => holder.removeEventListener(type, onTouch, true));
       holder.removeEventListener('click', onClick);
       holder.removeEventListener('keyup', onKeyUp);
       holder.removeEventListener('focusout', onFocusOut);
