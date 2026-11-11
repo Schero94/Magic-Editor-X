@@ -81,7 +81,10 @@ test('secrets: AES-GCM round trip, wrong key and tampering fail, tokens expire',
   assert.match(sealed, /^v1:/);
   assert.equal(crypto.decryptSecret(sealed, key), 'sk-synthetic');
   assert.equal(crypto.decryptSecret(sealed, 'x'.repeat(40)), null);
-  assert.equal(crypto.decryptSecret(sealed.replace(/.$/, 'A'), key), null);
+  // Tamper with the last character (always to a different one; replacing it
+  // with a fixed letter was a no-op in 1 of 64 runs).
+  const tampered = sealed.slice(0, -1) + (sealed.endsWith('A') ? 'B' : 'A');
+  assert.equal(crypto.decryptSecret(tampered, key), null);
   const tokenKey = Buffer.alloc(32, 1);
   const token = crypto.signToken({ room: 'r', exp: Date.now() + 1000 }, tokenKey);
   assert.equal(crypto.verifyToken(token, tokenKey).room, 'r');
