@@ -97,6 +97,11 @@ const runEnv = {
   MAGIC_EDITOR_X_ENCRYPTION_KEY: secret(),
   MEX_POLL_MS: '200',
   MEX_SNAPSHOT_MIN: '1',
+  // Small compaction thresholds so the run sees a room generation switch.
+  MEX_COMPACT_IDLE_S: option('compact-idle', '15'),
+  MEX_COMPACT_MIN_BYTES: '1024',
+  MEX_COMPACT_RATIO: '1.5',
+  MEX_COMPACT_CHECK_S: '2',
   MEX_CLUSTER_BALANCER_PORT: String(ports.balancer),
   MEX_CLUSTER_PORTS: ports.strapi.join(','),
   MEX_CLUSTER_PG_URL: pgUrl,
@@ -178,6 +183,13 @@ try {
         .map((line) => `${file}: ${line}`)
     );
   }
+  let compactions = 0;
+  for (const file of fs.readdirSync(logDir).filter((name) => name.startsWith('strapi-')))
+    compactions += fs
+      .readFileSync(path.join(logDir, file), 'utf8')
+      .split('\n')
+      .filter((line) => line.includes('collaboration room compacted')).length;
+  console.log(`room compactions logged by all processes: ${compactions}`);
   console.log(
     errors.length
       ? `plugin warnings/errors in process logs:\n${errors.join('\n')}`

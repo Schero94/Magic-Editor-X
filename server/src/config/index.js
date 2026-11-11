@@ -75,6 +75,20 @@ const defaults = {
       /** Update bytes per socket in 10 seconds. */
       bytesPer10s: 8 * MiB,
     },
+    /**
+     * Room compaction: a long-lived room keeps metadata for every edit (Yjs
+     * tombstones). When a room has been idle for `idleSeconds` and its state
+     * is `ratio` times larger than a fresh copy of the same content (and at
+     * least `minBytes`), it is rebuilt as a new generation once across the
+     * cluster; connected editors switch to it without reconnecting.
+     */
+    compaction: {
+      enabled: true,
+      idleSeconds: 60,
+      minBytes: 256 * 1024,
+      ratio: 4,
+      checkIntervalSeconds: 30,
+    },
   },
   history: {
     /** Snapshots kept per field and locale; older ones are removed. */
@@ -146,6 +160,21 @@ const configSchema = z.looseObject({
       sessionsPerMinute: positiveInt(10000),
       updatesPer10s: positiveInt(100000),
       bytesPer10s: positiveInt(200 * MiB),
+    }),
+    compaction: z.looseObject({
+      enabled: z.boolean(),
+      idleSeconds: z
+        .number()
+        .int()
+        .min(15)
+        .max(24 * 3600),
+      minBytes: z
+        .number()
+        .int()
+        .min(1024)
+        .max(512 * MiB),
+      ratio: z.number().min(1.5).max(1000),
+      checkIntervalSeconds: z.number().int().min(1).max(3600),
     }),
   }),
   history: z.looseObject({ maxSnapshotsPerField: positiveInt(1000) }),
