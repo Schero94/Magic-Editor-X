@@ -195,7 +195,8 @@ module.exports = ({ strapi }) => {
     const top = parts[0];
     const contentType = strapi.contentType(target.uid);
     const attribute = contentType && contentType.attributes[top];
-    const populate = attribute && ['component', 'dynamiczone'].includes(attribute.type) ? { [top]: true } : undefined;
+    const populate =
+      attribute && ['component', 'dynamiczone'].includes(attribute.type) ? { [top]: true } : undefined;
     const document = await strapi.documents(target.uid).findOne({
       documentId: target.documentId,
       locale: target.locale || undefined,
