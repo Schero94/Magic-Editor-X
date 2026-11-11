@@ -87,5 +87,6 @@
   "editor.ai.cancel": "Abbrechen",
   "editor.ai.retry": "Erneut versuchen",
   "editor.ai.generate": "Erzeugen",
-  "editor.ai.apply": "Auswahl ersetzen"
+  "editor.ai.apply": "Auswahl ersetzen",
+  "editor.keyboard": "Drücken Sie in einem leeren Block Tab, um einen Blocktyp zu wählen. Drücken Sie Escape und dann Tab, um den Editor zu verlassen."
 }

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useIntl } from 'react-intl';
 import EditorJS from '@editorjs/editorjs';
-import { Box, Button, Field, Flex, Loader, Typography } from '@strapi/design-system';
+import { Box, Button, Field, Flex, Loader, Typography, VisuallyHidden } from '@strapi/design-system';
 import { useFetchClient, useNotification, useStrapiApp } from '@strapi/strapi/admin';
 import styled, { createGlobalStyle } from 'styled-components';
 import { buildTools, editorI18n, createUndoManager, createDragDrop } from '../../editor/tools';
@@ -117,6 +117,7 @@ const EditorField = ({
   const collabRef = useRef(null);
   const pendingLocalRef = useRef(false);
   const syncedOnceRef = useRef(false);
+  const historyButtonRef = useRef(null);
   const onChangeRef = useRef(onChange);
   const [ready, setReady] = useState(false);
   const [stats, setStats] = useState({ blocks: 0, words: 0, characters: 0 });
@@ -199,11 +200,47 @@ const EditorField = ({
     // Typing is saved shortly after each input event instead of waiting for
     // Editor.js' own (slower) change notification.
     const onInput = () => scheduleSave(40);
+    // Editor.js uses Tab to open its block menu. Escape followed by Tab leaves
+    // the editor, so keyboard users are never trapped inside it.
+    let leaveArmed = false;
+    // Registered on window (capture) because Editor.js listens on document.
+    const onKeyDown = (event) => {
+      if (!holder.contains(document.activeElement)) {
+        leaveArmed = false;
+        return;
+      }
+      if (event.key === 'Escape') {
+        leaveArmed = true;
+        return;
+      }
+      if (event.key === 'Tab' && leaveArmed) {
+        event.stopPropagation();
+        event.preventDefault();
+        leaveArmed = false;
+        const selector =
+          'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"]), [contenteditable="true"]';
+        const candidates = Array.from(document.querySelectorAll(selector)).filter(
+          (element) => !holder.contains(element) && element.getClientRects().length > 0
+        );
+        const target = event.shiftKey
+          ? candidates
+              .filter((element) => holder.compareDocumentPosition(element) & Node.DOCUMENT_POSITION_PRECEDING)
+              .pop()
+          : candidates.find(
+              (element) => holder.compareDocumentPosition(element) & Node.DOCUMENT_POSITION_FOLLOWING
+            );
+        if (target) target.focus();
+        return;
+      }
+      if (!['Shift', 'Control', 'Alt', 'Meta'].includes(event.key)) leaveArmed = false;
+    };
+    window.addEventListener('keydown', onKeyDown, true);
     holder.addEventListener('focusout', onFocusOut);
     holder.addEventListener('input', onInput);
     return () => {
       holder.removeEventListener('focusout', onFocusOut);
       holder.removeEventListener('input', onInput);
+      window.removeEventListener('keydown', onKeyDown, true);
     };
   }, [ready, scheduleSave]);
 
@@ -593,6 +630,7 @@ const EditorField = ({
             onRedo={() => undoRef.current && undoRef.current.redo()}
             historyAvailable={Boolean(target.uid && target.documentId)}
             onOpenHistory={() => setHistoryOpen(true)}
+            historyButtonRef={historyButtonRef}
             collaboration={collaboration}
             stats={stats}
           />
@@ -618,7 +656,14 @@ const EditorField = ({
             $fullscreen={fullscreen}
             data-testid="magic-editor-x"
             aria-busy={!ready}
+            aria-describedby={`${name}-mex-keyboard`}
           />
+          <VisuallyHidden id={`${name}-mex-keyboard`}>
+            {t(
+              'editor.keyboard',
+              'Press Tab in an empty block to choose a block type. Press Escape, then Tab, to leave the editor.'
+            )}
+          </VisuallyHidden>
         </Frame>
         <Field.Hint />
         <Field.Error />
@@ -629,7 +674,10 @@ const EditorField = ({
           target={target}
           readContent={readContent}
           onRestore={restoreSnapshot}
-          onClose={() => setHistoryOpen(false)}
+          onClose={() => {
+            setHistoryOpen(false);
+            window.requestAnimationFrame(() => historyButtonRef.current && historyButtonRef.current.focus());
+          }}
           canEdit={!readOnly}
         />
       ) : null}

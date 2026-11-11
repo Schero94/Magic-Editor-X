@@ -86,6 +86,7 @@ export const EditorToolbar = ({
   onRedo,
   historyAvailable,
   onOpenHistory,
+  historyButtonRef,
   collaboration,
   stats,
 }) => {
@@ -119,6 +120,7 @@ export const EditorToolbar = ({
         </IconButton>
         {historyAvailable ? (
           <IconButton
+            ref={historyButtonRef}
             label={t('editor.toolbar.history', 'Version history')}
             variant="ghost"
             onClick={onOpenHistory}
