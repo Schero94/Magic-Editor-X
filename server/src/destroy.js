@@ -1,19 +1,15 @@
-/**
- * Magic Editor X - Destroy
- * Runs on plugin shutdown
- */
 'use strict';
 
-const { createLogger } = require('./utils');
+const { createLogger } = require('./utils/logger');
 
+/**
+ * Stops the collaboration server and its timers.
+ * @param {{ strapi: import('@strapi/strapi').Core.Strapi }} context - Strapi.
+ */
 module.exports = async ({ strapi }) => {
-  const logger = createLogger(strapi);
-
   try {
-    await strapi.plugin('magic-editor-x').service('realtimeService').close();
+    await strapi.plugin('magic-editor-x').service('collaboration').stop();
   } catch (error) {
-    logger.error('Failed to gracefully shutdown realtime server', error);
+    createLogger(strapi).error('collaboration shutdown failed', error);
   }
-
-  logger.info('Plugin destroyed');
 };
