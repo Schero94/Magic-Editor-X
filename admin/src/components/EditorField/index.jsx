@@ -355,7 +355,13 @@ const EditorField = ({
   );
 
   const openMediaLibrary = useCallback((request) => setMediaRequest(request || {}), []);
-  const onAiRequest = useCallback((request) => setAiRequest(request), []);
+  const onAiRequest = useCallback((request) => {
+    const editor = editorRef.current;
+    // Close the inline toolbar and its tooltip so nothing floats above the dialog.
+    if (editor && editor.inlineToolbar) editor.inlineToolbar.close();
+    if (editor && editor.tooltip && typeof editor.tooltip.hide === 'function') editor.tooltip.hide();
+    setAiRequest(request);
+  }, []);
 
   // Create the editor once the configuration is known; recreate it only when
   // the tool set changes (configuration, custom blocks, permissions).
