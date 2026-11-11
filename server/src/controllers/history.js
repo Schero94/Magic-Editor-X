@@ -32,7 +32,7 @@ module.exports = ({ strapi }) => {
      * @auth admin; plugin::magic-editor-x.access; CM read on the snapshot's document
      */
     async findOne(ctx) {
-      const { id } = parseOrThrow(z.strictObject({ id: documentIdSchema }), ctx.params);
+      const { id } = parseOrThrow(z.strictObject({ id: documentIdSchema }), { id: ctx.params.id });
       const { target, snapshot } = await history().findOne(id);
       await access().checkField({ userAbility: ctx.state.userAbility, ...target });
       ctx.body = { data: snapshot };

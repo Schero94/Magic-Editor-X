@@ -31,19 +31,19 @@ module.exports = ({ strapi }) => {
 
     /** @route PUT /magic-editor-x/custom-blocks/:id @auth admin; custom-blocks.manage @sideeffect Replaces a block. */
     async update(ctx) {
-      const { id } = parseOrThrow(idParams, ctx.params);
+      const { id } = parseOrThrow(idParams, { id: ctx.params.id });
       ctx.body = { data: await blocks().update(id, ctx.request.body || {}) };
     },
 
     /** @route DELETE /magic-editor-x/custom-blocks/:id @auth admin; custom-blocks.manage @sideeffect Deletes a block. */
     async remove(ctx) {
-      const { id } = parseOrThrow(idParams, ctx.params);
+      const { id } = parseOrThrow(idParams, { id: ctx.params.id });
       ctx.body = { data: await blocks().remove(id) };
     },
 
     /** @route POST /magic-editor-x/custom-blocks/:id/duplicate @auth admin; custom-blocks.manage @sideeffect Creates a copy. */
     async duplicate(ctx) {
-      const { id } = parseOrThrow(idParams, ctx.params);
+      const { id } = parseOrThrow(idParams, { id: ctx.params.id });
       ctx.status = 201;
       ctx.body = { data: await blocks().duplicate(id, ctx.state.user) };
     },
