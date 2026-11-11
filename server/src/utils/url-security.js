@@ -5,15 +5,39 @@ const http = require('node:http');
 const https = require('node:https');
 const ipaddr = require('ipaddr.js');
 
+/**
+ * Outbound HTTP for link previews, image-by-URL and the AI provider.
+ *
+ * SSRF controls:
+ * - only http(s), no credentials in the URL, length cap;
+ * - the host is resolved once and every address must be public unicast
+ *   (no loopback, private, link-local, CGNAT, multicast, reserved or
+ *   IPv4-mapped private addresses) unless `allowPrivate` is set by the owner;
+ * - the connection is pinned to the checked address (no DNS rebinding);
+ * - redirects are followed manually and re-checked, with a small limit;
+ * - response size, MIME type and time are bounded.
+ */
+
 const MAX_URL_LENGTH = 2048;
 const MAX_REDIRECTS = 3;
 const REQUEST_TIMEOUT_MS = 10000;
-const LOCAL_HOST_SUFFIXES = ['.localhost', '.local', '.internal', '.test', '.invalid'];
+const LOCAL_HOST_SUFFIXES = ['.localhost', '.local', '.internal', '.test', '.invalid', '.home.arpa'];
 
+/**
+ * Creates an error with an HTTP status for the controller.
+ * @param {string} message - Fixed message.
+ * @param {number} [statusCode=400] - HTTP status.
+ * @returns {Error} Error.
+ */
 function securityError(message, statusCode = 400) {
-  return Object.assign(new Error(message), { statusCode });
+  return Object.assign(new Error(message), { statusCode, code: 'URL_REJECTED' });
 }
 
+/**
+ * True when the address is a public unicast address.
+ * @param {string} address - IPv4 or IPv6 address.
+ * @returns {boolean} Public or not.
+ */
 function isPublicAddress(address) {
   try {
     const parsed = ipaddr.process(address);
@@ -23,129 +47,201 @@ function isPublicAddress(address) {
   }
 }
 
-function validateHttpUrl(input) {
+/**
+ * Validates an outbound URL.
+ * @param {unknown} input - URL string.
+ * @param {{ allowPrivate?: boolean }} [options] - Allow private hosts (owner opt-in).
+ * @returns {URL} Parsed URL.
+ * @throws {Error} 400 when the URL is not allowed.
+ */
+function validateHttpUrl(input, options = {}) {
   if (typeof input !== 'string' || input.length === 0 || input.length > MAX_URL_LENGTH) {
     throw securityError('URL must be a valid HTTP(S) address');
   }
-
   let url;
   try {
     url = new URL(input);
   } catch {
     throw securityError('URL must be a valid HTTP(S) address');
   }
-
   const hostname = url.hostname.toLowerCase().replace(/\.$/, '');
   if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || !hostname) {
     throw securityError('Only public HTTP(S) URLs are allowed');
   }
+  if (options.allowPrivate) return url;
   if (LOCAL_HOST_SUFFIXES.some((suffix) => hostname === suffix.slice(1) || hostname.endsWith(suffix))) {
     throw securityError('Local and internal hosts are not allowed');
   }
-  const unwrappedHostname = hostname.replace(/^\[|\]$/g, '');
-  if (ipaddr.isValid(unwrappedHostname) && !isPublicAddress(unwrappedHostname)) {
+  const unwrapped = hostname.replace(/^\[|\]$/g, '');
+  if (ipaddr.isValid(unwrapped) && !isPublicAddress(unwrapped)) {
     throw securityError('Private and reserved IP addresses are not allowed');
   }
-
   return url;
 }
 
-async function resolvePublicAddresses(url, resolve = dns.lookup) {
+/**
+ * Resolves the host and checks every address.
+ * @param {URL} url - Target.
+ * @param {Function} [resolve] - DNS lookup (injectable for tests).
+ * @param {{ allowPrivate?: boolean }} [options] - Allow private addresses.
+ * @returns {Promise<{ address: string, family: number }>} The address to connect to.
+ */
+async function resolvePublicAddresses(url, resolve = dns.lookup, options = {}) {
   const hostname = url.hostname.replace(/^\[|\]$/g, '');
   const addresses = ipaddr.isValid(hostname)
     ? [{ address: hostname, family: ipaddr.parse(hostname).kind() === 'ipv6' ? 6 : 4 }]
     : await resolve(hostname, { all: true, verbatim: true });
-
-  if (!Array.isArray(addresses) || addresses.length === 0 || addresses.some(({ address }) => !isPublicAddress(address))) {
+  if (!Array.isArray(addresses) || addresses.length === 0) {
+    throw securityError('URL host could not be resolved', 502);
+  }
+  if (!options.allowPrivate && addresses.some(({ address }) => !isPublicAddress(address))) {
     throw securityError('URL host does not resolve exclusively to public addresses');
   }
-
   return addresses[0];
 }
 
-function requestOnce(url, { address, maxBytes, timeoutMs = REQUEST_TIMEOUT_MS }) {
+/**
+ * Performs one HTTP request pinned to a checked address.
+ * @param {URL} url - Target.
+ * @param {{ address: string, maxBytes: number, timeoutMs?: number, method?: string, headers?: object, body?: Buffer|string }} options - Request options.
+ * @returns {Promise<{ statusCode: number, headers: object, body: Buffer }>} Response.
+ */
+function requestOnce(
+  url,
+  { address, maxBytes, timeoutMs = REQUEST_TIMEOUT_MS, method = 'GET', headers = {}, body }
+) {
   const transport = url.protocol === 'https:' ? https : http;
   const family = ipaddr.parse(address).kind() === 'ipv6' ? 6 : 4;
-
   return new Promise((resolve, reject) => {
-    const request = transport.request({
-      protocol: url.protocol,
-      hostname: url.hostname,
-      port: url.port || undefined,
-      method: 'GET',
-      path: `${url.pathname}${url.search}`,
-      headers: { 'user-agent': 'MagicEditorX/1.0', accept: '*/*' },
-      lookup: (_hostname, _options, callback) => callback(null, address, family),
-      servername: url.hostname.replace(/^\[|\]$/g, ''),
-      timeout: timeoutMs,
-    }, (response) => {
-      const statusCode = response.statusCode || 0;
-      const headers = response.headers;
-      if (statusCode >= 300 && statusCode < 400 && headers.location) {
-        response.resume();
-        resolve({ statusCode, headers, body: Buffer.alloc(0) });
-        return;
-      }
-      if (statusCode !== 200) {
-        response.resume();
-        reject(securityError(`Remote server returned HTTP ${statusCode}`, 502));
-        return;
-      }
-
-      const declaredLength = Number(headers['content-length']);
-      if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
-        response.destroy();
-        reject(securityError('Remote response exceeds the allowed size limit', 413));
-        return;
-      }
-
-      const chunks = [];
-      let total = 0;
-      response.on('data', (chunk) => {
-        total += chunk.length;
-        if (total > maxBytes) {
-          response.destroy(securityError('Remote response exceeds the allowed size limit', 413));
+    const request = transport.request(
+      {
+        protocol: url.protocol,
+        hostname: url.hostname,
+        port: url.port || undefined,
+        method,
+        path: `${url.pathname}${url.search}`,
+        headers: { 'user-agent': 'MagicEditorX/2.0', accept: '*/*', ...headers },
+        lookup: (_hostname, lookupOptions, callback) => {
+          if (lookupOptions && lookupOptions.all) callback(null, [{ address, family }]);
+          else callback(null, address, family);
+        },
+        servername: ipaddr.isValid(url.hostname.replace(/^\[|\]$/g, '')) ? undefined : url.hostname,
+        timeout: timeoutMs,
+      },
+      (response) => {
+        const statusCode = response.statusCode || 0;
+        const responseHeaders = response.headers;
+        if (statusCode >= 300 && statusCode < 400 && responseHeaders.location) {
+          response.resume();
+          resolve({ statusCode, headers: responseHeaders, body: Buffer.alloc(0) });
           return;
         }
-        chunks.push(chunk);
-      });
-      response.on('end', () => resolve({ statusCode, headers, body: Buffer.concat(chunks) }));
-      response.on('error', reject);
-    });
-
-    request.on('timeout', () => request.destroy(securityError('Remote request timed out', 502)));
+        const declared = Number(responseHeaders['content-length']);
+        if (Number.isFinite(declared) && declared > maxBytes) {
+          response.destroy();
+          reject(securityError('Remote response exceeds the allowed size limit', 413));
+          return;
+        }
+        const chunks = [];
+        let total = 0;
+        response.on('data', (chunk) => {
+          total += chunk.length;
+          if (total > maxBytes) {
+            response.destroy(securityError('Remote response exceeds the allowed size limit', 413));
+            return;
+          }
+          chunks.push(chunk);
+        });
+        response.on('end', () =>
+          resolve({ statusCode, headers: responseHeaders, body: Buffer.concat(chunks) })
+        );
+        response.on('error', reject);
+      }
+    );
+    const timer = setTimeout(
+      () => request.destroy(securityError('Remote request timed out', 504)),
+      timeoutMs
+    );
+    request.on('close', () => clearTimeout(timer));
+    request.on('timeout', () => request.destroy(securityError('Remote request timed out', 504)));
     request.on('error', reject);
+    if (body !== undefined) request.write(body);
     request.end();
   });
 }
 
-async function fetchBounded(input, {
-  resolve = dns.lookup,
-  request = requestOnce,
-  maxBytes,
-  allowedMimeTypes,
-  maxRedirects = MAX_REDIRECTS,
-  timeoutMs = REQUEST_TIMEOUT_MS,
-} = {}) {
-  if (!Number.isSafeInteger(maxBytes) || maxBytes < 1) throw securityError('A positive response size limit is required', 500);
-  if (!Array.isArray(allowedMimeTypes) || allowedMimeTypes.length === 0) throw securityError('Allowed response types are required', 500);
-
-  let url = validateHttpUrl(input);
+/**
+ * Fetches a URL with all SSRF controls.
+ * @param {string} input - URL.
+ * @param {object} options - Options.
+ * @param {number} options.maxBytes - Response size limit.
+ * @param {string[]} [options.allowedMimeTypes] - Allowed response types.
+ * @param {number} [options.maxRedirects=3] - Redirect limit (0 disables redirects).
+ * @param {number} [options.timeoutMs] - Time limit per hop.
+ * @param {boolean} [options.allowPrivate=false] - Allow private hosts (owner opt-in).
+ * @param {string} [options.method='GET'] - HTTP method.
+ * @param {object} [options.headers] - Request headers.
+ * @param {Buffer|string} [options.body] - Request body.
+ * @param {(status: number) => boolean} [options.acceptStatus] - Statuses returned instead of thrown.
+ * @param {Function} [options.resolve] - DNS lookup (tests).
+ * @param {Function} [options.request] - Request function (tests).
+ * @returns {Promise<{ url: URL, statusCode: number, mimeType: string, body: Buffer }>} Response.
+ * @throws {Error} With `statusCode` 400/413/415/502/504 on rejection.
+ */
+async function fetchBounded(input, options = {}) {
+  const {
+    resolve = dns.lookup,
+    request = requestOnce,
+    maxBytes,
+    allowedMimeTypes,
+    maxRedirects = MAX_REDIRECTS,
+    timeoutMs = REQUEST_TIMEOUT_MS,
+    allowPrivate = false,
+    method = 'GET',
+    headers,
+    body,
+    acceptStatus = (status) => status === 200,
+  } = options;
+  if (!Number.isSafeInteger(maxBytes) || maxBytes < 1) {
+    throw securityError('A positive response size limit is required', 500);
+  }
+  let url = validateHttpUrl(input, { allowPrivate });
   for (let redirects = 0; ; redirects += 1) {
-    const address = await resolvePublicAddresses(url, resolve);
-    const response = await request(url, { address: address.address, family: address.family, maxBytes, timeoutMs });
-
+    const address = await resolvePublicAddresses(url, resolve, { allowPrivate });
+    const response = await request(url, {
+      address: address.address,
+      maxBytes,
+      timeoutMs,
+      method,
+      headers,
+      body,
+    });
     if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
-      if (redirects >= maxRedirects) throw securityError('Remote URL exceeded the redirect limit');
-      url = validateHttpUrl(new URL(response.headers.location, url).href);
+      if (redirects >= maxRedirects) throw securityError('Remote URL exceeded the redirect limit', 502);
+      url = validateHttpUrl(new URL(response.headers.location, url).href, { allowPrivate });
       continue;
     }
-
-    const mimeType = String(response.headers['content-type'] || '').split(';', 1)[0].trim().toLowerCase();
-    if (!allowedMimeTypes.includes(mimeType)) throw securityError('Remote response has a disallowed MIME type', 415);
-    if (!Buffer.isBuffer(response.body) || response.body.length > maxBytes) throw securityError('Remote response exceeds the allowed size limit', 413);
-    return { url, mimeType, body: response.body };
+    if (!acceptStatus(response.statusCode)) {
+      throw Object.assign(securityError(`Remote server returned HTTP ${response.statusCode}`, 502), {
+        upstreamStatus: response.statusCode,
+      });
+    }
+    const mimeType = String(response.headers['content-type'] || '')
+      .split(';', 1)[0]
+      .trim()
+      .toLowerCase();
+    if (
+      Array.isArray(allowedMimeTypes) &&
+      allowedMimeTypes.length > 0 &&
+      !allowedMimeTypes.includes(mimeType)
+    ) {
+      throw securityError('Remote response has a disallowed MIME type', 415);
+    }
+    if (!Buffer.isBuffer(response.body) || response.body.length > maxBytes) {
+      throw securityError('Remote response exceeds the allowed size limit', 413);
+    }
+    return { url, statusCode: response.statusCode, mimeType, body: response.body };
   }
 }
 
-module.exports = { isPublicAddress, validateHttpUrl, resolvePublicAddresses, fetchBounded };
+module.exports = { isPublicAddress, validateHttpUrl, resolvePublicAddresses, fetchBounded, requestOnce };

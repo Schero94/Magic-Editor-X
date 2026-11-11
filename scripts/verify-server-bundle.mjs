@@ -18,10 +18,15 @@ const expectedTypes = {
   services: 'object',
 };
 
-for (const [format, plugin] of [['CJS', cjsPlugin], ['ESM', esmPlugin]]) {
+for (const [format, plugin] of [
+  ['CJS', cjsPlugin],
+  ['ESM', esmPlugin],
+]) {
   for (const [key, expected] of Object.entries(expectedTypes)) {
     if (typeof plugin?.[key] !== expected) {
-      throw new Error(`${format} server bundle export ${key} must be ${expected}, received ${typeof plugin?.[key]}`);
+      throw new Error(
+        `${format} server bundle export ${key} must be ${expected}, received ${typeof plugin?.[key]}`
+      );
     }
   }
 }

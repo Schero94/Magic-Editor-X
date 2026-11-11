@@ -1,0 +1,10 @@
+{
+  "field.label": "Magic Editor X",
+  "field.description": "Block-Editor mit Medien, Einbettungen, eigenen Blöcken, Versionsverlauf und gemeinsamer Live-Bearbeitung",
+  "field.options.section": "Editor",
+  "field.options.placeholder.label": "Platzhalter",
+  "field.options.placeholder.description": "Text, der angezeigt wird, solange der Editor leer ist",
+  "field.options.advanced": "Layout",
+  "field.options.minHeight.label": "Mindesthöhe (px)",
+  "field.options.minHeight.description": "Höhe des leeren Editors, zwischen 120 und 2000 Pixeln"
+}

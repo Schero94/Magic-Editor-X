@@ -1,2 +1,8 @@
 dist
+node_modules
 coverage
+output
+package-lock.json
+CHANGELOG.md
+docs/site
+pics
