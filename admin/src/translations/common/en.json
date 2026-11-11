@@ -1,0 +1,10 @@
+{
+  "field.label": "Magic Editor X",
+  "field.description": "Block editor with media, embeds, custom blocks, history and live collaboration",
+  "field.options.section": "Editor",
+  "field.options.placeholder.label": "Placeholder",
+  "field.options.placeholder.description": "Text shown while the editor is empty",
+  "field.options.advanced": "Layout",
+  "field.options.minHeight.label": "Minimum height (px)",
+  "field.options.minHeight.description": "Height of the empty editor, between 120 and 2000 pixels"
+}

@@ -1,0 +1,10 @@
+{
+  "field.label": "Magic Editor X",
+  "field.description": "Editor de bloques con medios, contenido incrustado, bloques personalizados, historial y edición colaborativa en directo",
+  "field.options.section": "Editor",
+  "field.options.placeholder.label": "Texto de ejemplo",
+  "field.options.placeholder.description": "Texto que se muestra mientras el editor está vacío",
+  "field.options.advanced": "Diseño",
+  "field.options.minHeight.label": "Altura mínima (px)",
+  "field.options.minHeight.description": "Altura del editor vacío, entre 120 y 2000 píxeles"
+}
