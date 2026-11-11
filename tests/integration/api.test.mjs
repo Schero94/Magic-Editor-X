@@ -386,6 +386,20 @@ test('AI assistant: owner provider, encrypted key never returned, permissions, r
   const base = `http://127.0.0.1:${fake.address().port}`;
   const admin = await tokenFor('admin');
   try {
+    await call('PUT', '/magic-editor-x/settings', {
+      token: admin,
+      body: {
+        ai: {
+          enabled: false,
+          provider: 'anthropic',
+          baseUrl: '',
+          model: 'claude-opus-5-5',
+          maxInputChars: 8000,
+          maxOutputTokens: 4096,
+          apiKey: '',
+        },
+      },
+    });
     const before = await call('POST', '/magic-editor-x/ai/improve', {
       token: await tokenFor('editor'),
       body: { text: 'Hello' },
