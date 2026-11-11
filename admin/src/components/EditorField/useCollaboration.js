@@ -3,16 +3,29 @@ import { useFetchClient } from '@strapi/strapi/admin';
 import { createCollabClient } from '../../editor/collab-client';
 import { API } from '../../utils/api';
 
-const INITIAL = { status: 'off', canEdit: false, peers: [], error: null, color: null };
+const INITIAL = {
+  status: 'off',
+  canEdit: false,
+  peers: [],
+  error: null,
+  color: null,
+  pending: false,
+  canUndo: false,
+  canRedo: false,
+};
 
 /**
  * Connects an editor field to its live collaboration room.
+ *
+ * Session tokens are requested through the admin fetch client, so an
+ * expired admin access token is refreshed by Strapi before a reconnect.
  * @param {object} options - Options.
  * @param {{ uid: string, documentId: string, locale: string|null, field: string }|null} options.target - Field, or null when collaboration is off.
  * @param {() => object|null} options.getLocalData - Current field content (seeds a new room).
  * @param {boolean} options.ready - True once the editor is ready.
- * @param {(data: object) => void} options.onRemoteData - Applies the shared document.
- * @returns {{ active: boolean, status: string, canEdit: boolean, peers: object[], error: string|null, client: object|null }} State.
+ * @param {() => void} options.onRemoteData - Shows the shared document in the editor.
+ * @param {(seeded: boolean, client: object) => Promise<void>} [options.onFirstSync] - First sync hook.
+ * @returns {{ active: boolean, status: string, canEdit: boolean, peers: object[], error: string|null, pending: boolean, canUndo: boolean, canRedo: boolean, client: object|null }} State.
  */
 export const useCollaboration = ({ target, getLocalData, ready, onRemoteData, onFirstSync }) => {
   const { post } = useFetchClient();
@@ -45,9 +58,10 @@ export const useCollaboration = ({ target, getLocalData, ready, onRemoteData, on
         });
         return data.data;
       },
-      onRemoteData: (data) => onRemoteRef.current(data),
+      onRemoteData: () => onRemoteRef.current(),
       onFirstSync: (seeded) => (onFirstSyncRef.current ? onFirstSyncRef.current(seeded, instance) : null),
-      onState: (next) => setState(next),
+      onState: (next) => setState((previous) => ({ ...previous, ...next })),
+      onUndoState: (undo) => setState((previous) => ({ ...previous, ...undo })),
     });
     setClient(instance);
     return () => {
@@ -57,16 +71,7 @@ export const useCollaboration = ({ target, getLocalData, ready, onRemoteData, on
     };
   }, [key, post]);
 
-  if (!key)
-    return {
-      active: false,
-      status: 'off',
-      canEdit: false,
-      peers: [],
-      error: null,
-      color: null,
-      client: null,
-    };
+  if (!key) return { ...INITIAL, active: false, client: null };
   return {
     active: !['off', 'denied', 'error'].includes(state.status),
     status: state.status === 'off' ? 'connecting' : state.status,
@@ -74,6 +79,9 @@ export const useCollaboration = ({ target, getLocalData, ready, onRemoteData, on
     peers: state.peers,
     error: state.error,
     color: state.color,
+    pending: state.pending,
+    canUndo: state.canUndo,
+    canRedo: state.canRedo,
     client,
   };
 };

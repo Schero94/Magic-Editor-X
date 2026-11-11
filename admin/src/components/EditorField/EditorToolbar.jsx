@@ -16,6 +16,7 @@ import {
   Expand,
 } from '@strapi/icons';
 import styled from 'styled-components';
+import { peerFamily } from './RemoteCarets';
 
 /**
  * Toolbar above the editor: undo/redo, version history, fullscreen, live
@@ -29,8 +30,9 @@ const Bar = styled(Flex)`
 `;
 
 const Peer = styled(Avatar.Item)`
-  outline: 2px solid ${({ $color }) => $color};
+  outline: 2px solid ${({ theme, $family }) => theme.colors[`${$family}600`] || theme.colors.neutral600};
   outline-offset: 1px;
+  opacity: ${({ $idle }) => ($idle ? 0.55 : 1)};
 `;
 
 const STATUS = {
@@ -42,7 +44,13 @@ const STATUS = {
   },
   syncing: { key: 'editor.collab.status.syncing', text: 'Syncing', bg: 'neutral150', fg: 'neutral800' },
   live: { key: 'editor.collab.status.live', text: 'Live', bg: 'success100', fg: 'success700' },
-  offline: { key: 'editor.collab.status.offline', text: 'Reconnecting', bg: 'warning200', fg: 'neutral800' },
+  reconnecting: {
+    key: 'editor.collab.status.reconnecting',
+    text: 'Reconnecting',
+    bg: 'warning100',
+    fg: 'warning700',
+  },
+  offline: { key: 'editor.collab.status.offline', text: 'Offline', bg: 'danger100', fg: 'danger700' },
   denied: {
     key: 'editor.collab.status.denied',
     text: 'Live editing unavailable',
@@ -92,6 +100,13 @@ export const EditorToolbar = ({
 }) => {
   const status = STATUS[collaboration.status];
   const peers = collaboration.peers || [];
+  const upgrade = collaboration.status === 'error' && collaboration.error === 'UPGRADE_REQUIRED';
+  const peerLabel = (peer) => {
+    const base = peer.canEdit
+      ? peer.name
+      : t('editor.collab.viewer', '{name} (viewing)', { name: peer.name });
+    return peer.idle ? t('editor.collab.away', '{name} (away)', { name: base }) : base;
+  };
   return (
     <Bar
       gap={2}
@@ -144,32 +159,48 @@ export const EditorToolbar = ({
       </Flex>
       <Flex gap={3} wrap="wrap" justifyContent="flex-end" minWidth={0}>
         {status ? (
-          <Flex gap={2} aria-live="polite">
+          <Flex gap={2} wrap="wrap">
             {peers.length > 0 ? (
               <Avatar.Group>
                 {peers.slice(0, 4).map((peer) => (
-                  <Tooltip
-                    key={peer.id}
-                    label={
-                      peer.canEdit
-                        ? peer.name
-                        : t('editor.collab.viewer', '{name} (viewing)', { name: peer.name })
-                    }
-                  >
-                    <Peer $color={peer.color} fallback={initials(peer.name)} />
+                  <Tooltip key={peer.id} label={peerLabel(peer)}>
+                    <Peer
+                      $family={peerFamily(peer.color)}
+                      $idle={peer.idle}
+                      fallback={initials(peer.name)}
+                      aria-label={peerLabel(peer)}
+                    />
                   </Tooltip>
                 ))}
               </Avatar.Group>
             ) : null}
-            <Badge backgroundColor={status.bg} textColor={status.fg}>
-              {t(status.key, status.text)}
-            </Badge>
-            {collaboration.status === 'live' && !collaboration.canEdit ? (
+            <Box aria-live="polite" data-testid="mex-collab-status" data-status={collaboration.status}>
+              <Badge backgroundColor={status.bg} textColor={status.fg}>
+                {t(status.key, status.text)}
+              </Badge>
+            </Box>
+            {peers.length > 4 ? (
               <Typography variant="pi" textColor="neutral600">
+                {t('editor.collab.more', '+{count}', { count: peers.length - 4 })}
+              </Typography>
+            ) : null}
+            {collaboration.status === 'live' && !collaboration.canEdit ? (
+              <Badge backgroundColor="neutral150" textColor="neutral800">
                 {t('editor.collab.readOnly', 'View only')}
+              </Badge>
+            ) : null}
+            {collaboration.pending && collaboration.status !== 'live' ? (
+              <Typography variant="pi" textColor="neutral600">
+                {t('editor.collab.unsent', 'Changes are kept and sent when the connection is back')}
+              </Typography>
+            ) : null}
+            {upgrade ? (
+              <Typography variant="pi" textColor="neutral600">
+                {t('editor.collab.upgrade', 'Reload the page to keep editing live')}
               </Typography>
             ) : null}
             <VisuallyHidden>
+              {peers.length > 0 ? `${peers.map(peerLabel).join(', ')}. ` : ''}
               {t(
                 'editor.collab.peers',
                 '{count, plural, =0 {Nobody else is editing} one {# other person is editing} other {# other people are editing}}',

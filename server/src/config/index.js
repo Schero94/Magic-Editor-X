@@ -60,6 +60,20 @@ const defaults = {
     snapshotIntervalMinutes: 10,
     /** Lifetime of the one-time session token that opens the socket. */
     tokenTtlSeconds: 60,
+    /** Open sockets per admin across all processes. */
+    maxConnectionsPerAdmin: 20,
+    /** Different fields an admin may have open live at the same time. */
+    maxRoomsPerAdmin: 20,
+    /** Full permission re-check of open sockets (permission changes are applied within about a second anyway). */
+    revalidateSeconds: 60,
+    rateLimit: {
+      /** Session tokens per admin and minute, shared by all processes. */
+      sessionsPerMinute: 60,
+      /** Updates per socket in 10 seconds. */
+      updatesPer10s: 300,
+      /** Update bytes per socket in 10 seconds. */
+      bytesPer10s: 8 * MiB,
+    },
   },
   history: {
     /** Snapshots kept per field and locale; older ones are removed. */
@@ -107,6 +121,14 @@ const configSchema = z.looseObject({
       .min(0)
       .max(24 * 60),
     tokenTtlSeconds: z.number().int().min(10).max(600),
+    maxConnectionsPerAdmin: positiveInt(500),
+    maxRoomsPerAdmin: positiveInt(500),
+    revalidateSeconds: z.number().int().min(5).max(3600),
+    rateLimit: z.looseObject({
+      sessionsPerMinute: positiveInt(10000),
+      updatesPer10s: positiveInt(100000),
+      bytesPer10s: positiveInt(200 * MiB),
+    }),
   }),
   history: z.looseObject({ maxSnapshotsPerField: positiveInt(1000) }),
 });

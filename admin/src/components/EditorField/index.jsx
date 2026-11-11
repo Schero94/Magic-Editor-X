@@ -18,6 +18,8 @@ import { useCollaboration } from './useCollaboration';
 import { EditorToolbar } from './EditorToolbar';
 import { HistoryModal } from './HistoryModal';
 import { AiDialog } from './AiDialog';
+import { RemoteCarets, offsetOf } from './RemoteCarets';
+import { usePresenceAnnouncements } from './usePresenceAnnouncements';
 
 /**
  * Magic Editor X field input for the Content Manager.
@@ -54,6 +56,12 @@ const Frame = styled(Box)`
     overflow: hidden;
   `
       : ''}
+`;
+
+const EditorArea = styled.div`
+  position: relative;
+  min-width: 0;
+  ${({ $fullscreen }) => ($fullscreen ? 'flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0;' : '')}
 `;
 
 const Holder = styled.div`
@@ -128,6 +136,8 @@ const EditorField = ({
   const pendingLocalRef = useRef(false);
   const syncedOnceRef = useRef(false);
   const historyButtonRef = useRef(null);
+  const areaRef = useRef(null);
+  const [contentVersion, setContentVersion] = useState(0);
   const onChangeRef = useRef(onChange);
   const [ready, setReady] = useState(false);
   const [stats, setStats] = useState({ blocks: 0, words: 0, characters: 0 });
@@ -188,6 +198,7 @@ const EditorField = ({
           const data = await editor.save();
           rememberBlocks(knownRef.current, data);
           setStats(computeStats(data));
+          setContentVersion((version) => version + 1);
           emit(data);
           if (collabRef.current) collabRef.current.pushLocal(data);
           if (undoRef.current) undoRef.current.record();
@@ -276,6 +287,7 @@ const EditorField = ({
       try {
         await applyToEditor(editor, data || { blocks: [] }, knownRef.current);
         setStats(computeStats(data));
+        setContentVersion((version) => version + 1);
         if (emitToForm) emit(data);
         else {
           const shown = data && data.blocks && data.blocks.length ? data : null;
@@ -320,15 +332,21 @@ const EditorField = ({
     },
     onRemoteData: async () => {
       const client = collabRef.current;
-      if (!client) return;
+      const editor = editorRef.current;
+      if (!client || !editor) return;
       await flushLocal(client);
-      const shared = client.getData();
+      const { data, catchUp } = client.snapshot();
+      // Remote content is untrusted: it is sanitised with the shared policy
+      // before Editor.js renders it.
+      const shared = prepareEditorValue(data).data || { time: data.time, blocks: [], version: data.version };
       // The first room state only shows what is stored (normalised); it must
       // not mark the form as changed. Later remote edits do.
       const first = !syncedOnceRef.current;
       syncedOnceRef.current = true;
       await applyExternal(shared, { emitToForm: !first });
-      client.markShown(shared);
+      // The editor's own serialisation of what it now shows is the base of the next local diff.
+      const shown = await editor.save().catch(() => null);
+      client.markShown(catchUp, shown || shared);
     },
   });
   useEffect(() => {
@@ -336,6 +354,18 @@ const EditorField = ({
   }, [collaboration.client]);
 
   const readOnly = Boolean(disabled) || (collaboration.status === 'live' && !collaboration.canEdit);
+  const collabUndo = collaboration.active && collaboration.client && collaboration.canEdit;
+
+  // Undo/redo during live collaboration only revert the user's own changes.
+  useEffect(() => {
+    if (!ready || !undoRef.current) return undefined;
+    undoRef.current.setDelegate(collabUndo ? collaboration.client : null);
+    return () => {
+      if (undoRef.current) undoRef.current.setDelegate(null);
+    };
+  }, [ready, collabUndo, collaboration.client]);
+
+  const announcement = usePresenceAnnouncements(collaboration.peers, t);
 
   // Upload helpers (multipart through the admin fetch client).
   const upload = useCallback(
@@ -512,7 +542,19 @@ const EditorField = ({
           return;
         const index = editor.blocks.getCurrentBlockIndex();
         const block = index >= 0 ? editor.blocks.getBlockByIndex(index) : null;
-        collaboration.client.sendCursor(block ? { blockId: block.id, offset: selection.anchorOffset } : null);
+        const content =
+          block && block.holder && (block.holder.querySelector('.ce-block__content') || block.holder);
+        if (!block || !content) {
+          collaboration.client.sendCursor(null);
+          return;
+        }
+        const anchor = offsetOf(content, selection.anchorNode, selection.anchorOffset);
+        const focus = offsetOf(content, selection.focusNode, selection.focusOffset);
+        collaboration.client.sendCursor({
+          blockId: block.id,
+          anchor: anchor ?? 0,
+          focus: focus ?? anchor ?? 0,
+        });
       }, 120);
     };
     document.addEventListener('selectionchange', onSelection);
@@ -594,7 +636,11 @@ const EditorField = ({
       const prepared = prepareEditorValue(content);
       if (!prepared.data) return false;
       await applyExternal(prepared.data, { emitToForm: true });
-      if (collabRef.current) collabRef.current.pushLocal(prepared.data);
+      if (collabRef.current && editorRef.current) {
+        const shown = await editorRef.current.save().catch(() => prepared.data);
+        collabRef.current.stopCapturing();
+        collabRef.current.pushLocal(shown);
+      }
       if (undoRef.current) undoRef.current.record();
       return true;
     },
@@ -657,8 +703,8 @@ const EditorField = ({
             readOnly={readOnly}
             fullscreen={fullscreen}
             onToggleFullscreen={() => setFullscreen((value) => !value)}
-            canUndo={undoState.canUndo}
-            canRedo={undoState.canRedo}
+            canUndo={collabUndo ? collaboration.canUndo : undoState.canUndo}
+            canRedo={collabUndo ? collaboration.canRedo : undoState.canRedo}
             onUndo={() => undoRef.current && undoRef.current.undo()}
             onRedo={() => undoRef.current && undoRef.current.redo()}
             historyAvailable={Boolean(target.uid && target.documentId)}
@@ -682,15 +728,29 @@ const EditorField = ({
               <Loader small>{t('editor.loading', 'Loading the editor')}</Loader>
             </Flex>
           ) : null}
-          <Holder
-            ref={holderRef}
-            className="mex-editor"
-            $minHeight={minHeight}
-            $fullscreen={fullscreen}
-            data-testid="magic-editor-x"
-            aria-busy={!ready}
-            aria-describedby={`${name}-mex-keyboard`}
-          />
+          <EditorArea ref={areaRef} $fullscreen={fullscreen}>
+            <Holder
+              ref={holderRef}
+              className="mex-editor"
+              $minHeight={minHeight}
+              $fullscreen={fullscreen}
+              data-testid="magic-editor-x"
+              aria-busy={!ready}
+              aria-describedby={`${name}-mex-keyboard`}
+            />
+            {collaboration.active && collaboration.peers.length > 0 ? (
+              <RemoteCarets
+                containerRef={areaRef}
+                holderRef={holderRef}
+                peers={collaboration.peers}
+                version={contentVersion}
+                t={t}
+              />
+            ) : null}
+          </EditorArea>
+          <VisuallyHidden aria-live="polite" aria-atomic="true">
+            {announcement}
+          </VisuallyHidden>
           <VisuallyHidden id={`${name}-mex-keyboard`}>
             {t(
               'editor.keyboard',

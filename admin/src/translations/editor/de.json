@@ -9,7 +9,7 @@
   "editor.collab.status.connecting": "Verbindung wird hergestellt",
   "editor.collab.status.syncing": "Wird synchronisiert",
   "editor.collab.status.live": "Live",
-  "editor.collab.status.offline": "Verbindung wird wiederhergestellt",
+  "editor.collab.status.offline": "Offline",
   "editor.collab.status.denied": "Gemeinsames Bearbeiten nicht verfügbar",
   "editor.collab.status.error": "Gemeinsames Bearbeiten nicht verfügbar",
   "editor.toolbar.undo": "Rückgängig",
@@ -88,5 +88,13 @@
   "editor.ai.retry": "Erneut versuchen",
   "editor.ai.generate": "Erzeugen",
   "editor.ai.apply": "Auswahl ersetzen",
-  "editor.keyboard": "Drücken Sie in einem leeren Block Tab, um einen Blocktyp zu wählen. Drücken Sie Escape und dann Tab, um den Editor zu verlassen."
+  "editor.keyboard": "Drücken Sie in einem leeren Block Tab, um einen Blocktyp zu wählen. Drücken Sie Escape und dann Tab, um den Editor zu verlassen.",
+  "editor.collab.status.reconnecting": "Verbindung wird wiederhergestellt",
+  "editor.collab.away": "{name} (abwesend)",
+  "editor.collab.editingBlock": "{name} bearbeitet diesen Block",
+  "editor.collab.more": "+{count}",
+  "editor.collab.unsent": "Änderungen bleiben erhalten und werden gesendet, sobald die Verbindung wieder steht",
+  "editor.collab.upgrade": "Laden Sie die Seite neu, um weiter live zu bearbeiten",
+  "editor.collab.joined": "{names} ist beigetreten",
+  "editor.collab.left": "{names} hat das Feld verlassen"
 }

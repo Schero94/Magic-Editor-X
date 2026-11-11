@@ -44,4 +44,22 @@ module.exports = async ({ strapi }) => {
   } catch (error) {
     logger.error('live collaboration could not start', error);
   }
+
+  // Permission changes reach open collaboration sockets on every process
+  // within about a second (cluster-wide signal, see services/collaboration.js).
+  const onPermissionChange = () => {
+    plugin
+      .service('collaboration')
+      .permissionsChanged()
+      .catch(() => {});
+  };
+  strapi.db.lifecycles.subscribe({
+    models: ['admin::permission', 'admin::role', 'admin::user'],
+    afterCreate: onPermissionChange,
+    afterCreateMany: onPermissionChange,
+    afterUpdate: onPermissionChange,
+    afterUpdateMany: onPermissionChange,
+    afterDelete: onPermissionChange,
+    afterDeleteMany: onPermissionChange,
+  });
 };
