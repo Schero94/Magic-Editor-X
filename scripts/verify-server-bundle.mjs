@@ -32,3 +32,30 @@ for (const [format, plugin] of [
 }
 
 console.log('Magic Editor X CJS and ESM server bundles load with all Strapi plugin exports');
+
+const cjsRender = require('../dist/render/index.js');
+const esmRender = await import('../dist/render/index.mjs');
+const smoke = {
+  blocks: [
+    { id: 'a', type: 'header', data: { text: 'Hello <b>world</b>', level: 2 } },
+    { id: 'b', type: 'paragraph', data: { text: '<img src=x onerror=alert(1)>Safe' } },
+  ],
+};
+for (const [format, render] of [
+  ['CJS', cjsRender],
+  ['ESM', esmRender],
+]) {
+  for (const name of ['renderHtml', 'renderText', 'renderMarkdown']) {
+    if (typeof render[name] !== 'function') throw new Error(`${format} render bundle must export ${name}`);
+  }
+  const html = render.renderHtml(smoke);
+  if (html !== '<h2 class="mex-header">Hello <b>world</b></h2>\n<p class="mex-paragraph">Safe</p>')
+    throw new Error(`${format} render bundle produced unexpected HTML`);
+  if (
+    render.renderText(smoke) !== 'Hello world\n\nSafe' ||
+    render.renderMarkdown(smoke) !== '## Hello **world**\n\nSafe'
+  )
+    throw new Error(`${format} render bundle produced unexpected text or Markdown`);
+}
+
+console.log('Magic Editor X CJS and ESM render bundles load and render');

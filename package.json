@@ -42,10 +42,20 @@
       "import": "./dist/server/index.mjs",
       "require": "./dist/server/index.js",
       "default": "./dist/server/index.js"
-    }
+    },
+    "./render": {
+      "source": "./shared/render/index.mjs",
+      "import": "./dist/render/index.mjs",
+      "require": "./dist/render/index.js",
+      "default": "./dist/render/index.js"
+    },
+    "./schema": "./schema/magic-editor-x.schema.json",
+    "./types": "./types/index.d.ts"
   },
   "files": [
     "dist",
+    "schema",
+    "types",
     "strapi-admin.js",
     "strapi-server.js",
     "README.md",
@@ -71,7 +81,8 @@
     "test": "node --test --test-concurrency=4 \"tests/*.test.mjs\"",
     "test:integration": "node --test --test-concurrency=1 \"tests/integration/*.test.mjs\"",
     "prepack": "npm run build",
-    "docs:llms": "node scripts/build-llms-full.mjs"
+    "docs:llms": "node scripts/build-llms-full.mjs",
+    "schema": "node scripts/build-schema.mjs"
   },
   "dependencies": {
     "@editorjs/attaches": "^1.3.2",
