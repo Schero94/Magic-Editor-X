@@ -28,9 +28,43 @@ export const INLINE_TAGS = Object.freeze([
   'sup',
 ]);
 
+/**
+ * Data attributes of an internal link (`<a href data-mex-uid data-mex-document-id data-mex-locale>`),
+ * written by the hyperlink tool's entry picker. Frontends can resolve the entry
+ * from them; the `href` stays a normal URL.
+ */
+export const INTERNAL_LINK_ATTRIBUTES = Object.freeze([
+  'data-mex-uid',
+  'data-mex-document-id',
+  'data-mex-locale',
+]);
+
+const INTERNAL_LINK_RULES = Object.freeze({
+  'data-mex-uid': /^api::[a-z0-9-]{1,60}\.[a-z0-9-]{1,60}$/,
+  'data-mex-document-id': /^[a-z0-9]{1,64}$/,
+  'data-mex-locale': /^[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8}){0,3}$/,
+});
+
+/**
+ * Keeps only valid internal-link attributes. A reference needs both a uid and a
+ * documentId; when either is missing or invalid, all three are dropped.
+ * @param {Record<string, unknown>} attribs - Attributes of an `<a>` element.
+ * @returns {Record<string, string>} Valid internal-link attributes (possibly empty).
+ */
+export const cleanInternalLinkAttributes = (attribs) => {
+  const out = {};
+  if (!attribs || typeof attribs !== 'object') return out;
+  for (const name of INTERNAL_LINK_ATTRIBUTES) {
+    const value = attribs[name];
+    if (typeof value === 'string' && INTERNAL_LINK_RULES[name].test(value)) out[name] = value;
+  }
+  if (!out['data-mex-uid'] || !out['data-mex-document-id']) return {};
+  return out;
+};
+
 /** Attributes allowed per inline tag. */
 export const INLINE_ATTRIBUTES = Object.freeze({
-  a: ['href', 'target', 'rel', 'title'],
+  a: ['href', 'target', 'rel', 'title', ...INTERNAL_LINK_ATTRIBUTES],
   span: ['class', 'data-tooltip'],
   mark: ['class'],
   u: ['class'],

@@ -118,6 +118,11 @@ const EditorField = ({
   const MediaLibraryDialog = useStrapiApp('MagicEditorX', (state) => state.components['media-library']);
   const { config, customBlocks, error: configError, loading: configLoading, retry } = useEditorConfig();
   const target = useFieldTarget(name);
+  // The editor is not rebuilt on a locale switch; the link picker reads the current locale through this ref.
+  const contentLocaleRef = useRef(target.locale);
+  useEffect(() => {
+    contentLocaleRef.current = target.locale;
+  }, [target.locale]);
 
   const t = useCallback(
     (id, defaultMessage, values) => formatMessage({ id: getTranslation(id), defaultMessage }, values),
@@ -451,6 +456,7 @@ const EditorField = ({
       tools: buildTools({
         t,
         fetchClient: { get, post },
+        getContentLocale: () => contentLocaleRef.current,
         uploadImage: (file) => upload(API.imageByFile, 'image', file),
         uploadImageByUrl,
         uploadFile: (file) => upload(API.fileUpload, 'file', file),

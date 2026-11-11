@@ -27,6 +27,26 @@ const fieldPathSchema = z
   .max(200)
   .regex(/^[A-Za-z_][A-Za-z0-9_]{0,79}(\.(\d{1,4}|[A-Za-z_][A-Za-z0-9_]{0,79})){0,8}$/);
 
+/** API content type UID (`api::article.article`); internal links never point to plugin types. */
+const apiUidSchema = z
+  .string()
+  .max(160)
+  .regex(/^api::[a-z0-9-]{1,60}\.[a-z0-9-]{1,60}$/);
+
+/** Internal-link search: GET /links/search?uid&q&locale&page. */
+const linkSearchSchema = z.strictObject({
+  uid: apiUidSchema,
+  q: z
+    .string()
+    .trim()
+    .max(100)
+    // eslint-disable-next-line no-control-regex -- control characters are rejected
+    .regex(/^[^\u0000-\u001f\u007f]*$/)
+    .optional(),
+  locale: localeSchema.optional(),
+  page: z.coerce.number().int().min(1).max(500).optional(),
+});
+
 /** Identifies one editor field of one document version. */
 const fieldTargetSchema = z.strictObject({
   uid: uidSchema,
@@ -76,6 +96,8 @@ module.exports = {
   localeSchema,
   fieldPathSchema,
   fieldTargetSchema,
+  apiUidSchema,
+  linkSearchSchema,
   parseOrThrow,
   issueDetails,
 };
