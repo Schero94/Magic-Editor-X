@@ -20,6 +20,7 @@ const adminRoutes = [
   ['GET', '/content-types', 'editor.contentTypes', [ACTIONS.access]],
   ['GET', '/links/types', 'links.types', [ACTIONS.access]],
   ['GET', '/links/search', 'links.search', [ACTIONS.access]],
+  ['POST', '/quality/links', 'quality.links', [ACTIONS.access]],
 
   ['GET', '/custom-blocks', 'customBlocks.list', [ACTIONS.access]],
   ['GET', '/custom-blocks/export', 'customBlocks.export', [ACTIONS.customBlocksManage]],

@@ -3,6 +3,7 @@
 const { createLogger } = require('./utils/logger');
 const { cleanEditorValue } = require('./utils/sanitizer');
 const { schemaHasEditorFields, transformEditorFields } = require('./utils/editor-fields');
+const { registerPublishGuard } = require('./utils/publish-guard');
 
 /**
  * Registers the custom field and the Document Service middleware that
@@ -44,4 +45,5 @@ module.exports = ({ strapi }) => {
     }
     return next();
   });
+  registerPublishGuard(strapi);
 };

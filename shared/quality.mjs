@@ -122,7 +122,7 @@ const BUILT_IN = new Set([
  */
 const normalizeLinkText = (text) =>
   String(text)
-    .replace(/ /g, ' ')
+    .replace(/\u00a0/g, ' ')
     .toLowerCase()
     .replace(/\s+/g, ' ')
     .trim()
@@ -285,7 +285,10 @@ const findLinks = (nodes, out = []) => {
  * @param {unknown} html - Inline HTML.
  * @returns {string} Trimmed text.
  */
-const textOf = (html) => nodesToText(parseInline(html)).replace(/ /g, ' ').trim();
+const textOf = (html) =>
+  nodesToText(parseInline(html))
+    .replace(/\u00a0/g, ' ')
+    .trim();
 
 /**
  * True when an image-like object carries a usable alternative text.
@@ -399,7 +402,7 @@ export const lintDocument = (value, options = {}) => {
       if (!html.includes('<')) continue;
       for (const link of findLinks(parseInline(html))) {
         links += 1;
-        const text = link.text.replace(/ /g, ' ').trim();
+        const text = link.text.replace(/\u00a0/g, ' ').trim();
         if (!text || !link.attrs.href) push('empty-link', block, index, { path });
         else if (isAmbiguousLinkText(text))
           push('ambiguous-link-text', block, index, {
