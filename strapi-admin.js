@@ -1,4 +1,3 @@
 'use strict';
 
-module.exports = require('./admin/src/index.js');
-
+module.exports = require('./dist/admin/index.js');

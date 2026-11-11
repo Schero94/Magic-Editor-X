@@ -1,4 +1,3 @@
 'use strict';
 
-module.exports = require('./server/src/index.js');
-
+module.exports = require('./dist/server/index.js');
