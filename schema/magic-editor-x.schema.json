@@ -798,6 +798,14 @@
         },
         "stretched": {
           "type": "boolean"
+        },
+        "alt": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "decorative": {
+          "type": "boolean",
+          "description": "True when the image is decorative (rendered with an empty alt)."
         }
       },
       "required": ["url", "caption", "withBorder", "withBackground", "stretched"],

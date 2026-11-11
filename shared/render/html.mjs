@@ -261,7 +261,14 @@ const RENDERERS = {
     if (b.data.stretched) cls.push('mex-stretched');
     return figure(
       b.data.url,
-      { alt: b.raw.decorative === true ? '' : inlineToText(b.data.caption) },
+      {
+        alt:
+          b.data.decorative === true
+            ? ''
+            : typeof b.data.alt === 'string' && b.data.alt.trim()
+              ? b.data.alt
+              : inlineToText(b.data.caption),
+      },
       inlineToHtml(b.data.caption, o),
       classes(cls, b.tunes)
     );

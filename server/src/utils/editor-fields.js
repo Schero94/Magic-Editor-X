@@ -47,33 +47,45 @@ const schemaHasEditorFields = (strapi, schema, cache = new Map(), depth = 0) => 
 };
 
 /**
- * Walks write data and replaces every editor field value with `transform(value)`.
- * Mutates and returns `data`. Unknown shapes are left alone.
+ * Walks write data and replaces every editor field value with
+ * `transform(value, attribute, path)`. Mutates and returns `data`. Unknown
+ * shapes are left alone.
  * @param {object} strapi - Strapi instance.
  * @param {object} schema - Schema of `data`.
  * @param {object} data - Document data being written.
- * @param {(value: unknown) => unknown} transform - Value transformer.
+ * @param {(value: unknown, attribute: object, path: string) => unknown} transform - Value transformer.
  * @param {number} [depth=0] - Recursion depth.
+ * @param {string} [prefix=''] - Dotted path of `data` (for messages).
  * @returns {object} The same data object.
  */
-const transformEditorFields = (strapi, schema, data, transform, depth = 0) => {
+const transformEditorFields = (strapi, schema, data, transform, depth = 0, prefix = '') => {
   if (!schema || !data || typeof data !== 'object' || depth > MAX_DEPTH) return data;
   for (const [name, attribute] of Object.entries(schema.attributes || {})) {
     if (!Object.prototype.hasOwnProperty.call(data, name)) continue;
     const value = data[name];
+    const path = prefix ? `${prefix}.${name}` : name;
     if (isEditorAttribute(attribute)) {
-      data[name] = transform(value);
+      data[name] = transform(value, attribute, path);
     } else if (attribute.type === 'component') {
       const component = strapi.components[attribute.component];
       if (Array.isArray(value))
-        value.forEach((item) => transformEditorFields(strapi, component, item, transform, depth + 1));
-      else transformEditorFields(strapi, component, value, transform, depth + 1);
+        value.forEach((item, index) =>
+          transformEditorFields(strapi, component, item, transform, depth + 1, `${path}.${index}`)
+        );
+      else transformEditorFields(strapi, component, value, transform, depth + 1, path);
     } else if (attribute.type === 'dynamiczone' && Array.isArray(value)) {
-      for (const item of value) {
+      value.forEach((item, index) => {
         if (item && typeof item === 'object' && typeof item.__component === 'string') {
-          transformEditorFields(strapi, strapi.components[item.__component], item, transform, depth + 1);
+          transformEditorFields(
+            strapi,
+            strapi.components[item.__component],
+            item,
+            transform,
+            depth + 1,
+            `${path}.${index}`
+          );
         }
-      }
+      });
     }
   }
   return data;

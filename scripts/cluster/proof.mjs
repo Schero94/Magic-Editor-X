@@ -504,7 +504,7 @@ const statuses = [];
 for (let i = 0; i < 32; i += 1) {
   const r = await call(url(ports[i % ports.length]), 'POST', '/magic-editor-x/ai/improve', {
     token,
-    body: { text: `Hello ${i}` },
+    body: { text: `Hello ${i}`, target: { uid: 'api::article.article', field: 'body' } },
   });
   statuses.push(r.status);
 }

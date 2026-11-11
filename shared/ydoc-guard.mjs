@@ -150,39 +150,58 @@ const rootName = (type) => {
  * Finds the block ids a transaction touched.
  * @param {Y.Transaction} transaction - Transaction.
  * @param {Y.Map<any>} blocks - Root blocks map.
- * @returns {{ ids: Set<string>, order: boolean, meta: boolean }} Touched parts.
+ * @returns {{ ids: Set<string>, order: boolean, meta: boolean, structural: Set<string> }} Touched parts.
  */
 export const touchedBy = (transaction, blocks) => {
   const ids = new Set();
+  // Blocks whose structure changed: added (or replaced), new `type`, or a new
+  // `data.level`. Field preset rules apply to these only, so blocks that were
+  // already there (for example before a preset was tightened) stay editable.
+  const structural = new Set();
   let order = false;
   let meta = false;
   transaction.changed.forEach((keys, type) => {
     let current = type;
     let guard = 0;
     let child = null;
+    const path = [];
     while (current && current._item && guard < 4096) {
       child = current._item;
+      path.push(current._item.parentSub);
       current = current._item.parent;
       guard += 1;
     }
     // `current` is a root type; root placeholders are compared by name.
     const root = current === blocks ? 'blocks' : rootName(current);
     if (root === 'blocks') {
-      if (child) ids.add(child.parentSub);
-      else keys.forEach((key) => key && ids.add(key));
+      if (child) {
+        ids.add(child.parentSub);
+        // path (innermost first): [blockId] = the entry map, [ 'data', blockId ] = its data map.
+        if (
+          (path.length === 1 && keys.has('type')) ||
+          (path.length === 2 && path[0] === 'data' && keys.has('level'))
+        )
+          structural.add(child.parentSub);
+      } else
+        keys.forEach((key) => {
+          if (!key) return;
+          ids.add(key);
+          structural.add(key);
+        });
     } else if (root === 'order') order = true;
     else meta = true;
   });
-  return { ids, order, meta };
+  return { ids, order, meta, structural };
 };
 
 /**
  * Validates the parts of a document a transaction changed.
  * @param {Y.Doc} doc - Room document after the update.
  * @param {{ ids: Set<string>, order: boolean, meta: boolean }} touched - Result of `touchedBy`.
+ * @param {{ checkBlock?: (block: { id: string, type: string, data: object }) => string|null }} [options] - Extra per-block rule (field presets).
  * @returns {string|null} Error code, or null when the document is valid.
  */
-export const validateTouched = (doc, touched) => {
+export const validateTouched = (doc, touched, options = {}) => {
   const blocks = doc.getMap('blocks');
   if (blocks.size > EDITOR_DATA_LIMITS.maxBlocks * 4) return 'TOO_MANY_BLOCKS';
   for (const id of touched.ids) {
@@ -204,6 +223,10 @@ export const validateTouched = (doc, touched) => {
       if (JSON.stringify(block).length > MAX_BLOCK_BYTES) return 'TOO_LARGE';
       const normalized = normalizeEditorData({ blocks: [block] });
       if (!normalized || normalized.blocks.length !== 1) return 'INVALID_BLOCK';
+      if (typeof options.checkBlock === 'function' && touched.structural && touched.structural.has(id)) {
+        const code = options.checkBlock(normalized.blocks[0]);
+        if (code) return code;
+      }
     } catch (error) {
       return (error && error.code) || 'INVALID_BLOCK';
     }
@@ -236,12 +259,13 @@ export const validateTouched = (doc, touched) => {
  * (the update may have been partly applied).
  * @param {Y.Doc} doc - Room document.
  * @param {Uint8Array} update - Update.
+ * @param {{ checkBlock?: (block: object) => string|null }} [options] - Extra per-block rule (field presets).
  * @returns {{ ok: true, changed: boolean } | { ok: false, code: string, dirty: boolean }} Result.
  */
-export const applyCheckedUpdate = (doc, update) => {
+export const applyCheckedUpdate = (doc, update, options = {}) => {
   const inspected = inspectUpdate(update, Y.decodeStateVector(Y.encodeStateVector(doc)));
   if (!inspected.ok) return { ok: false, code: inspected.code, dirty: false };
-  let touched = { ids: new Set(), order: false, meta: false };
+  let touched = { ids: new Set(), order: false, meta: false, structural: new Set() };
   let changed = false;
   const blocks = doc.getMap('blocks');
   doc.getMap('meta');
@@ -249,7 +273,13 @@ export const applyCheckedUpdate = (doc, update) => {
   const listener = (transaction) => {
     const next = touchedBy(transaction, blocks);
     next.ids.forEach((id) => touched.ids.add(id));
-    touched = { ids: touched.ids, order: touched.order || next.order, meta: touched.meta || next.meta };
+    next.structural.forEach((id) => touched.structural.add(id));
+    touched = {
+      ids: touched.ids,
+      order: touched.order || next.order,
+      meta: touched.meta || next.meta,
+      structural: touched.structural,
+    };
     if (transaction.changed.size > 0 || transaction.deleteSet.clients.size > 0) changed = true;
   };
   // Structs that integrate without a visible change (for example into a block
@@ -267,7 +297,7 @@ export const applyCheckedUpdate = (doc, update) => {
   }
   const store = doc.store;
   if (store.pendingStructs || store.pendingDs) return { ok: false, code: 'MISSING_DEPENDENCY', dirty: true };
-  const error = validateTouched(doc, touched);
+  const error = validateTouched(doc, touched, options);
   if (error) return { ok: false, code: error, dirty: true };
   if (!changed) {
     const vectorAfter = Y.encodeStateVector(doc);

@@ -248,8 +248,10 @@ const RENDERERS = {
   },
   simpleImage: (b) => {
     if (!b.data.url) return '';
-    const caption = b.raw.decorative === true ? '' : escapeMarkdown(oneLine(inlineToText(b.data.caption)));
-    return `![${caption}](${linkUrl(b.data.url)})`;
+    const text =
+      typeof b.data.alt === 'string' && b.data.alt.trim() ? b.data.alt : inlineToText(b.data.caption);
+    const alt = b.data.decorative === true ? '' : escapeMarkdown(oneLine(text));
+    return `![${alt}](${linkUrl(b.data.url)})`;
   },
   linkTool: (b) =>
     b.data.link ? `[${escapeMarkdown(b.data.meta.title || b.data.link)}](${linkUrl(b.data.link)})` : '',

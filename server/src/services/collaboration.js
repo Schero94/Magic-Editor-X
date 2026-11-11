@@ -16,6 +16,8 @@ const {
   stableStringify,
 } = require('../../../shared/ydoc.mjs');
 const { applyCheckedUpdate } = require('../../../shared/ydoc-guard.mjs');
+const { resolveFieldPreset, checkBlockStructure } = require('../../../shared/presets.mjs');
+const { resolveEditorField } = require('../utils/editor-fields');
 
 /**
  * Live collaboration for Magic Editor X fields (Socket.IO + Yjs, protocol 3).
@@ -169,6 +171,36 @@ module.exports = ({ strapi }) => {
   const store = () => strapi.plugin('magic-editor-x').service('store');
   const access = () => strapi.plugin('magic-editor-x').service('access');
   const history = () => strapi.plugin('magic-editor-x').service('history');
+
+  /**
+   * Field preset of a room target (custom field options of its attribute).
+   * @param {{ uid: string, field: string }} target - Room target.
+   * @returns {import('../../../shared/presets.mjs').FieldPreset} Preset (full when the field cannot be resolved).
+   */
+  const presetOf = (target) => {
+    let options;
+    try {
+      const contentType = target && strapi.contentType(target.uid);
+      const resolved = contentType ? resolveEditorField(strapi, contentType, target.field) : null;
+      options = resolved && resolved.attribute && resolved.attribute.options;
+    } catch {
+      options = undefined;
+    }
+    return resolveFieldPreset(options);
+  };
+
+  /**
+   * Structural preset rule applied to every block a realtime update touches
+   * (allowed block types, heading levels, link targets). Limits and alternative
+   * texts are checked on save only, so typing is never refused half-way.
+   * @param {{ uid: string, field: string }} target - Room target.
+   * @returns {((block: object) => string|null) | undefined} Rule, or undefined for unrestricted fields.
+   */
+  const blockRuleFor = (target) => {
+    const preset = presetOf(target);
+    if (!preset.restricted) return undefined;
+    return (block) => (checkBlockStructure(preset, block) ? 'PRESET_VIOLATION' : null);
+  };
 
   /** @type {Server|null} */
   let io = null;
@@ -853,6 +885,7 @@ module.exports = ({ strapi }) => {
     socket.data.userId = claims.userId;
     socket.data.canEdit = claims.canEdit === true;
     socket.data.target = claims.target;
+    socket.data.blockRule = blockRuleFor(claims.target);
     socket.data.room = room;
     socket.data.name = claims.name;
     socket.data.color = claims.color;
@@ -925,7 +958,7 @@ module.exports = ({ strapi }) => {
         const roomDoc = await ensureDoc(room);
         if (state.retired && touchesRetiredClients(update, state.retired))
           return reply({ ok: false, code: 'RETRY' });
-        const result = applyCheckedUpdate(roomDoc, update);
+        const result = applyCheckedUpdate(roomDoc, update, { checkBlock: socket.data.blockRule });
         if (!result.ok) {
           if (result.dirty) dropDoc(room);
           if (result.code === 'MISSING_DEPENDENCY') return reply({ ok: false, code: 'RETRY' });
@@ -1064,6 +1097,8 @@ module.exports = ({ strapi }) => {
       }
       if (!allowed) throw new errors.RateLimitError('Too many live editing sessions. Try again in a minute.');
       const result = await access().checkField({ userAbility, uid, documentId, locale, field });
+      if (!presetOf({ uid, field }).collaboration)
+        throw new errors.ForbiddenError('Live collaboration is turned off for this field');
       const target = { uid, documentId, locale: result.locale, field };
       const room = history().fieldKey(target);
       const rawHtml = strapi.config.get('plugin::magic-editor-x.rawHtml') || 'sanitize';

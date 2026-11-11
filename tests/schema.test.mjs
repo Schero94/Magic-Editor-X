@@ -64,6 +64,7 @@ const KITCHEN_SINK = {
     withBorder: true,
     withBackground: true,
     stretched: true,
+    decorative: true,
   },
   simpleImage: {
     url: 'https://cdn.example.test/a.png',
@@ -71,6 +72,8 @@ const KITCHEN_SINK = {
     withBorder: true,
     withBackground: true,
     stretched: true,
+    alt: 'A',
+    decorative: true,
   },
   linkTool: {
     link: 'https://www.example.test',
@@ -142,10 +145,7 @@ test('fixtures validate after storing; the schema rejects wrong shapes', () => {
  * number (for example 123) is kept instead of becoming a string. Remove an entry
  * when the policy checks `typeof value === 'string'`.
  */
-const KNOWN_POLICY_GAPS = [
-  '/blocks/0/data/service: expected string',
-  '/blocks/0/data/language: expected string',
-];
+const KNOWN_POLICY_GAPS = [];
 
 test('stored random documents always validate (policy output is a subset of the schema)', () => {
   let seed = 7;

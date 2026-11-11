@@ -115,6 +115,10 @@ export interface SimpleImageData {
   withBorder: boolean;
   withBackground: boolean;
   stretched: boolean;
+  /** Alternative text. */
+  alt?: string;
+  /** True when the image is decorative (rendered with an empty alt). */
+  decorative?: boolean;
 }
 export interface LinkToolData {
   link: Url;

@@ -137,13 +137,21 @@ export const BLOCK_DATA_SCHEMAS = Object.freeze({
     },
     ['file', 'caption', 'withBorder', 'withBackground', 'stretched']
   ),
-  simpleImage: obj({ url, caption: html, withBorder: bool, withBackground: bool, stretched: bool }, [
-    'url',
-    'caption',
-    'withBorder',
-    'withBackground',
-    'stretched',
-  ]),
+  simpleImage: obj(
+    {
+      url,
+      caption: html,
+      withBorder: bool,
+      withBackground: bool,
+      stretched: bool,
+      alt: str(500),
+      decorative: {
+        type: 'boolean',
+        description: 'True when the image is decorative (rendered with an empty alt).',
+      },
+    },
+    ['url', 'caption', 'withBorder', 'withBackground', 'stretched']
+  ),
   linkTool: obj(
     {
       link: url,
@@ -193,7 +201,7 @@ export const BLOCK_DATA_SCHEMAS = Object.freeze({
 });
 
 /** Keys described by the schema that the current policy may not write yet (forward compatible). */
-export const SCHEMA_ONLY_KEYS = Object.freeze({ image: ['decorative'] });
+export const SCHEMA_ONLY_KEYS = Object.freeze({});
 
 /**
  * Builds the published schema.

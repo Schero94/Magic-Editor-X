@@ -271,7 +271,8 @@ export const BLOCK_POLICIES = {
   codeFlask: (d) => {
     const out = {
       code: plain(d.code, 500000),
-      language: /^[a-z0-9+#-]{1,32}$/i.test(d.language || '') ? d.language : 'plaintext',
+      language:
+        typeof d.language === 'string' && /^[a-z0-9+#-]{1,32}$/i.test(d.language) ? d.language : 'plaintext',
     };
     if (typeof d.showlinenumbers === 'boolean') out.showlinenumbers = d.showlinenumbers;
     return out;
@@ -302,21 +303,29 @@ export const BLOCK_POLICIES = {
     if (file.id !== undefined && (Number.isInteger(file.id) || typeof file.id === 'string'))
       cleanFile.id = file.id;
     if (typeof file.documentId === 'string') cleanFile.documentId = plain(file.documentId, 64);
-    return {
+    const out = {
       file: cleanFile,
       caption: inline(d.caption),
       withBorder: bool(d.withBorder),
       withBackground: bool(d.withBackground),
       stretched: bool(d.stretched),
     };
+    // Intentionally empty alternative text (decorative image), set in the image block.
+    if (d.decorative === true) out.decorative = true;
+    return out;
   },
-  simpleImage: (d, inline) => ({
-    url: sanitizeUrl(d.url, { schemes: ['http', 'https'] }),
-    caption: inline(d.caption),
-    withBorder: bool(d.withBorder),
-    withBackground: bool(d.withBackground),
-    stretched: bool(d.stretched),
-  }),
+  simpleImage: (d, inline) => {
+    const out = {
+      url: sanitizeUrl(d.url, { schemes: ['http', 'https'] }),
+      caption: inline(d.caption),
+      withBorder: bool(d.withBorder),
+      withBackground: bool(d.withBackground),
+      stretched: bool(d.stretched),
+    };
+    if (typeof d.alt === 'string') out.alt = plain(d.alt, 500);
+    if (d.decorative === true) out.decorative = true;
+    return out;
+  },
   linkTool: (d) => {
     const meta = isPlainObject(d.meta) ? d.meta : {};
     const image = isPlainObject(meta.image)
@@ -337,7 +346,7 @@ export const BLOCK_POLICIES = {
     return { file: cleanFile, title: plain(d.title, 255) };
   },
   embed: (d, inline) => ({
-    service: /^[a-z0-9_-]{1,40}$/i.test(d.service || '') ? d.service : '',
+    service: typeof d.service === 'string' && /^[a-z0-9_-]{1,40}$/i.test(d.service) ? d.service : '',
     source: sanitizeUrl(d.source, { schemes: ['https', 'http'], allowRelative: false }),
     embed: sanitizeUrl(d.embed, { schemes: ['https'], allowRelative: false }),
     width: int(d.width, 1, 10000, undefined),
