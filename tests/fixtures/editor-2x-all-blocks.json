@@ -1,0 +1,244 @@
+{
+  "time": 1762850000000,
+  "version": "2.31.7",
+  "blocks": [
+    {
+      "id": "h1",
+      "type": "header",
+      "data": { "text": "Field notes from <i>Example Valley</i>", "level": 1 }
+    },
+    {
+      "id": "p1",
+      "type": "paragraph",
+      "data": {
+        "text": "Read the <a href=\"/articles/q8n2x\" data-mex-uid=\"api::article.article\" data-mex-document-id=\"q8n2x\" data-mex-locale=\"en\">earlier report</a>, then <b>bold</b>, <i>italic</i>, <u class=\"cdx-underline\">underline</u>, <s class=\"cdx-strikethrough\">gone</s>, <mark class=\"cdx-marker\">marked</mark>, <code class=\"inline-code\">npm ci</code>, <span class=\"cdx-tooltip\" data-tooltip=\"Hint text\">tip</span>, H<sub>2</sub>O and x<sup>2</sup>.<br>Second line &amp; more."
+      },
+      "tunes": {
+        "alignmentTune": { "alignment": "center" },
+        "textVariant": "call-out",
+        "indentTune": { "indentLevel": 1 }
+      }
+    },
+    {
+      "id": "p2",
+      "type": "paragraph",
+      "data": {
+        "text": "External <a href=\"https://www.example.test/docs?a=1&amp;b=2\" target=\"_blank\">docs</a> and <a href=\"mailto:team@example.test\">mail</a>."
+      }
+    },
+    { "id": "h2", "type": "header", "data": { "text": "Checklist & lists", "level": 2 } },
+    {
+      "id": "l1",
+      "type": "list",
+      "data": {
+        "style": "ordered",
+        "meta": { "start": 3, "counterType": "lower-roman" },
+        "items": [
+          {
+            "content": "First <b>step</b>",
+            "meta": {},
+            "items": [{ "content": "Nested a", "meta": {}, "items": [] }]
+          },
+          { "content": "Second step", "meta": {}, "items": [] }
+        ]
+      }
+    },
+    {
+      "id": "l2",
+      "type": "list",
+      "data": { "style": "unordered", "items": ["Legacy item one", "Legacy <i>two</i>"] }
+    },
+    {
+      "id": "l3",
+      "type": "list",
+      "data": {
+        "style": "checklist",
+        "items": [
+          { "content": "Done", "meta": { "checked": true }, "items": [] },
+          { "content": "Open", "meta": { "checked": false }, "items": [] }
+        ]
+      }
+    },
+    {
+      "id": "c1",
+      "type": "checklist",
+      "data": {
+        "items": [
+          { "text": "Pack", "checked": true },
+          { "text": "Travel", "checked": false }
+        ]
+      }
+    },
+    {
+      "id": "q1",
+      "type": "quote",
+      "data": { "text": "Measure twice.", "caption": "A. Carpenter", "alignment": "center" }
+    },
+    {
+      "id": "w1",
+      "type": "warning",
+      "data": { "title": "Heads up", "message": "Roads close at <b>18:00</b>." }
+    },
+    { "id": "a1", "type": "alert", "data": { "type": "success", "align": "right", "message": "Saved." } },
+    {
+      "id": "t1",
+      "type": "toggle",
+      "data": { "text": "Details", "status": "closed", "fk": "t1", "items": 2 }
+    },
+    { "id": "t1a", "type": "paragraph", "data": { "text": "Hidden one" } },
+    { "id": "t1b", "type": "paragraph", "data": { "text": "Hidden two" } },
+    { "id": "co1", "type": "code", "data": { "code": "const x = '<b>';\n```\nfence inside" } },
+    {
+      "id": "co2",
+      "type": "codeFlask",
+      "data": { "code": "SELECT 1;", "language": "sql", "showlinenumbers": true }
+    },
+    { "id": "r1", "type": "raw", "data": { "html": "<div class=\"box\">Raw <b>box</b></div>" } },
+    {
+      "id": "tb1",
+      "type": "table",
+      "data": {
+        "withHeadings": true,
+        "stretched": true,
+        "content": [
+          ["Name", "Value | unit"],
+          ["Width", "<b>12</b> cm"]
+        ]
+      }
+    },
+    {
+      "id": "im1",
+      "type": "image",
+      "data": {
+        "file": {
+          "url": "https://cdn.example.test/uploads/valley.jpg",
+          "id": 42,
+          "documentId": "f8k2m1",
+          "alt": "A green valley",
+          "mime": "image/jpeg",
+          "width": 1600,
+          "height": 900,
+          "size": 220.5,
+          "formats": {
+            "large": {
+              "url": "https://cdn.example.test/uploads/large_valley.jpg",
+              "width": 1000,
+              "height": 563
+            },
+            "small": {
+              "url": "https://cdn.example.test/uploads/small_valley.jpg",
+              "width": 500,
+              "height": 281
+            },
+            "thumbnail": {
+              "url": "https://cdn.example.test/uploads/thumbnail_valley.jpg",
+              "width": 245,
+              "height": 138
+            }
+          }
+        },
+        "caption": "The valley at <i>dawn</i>",
+        "withBorder": true,
+        "withBackground": false,
+        "stretched": false
+      }
+    },
+    {
+      "id": "im2",
+      "type": "image",
+      "data": {
+        "file": { "url": "https://cdn.example.test/uploads/divider.png", "alt": "ignored" },
+        "caption": "",
+        "withBorder": false,
+        "withBackground": false,
+        "stretched": false,
+        "decorative": true
+      }
+    },
+    {
+      "id": "si1",
+      "type": "simpleImage",
+      "data": {
+        "url": "https://cdn.example.test/a.png",
+        "caption": "Simple",
+        "withBorder": false,
+        "withBackground": true,
+        "stretched": false
+      }
+    },
+    {
+      "id": "lt1",
+      "type": "linkTool",
+      "data": {
+        "link": "https://www.example.test/post",
+        "meta": {
+          "title": "A post",
+          "description": "About things",
+          "site_name": "Example",
+          "image": { "url": "https://www.example.test/og.png" }
+        }
+      }
+    },
+    {
+      "id": "at1",
+      "type": "attaches",
+      "data": {
+        "file": {
+          "url": "https://cdn.example.test/report.pdf",
+          "name": "report.pdf",
+          "extension": "pdf",
+          "size": 20480
+        },
+        "title": "Annual report"
+      }
+    },
+    {
+      "id": "e1",
+      "type": "embed",
+      "data": {
+        "service": "youtube",
+        "source": "https://www.youtube.com/watch?v=abc123",
+        "embed": "https://www.youtube.com/embed/abc123",
+        "width": 580,
+        "height": 320,
+        "caption": "A video"
+      }
+    },
+    {
+      "id": "e2",
+      "type": "embed",
+      "data": {
+        "service": "unknown",
+        "source": "https://media.example.test/x",
+        "embed": "https://media.example.test/embed/x",
+        "caption": ""
+      }
+    },
+    {
+      "id": "pe1",
+      "type": "personality",
+      "data": {
+        "name": "Ada Example",
+        "description": "Engineer",
+        "link": "https://www.example.test/ada",
+        "photo": "https://cdn.example.test/ada.png"
+      }
+    },
+    {
+      "id": "bt1",
+      "type": "button",
+      "data": {
+        "text": "Sign up",
+        "link": "https://www.example.test/signup",
+        "style": "secondary",
+        "openInNewTab": true
+      }
+    },
+    { "id": "d1", "type": "delimiter", "data": {} },
+    {
+      "id": "cb1",
+      "type": "productCard",
+      "data": { "title": "Lamp <b>X</b>", "price": 19, "url": "https://shop.example.test/lamp" }
+    }
+  ]
+}
