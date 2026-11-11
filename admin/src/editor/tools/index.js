@@ -7,7 +7,6 @@ import Code from '@editorjs/code';
 import Table from '@editorjs/table';
 import Embed from '@editorjs/embed';
 import Raw from '@editorjs/raw';
-import ImageTool from '@editorjs/image';
 import Attaches from '@editorjs/attaches';
 import InlineCode from '@editorjs/inline-code';
 import IndentTune from 'editorjs-indent-tune';
@@ -33,6 +32,8 @@ import { CodeHighlightTool } from './code-highlight';
 import { ToggleTool } from './toggle';
 import { ChecklistTool } from './checklist';
 import { buildCustomBlockTools } from './custom-block';
+import { MexImageTool } from './alt-text';
+import { isBlockAllowed } from '../../../../shared/presets.mjs';
 
 export { createUndoManager } from './undo';
 export { createDragDrop } from './drag-drop';
@@ -64,7 +65,11 @@ const INLINE = [
  */
 export function buildTools(ctx) {
   const t = typeof ctx.t === 'function' ? ctx.t : (_id, fallback) => fallback;
-  const inline = ctx.aiEnabled ? [...INLINE, 'aiAssistant'] : INLINE;
+  const preset = ctx.preset || null;
+  const allowedInline =
+    preset && preset.inline ? INLINE.filter((name) => preset.inline.includes(name)) : INLINE;
+  const inline = ctx.aiEnabled ? [...allowedInline, 'aiAssistant'] : allowedInline;
+  const levels = preset && preset.headingLevels.length ? preset.headingLevels : [1, 2, 3, 4, 5, 6];
   const canUpload = ctx.canUpload !== false;
   const shared = {
     t,
@@ -97,8 +102,8 @@ export function buildTools(ctx) {
       shortcut: 'CMD+SHIFT+H',
       config: {
         placeholder: t('tools.header.placeholder', 'Heading'),
-        levels: [1, 2, 3, 4, 5, 6],
-        defaultLevel: 2,
+        levels,
+        defaultLevel: levels.includes(2) ? 2 : levels[0],
       },
     },
     list: {
@@ -174,7 +179,7 @@ export function buildTools(ctx) {
     },
     raw: { class: Raw, config: { placeholder: t('tools.raw.placeholder', 'Enter HTML') } },
     image: {
-      class: ImageTool,
+      class: MexImageTool,
       inlineToolbar: inline,
       toolbox: canUpload ? undefined : false,
       config: {
@@ -185,9 +190,15 @@ export function buildTools(ctx) {
         types: 'image/jpeg,image/png,image/gif,image/webp,image/avif',
         captionPlaceholder: t('tools.common.caption', 'Caption'),
         buttonContent: t('tools.image.select', 'Select an image'),
+        t,
+        requireAlt: Boolean(preset && preset.requireAlt),
       },
     },
-    simpleImage: { class: SimpleImageTool, inlineToolbar: inline, config: shared },
+    simpleImage: {
+      class: SimpleImageTool,
+      inlineToolbar: inline,
+      config: { ...shared, requireAlt: Boolean(preset && preset.requireAlt) },
+    },
     linkTool: { class: LinkPreviewTool, config: shared },
     attaches: {
       class: Attaches,
@@ -210,7 +221,13 @@ export function buildTools(ctx) {
     hyperlink: {
       class: HyperlinkTool,
       shortcut: 'CMD+K',
-      config: { t, target: '_blank', fetchClient: ctx.fetchClient, getLocale: ctx.getContentLocale },
+      config: {
+        t,
+        target: '_blank',
+        fetchClient: ctx.fetchClient,
+        getLocale: ctx.getContentLocale,
+        linkTargets: (preset && preset.linkTargets) || 'all',
+      },
     },
 
     alignmentTune: { class: AlignmentTune, config: { t, default: 'left' } },
@@ -238,7 +255,52 @@ export function buildTools(ctx) {
       tools[name] = tool.inlineToolbar === true ? { ...tool, inlineToolbar: inline } : tool;
     }
   }
-  return tools;
+  return preset ? applyPreset(tools, preset) : tools;
+}
+
+/** Tools that are not blocks of their own (inline tools, tunes, the Media Library placeholder). */
+const NOT_BLOCKS = new Set([
+  ...INLINE,
+  'aiAssistant',
+  'alignmentTune',
+  'textVariant',
+  'indentTune',
+  'mediaLib',
+]);
+
+/**
+ * Wraps a block tool so it is not offered for new content: no toolbox entry,
+ * no paste handling (so pasted content never creates it). Existing blocks of
+ * the type still render and stay editable; the save check reports them.
+ * @param {Function} ToolClass - Editor.js block tool class.
+ * @returns {Function} Restricted subclass.
+ */
+const restrictTool = (ToolClass) =>
+  class RestrictedTool extends ToolClass {
+    static get pasteConfig() {
+      return false;
+    }
+  };
+
+/**
+ * Applies a field preset to the tool set.
+ * @param {Record<string, object>} tools - Tools from `buildTools`.
+ * @param {import('../../../../shared/presets.mjs').FieldPreset} preset - Field preset.
+ * @returns {Record<string, object>} Tools.
+ */
+export function applyPreset(tools, preset) {
+  const out = {};
+  for (const [name, tool] of Object.entries(tools)) {
+    if (preset.inline && INLINE.includes(name) && !preset.inline.includes(name)) continue;
+    if (name === 'mediaLib' && !isBlockAllowed(preset, 'image')) continue;
+    if (NOT_BLOCKS.has(name) || isBlockAllowed(preset, name)) {
+      out[name] = tool;
+      continue;
+    }
+    const { shortcut, ...rest } = tool;
+    out[name] = { ...rest, class: restrictTool(tool.class), toolbox: false };
+  }
+  return out;
 }
 
 /**

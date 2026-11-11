@@ -169,5 +169,11 @@
   "tools.csp.hostBlocked": "L'administration n'autorise pas le contenu de {host}. Le bloc est enregistré sans modification et s'affiche toujours sur votre site.",
   "tools.csp.blockedGeneric": "L'administration n'autorise pas ce contenu. Le bloc est enregistré sans modification et s'affiche toujours sur votre site.",
   "tools.csp.howTo": "Comment l'autoriser",
-  "tools.csp.askAdmin": "Demandez à un administrateur de l'autoriser dans la Content Security Policy."
+  "tools.csp.askAdmin": "Demandez à un administrateur de l'autoriser dans la Content Security Policy.",
+  "tools.image.altRequired": "Texte alternatif (obligatoire)",
+  "tools.image.alt": "Texte alternatif",
+  "tools.image.altPlaceholder": "Décrivez l’image pour les personnes qui ne peuvent pas la voir",
+  "tools.image.decorative": "Image décorative (sans texte alternatif)",
+  "tools.image.altMissing": "Ajoutez un texte alternatif ou marquez l’image comme décorative.",
+  "tools.hyperlink.internalOnly": "Choisissez une entrée avec « Lier à une entrée »"
 }

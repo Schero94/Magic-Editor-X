@@ -105,7 +105,11 @@ test('button, simple image and link preview normalisers keep the 1.x shape', () 
     withBorder: false,
     withBackground: false,
     stretched: true,
+    alt: '',
+    decorative: false,
   });
+  assert.equal(normalizeSimpleImage({ alt: 'Red bike', decorative: true }).alt, 'Red bike');
+  assert.equal(normalizeSimpleImage({ decorative: 'yes' }).decorative, false);
   assert.deepEqual(
     normalizeLinkTool({
       link: 'https://example.test',

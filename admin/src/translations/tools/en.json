@@ -169,5 +169,11 @@
   "tools.csp.hostBlocked": "The admin does not allow content from {host}. The block is saved unchanged and still appears on your website.",
   "tools.csp.blockedGeneric": "The admin does not allow this content. The block is saved unchanged and still appears on your website.",
   "tools.csp.howTo": "How to allow it",
-  "tools.csp.askAdmin": "Ask an administrator to allow it in the Content Security Policy."
+  "tools.csp.askAdmin": "Ask an administrator to allow it in the Content Security Policy.",
+  "tools.image.altRequired": "Alternative text (required)",
+  "tools.image.alt": "Alternative text",
+  "tools.image.altPlaceholder": "Describe the image for people who cannot see it",
+  "tools.image.decorative": "Decorative image (no alternative text)",
+  "tools.image.altMissing": "Add an alternative text or mark the image as decorative.",
+  "tools.hyperlink.internalOnly": "Choose an entry with \"Link to an entry\""
 }

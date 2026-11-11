@@ -52,6 +52,32 @@ const LINK_STATUS = {
   skipped: { key: 'editor.quality.link.skipped', text: 'Not checked', variant: 'neutral' },
 };
 
+/** Field preset violations (shared/presets.mjs `checkPreset`). */
+const PRESET_RULES = {
+  BLOCK_NOT_ALLOWED: {
+    key: 'editor.preset.rule.block',
+    text: 'Block type "{type}" is not allowed in this field',
+  },
+  HEADING_LEVEL: {
+    key: 'editor.preset.rule.heading',
+    text: 'Heading level {level} is not allowed in this field',
+  },
+  LINK_NOT_ALLOWED: {
+    key: 'editor.preset.rule.link',
+    text: '{kind, select, internal {Links to entries are} other {Links to web addresses are}} not allowed in this field',
+  },
+  ALT_REQUIRED: {
+    key: 'editor.preset.rule.alt',
+    text: 'Image needs an alternative text or must be marked as decorative',
+  },
+  TOO_MANY_BLOCKS: { key: 'editor.preset.rule.maxBlocks', text: '{count} blocks, at most {max} are allowed' },
+  TOO_MANY_CHARACTERS: {
+    key: 'editor.preset.rule.maxCharacters',
+    text: '{count} characters, at most {max} are allowed',
+  },
+};
+const FIXABLE = new Set(['BLOCK_NOT_ALLOWED', 'HEADING_LEVEL', 'LINK_NOT_ALLOWED']);
+
 const PROBLEMS = new Set(['missing', 'draft', 'broken', 'timeout', 'error']);
 
 /** A full-width, left-aligned row button that wraps long text. */
@@ -97,9 +123,21 @@ const Wrap = styled(Typography)`
  * @param {boolean} [props.externalEnabled] - External link checks are enabled on the server.
  * @param {(blockId: string) => void} props.onSelectBlock - Focuses a block.
  * @param {() => void} [props.onClose] - Closes the panel.
+ * @param {Array<{ code: string, blockId: string|null, index: number|null, params?: object }>} [props.violations] - Field preset violations (saving fails while any remain).
+ * @param {(() => void)|null} [props.onFixViolations] - Applies the automatic fixes (structure only).
  * @returns {JSX.Element} Panel.
  */
-export const QualityPanel = ({ t, data, options, fetchClient, externalEnabled, onSelectBlock, onClose }) => {
+export const QualityPanel = ({
+  t,
+  data,
+  options,
+  fetchClient,
+  externalEnabled,
+  onSelectBlock,
+  onClose,
+  violations = [],
+  onFixViolations = null,
+}) => {
   const { issues, stats } = useQualityIssues(data, options);
   const [check, setCheck] = useState({ state: 'idle', result: null, message: '' });
   const [announcement, setAnnouncement] = useState('');
@@ -272,6 +310,57 @@ export const QualityPanel = ({ t, data, options, fetchClient, externalEnabled, o
           ) : null}
         </Flex>
 
+        {violations.length ? (
+          <Flex direction="column" alignItems="stretch" gap={2}>
+            <Flex gap={2} alignItems="center" justifyContent="space-between" wrap="wrap">
+              <Flex gap={2} alignItems="center">
+                <Typography variant="sigma" tag="h4" textColor="neutral600">
+                  {t('editor.preset.title', 'Field settings')}
+                </Typography>
+                <Badge variant="danger" size="S">
+                  {violations.length}
+                </Badge>
+              </Flex>
+              {onFixViolations && violations.some((violation) => FIXABLE.has(violation.code)) ? (
+                <Button variant="secondary" size="S" onClick={onFixViolations}>
+                  {t('editor.preset.fix', 'Fix automatically')}
+                </Button>
+              ) : null}
+            </Flex>
+            <Typography variant="pi" textColor="neutral600">
+              {t(
+                'editor.preset.hint',
+                'Saving fails until this content matches the settings of the field. Automatic fixes change heading levels, turn blocks that are not allowed into paragraphs and remove links that are not allowed.'
+              )}
+            </Typography>
+            <List>
+              {violations.map((violation, index) => {
+                const rule = PRESET_RULES[violation.code] || PRESET_RULES.BLOCK_NOT_ALLOWED;
+                const text = t(rule.key, rule.text, { ...(violation.params || {}) });
+                return (
+                  <li key={`${violation.code}-${violation.blockId || 'doc'}-${index}`}>
+                    {violation.blockId ? (
+                      <RowButton
+                        type="button"
+                        onClick={() => onSelectBlock && onSelectBlock(violation.blockId)}
+                      >
+                        <Typography variant="omega">{text}</Typography>{' '}
+                        <Typography variant="pi" textColor="neutral600">
+                          {t('editor.quality.block', 'Block {index}', { index: violation.index + 1 })}
+                        </Typography>
+                      </RowButton>
+                    ) : (
+                      <Box paddingTop={1} paddingBottom={1}>
+                        <Typography variant="omega">{text}</Typography>
+                      </Box>
+                    )}
+                  </li>
+                );
+              })}
+            </List>
+          </Flex>
+        ) : null}
+
         {options && options.publishGuard === true ? (
           <Status variant={errors.length ? 'danger' : 'neutral'} size="S">
             <Typography variant="omega" textColor={errors.length ? 'danger700' : 'neutral700'}>
@@ -282,7 +371,7 @@ export const QualityPanel = ({ t, data, options, fetchClient, externalEnabled, o
           </Status>
         ) : null}
 
-        {issues.length === 0 ? (
+        {issues.length === 0 && violations.length === 0 ? (
           <Typography variant="omega" textColor="neutral600">
             {t('editor.quality.empty', 'No problems found.')}
           </Typography>

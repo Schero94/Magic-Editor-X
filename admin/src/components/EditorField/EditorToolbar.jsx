@@ -4,6 +4,8 @@ import {
   Box,
   Flex,
   IconButton,
+  MenuItem,
+  SimpleMenu,
   Tooltip,
   Typography,
   VisuallyHidden,
@@ -13,15 +15,37 @@ import {
   ArrowsCounterClockwise,
   ClockCounterClockwise,
   Collapse,
+  Command,
   Expand,
+  Eye,
+  EyeStriked,
+  More,
+  SealCheck,
+  Search,
 } from '@strapi/icons';
 import styled from 'styled-components';
 import { peerFamily } from './RemoteCarets';
 
 /**
- * Toolbar above the editor: undo/redo, version history, fullscreen, live
- * collaboration status with the people in the room, and word/block counts.
+ * Toolbar above the editor: undo/redo, version history, find and replace,
+ * quality checks, focus mode, keyboard shortcuts, fullscreen, live
+ * collaboration status with the people in the room, and counts (blocks,
+ * words, characters, reading time) with the limits of the field preset.
  */
+
+/** Words per minute used for the reading time. */
+const WORDS_PER_MINUTE = 200;
+
+const CountBadge = styled.span`
+  position: relative;
+  display: inline-flex;
+  & > span {
+    position: absolute;
+    top: -${({ theme }) => theme.spaces[1]};
+    inset-inline-end: -${({ theme }) => theme.spaces[1]};
+    pointer-events: none;
+  }
+`;
 
 const Bar = styled(Flex)`
   min-width: 0;
@@ -97,6 +121,17 @@ export const EditorToolbar = ({
   historyButtonRef,
   collaboration,
   stats,
+  limits = {},
+  findOpen = false,
+  onToggleFind,
+  qualityOpen = false,
+  onToggleQuality,
+  qualityCount = { errors: 0, total: 0 },
+  qualityButtonRef,
+  findButtonRef,
+  focusMode = false,
+  onToggleFocus,
+  onOpenShortcuts,
 }) => {
   const status = STATUS[collaboration.status];
   const peers = collaboration.peers || [];
@@ -144,6 +179,72 @@ export const EditorToolbar = ({
             <ClockCounterClockwise />
           </IconButton>
         ) : null}
+        {onToggleFind ? (
+          <IconButton
+            ref={findButtonRef}
+            label={t('editor.toolbar.find', 'Find and replace')}
+            variant="ghost"
+            onClick={onToggleFind}
+            aria-pressed={findOpen}
+            disabled={!ready}
+          >
+            <Search />
+          </IconButton>
+        ) : null}
+        {onToggleQuality ? (
+          <CountBadge>
+            <IconButton
+              ref={qualityButtonRef}
+              label={
+                qualityCount.total
+                  ? t(
+                      'editor.toolbar.qualityCount',
+                      'Quality checks ({count, plural, one {# problem} other {# problems}})',
+                      {
+                        count: qualityCount.total,
+                      }
+                    )
+                  : t('editor.toolbar.quality', 'Quality checks')
+              }
+              variant="ghost"
+              onClick={onToggleQuality}
+              aria-pressed={qualityOpen}
+              disabled={!ready}
+            >
+              <SealCheck />
+            </IconButton>
+            {qualityCount.total ? (
+              <Badge
+                size="S"
+                aria-hidden="true"
+                backgroundColor={qualityCount.errors ? 'danger600' : 'warning600'}
+                textColor="neutral0"
+              >
+                {qualityCount.total > 99 ? '99+' : qualityCount.total}
+              </Badge>
+            ) : null}
+          </CountBadge>
+        ) : null}
+        <SimpleMenu
+          tag={IconButton}
+          icon={<More />}
+          label={t('editor.toolbar.more', 'More editor actions')}
+          variant="ghost"
+          popoverPlacement="bottom-start"
+        >
+          {onToggleFocus ? (
+            <MenuItem onSelect={onToggleFocus} startIcon={focusMode ? <EyeStriked /> : <Eye />}>
+              {focusMode
+                ? t('editor.toolbar.focusOff', 'Leave focus mode')
+                : t('editor.toolbar.focusOn', 'Focus mode')}
+            </MenuItem>
+          ) : null}
+          {onOpenShortcuts ? (
+            <MenuItem onSelect={onOpenShortcuts} startIcon={<Command />}>
+              {t('editor.toolbar.shortcuts', 'Keyboard shortcuts')}
+            </MenuItem>
+          ) : null}
+        </SimpleMenu>
         <IconButton
           label={
             fullscreen
@@ -211,16 +312,39 @@ export const EditorToolbar = ({
             </VisuallyHidden>
           </Flex>
         ) : null}
-        <Box>
-          <Typography variant="pi" textColor="neutral600">
-            {t(
-              'editor.stats',
-              '{blocks, plural, one {# block} other {# blocks}} · {words, plural, one {# word} other {# words}}',
-              {
-                blocks: stats.blocks,
-                words: stats.words,
-              }
-            )}
+        <Box data-testid="mex-stats">
+          <Typography
+            variant="pi"
+            textColor={
+              (limits.maxBlocks && stats.blocks > limits.maxBlocks) ||
+              (limits.maxCharacters && stats.characters > limits.maxCharacters)
+                ? 'danger600'
+                : 'neutral600'
+            }
+          >
+            {limits.maxBlocks
+              ? t('editor.stats.blocksLimit', '{blocks} / {max} blocks', {
+                  blocks: stats.blocks,
+                  max: limits.maxBlocks,
+                })
+              : t('editor.stats.blocks', '{blocks, plural, one {# block} other {# blocks}}', {
+                  blocks: stats.blocks,
+                })}
+            {' · '}
+            {t('editor.stats.words', '{words, plural, one {# word} other {# words}}', { words: stats.words })}
+            {' · '}
+            {limits.maxCharacters
+              ? t('editor.stats.charactersLimit', '{characters} / {max} characters', {
+                  characters: stats.characters,
+                  max: limits.maxCharacters,
+                })
+              : t('editor.stats.characters', '{characters, plural, one {# character} other {# characters}}', {
+                  characters: stats.characters,
+                })}
+            {' · '}
+            {t('editor.stats.reading', '{minutes, plural, one {# min read} other {# min read}}', {
+              minutes: stats.words ? Math.max(1, Math.ceil(stats.words / WORDS_PER_MINUTE)) : 0,
+            })}
           </Typography>
         </Box>
       </Flex>

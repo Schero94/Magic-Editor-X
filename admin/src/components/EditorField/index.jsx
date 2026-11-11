@@ -1,8 +1,17 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useIntl } from 'react-intl';
 import { useHref, useNavigate } from 'react-router-dom';
 import EditorJS from '@editorjs/editorjs';
-import { Box, Button, Field, Flex, Loader, Typography, VisuallyHidden } from '@strapi/design-system';
+import {
+  Box,
+  Button,
+  Field,
+  Flex,
+  Loader,
+  TextButton,
+  Typography,
+  VisuallyHidden,
+} from '@strapi/design-system';
 import { useFetchClient, useNotification, useStrapiApp } from '@strapi/strapi/admin';
 import styled, { createGlobalStyle } from 'styled-components';
 import { buildTools, editorI18n, createUndoManager, createDragDrop } from '../../editor/tools';
@@ -22,6 +31,21 @@ import { HistoryModal } from './HistoryModal';
 import { AiDialog } from './AiDialog';
 import { RemoteCarets, offsetOf } from './RemoteCarets';
 import { usePresenceAnnouncements } from './usePresenceAnnouncements';
+import { QualityPanel } from './QualityPanel';
+import { useQualityIssues } from './useQualityIssues';
+import { FindReplacePanel } from './FindReplacePanel';
+import { ShortcutsDialog } from './ShortcutsDialog';
+import { BlockSelectionBar } from './BlockSelectionBar';
+import { createPasteHandler } from '../../editor/paste';
+import { createMarkdownShortcuts } from '../../editor/markdown-shortcuts';
+import { restoreBlockInEditor } from '../../editor/restore-block.mjs';
+import { highlightMatch, clearHighlight } from '../../editor/find-highlight';
+import {
+  resolveFieldPreset,
+  checkPreset,
+  fixPresetViolations,
+  isBlockAllowed,
+} from '../../../../shared/presets.mjs';
 
 /**
  * Magic Editor X field input for the Content Manager.
@@ -35,6 +59,56 @@ import { usePresenceAnnouncements } from './usePresenceAnnouncements';
 const SAVE_DEBOUNCE_MS = 150;
 
 const EditorStyles = createGlobalStyle`${editorStyles}`;
+
+/** Locales written right to left (language subtag). */
+const RTL_LANGUAGES = new Set([
+  'ar',
+  'arc',
+  'dv',
+  'fa',
+  'ha',
+  'he',
+  'khw',
+  'ks',
+  'ku',
+  'ps',
+  'sd',
+  'ur',
+  'yi',
+]);
+
+/**
+ * Text direction of a content locale.
+ * @param {string|null} locale - Locale code.
+ * @returns {'rtl'|'ltr'} Direction.
+ */
+const directionOf = (locale) =>
+  typeof locale === 'string' && RTL_LANGUAGES.has(locale.split('-')[0].toLowerCase()) ? 'rtl' : 'ltr';
+
+/** Tool names whose shortcuts the help dialog lists, with their label keys. */
+const SHORTCUT_LABELS = {
+  header: ['tools.names.heading', 'Heading'],
+  list: ['tools.names.unorderedList', 'Bulleted list'],
+  checklist: ['tools.names.checklist', 'Checklist'],
+  quote: ['tools.names.quote', 'Quote'],
+  warning: ['tools.names.warning', 'Warning'],
+  alert: ['tools.names.alert', 'Alert'],
+  code: ['tools.names.code', 'Code'],
+  delimiter: ['tools.names.delimiter', 'Delimiter'],
+  table: ['tools.names.table', 'Table'],
+  marker: ['tools.names.marker', 'Marker'],
+  underline: ['tools.names.underline', 'Underline'],
+  strikethrough: ['tools.names.strikethrough', 'Strikethrough'],
+  inlineCode: ['tools.names.inlineCode', 'Inline code'],
+  hyperlink: ['tools.names.link', 'Link'],
+  aiAssistant: ['tools.names.ai', 'AI assistant'],
+};
+
+const PanelSlot = styled(Box)`
+  min-width: 0;
+  border-bottom: 1px solid ${({ theme }) => theme.colors.neutral150};
+  ${({ $fullscreen }) => ($fullscreen ? 'max-height: 45vh; overflow: auto; flex: 0 0 auto;' : '')}
+`;
 
 /** Settings page that explains the CSP sources (registered in admin/src/index.js). */
 const SETTINGS_PATH = '/settings/magic-editor-x/configuration';
@@ -77,6 +151,16 @@ const Holder = styled.div`
   }
   min-height: ${({ $minHeight }) => `${$minHeight}px`};
   ${({ $fullscreen }) => ($fullscreen ? 'flex: 1 1 auto; overflow: auto;' : '')}
+  ${({ $focus, theme }) =>
+    $focus
+      ? `
+    & .codex-editor { max-width: 72ch; margin-inline: auto; }
+    & .ce-block { transition: opacity 120ms ease; }
+    &:focus-within .ce-block:not(:focus-within) { opacity: 0.45; }
+    @media (prefers-reduced-motion: reduce) { & .ce-block { transition: none; } }
+    & .ce-block:focus-within { background: ${theme.colors.neutral0}; }
+  `
+      : ''}
 `;
 
 /**
@@ -164,16 +248,40 @@ const EditorField = ({
   const [mediaRequest, setMediaRequest] = useState(null);
   const [undoState, setUndoState] = useState({ canUndo: false, canRedo: false });
   const [valueError, setValueError] = useState(null);
+  const [currentData, setCurrentData] = useState(null);
+  const [findOpen, setFindOpen] = useState(false);
+  const [qualityOpen, setQualityOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [focusMode, setFocusMode] = useState(false);
+  const findButtonRef = useRef(null);
+  const [toolShortcuts, setToolShortcuts] = useState([]);
+  const qualityButtonRef = useRef(null);
+  const frameRef = useRef(null);
 
   useEffect(() => {
     onChangeRef.current = onChange;
   }, [onChange]);
 
-  const minHeight = minHeightOf(attribute && attribute.options && attribute.options.minHeight);
-  const placeholder = (attribute && attribute.options && attribute.options.placeholder) || '';
+  const fieldOptions = (attribute && attribute.options) || null;
+  const minHeight = minHeightOf(fieldOptions && fieldOptions.minHeight);
+  const placeholder = (fieldOptions && fieldOptions.placeholder) || '';
   const permissions = (config && config.permissions) || {};
+  // Field presets (custom field options), enforced again on the server.
+  const presetKey = stableStringify(fieldOptions || {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- recomputed when the options change (presetKey)
+  const preset = useMemo(() => resolveFieldPreset(fieldOptions), [presetKey]);
+  const presetRef = useRef(preset);
+  useEffect(() => {
+    presetRef.current = preset;
+  }, [preset]);
+  const direction = directionOf(target.locale);
   const collaborationTarget =
-    config && config.collaboration.enabled && permissions.collaborate && target.uid && target.documentId
+    config &&
+    config.collaboration.enabled &&
+    permissions.collaborate &&
+    preset.collaboration &&
+    target.uid &&
+    target.documentId
       ? target
       : null;
 
@@ -216,6 +324,7 @@ const EditorField = ({
           const data = await editor.save();
           rememberBlocks(knownRef.current, data);
           setStats(computeStats(data));
+          setCurrentData(data);
           setContentVersion((version) => version + 1);
           if (!userTouchedRef.current) {
             emit(data, { baselineOnly: true });
@@ -315,6 +424,7 @@ const EditorField = ({
       try {
         await applyToEditor(editor, data || { blocks: [] }, knownRef.current);
         setStats(computeStats(data));
+        setCurrentData(data || null);
         setContentVersion((version) => version + 1);
         if (emitToForm) emit(data);
         else {
@@ -463,6 +573,8 @@ const EditorField = ({
         p: config.permissions,
         ai: config.ai.enabled,
         blocks: customBlocks.map((block) => block.id + block.updatedAt),
+        preset: presetKey,
+        direction,
       })
     : null;
   useEffect(() => {
@@ -474,14 +586,42 @@ const EditorField = ({
     lastEmittedRawRef.current = contentKey(initial);
     rememberBlocks(knownRef.current, initial || { blocks: [] });
     setStats(computeStats(initial));
+    setCurrentData(initial || null);
     let destroyed = false;
     let dragDrop = null;
+    let paste = null;
+    let shortcuts = null;
     // Registered before Editor.js renders, so violations of the first render are seen.
     const cspGuard = createCspGuard(holderRef.current, {
       t,
       settingsHref: permissions.settingsRead ? settingsHref : null,
       onOpenSettings: () => navigate(SETTINGS_PATH),
     });
+    const tools = buildTools({
+      t,
+      fetchClient: { get, post },
+      getContentLocale: () => contentLocaleRef.current,
+      uploadImage: (file) => upload(API.imageByFile, 'image', file),
+      uploadImageByUrl,
+      uploadFile: (file) => upload(API.fileUpload, 'file', file),
+      openMediaLibrary,
+      onAiRequest,
+      aiEnabled: Boolean(config.ai.enabled && permissions.ai && preset.ai),
+      preset: preset.restricted ? preset : null,
+      canUpload: Boolean(permissions.upload),
+      linkPreview: config.linkPreview,
+      customBlocks,
+      placeholder,
+      attachmentTypes: config.uploads.attachmentTypes,
+    });
+    const toolNames = new Set(Object.keys(tools));
+    const shortcutList = Object.entries(tools)
+      .filter(([name, tool]) => tool && tool.shortcut && tool.toolbox !== false && SHORTCUT_LABELS[name])
+      .map(([name, tool]) => ({
+        name,
+        shortcut: tool.shortcut,
+        label: t(SHORTCUT_LABELS[name][0], SHORTCUT_LABELS[name][1]),
+      }));
     const editor = new EditorJS({
       holder: holderRef.current,
       data: initial || undefined,
@@ -490,23 +630,8 @@ const EditorField = ({
       placeholder: placeholder || t('editor.placeholder', 'Write something, or press Tab to choose a block'),
       autofocus: false,
       logLevel: 'ERROR',
-      i18n: editorI18n(t),
-      tools: buildTools({
-        t,
-        fetchClient: { get, post },
-        getContentLocale: () => contentLocaleRef.current,
-        uploadImage: (file) => upload(API.imageByFile, 'image', file),
-        uploadImageByUrl,
-        uploadFile: (file) => upload(API.fileUpload, 'file', file),
-        openMediaLibrary,
-        onAiRequest,
-        aiEnabled: Boolean(config.ai.enabled && permissions.ai),
-        canUpload: Boolean(permissions.upload),
-        linkPreview: config.linkPreview,
-        customBlocks,
-        placeholder,
-        attachmentTypes: config.uploads.attachmentTypes,
-      }),
+      i18n: { ...editorI18n(t), direction },
+      tools,
       onChange: () => scheduleSave(),
 
       onReady: () => {
@@ -517,6 +642,31 @@ const EditorField = ({
           onChange: (next) => setUndoState({ canUndo: next.canUndo, canRedo: next.canRedo }),
         });
         if (!readOnly) dragDrop = createDragDrop(editor, holderRef.current);
+        setToolShortcuts(shortcutList);
+        const allowedNow = (type) => isBlockAllowed(presetRef.current, type);
+        const markTouched = () => {
+          userTouchedRef.current = true;
+          scheduleSave(40);
+        };
+        paste = createPasteHandler({
+          holder: holderRef.current,
+          editor,
+          t,
+          isAllowed: allowedNow,
+          allowedHeadingLevels: presetRef.current.headingLevels,
+          canUpload: Boolean(permissions.upload),
+          uploadImageByUrl,
+          uploadImageFile: (file) => upload(API.imageByFile, 'image', file),
+          notify: ({ type, message }) => toggleNotification({ type, message }),
+          onInserted: markTouched,
+        });
+        shortcuts = createMarkdownShortcuts({
+          holder: holderRef.current,
+          editor,
+          getPreset: () => (presetRef.current.restricted ? presetRef.current : null),
+          hasTool: (name) => toolNames.has(name),
+          onConverted: markTouched,
+        });
         setReady(true);
       },
     });
@@ -528,6 +678,8 @@ const EditorField = ({
       if (undoRef.current) undoRef.current.destroy();
       undoRef.current = null;
       if (dragDrop) dragDrop.destroy();
+      if (paste) paste.destroy();
+      if (shortcuts) shortcuts.destroy();
       editorRef.current = null;
       editor.isReady.then(() => editor.destroy()).catch(() => {});
     };
@@ -556,7 +708,10 @@ const EditorField = ({
   useEffect(() => {
     if (!fullscreen) return undefined;
     const onKey = (event) => {
-      if (event.key === 'Escape' && !event.defaultPrevented) setFullscreen(false);
+      if (event.key === 'Escape' && !event.defaultPrevented) {
+        setFullscreen(false);
+        setFocusMode(false);
+      }
     };
     const previous = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
@@ -726,6 +881,143 @@ const EditorField = ({
     [scheduleSave]
   );
 
+  /** Replaces the editor content with a document and stores it like a user edit. */
+  const replaceContent = useCallback(
+    async (data) => {
+      userTouchedRef.current = true;
+      await applyExternal(data, { emitToForm: true });
+      if (collabRef.current && editorRef.current) {
+        const shown = await editorRef.current.save().catch(() => data);
+        collabRef.current.stopCapturing();
+        collabRef.current.pushLocal(shown);
+      }
+      if (undoRef.current) undoRef.current.record();
+    },
+    [applyExternal]
+  );
+
+  // Field preset problems of the current content (saving fails while any remain).
+  const violations = useMemo(
+    () => (preset.restricted && currentData ? checkPreset(prepareEditorValue(currentData).data, preset) : []),
+    [currentData, preset]
+  );
+  const quality = useQualityIssues(currentData, fieldOptions || undefined);
+  const qualityCount = {
+    errors: quality.stats.errors + violations.length,
+    total: quality.stats.errors + quality.stats.warnings + violations.length,
+  };
+
+  const fixViolations = useCallback(async () => {
+    const editor = editorRef.current;
+    if (!editor || readOnly) return;
+    const saved = await editor.save().catch(() => null);
+    const prepared = prepareEditorValue(saved).data;
+    if (!prepared) return;
+    const { data, fixed, removed } = fixPresetViolations(prepared, preset);
+    if (!fixed) return;
+    await replaceContent(data);
+    toggleNotification({
+      type: 'success',
+      message: t(
+        'editor.preset.fixed',
+        '{fixed, plural, one {# block fixed} other {# blocks fixed}}{removed, plural, =0 {} one {, # removed} other {, # removed}}',
+        { fixed, removed }
+      ),
+    });
+  }, [preset, readOnly, replaceContent, t, toggleNotification]);
+
+  /** Scrolls to a block and puts the caret into it. */
+  const selectBlock = useCallback((blockId) => {
+    const editor = editorRef.current;
+    if (!editor || !blockId) return;
+    const block = editor.blocks.getById(blockId);
+    if (!block) return;
+    if (block.holder) block.holder.scrollIntoView({ block: 'center' });
+    try {
+      editor.caret.setToBlock(blockId, 'start');
+    } catch {
+      // blocks without a caret position (images) are only scrolled into view
+    }
+  }, []);
+
+  /** Restores one block of a version (sanitised like any remote content). */
+  const restoreBlock = useCallback(
+    async (block, position) => {
+      const editor = editorRef.current;
+      const prepared = prepareEditorValue({ time: Date.now(), version: '2.31.7', blocks: [block] }).data;
+      if (!editor || !prepared || !prepared.blocks[0]) return false;
+      userTouchedRef.current = true;
+      await restoreBlockInEditor(editor, prepared.blocks[0], position);
+      scheduleSave(0);
+      return true;
+    },
+    [scheduleSave]
+  );
+
+  /** Find and replace: the current content, and writing changed blocks back. */
+  const readForFind = useCallback(async () => {
+    const editor = editorRef.current;
+    if (!editor) return null;
+    const saved = await editor.save().catch(() => null);
+    return prepareEditorValue(saved).data;
+  }, []);
+  const applyFind = useCallback(
+    async (data, blockIds) => {
+      const editor = editorRef.current;
+      if (!editor || readOnly) return;
+      const byId = new Map(data.blocks.map((block) => [block.id, block]));
+      userTouchedRef.current = true;
+      for (const id of blockIds) {
+        const block = byId.get(id);
+        if (block && editor.blocks.getById(id)) await editor.blocks.update(id, block.data);
+      }
+      scheduleSave(0);
+    },
+    [readOnly, scheduleSave]
+  );
+  const showMatch = useCallback((match, options) => {
+    const holder = holderRef.current;
+    if (!holder) return;
+    if (!match) {
+      clearHighlight();
+      return;
+    }
+    const element = holder.querySelector(`.ce-block[data-id="${CSS.escape(match.blockId)}"]`);
+    if (element) highlightMatch(element, match, options);
+  }, []);
+
+  const closeFind = useCallback(() => {
+    setFindOpen(false);
+    clearHighlight();
+    window.requestAnimationFrame(() => findButtonRef.current && findButtonRef.current.focus());
+  }, []);
+  const closeQuality = useCallback(() => {
+    setQualityOpen(false);
+    window.requestAnimationFrame(() => qualityButtonRef.current && qualityButtonRef.current.focus());
+  }, []);
+
+  // Editor shortcuts: Ctrl/Cmd+Shift+F find and replace, Ctrl/Cmd+/ help.
+  useEffect(() => {
+    if (!ready) return undefined;
+    const onKey = (event) => {
+      const frame = frameRef.current;
+      if (!frame || !frame.contains(document.activeElement)) return;
+      const mod = event.metaKey || event.ctrlKey;
+      if (!mod || event.altKey) return;
+      if (event.shiftKey && (event.key === 'f' || event.key === 'F')) {
+        event.preventDefault();
+        event.stopPropagation();
+        setFindOpen(true);
+      } else if (!event.shiftKey && event.key === '/') {
+        event.preventDefault();
+        event.stopPropagation();
+        setShortcutsOpen(true);
+      }
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [ready]);
+
   const fieldHint = valueError
     ? t('editor.value.invalid', 'The stored content could not be read. It is kept until you edit this field.')
     : hint;
@@ -736,6 +1028,7 @@ const EditorField = ({
       <Flex direction="column" alignItems="stretch" gap={1}>
         <Field.Label action={labelAction}>{label}</Field.Label>
         <Frame
+          ref={frameRef}
           $error={Boolean(error)}
           $fullscreen={fullscreen}
           role={fullscreen ? 'dialog' : undefined}
@@ -747,7 +1040,10 @@ const EditorField = ({
             ready={ready}
             readOnly={readOnly}
             fullscreen={fullscreen}
-            onToggleFullscreen={() => setFullscreen((value) => !value)}
+            onToggleFullscreen={() => {
+              if (fullscreen) setFocusMode(false);
+              setFullscreen((value) => !value);
+            }}
             canUndo={collabUndo ? collaboration.canUndo : undoState.canUndo}
             canRedo={collabUndo ? collaboration.canRedo : undoState.canRedo}
             onUndo={() => undoRef.current && undoRef.current.undo()}
@@ -757,7 +1053,51 @@ const EditorField = ({
             historyButtonRef={historyButtonRef}
             collaboration={collaboration}
             stats={stats}
+            limits={{ maxBlocks: preset.maxBlocks, maxCharacters: preset.maxCharacters }}
+            findOpen={findOpen}
+            onToggleFind={() => (findOpen ? closeFind() : setFindOpen(true))}
+            findButtonRef={findButtonRef}
+            qualityOpen={qualityOpen}
+            onToggleQuality={() => (qualityOpen ? closeQuality() : setQualityOpen(true))}
+            qualityCount={qualityCount}
+            qualityButtonRef={qualityButtonRef}
+            focusMode={focusMode}
+            onToggleFocus={() =>
+              setFocusMode((value) => {
+                if (!value) setFullscreen(true);
+                return !value;
+              })
+            }
+            onOpenShortcuts={() => setShortcutsOpen(true)}
           />
+          {findOpen && ready ? (
+            <PanelSlot padding={2} $fullscreen={fullscreen}>
+              <FindReplacePanel
+                t={t}
+                getData={readForFind}
+                onApply={applyFind}
+                onSelect={showMatch}
+                onClose={closeFind}
+                readOnly={readOnly}
+                contentVersion={contentVersion}
+              />
+            </PanelSlot>
+          ) : null}
+          {qualityOpen && ready ? (
+            <PanelSlot padding={2} $fullscreen={fullscreen}>
+              <QualityPanel
+                t={t}
+                data={currentData}
+                options={fieldOptions || undefined}
+                fetchClient={{ post }}
+                externalEnabled={Boolean(config && config.quality && config.quality.externalLinks)}
+                onSelectBlock={selectBlock}
+                onClose={closeQuality}
+                violations={violations}
+                onFixViolations={readOnly ? null : fixViolations}
+              />
+            </PanelSlot>
+          ) : null}
           {configError ? (
             <Flex padding={4} gap={2} direction="column" alignItems="flex-start">
               <Typography variant="omega" textColor="danger600">
@@ -774,11 +1114,27 @@ const EditorField = ({
             </Flex>
           ) : null}
           <EditorArea ref={areaRef} $fullscreen={fullscreen}>
+            <BlockSelectionBar
+              t={t}
+              holderRef={holderRef}
+              editorRef={editorRef}
+              ready={ready}
+              readOnly={readOnly}
+              canCreate={(type) => isBlockAllowed(preset, type)}
+              onChanged={() => {
+                userTouchedRef.current = true;
+                scheduleSave(40);
+              }}
+              notify={(message) => toggleNotification({ type: 'success', message })}
+            />
             <Holder
               ref={holderRef}
               className="mex-editor"
+              lang={target.locale || undefined}
+              dir={direction}
               $minHeight={minHeight}
               $fullscreen={fullscreen}
+              $focus={focusMode}
               data-testid="magic-editor-x"
               aria-busy={!ready}
               aria-describedby={`${name}-mex-keyboard`}
@@ -803,6 +1159,20 @@ const EditorField = ({
             )}
           </VisuallyHidden>
         </Frame>
+        {violations.length ? (
+          <Flex gap={2} wrap="wrap" alignItems="center" data-testid="mex-preset-violations">
+            <Typography variant="pi" textColor="danger600">
+              {t(
+                'editor.preset.notice',
+                'This content does not match the settings of this field ({count, plural, one {# problem} other {# problems}}). Saving fails until it is fixed.',
+                { count: violations.length }
+              )}
+            </Typography>
+            <TextButton onClick={() => setQualityOpen(true)}>
+              {t('editor.preset.show', 'Show problems')}
+            </TextButton>
+          </Flex>
+        ) : null}
         <Field.Hint />
         <Field.Error />
       </Flex>
@@ -812,6 +1182,7 @@ const EditorField = ({
           target={target}
           readContent={readContent}
           onRestore={restoreSnapshot}
+          onRestoreBlock={readOnly ? undefined : restoreBlock}
           onClose={() => {
             setHistoryOpen(false);
             window.requestAnimationFrame(() => historyButtonRef.current && historyButtonRef.current.focus());
@@ -824,11 +1195,20 @@ const EditorField = ({
           t={t}
           request={aiRequest}
           config={config && config.ai}
+          target={{ uid: target.uid, field: target.field }}
           onApply={(html) => {
             applyAi(html, aiRequest);
             setAiRequest(null);
           }}
           onClose={() => setAiRequest(null)}
+        />
+      ) : null}
+      {shortcutsOpen ? (
+        <ShortcutsDialog
+          t={t}
+          tools={toolShortcuts}
+          hasBlock={(type) => isBlockAllowed(preset, type)}
+          onClose={() => setShortcutsOpen(false)}
         />
       ) : null}
       {mediaRequest && MediaLibraryDialog ? (

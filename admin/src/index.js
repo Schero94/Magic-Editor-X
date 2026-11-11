@@ -40,6 +40,25 @@ const LOADERS = {
   ],
 };
 
+/** Field presets offered in the Content-Type Builder (shared/presets.mjs). */
+const PRESET_OPTIONS = [
+  { value: 'full', label: ['field.options.preset.full', 'Full: every block and formatting'] },
+  { value: 'article', label: ['field.options.preset.article', 'Article: long-form text without raw HTML'] },
+  { value: 'basic', label: ['field.options.preset.basic', 'Basic: headings 2-3, lists, quotes, images'] },
+  {
+    value: 'minimal',
+    label: ['field.options.preset.minimal', 'Minimal: paragraphs, lists, bold, italic, links'],
+  },
+];
+
+/** Allowed link targets offered in the Content-Type Builder. */
+const LINK_OPTIONS = [
+  { value: 'all', label: ['field.options.linkTargets.all', 'Entries and web addresses'] },
+  { value: 'internal', label: ['field.options.linkTargets.internal', 'Only entries of this site'] },
+  { value: 'external', label: ['field.options.linkTargets.external', 'Only web addresses'] },
+  { value: 'none', label: ['field.options.linkTargets.none', 'No links'] },
+];
+
 /**
  * Loads and merges the translation files of one locale.
  * @param {string} locale - Admin locale.
@@ -90,10 +109,144 @@ export default {
                 name: 'options.placeholder',
                 type: 'text',
               },
+              {
+                intlLabel: { id: getTranslation('field.options.preset.label'), defaultMessage: 'Preset' },
+                description: {
+                  id: getTranslation('field.options.preset.description'),
+                  defaultMessage:
+                    'Which blocks and formatting editors can use in this field. Enforced when saving.',
+                },
+                name: 'options.preset',
+                type: 'select',
+                options: PRESET_OPTIONS.map(({ value, label: [id, defaultMessage] }) => ({
+                  key: value,
+                  value,
+                  metadatas: { intlLabel: { id: getTranslation(id), defaultMessage } },
+                })),
+              },
+              {
+                intlLabel: {
+                  id: getTranslation('field.options.linkTargets.label'),
+                  defaultMessage: 'Allowed links',
+                },
+                description: {
+                  id: getTranslation('field.options.linkTargets.description'),
+                  defaultMessage: 'Links to entries of this site, to web addresses, both or none',
+                },
+                name: 'options.linkTargets',
+                type: 'select',
+                options: LINK_OPTIONS.map(({ value, label: [id, defaultMessage] }) => ({
+                  key: value,
+                  value,
+                  metadatas: { intlLabel: { id: getTranslation(id), defaultMessage } },
+                })),
+              },
+              {
+                intlLabel: {
+                  id: getTranslation('field.options.requireAlt.label'),
+                  defaultMessage: 'Require alternative text for images',
+                },
+                description: {
+                  id: getTranslation('field.options.requireAlt.description'),
+                  defaultMessage: 'Images need a text description or must be marked as decorative',
+                },
+                name: 'options.requireAlt',
+                type: 'checkbox',
+              },
             ],
           },
         ],
         advanced: [
+          {
+            sectionTitle: {
+              id: getTranslation('field.options.content'),
+              defaultMessage: 'Allowed content and limits',
+            },
+            items: [
+              {
+                intlLabel: {
+                  id: getTranslation('field.options.allowedBlocks.label'),
+                  defaultMessage: 'Allowed blocks',
+                },
+                description: {
+                  id: getTranslation('field.options.allowedBlocks.description'),
+                  defaultMessage:
+                    'Comma-separated block names that replace the preset list, for example: paragraph, header, list, image, myCustomBlock',
+                },
+                name: 'options.allowedBlocks',
+                type: 'text',
+              },
+              {
+                intlLabel: {
+                  id: getTranslation('field.options.headingLevels.label'),
+                  defaultMessage: 'Heading levels',
+                },
+                description: {
+                  id: getTranslation('field.options.headingLevels.description'),
+                  defaultMessage: 'For example 2-4 or 2,3. Empty uses the preset.',
+                },
+                name: 'options.headingLevels',
+                type: 'text',
+              },
+              {
+                intlLabel: {
+                  id: getTranslation('field.options.maxBlocks.label'),
+                  defaultMessage: 'Maximum number of blocks',
+                },
+                description: {
+                  id: getTranslation('field.options.maxBlocks.description'),
+                  defaultMessage: 'Empty or 0 means no limit',
+                },
+                name: 'options.maxBlocks',
+                type: 'number',
+              },
+              {
+                intlLabel: {
+                  id: getTranslation('field.options.maxCharacters.label'),
+                  defaultMessage: 'Maximum number of characters',
+                },
+                description: {
+                  id: getTranslation('field.options.maxCharacters.description'),
+                  defaultMessage: 'Visible text, counted like the editor toolbar. Empty or 0 means no limit.',
+                },
+                name: 'options.maxCharacters',
+                type: 'number',
+              },
+            ],
+          },
+          {
+            sectionTitle: { id: getTranslation('field.options.features'), defaultMessage: 'Features' },
+            items: [
+              {
+                intlLabel: {
+                  id: getTranslation('field.options.disableAi.label'),
+                  defaultMessage: 'Turn off the AI assistant for this field',
+                },
+                name: 'options.disableAi',
+                type: 'checkbox',
+              },
+              {
+                intlLabel: {
+                  id: getTranslation('field.options.disableCollaboration.label'),
+                  defaultMessage: 'Turn off live collaboration for this field',
+                },
+                name: 'options.disableCollaboration',
+                type: 'checkbox',
+              },
+              {
+                intlLabel: {
+                  id: getTranslation('field.options.publishGuard.label'),
+                  defaultMessage: 'Block publishing while quality checks report errors',
+                },
+                description: {
+                  id: getTranslation('field.options.publishGuard.description'),
+                  defaultMessage: 'Errors are missing alternative texts (when required) and empty links',
+                },
+                name: 'options.publishGuard',
+                type: 'checkbox',
+              },
+            ],
+          },
           {
             sectionTitle: { id: getTranslation('field.options.advanced'), defaultMessage: 'Layout' },
             items: [
