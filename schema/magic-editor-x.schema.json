@@ -1,0 +1,959 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schero94.github.io/Magic-Editor-X/schema/magic-editor-x.schema.json",
+  "title": "Magic Editor X field value",
+  "description": "Editor.js document stored by a Magic Editor X 2.x field after server-side sanitising. Values written by 1.x are normalised to this shape on the next save. Custom blocks (any other `type`) have object data.",
+  "type": "object",
+  "properties": {
+    "time": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "blocks": {
+      "type": "array",
+      "maxItems": 5000,
+      "items": {
+        "$ref": "#/$defs/block"
+      }
+    },
+    "version": {
+      "type": "string",
+      "maxLength": 32
+    }
+  },
+  "required": ["time", "blocks", "version"],
+  "additionalProperties": false,
+  "$defs": {
+    "inlineHtml": {
+      "type": "string",
+      "description": "Inline HTML limited to b, strong, i, em, u, s, mark, code, a, br, span, sub, sup with the attributes of the sanitising policy."
+    },
+    "url": {
+      "type": "string",
+      "maxLength": 2048,
+      "description": "http(s), mailto, tel or site-relative URL; empty when the stored URL was not allowed."
+    },
+    "mediaFormat": {
+      "type": "object",
+      "properties": {
+        "url": {
+          "$ref": "#/$defs/url"
+        },
+        "width": {
+          "type": "number"
+        },
+        "height": {
+          "type": "number"
+        }
+      },
+      "additionalProperties": true
+    },
+    "listItem": {
+      "anyOf": [
+        {
+          "type": "string",
+          "description": "Legacy list item (inline HTML)."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "content": {
+              "$ref": "#/$defs/inlineHtml"
+            },
+            "meta": {
+              "type": "object",
+              "properties": {
+                "checked": {
+                  "type": "boolean"
+                },
+                "start": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100000
+                },
+                "counterType": {
+                  "type": "string",
+                  "enum": ["numeric", "lower-roman", "upper-roman", "lower-alpha", "upper-alpha"]
+                }
+              },
+              "additionalProperties": false
+            },
+            "items": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/listItem"
+              }
+            }
+          },
+          "required": ["content", "items"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "tunes": {
+      "type": "object",
+      "properties": {
+        "alignmentTune": {
+          "type": "object",
+          "properties": {
+            "alignment": {
+              "type": "string",
+              "enum": ["left", "center", "right", "justify"]
+            }
+          },
+          "required": ["alignment"],
+          "additionalProperties": false
+        },
+        "textVariant": {
+          "type": "string",
+          "enum": ["", "call-out", "citation", "details"]
+        },
+        "indentTune": {
+          "type": "object",
+          "properties": {
+            "indentLevel": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 10
+            }
+          },
+          "required": ["indentLevel"],
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "block": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,64}$"
+        },
+        "type": {
+          "type": "string",
+          "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,63}$"
+        },
+        "data": {
+          "type": "object"
+        },
+        "tunes": {
+          "$ref": "#/$defs/tunes"
+        }
+      },
+      "required": ["id", "type", "data"],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "paragraph"
+              }
+            },
+            "required": ["type"]
+          },
+          "then": {
+            "properties": {
+              "data": {
+                "$ref": "#/$defs/data_paragraph"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "header"
+              }
+            },
+            "required": ["type"]
+          },
+          "then": {
+            "properties": {
+              "data": {
+                "$ref": "#/$defs/data_header"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "quote"
+              }
+            },
+            "required": ["type"]
+          },
+          "then": {
+            "properties": {
+              "data": {
+                "$ref": "#/$defs/data_quote"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "list"
+              }
+            },
+            "required": ["type"]
+          },
+          "then": {
+            "properties": {
+              "data": {
+                "$ref": "#/$defs/data_list"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "checklist"
+              }
+            },
+            "required": ["type"]
+          },
+          "then": {
+            "properties": {
+              "data": {
+                "$ref": "#/$defs/data_checklist"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "warning"
+              }
+            },
+            "required": ["type"]
+          },
+          "then": {
+            "properties": {
+              "data": {
+                "$ref": "#/$defs/data_warning"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "alert"
+              }
+            },
+            "required": ["type"]
+          },
+          "then": {
+            "properties": {
+              "data": {
+                "$ref": "#/$defs/data_alert"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "toggle"
+              }
+            },
+            "required": ["type"]
+          },
+          "then": {
+            "properties": {
+              "data": {
+                "$ref": "#/$defs/data_toggle"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "code"
+              }
+            },
+            "required": ["type"]
+          },
+          "then": {
+            "properties": {
+              "data": {
+                "$ref": "#/$defs/data_code"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "codeFlask"
+              }
+            },
+            "required": ["type"]
+          },
+          "then": {
+            "properties": {
+              "data": {
+                "$ref": "#/$defs/data_codeFlask"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "raw"
+              }
+            },
+            "required": ["type"]
+          },
+          "then": {
+            "properties": {
+              "data": {
+                "$ref": "#/$defs/data_raw"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "table"
+              }
+            },
+            "required": ["type"]
+          },
+          "then": {
+            "properties": {
+              "data": {
+                "$ref": "#/$defs/data_table"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "image"
+              }
+            },
+            "required": ["type"]
+          },
+          "then": {
+            "properties": {
+              "data": {
+                "$ref": "#/$defs/data_image"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "simpleImage"
+              }
+            },
+            "required": ["type"]
+          },
+          "then": {
+            "properties": {
+              "data": {
+                "$ref": "#/$defs/data_simpleImage"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "linkTool"
+              }
+            },
+            "required": ["type"]
+          },
+          "then": {
+            "properties": {
+              "data": {
+                "$ref": "#/$defs/data_linkTool"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "attaches"
+              }
+            },
+            "required": ["type"]
+          },
+          "then": {
+            "properties": {
+              "data": {
+                "$ref": "#/$defs/data_attaches"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "embed"
+              }
+            },
+            "required": ["type"]
+          },
+          "then": {
+            "properties": {
+              "data": {
+                "$ref": "#/$defs/data_embed"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "personality"
+              }
+            },
+            "required": ["type"]
+          },
+          "then": {
+            "properties": {
+              "data": {
+                "$ref": "#/$defs/data_personality"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "button"
+              }
+            },
+            "required": ["type"]
+          },
+          "then": {
+            "properties": {
+              "data": {
+                "$ref": "#/$defs/data_button"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "delimiter"
+              }
+            },
+            "required": ["type"]
+          },
+          "then": {
+            "properties": {
+              "data": {
+                "$ref": "#/$defs/data_delimiter"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "data_paragraph": {
+      "type": "object",
+      "properties": {
+        "text": {
+          "$ref": "#/$defs/inlineHtml"
+        }
+      },
+      "required": ["text"],
+      "additionalProperties": false
+    },
+    "data_header": {
+      "type": "object",
+      "properties": {
+        "text": {
+          "$ref": "#/$defs/inlineHtml"
+        },
+        "level": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 6
+        }
+      },
+      "required": ["text", "level"],
+      "additionalProperties": false
+    },
+    "data_quote": {
+      "type": "object",
+      "properties": {
+        "text": {
+          "$ref": "#/$defs/inlineHtml"
+        },
+        "caption": {
+          "$ref": "#/$defs/inlineHtml"
+        },
+        "alignment": {
+          "type": "string",
+          "enum": ["left", "center"]
+        }
+      },
+      "required": ["text", "caption", "alignment"],
+      "additionalProperties": false
+    },
+    "data_list": {
+      "type": "object",
+      "properties": {
+        "style": {
+          "type": "string",
+          "enum": ["ordered", "unordered", "checklist"]
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/listItem"
+          }
+        },
+        "meta": {
+          "type": "object",
+          "properties": {
+            "start": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100000
+            },
+            "counterType": {
+              "type": "string",
+              "enum": ["numeric", "lower-roman", "upper-roman", "lower-alpha", "upper-alpha"]
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "required": ["style", "items"],
+      "additionalProperties": false
+    },
+    "data_checklist": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "text": {
+                "$ref": "#/$defs/inlineHtml"
+              },
+              "checked": {
+                "type": "boolean"
+              }
+            },
+            "required": ["text", "checked"],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": ["items"],
+      "additionalProperties": false
+    },
+    "data_warning": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "$ref": "#/$defs/inlineHtml"
+        },
+        "message": {
+          "$ref": "#/$defs/inlineHtml"
+        }
+      },
+      "required": ["title", "message"],
+      "additionalProperties": false
+    },
+    "data_alert": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["primary", "secondary", "info", "success", "warning", "danger", "light", "dark"]
+        },
+        "align": {
+          "type": "string",
+          "enum": ["left", "center", "right"]
+        },
+        "message": {
+          "$ref": "#/$defs/inlineHtml"
+        }
+      },
+      "required": ["type", "align", "message"],
+      "additionalProperties": false
+    },
+    "data_toggle": {
+      "type": "object",
+      "properties": {
+        "text": {
+          "$ref": "#/$defs/inlineHtml"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["open", "closed"]
+        },
+        "fk": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "items": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 5000,
+          "description": "Number of blocks right after the toggle that form its content."
+        }
+      },
+      "required": ["text", "status", "items"],
+      "additionalProperties": false
+    },
+    "data_code": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "maxLength": 500000
+        }
+      },
+      "required": ["code"],
+      "additionalProperties": false
+    },
+    "data_codeFlask": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "maxLength": 500000
+        },
+        "language": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9+#-]{1,32}$"
+        },
+        "showlinenumbers": {
+          "type": "boolean"
+        }
+      },
+      "required": ["code", "language"],
+      "additionalProperties": false
+    },
+    "data_raw": {
+      "type": "object",
+      "properties": {
+        "html": {
+          "type": "string",
+          "maxLength": 500000,
+          "description": "Raw HTML, sanitised or emptied according to the `rawHtml` option."
+        }
+      },
+      "required": ["html"],
+      "additionalProperties": false
+    },
+    "data_table": {
+      "type": "object",
+      "properties": {
+        "withHeadings": {
+          "type": "boolean"
+        },
+        "stretched": {
+          "type": "boolean"
+        },
+        "content": {
+          "type": "array",
+          "maxItems": 500,
+          "items": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "$ref": "#/$defs/inlineHtml"
+            }
+          }
+        }
+      },
+      "required": ["withHeadings", "stretched", "content"],
+      "additionalProperties": false
+    },
+    "data_image": {
+      "type": "object",
+      "properties": {
+        "file": {
+          "type": "object",
+          "properties": {
+            "url": {
+              "$ref": "#/$defs/url"
+            },
+            "id": {
+              "type": ["integer", "string"],
+              "description": "Media Library file id."
+            },
+            "documentId": {
+              "type": "string",
+              "maxLength": 64
+            },
+            "alt": {
+              "type": "string",
+              "maxLength": 500,
+              "description": "Alternative text."
+            },
+            "mime": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "name": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "hash": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "ext": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "width": {
+              "type": "number"
+            },
+            "height": {
+              "type": "number"
+            },
+            "size": {
+              "type": "number"
+            },
+            "formats": {
+              "type": "object",
+              "description": "Media Library formats (thumbnail, small, medium, large) for responsive images.",
+              "additionalProperties": {
+                "$ref": "#/$defs/mediaFormat"
+              }
+            }
+          },
+          "required": ["url"],
+          "additionalProperties": false
+        },
+        "caption": {
+          "$ref": "#/$defs/inlineHtml"
+        },
+        "withBorder": {
+          "type": "boolean"
+        },
+        "withBackground": {
+          "type": "boolean"
+        },
+        "stretched": {
+          "type": "boolean"
+        },
+        "decorative": {
+          "type": "boolean",
+          "description": "True when the image is decorative (rendered with an empty alt)."
+        }
+      },
+      "required": ["file", "caption", "withBorder", "withBackground", "stretched"],
+      "additionalProperties": false
+    },
+    "data_simpleImage": {
+      "type": "object",
+      "properties": {
+        "url": {
+          "$ref": "#/$defs/url"
+        },
+        "caption": {
+          "$ref": "#/$defs/inlineHtml"
+        },
+        "withBorder": {
+          "type": "boolean"
+        },
+        "withBackground": {
+          "type": "boolean"
+        },
+        "stretched": {
+          "type": "boolean"
+        }
+      },
+      "required": ["url", "caption", "withBorder", "withBackground", "stretched"],
+      "additionalProperties": false
+    },
+    "data_linkTool": {
+      "type": "object",
+      "properties": {
+        "link": {
+          "$ref": "#/$defs/url"
+        },
+        "meta": {
+          "type": "object",
+          "properties": {
+            "title": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "description": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "site_name": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "image": {
+              "type": "object",
+              "properties": {
+                "url": {
+                  "$ref": "#/$defs/url"
+                }
+              },
+              "required": ["url"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["title", "description"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["link", "meta"],
+      "additionalProperties": false
+    },
+    "data_attaches": {
+      "type": "object",
+      "properties": {
+        "file": {
+          "type": "object",
+          "properties": {
+            "url": {
+              "$ref": "#/$defs/url"
+            },
+            "name": {
+              "type": "string",
+              "maxLength": 255
+            },
+            "extension": {
+              "type": "string",
+              "maxLength": 16
+            },
+            "size": {
+              "type": "number"
+            },
+            "title": {
+              "type": "string",
+              "maxLength": 255
+            }
+          },
+          "required": ["url"],
+          "additionalProperties": false
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 255
+        }
+      },
+      "required": ["file", "title"],
+      "additionalProperties": false
+    },
+    "data_embed": {
+      "type": "object",
+      "properties": {
+        "service": {
+          "type": "string",
+          "pattern": "^([a-zA-Z0-9_-]{1,40})?$"
+        },
+        "source": {
+          "$ref": "#/$defs/url"
+        },
+        "embed": {
+          "$ref": "#/$defs/url"
+        },
+        "width": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000
+        },
+        "caption": {
+          "$ref": "#/$defs/inlineHtml"
+        }
+      },
+      "required": ["service", "source", "embed", "caption"],
+      "additionalProperties": false
+    },
+    "data_personality": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "link": {
+          "$ref": "#/$defs/url"
+        },
+        "photo": {
+          "$ref": "#/$defs/url"
+        }
+      },
+      "required": ["name", "description", "link", "photo"],
+      "additionalProperties": false
+    },
+    "data_button": {
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "link": {
+          "$ref": "#/$defs/url"
+        },
+        "style": {
+          "type": "string",
+          "enum": ["primary", "secondary", "outline", "ghost", "danger", "success"]
+        },
+        "openInNewTab": {
+          "type": "boolean"
+        }
+      },
+      "required": ["text", "link", "style", "openInNewTab"],
+      "additionalProperties": false
+    },
+    "data_delimiter": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  }
+}
