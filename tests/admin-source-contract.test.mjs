@@ -69,6 +69,8 @@ test('remote collaboration content is sanitised before the editor renders it (ME
     field.indexOf('onRemoteData: async') + 1200
   );
   assert.match(handler, /client\.snapshot\(\)/);
-  assert.match(handler, /prepareEditorValue\(data\)/);
-  assert.ok(handler.indexOf('prepareEditorValue(data)') < handler.indexOf('applyExternal('));
+  assert.match(handler, /prepareRemoteData\(data,/);
+  assert.ok(handler.indexOf('prepareRemoteData(data,') < handler.indexOf('applyExternal('));
+  const sanitize = readFileSync(join(root, 'editor/sanitize.js'), 'utf8');
+  assert.match(sanitize, /export const prepareRemoteData[\s\S]*prepareEditorValue\(/);
 });

@@ -8,7 +8,7 @@ import styled, { createGlobalStyle } from 'styled-components';
 import { buildTools, editorI18n, createUndoManager, createDragDrop } from '../../editor/tools';
 import { editorStyles } from '../../editor/tools/styles';
 import { createCspGuard } from '../../editor/tools/csp-guard';
-import { prepareEditorValue, sanitizeInline } from '../../editor/sanitize';
+import { prepareEditorValue, prepareRemoteData, sanitizeInline } from '../../editor/sanitize';
 import { applyToEditor, rememberBlocks } from '../../editor/apply-remote';
 import { computeStats } from '../../../../shared/editor-data.mjs';
 import { stableStringify } from '../../../../shared/ydoc.mjs';
@@ -149,6 +149,7 @@ const EditorField = ({
   const syncedOnceRef = useRef(false);
   const historyButtonRef = useRef(null);
   const areaRef = useRef(null);
+  const remoteCacheRef = useRef(new WeakMap());
   const [contentVersion, setContentVersion] = useState(0);
   const onChangeRef = useRef(onChange);
   const [ready, setReady] = useState(false);
@@ -350,7 +351,7 @@ const EditorField = ({
       const { data, catchUp } = client.snapshot();
       // Remote content is untrusted: it is sanitised with the shared policy
       // before Editor.js renders it.
-      const shared = prepareEditorValue(data).data || { time: data.time, blocks: [], version: data.version };
+      const shared = prepareRemoteData(data, remoteCacheRef.current);
       // The first room state only shows what is stored (normalised); it must
       // not mark the form as changed. Later remote edits do.
       const first = !syncedOnceRef.current;
