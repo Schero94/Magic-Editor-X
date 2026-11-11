@@ -1,6 +1,21 @@
 # Changelog
 
-## [Unreleased]
+# [2.0.0](https://github.com/Schero94/Magic-Editor-X/compare/v1.6.0...v2.0.0) (2026-11-11)
+
+
+* feat!: Magic Editor X 2.0 — free, Strapi-native, secure and multi-instance ([#3](https://github.com/Schero94/Magic-Editor-X/issues/3)) ([ea10d76](https://github.com/Schero94/Magic-Editor-X/commit/ea10d76258dc524a3f4f373dba2604637b2a3626))
+
+
+### BREAKING CHANGES
+
+* The license system, its settings pages and routes are
+removed. Admin routes changed (collaboration sessions, history replaces
+snapshots, collaboration grants removed), five new RBAC actions must be
+granted to roles, configuration keys were renamed or removed, Raw HTML is
+sanitised by default and values are validated and sanitised on save.
+Requires Strapi 5.38+ and Node 22 or 24. See the 2.0 migration guide in
+CHANGELOG.md.
+
 
 Magic Editor X 2.0 is a major release. It is free and MIT licensed: the license system, tiers and limits are gone and every feature is available to everyone. Stored content from 1.x keeps rendering and editing. Routes, permissions and configuration changed; follow the migration guide below.
 
