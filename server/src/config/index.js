@@ -80,6 +80,16 @@ const defaults = {
     /** Snapshots kept per field and locale; older ones are removed. */
     maxSnapshotsPerField: 50,
   },
+  qualityChecks: {
+    externalLinks: {
+      /** Let the quality panel check external links (outgoing requests through the SSRF-safe fetcher). Owner opt-in. */
+      enabled: false,
+      /** Time limit per request (and per redirect hop). */
+      timeoutMs: 5000,
+      /** External URLs one admin may check per minute, shared by all processes. */
+      perMinute: 30,
+    },
+  },
   links: {
     /**
      * href of internal links, e.g. '/{locale}/{collection}/{slug}' or 'https://www.example.com/{collection}/{documentId}'.
@@ -139,6 +149,13 @@ const configSchema = z.looseObject({
     }),
   }),
   history: z.looseObject({ maxSnapshotsPerField: positiveInt(1000) }),
+  qualityChecks: z.looseObject({
+    externalLinks: z.looseObject({
+      enabled: z.boolean(),
+      timeoutMs: z.number().int().min(1000).max(15000),
+      perMinute: positiveInt(1000),
+    }),
+  }),
   links: z.looseObject({
     urlPattern: z.string().max(MAX_LINK_PATTERN_LENGTH).refine(isValidLinkPattern),
   }),

@@ -46,6 +46,7 @@ module.exports = ({ strapi }) => ({
           attachmentTypes: service(strapi, 'editor').attachmentTypes(),
         },
         linkPreview: conf('linkPreview.enabled', true) !== false,
+        quality: { externalLinks: conf('qualityChecks.externalLinks.enabled', false) === true },
         rawHtml: conf('rawHtml', 'sanitize'),
         permissions: {
           collaborate: can(ACTIONS.collaborate),

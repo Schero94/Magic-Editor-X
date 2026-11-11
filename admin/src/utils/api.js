@@ -12,6 +12,7 @@ export const API = {
   contentTypes: '/magic-editor-x/content-types',
   linkTypes: '/magic-editor-x/links/types',
   linkSearch: '/magic-editor-x/links/search',
+  qualityLinks: '/magic-editor-x/quality/links',
   customBlocks: '/magic-editor-x/custom-blocks',
   customBlocksExport: '/magic-editor-x/custom-blocks/export',
   customBlocksImport: '/magic-editor-x/custom-blocks/import',

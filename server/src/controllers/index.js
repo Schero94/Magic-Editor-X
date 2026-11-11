@@ -9,4 +9,5 @@ module.exports = {
   ai: require('./ai'),
   settings: require('./settings'),
   links: require('./links'),
+  quality: require('./quality'),
 };
