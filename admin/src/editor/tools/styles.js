@@ -418,7 +418,8 @@ export const editorStyles = css`
       display: flex;
       flex-direction: column;
       gap: ${s(2)};
-      width: min(36rem, calc(100vw - ${s(8)}));
+      width: 100%;
+      min-width: 0;
       border-top: 1px solid ${c('neutral150')};
       padding-top: ${s(2)};
 
@@ -429,7 +430,7 @@ export const editorStyles = css`
 
     .mex-link-picker__controls {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+      grid-template-columns: minmax(0, 1fr);
       gap: ${s(2)};
     }
 

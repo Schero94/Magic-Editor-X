@@ -309,10 +309,12 @@ export const createCollabClient = ({
         if (state.canEdit) replica.rebase(base, local);
       }
       setState({ status: 'live' });
+      // Later syncs render only when they changed something (the replica
+      // reports that through onShouldRender).
       Promise.resolve(first && typeof onFirstSync === 'function' ? onFirstSync(seededBySelf) : null)
         .catch(() => null)
         .then(() => {
-          notifyRemote();
+          if (first) notifyRemote();
           flush();
         });
     });

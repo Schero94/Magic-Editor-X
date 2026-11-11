@@ -9,7 +9,7 @@ import { buildTools, editorI18n, createUndoManager, createDragDrop } from '../..
 import { editorStyles } from '../../editor/tools/styles';
 import { createCspGuard } from '../../editor/tools/csp-guard';
 import { prepareEditorValue, prepareRemoteData, sanitizeInline } from '../../editor/sanitize';
-import { applyToEditor, rememberBlocks } from '../../editor/apply-remote';
+import { applyToEditor, blockKey, rememberBlocks } from '../../editor/apply-remote';
 import { computeStats } from '../../../../shared/editor-data.mjs';
 import { stableStringify } from '../../../../shared/ydoc.mjs';
 import { useEditorConfig } from '../../hooks/useEditorConfig';
@@ -366,7 +366,16 @@ const EditorField = ({
       const { data, catchUp } = client.snapshot();
       // Remote content is untrusted: it is sanitised with the shared policy
       // before Editor.js renders it.
+      // Blocks whose shared content equals what this editor itself produced are
+      // the user's own edits: they are not rendered again (that would move the
+      // caret and close open tool panels when the sanitiser normalises them).
+      const own = new Set(
+        data.blocks.filter((block) => knownRef.current.get(block.id) === blockKey(block)).map((b) => b.id)
+      );
       const shared = prepareRemoteData(data, remoteCacheRef.current);
+      shared.blocks.forEach((block) => {
+        if (own.has(block.id)) knownRef.current.set(block.id, blockKey(block));
+      });
       // The first room state only shows what is stored (normalised); it must
       // not mark the form as changed. Later remote edits do.
       const first = !syncedOnceRef.current;
