@@ -331,7 +331,7 @@ test('links service searches the title inside the permission query and renders h
   });
   assert.equal(find.locale, 'en');
   assert.equal(find.status, 'draft');
-  assert.deepEqual(find.fields, ['documentId', 'title', 'slug']);
+  assert.deepEqual(find.fields, ['documentId', 'locale', 'title', 'slug']);
   assert.equal(find.start, 20);
   assert.equal(find.limit, 20);
   assert.deepEqual(calls[1].count.filters, find.filters, 'count uses the same filters');
@@ -352,7 +352,7 @@ test('links service never searches or returns a title the caller cannot read', a
   assert.equal(result.data[0].locale, 'de');
   assert.equal(result.data[0].href, '/articles/abc');
   assert.deepEqual(calls[0].findMany.filters.$and[1], { documentId: 'abc' });
-  assert.deepEqual(calls[0].findMany.fields, ['documentId', 'slug']);
+  assert.deepEqual(calls[0].findMany.fields, ['documentId', 'locale', 'slug']);
 });
 
 test('links service uses the first text attribute when mainField is not text', async () => {

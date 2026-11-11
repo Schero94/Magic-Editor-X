@@ -116,7 +116,9 @@ module.exports = ({ strapi }) => {
       const canTitle = Boolean(titleField) && !pc.cannot.read(null, titleField);
       const slugField = slugFieldFor(contentType);
       const canSlug = Boolean(slugField) && !pc.cannot.read(null, slugField);
-      const fields = ['documentId'];
+      // `locale` must be selected: locale permissions are conditions that
+      // sanitizeOutput evaluates on the row (without it every field is dropped).
+      const fields = effectiveLocale ? ['documentId', 'locale'] : ['documentId'];
       if (canTitle) fields.push(titleField);
       if (canSlug && slugField !== titleField) fields.push(slugField);
 
