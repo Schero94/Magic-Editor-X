@@ -29,6 +29,7 @@ shared/                      pure ESM used by server and admin
   editor-data.mjs            normalise stored values, limits, stats
   sanitize-policy.mjs        per-block content policy
   ydoc.mjs                   Editor.js <-> Yjs mapping (schema 2), 1.x state conversion
+  csp.mjs                    admin CSP inspection (strapi::security) and violation matching
 admin/src/
   index.js                   custom field, settings links, translations
   components/EditorField/    field input, toolbar, history modal, AI dialog, collaboration hook
@@ -111,6 +112,7 @@ Details:
 - Access denied or missing document: 404. Viewer trying to write a version: 403.
 - Custom block definition: `name` (`/^[a-zA-Z][a-zA-Z0-9_-]{1,49}$/`, not a built-in tool name, unique case-insensitively), `label`, `blockType` (`simple` \| `embedded-entry`), `description`, `icon` (SVG, sanitised), `contentType`, `displayFields`, `titleField`, `previewFields`, `fields` (max 20: `name`, `label`, `type` text \| textarea \| url \| number \| select \| checkbox \| image \| color, `required`, `placeholder`, `default`, `options`), `template` (HTML with `{{field}}`, sanitised), `placeholder`, `styles` (allow-listed CSS properties), `inlineToolbar`, `tunes`, `shortcut`, `sortOrder`, `enabled`. Unknown keys are rejected.
 - AI actions: `improve`, `grammar`, `shorten`, `expand`, `summarize`, `simplify`, `translate` (`language` one of English, German, French, Spanish, Portuguese, Italian, Dutch, Polish, Turkish, Japanese, Chinese), `tone` (`tone` one of professional, friendly, casual, confident, formal, persuasive), `continue`. Unknown action 404, text over `maxInputChars` 413, rate limit 429. Provider errors: `{ error: { name: 'AIProviderError', details: { code } } }` with codes `DISABLED` 503, `NOT_CONFIGURED` 503, `NO_API_KEY` 503, `AUTH_FAILED` 502, `PROVIDER_RATE_LIMIT` 503, `TIMEOUT` 504, `REFUSED` 422, `PROVIDER_ERROR`/others 502.
+- Settings `environment.csp`: `{ active, frameSrcMissing: string[], imgSrcMissing, snippet }` from `shared/csp.mjs` `inspectCsp(strapi.config.get('middlewares'))`, computed once at bootstrap. Only CSP sources are returned. The plugin never changes the CSP; `admin/src/editor/tools/csp-guard.js` shows a DOM-only placeholder (`data-mutation-free`) for blocked embeds and images.
 - Settings: changing `provider` or `baseUrl` while a key is stored requires `apiKey` in the same request. `apiKey: ''` removes the stored key. Storing a key needs `MAGIC_EDITOR_X_ENCRYPTION_KEY` (or `encryptionKey`) with 32+ characters.
 
 ## Collaboration protocol

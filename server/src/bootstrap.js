@@ -35,6 +35,18 @@ module.exports = async ({ strapi }) => {
     logger.error('database setup failed', error);
   }
 
+  // The plugin never changes the CSP; it only tells the owner what the editor preview needs.
+  try {
+    const csp = plugin.service('settings').inspectAdminCsp();
+    if (csp.frameSrcMissing.length || csp.imgSrcMissing) {
+      logger.debug(
+        'the admin Content Security Policy blocks some editor embeds or external images; Settings > Magic Editor X > Configuration shows the sources to add'
+      );
+    }
+  } catch (error) {
+    logger.error('the admin Content Security Policy could not be inspected', error);
+  }
+
   if (strapi.config.get('plugin::magic-editor-x.api.autoParseJSON') !== false) {
     strapi.server.use(plugin.middleware('parse-editor-fields')({}, { strapi }));
   }
