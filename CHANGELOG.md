@@ -33,6 +33,13 @@ Magic Editor X 2.1 makes live collaboration conflict-free for every kind of bloc
 - `ai.requestsPerMinute` is counted per admin across all processes (was per process).
 - Presence colours are Design System colour families instead of fixed hex values.
 
+### Fixed
+
+- Opening 1.x content no longer marks the form as changed.
+- Enter in the link-preview and image-URL fields no longer adds an empty block.
+- Automatic versions during live editing are taken when each period ends, not a few seconds after someone starts typing.
+- The tamper check of the AES-GCM unit test no longer fails in 1 of 64 runs.
+
 ### Security
 
 - See [docs/security-audit-2.1.md](./docs/security-audit-2.1.md): sanitising of remote content before rendering (MEX-21-01), update validation (MEX-21-02, -03), permission changes within seconds (MEX-21-04), rate limits (MEX-21-05, -06), protocol check (MEX-21-07), presence (MEX-21-08), no lost edits (MEX-21-09).
