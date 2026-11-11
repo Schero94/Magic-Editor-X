@@ -1,0 +1,131 @@
+[
+  {
+    "type": "header",
+    "data": {
+      "text": "Planting guide",
+      "level": 1
+    }
+  },
+  {
+    "type": "paragraph",
+    "data": {
+      "text": "Intro with <b>bold</b>, <i>italic</i>, <code class=\"inline-code\">inline&lt;code&gt;</code>, <mark class=\"cdx-marker\">marked</mark>, H<sub>2</sub>O and x<sup>2</sup>.<br>Second line with <a href=\"/guides/soil\">a relative link</a>."
+    }
+  },
+  {
+    "type": "image",
+    "data": {
+      "file": {
+        "url": "https://cdn.example.com/uploads/seedling.jpg",
+        "alt": "Seedling in a pot",
+        "width": 800,
+        "height": 600
+      },
+      "caption": "A <i>healthy</i> seedling",
+      "withBorder": false,
+      "withBackground": false,
+      "stretched": false
+    }
+  },
+  {
+    "type": "quote",
+    "data": {
+      "text": "Water early.<br>Not at noon.",
+      "caption": "",
+      "alignment": "left"
+    }
+  },
+  {
+    "type": "list",
+    "data": {
+      "style": "ordered",
+      "meta": {
+        "start": 3,
+        "counterType": "numeric"
+      },
+      "items": [
+        {
+          "content": "Dig",
+          "meta": {},
+          "items": []
+        },
+        {
+          "content": "Plant",
+          "meta": {},
+          "items": [
+            {
+              "content": "Small seeds",
+              "meta": {},
+              "items": []
+            },
+            {
+              "content": "Large seeds",
+              "meta": {},
+              "items": []
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "type": "checklist",
+    "data": {
+      "items": [
+        {
+          "text": "Buy soil",
+          "checked": true
+        },
+        {
+          "text": "Buy pots",
+          "checked": false
+        }
+      ]
+    }
+  },
+  {
+    "type": "codeFlask",
+    "data": {
+      "code": "def water(plant):\n    return plant < 3",
+      "language": "python"
+    }
+  },
+  {
+    "type": "code",
+    "data": {
+      "code": "plain   text\n  block"
+    }
+  },
+  {
+    "type": "delimiter",
+    "data": {}
+  },
+  {
+    "type": "embed",
+    "data": {
+      "service": "youtube",
+      "source": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+      "embed": "https://www.youtube.com/embed/dQw4w9WgXcQ",
+      "width": 580,
+      "height": 320,
+      "caption": ""
+    }
+  },
+  {
+    "type": "table",
+    "data": {
+      "withHeadings": true,
+      "stretched": false,
+      "content": [
+        ["Plant", "Days"],
+        ["Bean", "60"]
+      ]
+    }
+  },
+  {
+    "type": "paragraph",
+    "data": {
+      "text": "Loose <b>text</b> in a div"
+    }
+  }
+]

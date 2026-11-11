@@ -52,10 +52,14 @@
     "./schema": "./schema/magic-editor-x.schema.json",
     "./types": "./types/index.d.ts"
   },
+  "bin": {
+    "magic-editor-x": "bin/magic-editor-x.mjs"
+  },
   "files": [
     "dist",
     "schema",
     "types",
+    "bin",
     "strapi-admin.js",
     "strapi-server.js",
     "README.md",
@@ -98,9 +102,11 @@
     "@editorjs/raw": "^2.5.1",
     "@editorjs/table": "^2.4.6",
     "@editorjs/warning": "^1.4.1",
-    "editorjs-indent-tune": "^1.4.4",
     "dompurify": "^3.4.17",
+    "editorjs-indent-tune": "^1.4.4",
+    "htmlparser2": "^12.0.0",
     "ipaddr.js": "^2.5.0",
+    "marked": "^18.2.0",
     "open-graph-scraper": "^6.13.0",
     "prismjs": "^1.30.0",
     "sanitize-html": "^2.18.1",

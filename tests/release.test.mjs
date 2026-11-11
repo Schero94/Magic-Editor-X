@@ -136,6 +136,7 @@ test('the package ships only build output, the data contract and the top-level d
     'dist',
     'schema',
     'types',
+    'bin',
     'strapi-admin.js',
     'strapi-server.js',
     'README.md',
@@ -144,6 +145,9 @@ test('the package ships only build output, the data contract and the top-level d
   ]);
   for (const entry of pkg.files) assert.doesNotMatch(entry, /docs|tests|pics|scripts/);
   assert.equal(pkg.name, 'magic-editor-x');
+  // The CLI is self-contained (Node built-ins and the project's own @strapi/strapi).
+  assert.deepEqual(pkg.bin, { 'magic-editor-x': 'bin/magic-editor-x.mjs' });
+  assert.doesNotMatch(read('bin/magic-editor-x.mjs'), /from '\.\.?\//);
   assert.equal(pkg.homepage, 'https://schero94.github.io/Magic-Editor-X/');
   // strapi-plugin build requires `source` and `default`; types sit next to the bundles (dist/render/index.d.ts, .d.mts).
   assert.deepEqual(pkg.exports['./render'], {

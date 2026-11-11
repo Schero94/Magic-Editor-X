@@ -3,12 +3,17 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { build } from 'esbuild';
 
 const packageJson = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
-const externals = new Set([
-  ...builtinModules,
-  ...builtinModules.map((name) => `node:${name}`),
-  ...Object.keys(packageJson.dependencies || {}),
-  ...Object.keys(packageJson.peerDependencies || {}),
-]);
+// ESM-only dependencies are bundled so the CommonJS server entry never has to
+// require() an ES module (Node 22 before 22.12 cannot).
+const BUNDLED = new Set(['marked', 'htmlparser2']);
+const externals = new Set(
+  [
+    ...builtinModules,
+    ...builtinModules.map((name) => `node:${name}`),
+    ...Object.keys(packageJson.dependencies || {}),
+    ...Object.keys(packageJson.peerDependencies || {}),
+  ].filter((name) => !BUNDLED.has(name))
+);
 
 const commonOptions = {
   entryPoints: ['server/src/index.js'],
