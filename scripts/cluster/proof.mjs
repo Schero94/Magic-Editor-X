@@ -18,14 +18,18 @@
  * (zero lost edits), no client has unsent edits, a fresh client sees the same
  * state; time-bucket and session-end versions exist exactly once per key; a
  * permission change reaches a client on another process within the SLA; the
- * AI rate limit is shared by all processes.
+ * AI rate limit is shared by all processes; field presets are enforced by
+ * every process (save and live channel) when the app has the `teaser` field
+ * with `{ preset: 'minimal' }` (see CONTRIBUTING.md).
  * Prints a result table and exits non-zero on any failure.
  */
 import crypto from 'node:crypto';
 import http from 'node:http';
 import { io } from 'socket.io-client';
 import pg from 'pg';
+import * as Y from 'yjs';
 import { loadCollabClient, simulatedEditor, ioRef } from './node-client.mjs';
+import { applyEditorDataToDoc } from '../../shared/ydoc.mjs';
 
 ioRef.io = io;
 const { createCollabClient } = await loadCollabClient();
@@ -402,6 +406,131 @@ if (process.env.MEX_COMPACT_IDLE_S) {
   );
   late.client.destroy();
   await pgdb.end();
+}
+
+// --- field presets on every process -------------------------------------------
+// `teaser` has `{ preset: 'minimal' }`: no headings. Every process must refuse a
+// heading on save and over its realtime channel, and accept a paragraph.
+{
+  const probe = await call(BALANCER, 'POST', '/content-manager/collection-types/api::article.article', {
+    token,
+    body: {
+      title: 'Cluster preset',
+      teaser: { time: 1, version: '2.31.7', blocks: [{ id: 't1', type: 'paragraph', data: { text: 'hi' } }] },
+    },
+  });
+  if (probe.status === 201 && probe.body.data.teaser) {
+    const presetTarget = {
+      uid: 'api::article.article',
+      documentId: probe.body.data.documentId,
+      locale: 'en',
+      field: 'teaser',
+    };
+    const heading = {
+      time: 2,
+      version: '2.31.7',
+      blocks: [{ id: 'h1', type: 'header', data: { text: 'H', level: 2 } }],
+    };
+    let saves = 0;
+    let live = 0;
+    let accepted = 0;
+    for (const port of ports) {
+      const saved = await call(
+        url(port),
+        'PUT',
+        `/content-manager/collection-types/api::article.article/${presetTarget.documentId}?plugins[i18n][locale]=en`,
+        {
+          token,
+          body: { title: 'Cluster preset', teaser: heading },
+        }
+      );
+      if (saved.status === 400 && saved.body.error.details.code === 'PRESET_VIOLATION') saves += 1;
+      const sess = await call(url(port), 'POST', '/magic-editor-x/collaboration/session', {
+        token,
+        body: presetTarget,
+      });
+      if (sess.status !== 200) continue;
+      const ydoc = new Y.Doc();
+      const socket = io(url(port), {
+        path: sess.body.data.path,
+        transports: ['websocket'],
+        auth: { token: sess.body.data.token, protocol: 3 },
+        reconnection: false,
+      });
+      await new Promise((resolve) => {
+        socket.on('mx:sync', ({ update }) => {
+          Y.applyUpdate(ydoc, new Uint8Array(update));
+          resolve();
+        });
+        setTimeout(resolve, 5000);
+      });
+      const send = (blocks) => {
+        const scratch = new Y.Doc();
+        Y.applyUpdate(scratch, Y.encodeStateAsUpdate(ydoc));
+        const before = Y.encodeStateVector(scratch);
+        applyEditorDataToDoc(scratch, { time: 3, version: '2.31.7', blocks });
+        const update = Y.encodeStateAsUpdate(scratch, before);
+        return new Promise((resolve) =>
+          socket.timeout(5000).emit('mx:update', update, (error, reply) => resolve(error ? {} : reply))
+        );
+      };
+      const current = () => {
+        const order = ydoc.getArray('order').toArray();
+        return order.map((id) => ({
+          id,
+          type: ydoc.getMap('blocks').get(id).get('type'),
+          data: { text: String(ydoc.getMap('blocks').get(id).get('data').get('text') || '') },
+        }));
+      };
+      const refused = await send([
+        ...current(),
+        { id: `h${port}`, type: 'header', data: { text: 'H', level: 2 } },
+      ]);
+      if (refused && refused.ok === false && refused.code === 'INVALID_UPDATE') live += 1;
+      socket.disconnect();
+      const sess2 = await call(url(port), 'POST', '/magic-editor-x/collaboration/session', {
+        token,
+        body: presetTarget,
+      });
+      const socket2 = io(url(port), {
+        path: sess2.body.data.path,
+        transports: ['websocket'],
+        auth: { token: sess2.body.data.token, protocol: 3 },
+        reconnection: false,
+      });
+      const fresh = new Y.Doc();
+      await new Promise((resolve) => {
+        socket2.on('mx:sync', ({ update }) => {
+          Y.applyUpdate(fresh, new Uint8Array(update));
+          resolve();
+        });
+        setTimeout(resolve, 5000);
+      });
+      Y.applyUpdate(ydoc, Y.encodeStateAsUpdate(fresh));
+      const ok = await new Promise((resolve) => {
+        const scratch = new Y.Doc();
+        Y.applyUpdate(scratch, Y.encodeStateAsUpdate(fresh));
+        const before = Y.encodeStateVector(scratch);
+        applyEditorDataToDoc(scratch, {
+          time: 4,
+          version: '2.31.7',
+          blocks: [...current(), { id: `p${port}`, type: 'paragraph', data: { text: `from ${port}` } }],
+        });
+        socket2
+          .timeout(5000)
+          .emit('mx:update', Y.encodeStateAsUpdate(scratch, before), (error, reply) =>
+            resolve(error ? {} : reply)
+          );
+      });
+      if (ok && ok.ok) accepted += 1;
+      socket2.disconnect();
+    }
+    record(
+      'field presets are enforced by every process (save and live channel)',
+      saves === ports.length && live === ports.length && accepted === ports.length,
+      `save refused ${saves}/${ports.length}, live heading refused ${live}/${ports.length}, paragraph accepted ${accepted}/${ports.length}`
+    );
+  }
 }
 
 // --- permission revocation across processes ------------------------------------
