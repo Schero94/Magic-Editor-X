@@ -32,7 +32,7 @@ export const createFocalControl = ({ t, url = '', point, readOnly = false, onCha
 
   const img = el('img', {
     className: 'mex-focal__img',
-    attrs: { alt: '', draggable: 'false', loading: 'lazy' },
+    attrs: { alt: '', draggable: 'false' },
   });
   const marker = el('span', { className: 'mex-focal__marker', attrs: { 'aria-hidden': 'true' } });
   const surface = el('div', {
@@ -65,6 +65,11 @@ export const createFocalControl = ({ t, url = '', point, readOnly = false, onCha
     children: [surface, value, ...(readOnly ? [] : [hint]), actions],
   });
   const wrapper = el('div', { className: 'mex-focal', children: [toggle, panel] });
+  // Enter/Space on the buttons must press them, not create or move Editor.js blocks.
+  wrapper.addEventListener('keydown', (event) => {
+    if (event.target !== surface && ['Enter', ' ', 'Tab', 'Backspace', 'Delete'].includes(event.key))
+      event.stopPropagation();
+  });
 
   const show = () => {
     const percent = focalPercent(current);
@@ -86,8 +91,11 @@ export const createFocalControl = ({ t, url = '', point, readOnly = false, onCha
     onChange(current);
   };
 
+  let source = '';
   toggle.addEventListener('click', () => {
     const open = panel.hidden;
+    // The preview loads when the picker opens for the first time (a gallery has up to 50 images).
+    if (open && source && img.getAttribute('src') !== source) img.setAttribute('src', source);
     panel.hidden = !open;
     toggle.setAttribute('aria-expanded', String(open));
     if (open && !readOnly) surface.focus();
@@ -113,9 +121,10 @@ export const createFocalControl = ({ t, url = '', point, readOnly = false, onCha
   }
 
   const setUrl = (next) => {
-    if (typeof next === 'string' && next) img.setAttribute('src', next);
-    else img.removeAttribute('src');
-    wrapper.hidden = !next;
+    source = typeof next === 'string' ? next : '';
+    if (!source) img.removeAttribute('src');
+    else if (!panel.hidden) img.setAttribute('src', source);
+    wrapper.hidden = !source;
   };
   setUrl(url);
   show();

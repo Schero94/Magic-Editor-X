@@ -113,6 +113,13 @@ class MediaBaseTool {
 
   constructor({ data, api, config, readOnly, block }) {
     this.api = api;
+    this.guardKeys = (event) => {
+      // Buttons, selects and checkboxes of the tool handle Enter/Space/Tab themselves;
+      // Editor.js would otherwise add or move blocks. Captions (contenteditable) keep Editor.js keys.
+      const target = event.target;
+      if (target && target.isContentEditable) return;
+      if (['Enter', ' ', 'Tab', 'Backspace', 'Delete'].includes(event.key)) event.stopPropagation();
+    };
     this.config = config || {};
     this.readOnly = Boolean(readOnly);
     this.block = block;
@@ -185,8 +192,9 @@ class MediaBaseTool {
       placeholder,
       label: placeholder,
       readOnly: this.readOnly,
-      className: 'mex-tool__caption mex-media__caption',
+      className: 'mex-tool__caption',
     });
+    node.classList.add('mex-media__caption');
     node.addEventListener('input', () => {
       onInput(node.innerHTML);
       this.changed();
@@ -209,6 +217,7 @@ export class GalleryTool extends MediaBaseTool {
 
   render() {
     this.wrapper = el('div', { className: 'mex-gallery-tool' });
+    this.wrapper.addEventListener('keydown', this.guardKeys);
     this.draw();
     return this.wrapper;
   }
@@ -455,7 +464,8 @@ class PlayerTool extends MediaBaseTool {
   }
 
   render() {
-    this.wrapper = el('div', { className: `mex-media mex-media--${this.kind}` });
+    this.wrapper = el('div', { className: ['mex-media', `mex-media--${this.kind}`] });
+    this.wrapper.addEventListener('keydown', this.guardKeys);
     this.draw();
     return this.wrapper;
   }

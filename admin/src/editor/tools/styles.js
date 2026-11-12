@@ -1135,6 +1135,14 @@ export const editorStyles = css`
       margin-bottom: ${s(2)};
     }
 
+    /* The image tool positions its caption absolutely over a bottom padding that
+       Editor.js' block padding overrides; in flow it cannot cover the alt text and
+       focal point controls. */
+    .image-tool--caption .image-tool__caption {
+      position: static;
+      margin: 0;
+    }
+
     .mex-focal__panel {
       display: flex;
       flex-direction: column;
@@ -1149,8 +1157,8 @@ export const editorStyles = css`
 
     .mex-focal__surface {
       position: relative;
-      display: inline-block;
-      max-width: min(100%, 36rem);
+      display: block;
+      width: min(100%, 36rem);
       cursor: crosshair;
       border-radius: ${radius};
       line-height: 0;
@@ -1163,7 +1171,7 @@ export const editorStyles = css`
 
     .mex-focal__img {
       display: block;
-      max-width: 100%;
+      width: 100%;
       height: auto;
       border-radius: ${radius};
       user-select: none;
