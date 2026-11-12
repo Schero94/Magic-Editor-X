@@ -74,3 +74,8 @@ test('remote collaboration content is sanitised before the editor renders it (ME
   const sanitize = readFileSync(join(root, 'editor/sanitize.js'), 'utf8');
   assert.match(sanitize, /export const prepareRemoteData[\s\S]*prepareEditorValue\(/);
 });
+
+test('internal-link attributes survive the admin sanitiser (DOMPurify treats them as URI-safe)', () => {
+  const source = sources.find(([file]) => file === 'editor/sanitize.js')[1];
+  assert.match(source, /ADD_URI_SAFE_ATTR:\s*\[\.\.\.INTERNAL_LINK_ATTRIBUTES\]/);
+});

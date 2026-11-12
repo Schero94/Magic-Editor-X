@@ -3,6 +3,7 @@
 const { errors } = require('@strapi/utils');
 const { isEditorAttribute } = require('./editor-fields');
 const { createLogger } = require('./logger');
+const { formErrorDetails } = require('./form-errors');
 
 /**
  * Optional publish guard of the field preset (`options.publishGuard`).
@@ -172,10 +173,14 @@ const registerPublishGuard = (strapi) => {
     const issues = await blockingIssues(strapi, contentType, documents);
     if (issues.length) {
       logger.info('publication stopped by the quality checks', { count: issues.length });
-      throw new errors.ValidationError('Quality checks failed for a Magic Editor X field', {
-        code: 'QUALITY_GATE',
-        issues,
-      });
+      throw new errors.ValidationError(
+        'Quality checks failed for a Magic Editor X field',
+        formErrorDetails(
+          'QUALITY_GATE',
+          issues.map((issue) => issue.field),
+          { issues }
+        )
+      );
     }
     return next();
   });

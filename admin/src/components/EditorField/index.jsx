@@ -664,7 +664,8 @@ const EditorField = ({
           holder: holderRef.current,
           editor,
           getPreset: () => (presetRef.current.restricted ? presetRef.current : null),
-          hasTool: (name) => toolNames.has(name),
+          // bold and italic are Editor.js core tools, not entries of `tools`.
+          hasTool: (name) => toolNames.has(name) || name === 'bold' || name === 'italic',
           onConverted: markTouched,
         });
         setReady(true);

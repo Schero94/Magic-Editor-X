@@ -70,6 +70,11 @@ export const sanitizeInline = (html) =>
     ALLOWED_TAGS: [...INLINE_TAGS],
     ALLOWED_ATTR,
     ALLOW_DATA_ATTR: false,
+    // DOMPurify checks attribute values like URIs; `api::article.article` looks
+    // like an unknown scheme and was dropped, which removed the entry reference
+    // of internal links whenever content was shown again. The values are
+    // validated by cleanInternalLinkAttributes in the hook above.
+    ADD_URI_SAFE_ATTR: [...INTERNAL_LINK_ATTRIBUTES],
   });
 
 /**

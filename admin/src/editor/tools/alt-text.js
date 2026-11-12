@@ -139,7 +139,11 @@ export class MexImageTool extends ImageTool {
    */
   render() {
     const wrapper = super.render();
-    wrapper.appendChild(this.mexAlt.element);
+    // The caption is absolutely positioned at the bottom of the wrapper; the
+    // alternative text goes before it, in normal flow below the image.
+    const caption = this.ui && this.ui.nodes && this.ui.nodes.caption;
+    if (caption && caption.parentNode === wrapper) wrapper.insertBefore(this.mexAlt.element, caption);
+    else wrapper.appendChild(this.mexAlt.element);
     return wrapper;
   }
 

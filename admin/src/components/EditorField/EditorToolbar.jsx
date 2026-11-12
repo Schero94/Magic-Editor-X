@@ -37,14 +37,9 @@ import { peerFamily } from './RemoteCarets';
 const WORDS_PER_MINUTE = 200;
 
 const CountBadge = styled.span`
-  position: relative;
   display: inline-flex;
-  & > span {
-    position: absolute;
-    top: -${({ theme }) => theme.spaces[1]};
-    inset-inline-end: -${({ theme }) => theme.spaces[1]};
-    pointer-events: none;
-  }
+  align-items: center;
+  gap: ${({ theme }) => theme.spaces[1]};
 `;
 
 const Bar = styled(Flex)`
@@ -217,8 +212,8 @@ export const EditorToolbar = ({
               <Badge
                 size="S"
                 aria-hidden="true"
-                backgroundColor={qualityCount.errors ? 'danger600' : 'warning600'}
-                textColor="neutral0"
+                backgroundColor={qualityCount.errors ? 'danger100' : 'warning100'}
+                textColor={qualityCount.errors ? 'danger700' : 'neutral800'}
               >
                 {qualityCount.total > 99 ? '99+' : qualityCount.total}
               </Badge>

@@ -259,6 +259,11 @@ test('the save middleware enforces presets for every writer, incl. components', 
         ]
       );
       assert.doesNotMatch(JSON.stringify(error.details), /Secret/);
+      // The Content Manager shows `details.errors` on the form fields.
+      assert.deepEqual(
+        error.details.errors.map((item) => item.path),
+        [['body'], ['teasers', '0', 'text']]
+      );
       return true;
     }
   );

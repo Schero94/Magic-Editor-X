@@ -55,17 +55,50 @@ export const createMarkdownShortcuts = ({ holder, editor, getPreset, hasTool, on
     event.preventDefault();
     event.stopPropagation();
     editor.blocks.insert(block.type, block.data, undefined, current.index, true, true);
-    window.requestAnimationFrame(() => {
-      try {
-        editor.caret.setToBlock(current.index, 'start');
-      } catch {
-        // the block may still be rendering; the caret stays where Editor.js put it
-      }
-    });
+    // Put the caret into the new block right away, so the next keystroke
+    // (which may follow within milliseconds) lands there.
+    let placed = false;
+    try {
+      placed = editor.caret.setToBlock(current.index, 'start');
+    } catch {
+      placed = false;
+    }
+    if (!placed)
+      window.requestAnimationFrame(() => {
+        try {
+          editor.caret.setToBlock(current.index, 'start');
+        } catch {
+          // the block is still rendering; the caret stays where Editor.js put it
+        }
+      });
     if (onConverted) onConverted();
   };
 
+  // After an inline mark is created the caret sits in a zero-width space
+  // behind it, so typing continues outside the mark. The space is removed
+  // as soon as the next character arrives (or when the editor loses focus).
+  let spacer = null;
+  const dropSpacer = () => {
+    if (!spacer) return;
+    const node = spacer;
+    spacer = null;
+    if (!node.isConnected || !node.data.includes('\u200b')) return;
+    const selection = window.getSelection();
+    const inside = selection && selection.anchorNode === node;
+    const offset = inside ? selection.anchorOffset : 0;
+    const before = node.data.slice(0, offset).split('\u200b').length - 1;
+    node.data = node.data.replace(/\u200b/g, '');
+    if (inside) {
+      const range = document.createRange();
+      range.setStart(node, Math.max(0, offset - before));
+      range.collapse(true);
+      selection.removeAllRanges();
+      selection.addRange(range);
+    } else if (!node.data) node.remove();
+  };
+
   const onInput = (event) => {
+    if (spacer && event.target && event.target.contains && event.target.contains(spacer)) dropSpacer();
     if (event.inputType !== 'insertText' || !['*', '_', '~', '`'].includes(event.data)) return;
     const selection = window.getSelection();
     if (!selection || selection.rangeCount === 0 || !selection.isCollapsed) return;
@@ -77,11 +110,8 @@ export const createMarkdownShortcuts = ({ holder, editor, getPreset, hasTool, on
     const match = matchInlineShortcut(node.data.slice(0, selection.anchorOffset));
     if (!match) return;
     const preset = getPreset();
-    if (
-      !hasTool(INLINE_TOOL_OF[match.tag]) ||
-      (preset && preset.inline && !preset.inline.includes(INLINE_TOOL_OF[match.tag]))
-    )
-      return;
+    const tool = INLINE_TOOL_OF[match.tag];
+    if (!hasTool(tool) || (preset && preset.inline && !preset.inline.includes(tool))) return;
     const range = document.createRange();
     range.setStart(node, match.start);
     range.setEnd(node, match.end);
@@ -90,20 +120,27 @@ export const createMarkdownShortcuts = ({ holder, editor, getPreset, hasTool, on
     element.textContent = match.text;
     range.deleteContents();
     range.insertNode(element);
+    dropSpacer();
+    spacer = document.createTextNode('\u200b');
+    element.after(spacer);
     const after = document.createRange();
-    after.setStartAfter(element);
+    after.setStart(spacer, 1);
     after.collapse(true);
     selection.removeAllRanges();
     selection.addRange(after);
     if (onConverted) onConverted();
   };
 
+  const onFocusOut = () => dropSpacer();
+
   holder.addEventListener('keydown', onKeyDown, true);
   holder.addEventListener('input', onInput);
+  holder.addEventListener('focusout', onFocusOut);
   return {
     destroy: () => {
       holder.removeEventListener('keydown', onKeyDown, true);
       holder.removeEventListener('input', onInput);
+      holder.removeEventListener('focusout', onFocusOut);
     },
   };
 };
