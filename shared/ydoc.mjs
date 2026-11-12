@@ -137,16 +137,15 @@ const MAX_DIFF_LENGTH = 200000;
 const MAX_DIFF_EDITS = 4000;
 
 /**
- * Character matches of a shortest edit script between two strings (Myers'
- * O(ND) algorithm).
- * @param {string} a - Old text.
- * @param {string} b - New text.
- * @returns {Int32Array|null} For every index of `a`, the index of the same character in `b` (-1 when deleted), or null when the texts are too long or too different.
+ * Matches of a shortest edit script between two sequences of integers
+ * (Myers' O(ND) algorithm).
+ * @param {ArrayLike<number>} a - Old sequence.
+ * @param {ArrayLike<number>} b - New sequence.
+ * @returns {Int32Array|null} For every index of `a`, the index of the same item in `b` (-1 when deleted), or null when the sequences are too different.
  */
-export const matchCharacters = (a, b) => {
+const matchSequences = (a, b) => {
   const n = a.length;
   const m = b.length;
-  if (n + m > MAX_DIFF_LENGTH) return null;
   const limit = Math.min(n + m, MAX_DIFF_EDITS);
   const offset = limit + 1;
   const v = new Int32Array(2 * limit + 3);
@@ -160,7 +159,7 @@ export const matchCharacters = (a, b) => {
           ? v[offset + k + 1]
           : v[offset + k - 1] + 1;
       let y = x - k;
-      while (x < n && y < m && a.charCodeAt(x) === b.charCodeAt(y)) {
+      while (x < n && y < m && a[x] === b[y]) {
         x += 1;
         y += 1;
       }
@@ -195,6 +194,206 @@ export const matchCharacters = (a, b) => {
     y -= 1;
     match[x] = y;
   }
+  return match;
+};
+
+/** UTF-16 code units of `text` from `start` to `end`. */
+const codeUnits = (text, start = 0, end = text.length) => {
+  const out = new Uint16Array(end - start);
+  for (let i = start; i < end; i += 1) out[i - start] = text.charCodeAt(i);
+  return out;
+};
+
+const WORD_CHARACTER = /[\p{L}\p{N}\p{M}_]/u;
+/** True for a code unit that belongs to a word (letters, digits, marks, underscore). */
+const isWordUnit = (code) =>
+  code < 128
+    ? (code >= 48 && code <= 57) || (code >= 65 && code <= 90) || (code >= 97 && code <= 122) || code === 95
+    : (code < 0xd800 || code > 0xdfff) && WORD_CHARACTER.test(String.fromCharCode(code));
+
+/**
+ * Words of a text (runs of letters, digits, marks and underscores).
+ * @param {string} text - Text.
+ * @returns {Array<[number, number]>} Start and end offset of every word.
+ */
+const wordRanges = (text) => {
+  const words = [];
+  let i = 0;
+  while (i < text.length) {
+    if (!isWordUnit(text.charCodeAt(i))) {
+      i += 1;
+      continue;
+    }
+    const start = i;
+    while (i < text.length && isWordUnit(text.charCodeAt(i))) i += 1;
+    words.push([start, i]);
+  }
+  return words;
+};
+
+/** Length of the common prefix plus the common suffix (not overlapping) of two strings. */
+const commonEnds = (a, b) => {
+  let prefix = 0;
+  const max = Math.min(a.length, b.length);
+  while (prefix < max && a.charCodeAt(prefix) === b.charCodeAt(prefix)) prefix += 1;
+  let suffix = 0;
+  while (suffix < max - prefix && a.charCodeAt(a.length - 1 - suffix) === b.charCodeAt(b.length - 1 - suffix))
+    suffix += 1;
+  return prefix + suffix;
+};
+
+const OPENING = new Set(['(', '[', '{', '<', '\u00bf', '\u00a1']);
+const CLOSING = new Set([')', ']', '}', '>', '.', ',', ';', ':', '!', '?']);
+const MAX_ATTACH_DISTANCE = 64;
+
+/**
+ * The word a punctuation character belongs to: the nearest word without
+ * whitespace in between, to the right for an opening character ("[" of
+ * "[word]"), to the left for a closing one, else the left one first.
+ * @param {string} text - Text.
+ * @param {number} at - Offset of the character.
+ * @returns {string} The word, or '' (whitespace, or no word nearby).
+ */
+const attachedWord = (text, at) => {
+  const char = text[at];
+  if (/\s/.test(char)) return '';
+  const find = (step) => {
+    for (let i = at + step, n = 0; i >= 0 && i < text.length && n < MAX_ATTACH_DISTANCE; i += step, n += 1) {
+      const code = text.charCodeAt(i);
+      if (isWordUnit(code)) {
+        let start = i;
+        let end = i + 1;
+        while (start > 0 && isWordUnit(text.charCodeAt(start - 1))) start -= 1;
+        while (end < text.length && isWordUnit(text.charCodeAt(end))) end += 1;
+        return text.slice(start, end);
+      }
+      if (/\s/.test(text[i])) return '';
+    }
+    return '';
+  };
+  if (OPENING.has(char)) return find(1);
+  if (CLOSING.has(char)) return find(-1);
+  return find(-1) || find(1);
+};
+
+/**
+ * Matches the characters of a region between two matched words: tokens
+ * (words and single other characters) first; the characters of a changed
+ * run only when both versions are the same text edited (they share at least
+ * half of the longer one at their start and end). Two different words are
+ * never matched character by character, so nothing is anchored inside a
+ * word that replaced another one.
+ * @param {string} a - Old text.
+ * @param {number} startA - Region start in `a`.
+ * @param {number} endA - Region end in `a`.
+ * @param {string} b - New text.
+ * @param {number} startB - Region start in `b`.
+ * @param {number} endB - Region end in `b`.
+ * @param {Int32Array} match - Receives the matches (indexes of `a` to indexes of `b`).
+ */
+const matchGap = (a, startA, endA, b, startB, endB, match) => {
+  const tokens = (text, start, end) => {
+    const starts = [];
+    let i = start;
+    while (i < end) {
+      starts.push(i);
+      if (isWordUnit(text.charCodeAt(i))) {
+        i += 1;
+        while (i < end && isWordUnit(text.charCodeAt(i))) i += 1;
+      } else i += 1;
+    }
+    starts.push(end);
+    return starts;
+  };
+  const startsA = tokens(a, startA, endA);
+  const startsB = tokens(b, startB, endB);
+  const ids = new Map();
+  const idsOf = (text, starts) =>
+    Int32Array.from({ length: starts.length - 1 }, (_, t) => {
+      let token = text.slice(starts[t], starts[t + 1]);
+      if (token.length === 1 && !isWordUnit(token.charCodeAt(0)))
+        token = `${token}\u0000${attachedWord(text, starts[t])}`;
+      let id = ids.get(token);
+      if (id === undefined) {
+        id = ids.size;
+        ids.set(token, id);
+      }
+      return id;
+    });
+  const pairs = matchSequences(idsOf(a, startsA), idsOf(b, startsB));
+  let ta = 0;
+  let tb = 0;
+  const run = (toA, toB) => {
+    if (toA <= ta || toB <= tb) return;
+    const fromA = startsA[ta];
+    const fromB = startsB[tb];
+    const oldText = a.slice(fromA, startsA[toA]);
+    const newText = b.slice(fromB, startsB[toB]);
+    if (commonEnds(oldText, newText) * 2 < Math.max(oldText.length, newText.length)) return;
+    const inner = matchSequences(codeUnits(oldText), codeUnits(newText));
+    if (!inner) return;
+    for (let i = 0; i < inner.length; i += 1) if (inner[i] >= 0) match[fromA + i] = fromB + inner[i];
+  };
+  if (pairs) {
+    for (let t = 0; t < pairs.length; t += 1) {
+      const u = pairs[t];
+      if (u < 0) continue;
+      run(t, u);
+      for (let c = startsA[t]; c < startsA[t + 1]; c += 1) match[c] = startsB[u] + c - startsA[t];
+      ta = t + 1;
+      tb = u + 1;
+    }
+  }
+  run(startsA.length - 1, startsB.length - 1);
+};
+
+/**
+ * Character matches of a shortest edit script between two strings. Whole
+ * words are matched first (Myers' algorithm on words), then the characters
+ * between and inside the words that did not match. A plain character diff
+ * may match base characters to the same characters inside someone else's
+ * insert ("[a]" against "[b][a]" as "[" + "b][" + "a]"), and matching
+ * punctuation may outnumber matching words, which both split concurrent
+ * inserts in a three-way merge; anchoring on words does not.
+ * @param {string} a - Old text.
+ * @param {string} b - New text.
+ * @returns {Int32Array|null} For every index of `a`, the index of the same character in `b` (-1 when deleted), or null when the texts are too long or too different.
+ */
+export const matchCharacters = (a, b) => {
+  if (a.length + b.length > MAX_DIFF_LENGTH) return null;
+  const wordsA = wordRanges(a);
+  const wordsB = wordRanges(b);
+  const ids = new Map();
+  const wordIds = (text, words) =>
+    Int32Array.from(words, ([start, end]) => {
+      const word = text.slice(start, end);
+      let id = ids.get(word);
+      if (id === undefined) {
+        id = ids.size;
+        ids.set(word, id);
+      }
+      return id;
+    });
+  const words = matchSequences(wordIds(a, wordsA), wordIds(b, wordsB));
+  if (!words) return matchSequences(codeUnits(a), codeUnits(b));
+  const match = new Int32Array(a.length).fill(-1);
+  let fromA = 0;
+  let fromB = 0;
+  // Between two matched words: a[fromA, toA) against b[fromB, toB).
+  const refine = (toA, toB) => {
+    if (toA <= fromA || toB <= fromB) return;
+    matchGap(a, fromA, toA, b, fromB, toB, match);
+  };
+  for (let t = 0; t < words.length; t += 1) {
+    if (words[t] < 0) continue;
+    const [startA, endA] = wordsA[t];
+    const [startB, endB] = wordsB[words[t]];
+    refine(startA, startB);
+    for (let c = startA; c < endA; c += 1) match[c] = startB + c - startA;
+    fromA = endA;
+    fromB = endB;
+  }
+  refine(a.length, b.length);
   return match;
 };
 
