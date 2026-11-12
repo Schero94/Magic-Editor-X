@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- Editor fields inside a repeatable component or a dynamic zone no longer use live collaboration. Their path is positional (`sections.0.body`): after an entry whose editor had been opened was removed or moved before saving, the next entry joined the old room and showed the removed entry's content, and typing there would have saved it into the wrong entry. These fields are now edited without a live room; top-level fields and fields in single components keep live collaboration.
+
 # [2.3.0](https://github.com/Schero94/Magic-Editor-X/compare/v2.2.0...v2.3.0) (2026-11-12)
 
 
