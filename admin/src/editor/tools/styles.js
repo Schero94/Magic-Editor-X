@@ -714,12 +714,15 @@ export const editorStyles = css`
       max-width: 100%;
     }
 
+    /* Below the medium breakpoint the Editor.js block actions (plus, drag) sit over the
+       start of the block: the first toolbar buttons start after them. */
     .mex-table-tool__toolbar {
       display: flex;
       flex-wrap: wrap;
       align-items: center;
       gap: ${s(1)};
       padding: ${s(1)};
+      padding-inline-start: ${s(10)};
       border: 1px solid ${c('neutral200')};
       border-radius: ${radius};
       background: ${c('neutral100')};
@@ -754,6 +757,8 @@ export const editorStyles = css`
         color: ${c('primary700')};
       }
 
+      /* Toolbar buttons get focus only from the keyboard (a mouse press keeps it in the cell). */
+      &:focus,
       &:focus-visible {
         outline: 2px solid ${c('primary600')};
         outline-offset: 1px;
@@ -1847,6 +1852,10 @@ export const editorStyles = css`
     ${({ theme }) => theme.breakpoints.medium} {
       .ce-block__content {
         padding-inline-start: ${s(10)};
+      }
+
+      .mex-table-tool__toolbar {
+        padding-inline-start: ${s(1)};
       }
     }
   }

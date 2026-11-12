@@ -114,8 +114,24 @@ const textAfter = (element, range) => {
 };
 
 /**
+ * Number of visual lines of an element's text (1 for an empty cell).
+ * @param {HTMLElement} element - Cell input.
+ * @returns {number} Lines.
+ */
+const lineCount = (element) => {
+  const style = getComputedStyle(element);
+  const fontSize = parseFloat(style.fontSize) || 14;
+  const line = parseFloat(style.lineHeight) || fontSize * 1.2;
+  const range = document.createRange();
+  range.selectNodeContents(element);
+  const height = range.getBoundingClientRect().height;
+  return Math.max(1, Math.round(height / line));
+};
+
+/**
  * Whether the caret is at an edge of a cell: `start`/`end` by text, `top`/
- * `bottom` by line (first or last visual line).
+ * `bottom` by line (anywhere in a one-line cell, else the first or last
+ * visual line).
  * @param {HTMLElement} element - Cell input.
  * @param {'start'|'end'|'top'|'bottom'} edge - Edge.
  * @returns {boolean} Result.
@@ -125,13 +141,17 @@ const caretAt = (element, edge) => {
   if (!range || !range.collapsed) return false;
   if (edge === 'start') return textBefore(element, range).length === 0;
   if (edge === 'end') return textAfter(element, range).length === 0;
+  if (lineCount(element) <= 1) return true;
   const rects = range.getClientRects();
   const rect = rects.length ? rects[0] : null;
   if (!rect || rect.height === 0)
     return edge === 'top' ? textBefore(element, range).length === 0 : textAfter(element, range).length === 0;
-  const box = element.getBoundingClientRect();
-  const line = rect.height;
-  return edge === 'top' ? rect.top - box.top < line * 0.75 : box.bottom - rect.bottom < line * 0.75;
+  const content = document.createRange();
+  content.selectNodeContents(element);
+  const box = content.getBoundingClientRect();
+  return edge === 'top'
+    ? rect.top - box.top < rect.height * 0.75
+    : box.bottom - rect.bottom < rect.height * 0.75;
 };
 
 /**
