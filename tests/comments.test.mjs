@@ -250,9 +250,9 @@ const createFixture = ({ readable = ['doc1'] } = {}) => {
     },
   };
   services.access = {
-    async checkField({ documentId, locale }) {
+    async checkField({ documentId, locale, field }) {
       if (!readable.includes(documentId)) throw new errors.NotFoundError('Not found');
-      return { canRead: true, canUpdate: false, locale: locale || 'en' };
+      return { canRead: true, canUpdate: false, locale: locale || 'en', fieldName: field, positional: false };
     },
   };
   services.comments = commentsService({ strapi });

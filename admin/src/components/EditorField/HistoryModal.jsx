@@ -113,13 +113,14 @@ export const HistoryModal = ({ t, target, readContent, onRestore, onRestoreBlock
           documentId: target.documentId,
           locale: target.locale || undefined,
           field: target.field,
+          ...(target.fieldKey ? { fieldKey: target.fieldKey } : {}),
         },
       }).then(
         ({ data }) =>
           setState({ loading: false, error: false, items: data.data || [], meta: data.meta || {} }),
         () => setState((current) => ({ ...current, loading: false, error: true }))
       ),
-    [get, target.uid, target.documentId, target.locale, target.field]
+    [get, target.uid, target.documentId, target.locale, target.field, target.fieldKey]
   );
 
   useEffect(() => {
@@ -280,6 +281,193 @@ export const HistoryModal = ({ t, target, readContent, onRestore, onRestoreBlock
   const canWrite = canEdit && state.meta.canRestore !== false;
   const canName = canWrite && state.meta.canCreate !== false;
   const labelTooLong = label.trim().length > MAX_LABEL_LENGTH;
+  const positionalVersions = Array.isArray(state.meta.positionalVersions)
+    ? state.meta.positionalVersions
+    : [];
+
+  /**
+   * One version in the list. Versions saved by position before 2.4 (`item.positional`) can be
+   * viewed and compared but not renamed or restored: they may belong to another entry.
+   * @param {object} item - Version.
+   * @returns {JSX.Element} List item.
+   */
+  const renderItem = (item) => {
+    const locked = Boolean(item.positional);
+    const trigger = TRIGGERS[item.trigger] || TRIGGERS.manual;
+    const when = item.createdAt
+      ? formatDate(new Date(item.createdAt), { dateStyle: 'medium', timeStyle: 'short' })
+      : '—';
+    return (
+      <Box tag="li" key={item.id} padding={3} hasRadius borderColor="neutral200" background="neutral0">
+        <Flex gap={3} justifyContent="space-between" wrap="wrap">
+          <Flex direction="column" alignItems="flex-start" gap={1} minWidth={0}>
+            <Flex gap={2} wrap="wrap" minWidth={0}>
+              <Typography variant="omega" fontWeight="bold" style={{ overflowWrap: 'anywhere' }}>
+                {item.label || t('editor.history.version', 'Version {version}', { version: item.version })}
+              </Typography>
+              {item.label ? (
+                <Typography variant="pi" textColor="neutral600">
+                  {t('editor.history.version', 'Version {version}', { version: item.version })}
+                </Typography>
+              ) : null}
+              <Badge>{t(trigger.key, trigger.text)}</Badge>
+            </Flex>
+            <Typography variant="pi" textColor="neutral600">
+              {item.createdBy
+                ? t('editor.history.byline', '{date} by {name}', {
+                    date: when,
+                    name: item.createdBy,
+                  })
+                : when}
+            </Typography>
+            <Typography variant="pi" textColor="neutral600">
+              {t(
+                'editor.history.stats',
+                '{blocks, plural, one {# block} other {# blocks}} · {words, plural, one {# word} other {# words}}',
+                {
+                  blocks: item.stats.blocks,
+                  words: item.stats.words,
+                }
+              )}
+            </Typography>
+          </Flex>
+          <Flex gap={2}>
+            <IconButton
+              label={t('editor.history.preview', 'Preview version {version}', {
+                version: item.version,
+              })}
+              variant="tertiary"
+              aria-expanded={Boolean(preview && preview.item.id === item.id)}
+              onClick={() => showPreview(item)}
+            >
+              <Eye />
+            </IconButton>
+            {canName && !locked ? (
+              <IconButton
+                ref={(node) => {
+                  if (node) renameButtons.current.set(item.id, node);
+                  else renameButtons.current.delete(item.id);
+                }}
+                label={t('editor.history.rename', 'Rename version {version}', {
+                  version: item.version,
+                })}
+                variant="tertiary"
+                onClick={() => setRenaming({ id: item.id, value: item.label || '' })}
+              >
+                <Pencil />
+              </IconButton>
+            ) : null}
+            {canWrite && item.restorable && !locked ? (
+              <Button variant="secondary" onClick={() => setConfirm(item)}>
+                {t('editor.history.restore', 'Restore')}
+              </Button>
+            ) : null}
+          </Flex>
+        </Flex>
+        {renaming && renaming.id === item.id ? (
+          <Box tag="form" marginTop={3} onSubmit={saveRename} noValidate>
+            <Flex direction="column" alignItems="stretch" gap={2}>
+              <Field.Root
+                name={`mex-version-label-${item.id}`}
+                hint={t('editor.history.renameHint', 'Leave empty to remove the name.')}
+                error={
+                  renaming.value.trim().length > MAX_LABEL_LENGTH
+                    ? t('editor.history.labelTooLong', 'Use 120 characters or fewer.')
+                    : undefined
+                }
+              >
+                <Field.Label>{t('editor.history.renameLabel', 'Version name')}</Field.Label>
+                <TextInput
+                  autoFocus
+                  value={renaming.value}
+                  onChange={(event) => setRenaming({ ...renaming, value: event.target.value })}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Escape') {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      endRename(item.id);
+                    }
+                  }}
+                />
+                <Field.Hint />
+                <Field.Error />
+              </Field.Root>
+              <Flex gap={2} wrap="wrap">
+                <Button type="submit" size="S" loading={renameBusy}>
+                  {t('editor.history.renameSave', 'Save name')}
+                </Button>
+                <Button type="button" size="S" variant="tertiary" onClick={() => endRename(item.id)}>
+                  {t('editor.history.renameCancel', 'Cancel')}
+                </Button>
+              </Flex>
+            </Flex>
+          </Box>
+        ) : null}
+        {preview && preview.item.id === item.id ? (
+          <Box marginTop={3} padding={3} background="neutral100" hasRadius minWidth={0}>
+            {preview.content ? (
+              <Tabs.Root
+                value={tab}
+                onValueChange={(value) => (value === 'changes' ? showChanges() : setTab('preview'))}
+              >
+                <Tabs.List aria-label={t('editor.history.tabs', 'Version views')}>
+                  <Tabs.Trigger value="preview">{t('editor.history.tab.preview', 'Preview')}</Tabs.Trigger>
+                  <Tabs.Trigger value="changes">{t('editor.history.tab.changes', 'Changes')}</Tabs.Trigger>
+                </Tabs.List>
+                <Tabs.Content value="preview">
+                  <Box paddingTop={3}>
+                    {preview.lines.map((line, index) => (
+                      <Typography
+                        key={index}
+                        tag="p"
+                        variant="pi"
+                        textColor="neutral800"
+                        style={{ overflowWrap: 'anywhere' }}
+                      >
+                        {line}
+                      </Typography>
+                    ))}
+                  </Box>
+                </Tabs.Content>
+                <Tabs.Content value="changes">
+                  <Box paddingTop={3}>
+                    {!diff || diff.loading ? (
+                      <Loader small>
+                        {t('editor.history.diff.loading', 'Comparing with the current content')}
+                      </Loader>
+                    ) : null}
+                    {diff && diff.error ? (
+                      <Typography textColor="danger600">
+                        {t('editor.history.diff.error', 'The changes could not be shown.')}
+                      </Typography>
+                    ) : null}
+                    {diff && diff.current ? (
+                      <VersionDiff
+                        t={t}
+                        version={preview.content}
+                        current={diff.current}
+                        versionNumber={item.version}
+                        canRestore={Boolean(canWrite && !locked && typeof onRestoreBlock === 'function')}
+                        onRestoreBlock={restoreBlock}
+                      />
+                    ) : null}
+                  </Box>
+                </Tabs.Content>
+              </Tabs.Root>
+            ) : null}
+            {preview.loading ? (
+              <Loader small>{t('editor.history.previewLoading', 'Loading preview')}</Loader>
+            ) : null}
+            {preview.error ? (
+              <Typography textColor="danger600">
+                {t('editor.history.previewError', 'The preview could not be loaded.')}
+              </Typography>
+            ) : null}
+          </Box>
+        ) : null}
+      </Box>
+    );
+  };
 
   return (
     <Modal.Root open onOpenChange={(open) => !open && onClose()}>
@@ -349,205 +537,29 @@ export const HistoryModal = ({ t, target, readContent, onRestore, onRestoreBlock
                 gap={2}
                 aria-label={t('editor.history.listLabel', 'Versions')}
               >
-                {state.items.map((item) => {
-                  const trigger = TRIGGERS[item.trigger] || TRIGGERS.manual;
-                  const when = item.createdAt
-                    ? formatDate(new Date(item.createdAt), { dateStyle: 'medium', timeStyle: 'short' })
-                    : '—';
-                  return (
-                    <Box
-                      tag="li"
-                      key={item.id}
-                      padding={3}
-                      hasRadius
-                      borderColor="neutral200"
-                      background="neutral0"
-                    >
-                      <Flex gap={3} justifyContent="space-between" wrap="wrap">
-                        <Flex direction="column" alignItems="flex-start" gap={1} minWidth={0}>
-                          <Flex gap={2} wrap="wrap" minWidth={0}>
-                            <Typography
-                              variant="omega"
-                              fontWeight="bold"
-                              style={{ overflowWrap: 'anywhere' }}
-                            >
-                              {item.label ||
-                                t('editor.history.version', 'Version {version}', { version: item.version })}
-                            </Typography>
-                            {item.label ? (
-                              <Typography variant="pi" textColor="neutral600">
-                                {t('editor.history.version', 'Version {version}', { version: item.version })}
-                              </Typography>
-                            ) : null}
-                            <Badge>{t(trigger.key, trigger.text)}</Badge>
-                          </Flex>
-                          <Typography variant="pi" textColor="neutral600">
-                            {item.createdBy
-                              ? t('editor.history.byline', '{date} by {name}', {
-                                  date: when,
-                                  name: item.createdBy,
-                                })
-                              : when}
-                          </Typography>
-                          <Typography variant="pi" textColor="neutral600">
-                            {t(
-                              'editor.history.stats',
-                              '{blocks, plural, one {# block} other {# blocks}} · {words, plural, one {# word} other {# words}}',
-                              {
-                                blocks: item.stats.blocks,
-                                words: item.stats.words,
-                              }
-                            )}
-                          </Typography>
-                        </Flex>
-                        <Flex gap={2}>
-                          <IconButton
-                            label={t('editor.history.preview', 'Preview version {version}', {
-                              version: item.version,
-                            })}
-                            variant="tertiary"
-                            aria-expanded={Boolean(preview && preview.item.id === item.id)}
-                            onClick={() => showPreview(item)}
-                          >
-                            <Eye />
-                          </IconButton>
-                          {canName ? (
-                            <IconButton
-                              ref={(node) => {
-                                if (node) renameButtons.current.set(item.id, node);
-                                else renameButtons.current.delete(item.id);
-                              }}
-                              label={t('editor.history.rename', 'Rename version {version}', {
-                                version: item.version,
-                              })}
-                              variant="tertiary"
-                              onClick={() => setRenaming({ id: item.id, value: item.label || '' })}
-                            >
-                              <Pencil />
-                            </IconButton>
-                          ) : null}
-                          {canWrite && item.restorable ? (
-                            <Button variant="secondary" onClick={() => setConfirm(item)}>
-                              {t('editor.history.restore', 'Restore')}
-                            </Button>
-                          ) : null}
-                        </Flex>
-                      </Flex>
-                      {renaming && renaming.id === item.id ? (
-                        <Box tag="form" marginTop={3} onSubmit={saveRename} noValidate>
-                          <Flex direction="column" alignItems="stretch" gap={2}>
-                            <Field.Root
-                              name={`mex-version-label-${item.id}`}
-                              hint={t('editor.history.renameHint', 'Leave empty to remove the name.')}
-                              error={
-                                renaming.value.trim().length > MAX_LABEL_LENGTH
-                                  ? t('editor.history.labelTooLong', 'Use 120 characters or fewer.')
-                                  : undefined
-                              }
-                            >
-                              <Field.Label>{t('editor.history.renameLabel', 'Version name')}</Field.Label>
-                              <TextInput
-                                autoFocus
-                                value={renaming.value}
-                                onChange={(event) => setRenaming({ ...renaming, value: event.target.value })}
-                                onKeyDown={(event) => {
-                                  if (event.key === 'Escape') {
-                                    event.preventDefault();
-                                    event.stopPropagation();
-                                    endRename(item.id);
-                                  }
-                                }}
-                              />
-                              <Field.Hint />
-                              <Field.Error />
-                            </Field.Root>
-                            <Flex gap={2} wrap="wrap">
-                              <Button type="submit" size="S" loading={renameBusy}>
-                                {t('editor.history.renameSave', 'Save name')}
-                              </Button>
-                              <Button
-                                type="button"
-                                size="S"
-                                variant="tertiary"
-                                onClick={() => endRename(item.id)}
-                              >
-                                {t('editor.history.renameCancel', 'Cancel')}
-                              </Button>
-                            </Flex>
-                          </Flex>
-                        </Box>
-                      ) : null}
-                      {preview && preview.item.id === item.id ? (
-                        <Box marginTop={3} padding={3} background="neutral100" hasRadius minWidth={0}>
-                          {preview.content ? (
-                            <Tabs.Root
-                              value={tab}
-                              onValueChange={(value) =>
-                                value === 'changes' ? showChanges() : setTab('preview')
-                              }
-                            >
-                              <Tabs.List aria-label={t('editor.history.tabs', 'Version views')}>
-                                <Tabs.Trigger value="preview">
-                                  {t('editor.history.tab.preview', 'Preview')}
-                                </Tabs.Trigger>
-                                <Tabs.Trigger value="changes">
-                                  {t('editor.history.tab.changes', 'Changes')}
-                                </Tabs.Trigger>
-                              </Tabs.List>
-                              <Tabs.Content value="preview">
-                                <Box paddingTop={3}>
-                                  {preview.lines.map((line, index) => (
-                                    <Typography
-                                      key={index}
-                                      tag="p"
-                                      variant="pi"
-                                      textColor="neutral800"
-                                      style={{ overflowWrap: 'anywhere' }}
-                                    >
-                                      {line}
-                                    </Typography>
-                                  ))}
-                                </Box>
-                              </Tabs.Content>
-                              <Tabs.Content value="changes">
-                                <Box paddingTop={3}>
-                                  {!diff || diff.loading ? (
-                                    <Loader small>
-                                      {t('editor.history.diff.loading', 'Comparing with the current content')}
-                                    </Loader>
-                                  ) : null}
-                                  {diff && diff.error ? (
-                                    <Typography textColor="danger600">
-                                      {t('editor.history.diff.error', 'The changes could not be shown.')}
-                                    </Typography>
-                                  ) : null}
-                                  {diff && diff.current ? (
-                                    <VersionDiff
-                                      t={t}
-                                      version={preview.content}
-                                      current={diff.current}
-                                      versionNumber={item.version}
-                                      canRestore={Boolean(canWrite && typeof onRestoreBlock === 'function')}
-                                      onRestoreBlock={restoreBlock}
-                                    />
-                                  ) : null}
-                                </Box>
-                              </Tabs.Content>
-                            </Tabs.Root>
-                          ) : null}
-                          {preview.loading ? (
-                            <Loader small>{t('editor.history.previewLoading', 'Loading preview')}</Loader>
-                          ) : null}
-                          {preview.error ? (
-                            <Typography textColor="danger600">
-                              {t('editor.history.previewError', 'The preview could not be loaded.')}
-                            </Typography>
-                          ) : null}
-                        </Box>
-                      ) : null}
-                    </Box>
-                  );
-                })}
+                {state.items.map(renderItem)}
+              </Flex>
+            ) : null}
+            {!state.error && positionalVersions.length > 0 ? (
+              <Flex direction="column" alignItems="stretch" gap={2}>
+                <Typography tag="h3" variant="delta">
+                  {t('editor.history.positional.title', 'Older versions saved by position')}
+                </Typography>
+                <Typography variant="omega" textColor="neutral600">
+                  {t(
+                    'editor.history.positional.description',
+                    'Saved before this section had its own history. They may belong to another entry of this list, so they can be viewed and compared but not restored.'
+                  )}
+                </Typography>
+                <Flex
+                  tag="ul"
+                  direction="column"
+                  alignItems="stretch"
+                  gap={2}
+                  aria-label={t('editor.history.positional.title', 'Older versions saved by position')}
+                >
+                  {positionalVersions.map(renderItem)}
+                </Flex>
               </Flex>
             ) : null}
           </Flex>

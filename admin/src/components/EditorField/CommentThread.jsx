@@ -85,7 +85,8 @@ const CommentMeta = ({ comment, t }) => {
 
 /**
  * @param {object} props - Props.
- * @param {object} props.thread - Thread (`arrangeThreads` output: `detached`, `position`).
+ * @param {object} props.thread - Thread (`arrangeThreads` output: `detached`, `position`; `positional` for
+ *   read-only threads saved by position before 2.4).
  * @param {string|null} props.blockExcerpt - Current text of the block (null when detached or empty).
  * @param {Function} props.t - Translator.
  * @param {boolean} props.canWrite - Caller may comment, reply and resolve.
@@ -117,6 +118,8 @@ export const CommentThread = forwardRef(function CommentThread(
   const [editing, setEditing] = useState(null);
   const [busy, setBusy] = useState(null);
   const resolved = thread.status === 'resolved';
+  // 2.4: a thread written under a positional path before 2.4 that belongs to no single entry (read-only).
+  const positional = Boolean(thread.positional);
   const excerpt =
     blockExcerpt || thread.excerpt || t('editor.comments.thread.noExcerpt', 'a block without text');
   const headingId = `mex-comment-thread-${thread.id}`;
@@ -198,6 +201,7 @@ export const CommentThread = forwardRef(function CommentThread(
       data-thread-id={thread.id}
       data-status={thread.status}
       data-detached={thread.detached ? 'true' : 'false'}
+      data-positional={positional ? 'true' : 'false'}
     >
       <Flex direction="column" alignItems="stretch" gap={3}>
         <Flex justifyContent="space-between" alignItems="flex-start" gap={2} wrap="wrap">
@@ -206,7 +210,12 @@ export const CommentThread = forwardRef(function CommentThread(
               {t('editor.comments.thread.on', 'On: {excerpt}', { excerpt })}
             </Wrap>
             <Flex gap={2} wrap="wrap">
-              {thread.detached ? (
+              {positional ? (
+                <Badge backgroundColor="neutral150" textColor="neutral800">
+                  {t('editor.comments.positional.badge', 'Saved by position')}
+                </Badge>
+              ) : null}
+              {thread.detached && !positional ? (
                 <Badge backgroundColor="warning100" textColor="neutral800">
                   {t('editor.comments.detached', 'Block removed')}
                 </Badge>
@@ -218,13 +227,21 @@ export const CommentThread = forwardRef(function CommentThread(
               ) : null}
             </Flex>
           </Flex>
-          {thread.detached ? null : (
+          {thread.detached || positional ? null : (
             <Button variant="ghost" size="S" onClick={() => onSelectBlock(thread.blockId)}>
               {t('editor.comments.showBlock', 'Show block')}
             </Button>
           )}
         </Flex>
-        {thread.detached ? (
+        {positional ? (
+          <Typography variant="pi" textColor="neutral600">
+            {t(
+              'editor.comments.positional.hint',
+              'Written before this section had its own comments. It may belong to another entry of this list, so it is read-only.'
+            )}
+          </Typography>
+        ) : null}
+        {thread.detached && !positional ? (
           <Typography variant="pi" textColor="neutral600">
             {t(
               'editor.comments.detachedHint',

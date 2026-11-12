@@ -129,7 +129,13 @@ const controllerFor = ({ canRead = true, canUpdate = true } = {}) => {
         error.name = 'NotFoundError';
         throw error;
       }
-      return { canRead: true, canUpdate, locale: input.locale || null };
+      return {
+        canRead: true,
+        canUpdate,
+        locale: input.locale || null,
+        fieldName: input.field,
+        positional: false,
+      };
     },
   };
   return { controller: historyController({ strapi }), services, checked, query };

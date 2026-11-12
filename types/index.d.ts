@@ -316,6 +316,11 @@ export interface MagicEditorXData {
   time: number;
   blocks: MagicEditorXBlock[];
   version: string;
+  /**
+   * Since 2.4: stable identity of a value inside a repeatable component or dynamic zone
+   * (16-32 URL-safe characters, set by the server on save). Renderers ignore it.
+   */
+  fieldKey?: string;
 }
 
 export type MagicEditorXValue = MagicEditorXData | null;

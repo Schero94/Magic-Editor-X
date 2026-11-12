@@ -2,13 +2,19 @@ import {
   useQueryParams,
   unstable_useContentManagerContext as useContentManagerContext,
 } from '@strapi/strapi/admin';
+import { fieldKeysAt, isPositionalFieldPath } from '../../editor/field-path.mjs';
+
+const NO_KEYS = new Set();
 
 /**
  * Identifies the document field the editor edits: content type uid, document
  * id, locale and field path. Collaboration and version history need all four;
- * a new (unsaved) entry has no document id yet.
+ * a new (unsaved) entry has no document id yet. For a field inside a repeatable
+ * component or dynamic zone (2.4) it also lists the field keys stored at that
+ * attribute in the loaded document (the form's initial values): a value's key
+ * is usable for history, comments and the live room only once it is saved.
  * @param {string} name - Field name/path from the Content Manager.
- * @returns {{ uid: string|null, documentId: string|null, locale: string|null, field: string }} Target.
+ * @returns {{ uid: string|null, documentId: string|null, locale: string|null, field: string, savedFieldKeys: Set<string> }} Target.
  */
 export const useFieldTarget = (name) => {
   const context = useContentManagerContext();
@@ -22,5 +28,9 @@ export const useFieldTarget = (name) => {
     documentId: fromForm || fromRoute,
     locale: typeof locale === 'string' ? locale : null,
     field: name,
+    savedFieldKeys:
+      isPositionalFieldPath(name) && context && context.form
+        ? fieldKeysAt(context.form.initialValues, name)
+        : NO_KEYS,
   };
 };

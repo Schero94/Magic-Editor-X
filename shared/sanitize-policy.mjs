@@ -613,7 +613,10 @@ export const sanitizeEditorData = (data, options) => {
     if (tunes) out.tunes = tunes;
     return out;
   });
-  return { time: data.time, blocks, version: data.version };
+  const out = { time: data.time, blocks, version: data.version };
+  // 2.4: the field key (identity of a positional field) is kept as normalised.
+  if (typeof data.fieldKey === 'string') out.fieldKey = data.fieldKey;
+  return out;
 };
 
 /**

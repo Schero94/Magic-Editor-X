@@ -3,6 +3,7 @@
 const { createHash, randomUUID } = require('node:crypto');
 const { createLogger } = require('../utils/logger');
 const { isEditorAttribute, schemaHasEditorFields } = require('../utils/editor-fields');
+const { fieldIdentity } = require('../../../shared/field-identity.mjs');
 const { guardQuery, collectGuarded } = require('../utils/publish-guard');
 const { extractLinks } = require('../../../shared/quality.mjs');
 
@@ -208,11 +209,17 @@ module.exports = ({ strapi }, dependencies = {}) => {
             urls.set(hash, url);
             return { h: hash, b: typeof blockId === 'string' ? blockId.slice(0, 64) : '' };
           });
+          // 2.4: keyed by the field identity, so draft and published rows of an entry inside a
+          // repeatable component or dynamic zone match after reorders (shared/field-identity.mjs).
+          // Values without a key keep their positional path; the report never serves those.
+          const identity =
+            fieldIdentity(field, value && typeof value === 'object' ? value.fieldKey : null) || field;
+          if (identity.length > 200) continue;
           const target = {
             uid,
             documentId: row.documentId,
             locale: localized && typeof row.locale === 'string' ? row.locale : null,
-            field,
+            field: identity,
             version: status,
           };
           fieldRows.push({ key: fieldKey(target), ...target, links, runId: run.runId, scannedAt: now() });
@@ -462,14 +469,15 @@ module.exports = ({ strapi }, dependencies = {}) => {
 
     /**
      * Last scheduled result of one field (the caller checked access).
-     * @param {{ uid: string, documentId: string, locale: string|null, field: string }} target - Field.
+     * @param {{ uid: string, documentId: string, locale: string|null, field: string }|null} target - Field (`field` is the
+     *   field identity, 2.4); null for a positional field without a stored key (no rows are served).
      * @returns {Promise<{ enabled: boolean, lastRun: object|null, draft: object|null, published: object|null }>} Report.
      */
     async report(target) {
       const state = await api.status();
       if (!state.enabled) return { enabled: false, lastRun: null, draft: null, published: null };
-      const keys = ['draft', 'published'].map((version) => fieldKey({ ...target, version }));
-      const rows = await store().getLinkFields(keys);
+      const keys = target ? ['draft', 'published'].map((version) => fieldKey({ ...target, version })) : [];
+      const rows = keys.length ? await store().getLinkFields(keys) : [];
       const hashes = [...new Set(rows.flatMap((row) => row.links.map((link) => link.h)))];
       const urls = await store().getLinkUrls(hashes);
       const shape = (row) => {
@@ -503,8 +511,8 @@ module.exports = ({ strapi }, dependencies = {}) => {
       return {
         enabled: true,
         lastRun,
-        draft: shape(rows.find((row) => row.key === keys[0])),
-        published: shape(rows.find((row) => row.key === keys[1])),
+        draft: keys.length ? shape(rows.find((row) => row.key === keys[0])) : null,
+        published: keys.length ? shape(rows.find((row) => row.key === keys[1])) : null,
       };
     },
 

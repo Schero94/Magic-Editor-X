@@ -19,6 +19,11 @@
     "version": {
       "type": "string",
       "maxLength": 32
+    },
+    "fieldKey": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{16,32}$",
+      "description": "Since 2.4: stable identity of a value inside a repeatable component or dynamic zone (random, URL-safe). Set by the server on save; renderers ignore it. Absent on top-level fields."
     }
   },
   "required": ["time", "blocks", "version"],

@@ -22,7 +22,8 @@ const EMPTY = { open: 0, resolved: 0, comments: 0 };
 
 /**
  * @param {object} options - Options.
- * @param {{ uid: string|null, documentId: string|null, locale: string|null, field: string }} options.target - Field.
+ * @param {{ uid: string|null, documentId: string|null, locale: string|null, field: string, fieldKey?: string }} options.target - Field
+ *   (`fieldKey` for fields inside a repeatable component or dynamic zone, 2.4).
  * @param {boolean} options.enabled - Comments are on and the caller may read them.
  * @param {boolean} options.panelOpen - The comments panel is open (faster refresh).
  * @param {{ current: HTMLElement|null }} options.elementRef - Field element (visibility).
@@ -38,23 +39,25 @@ export const useComments = ({ target, enabled, panelOpen, elementRef }) => {
     counts: EMPTY,
     canWrite: false,
     canModerate: false,
+    positionalThreads: [],
   });
   const [newFromOthers, setNewFromOthers] = useState(0);
   const knownIdsRef = useRef(null);
   const requestRef = useRef(0);
   const [visible, setVisible] = useState(true);
-  const { uid, documentId, locale, field } = target;
+  const { uid, documentId, locale, field, fieldKey } = target;
 
+  // 2.4: fields inside a repeatable component or dynamic zone are addressed by their key.
   const params = useCallback(
-    () => ({ uid, documentId, locale: locale || undefined, field }),
-    [uid, documentId, locale, field]
+    () => ({ uid, documentId, locale: locale || undefined, field, ...(fieldKey ? { fieldKey } : {}) }),
+    [uid, documentId, locale, field, fieldKey]
   );
 
   const refresh = useCallback(() => {
     if (!enabled || !uid || !documentId) return Promise.resolve();
     const id = requestRef.current + 1;
     requestRef.current = id;
-    const key = `${uid}|${documentId}|${locale || '-'}|${field}`;
+    const key = `${uid}|${documentId}|${locale || '-'}|${fieldKey ? `#${fieldKey}` : field}`;
     return get(API.comments, { params: params() }).then(
       ({ data }) => {
         if (requestRef.current !== id) return;
@@ -80,6 +83,7 @@ export const useComments = ({ target, enabled, panelOpen, elementRef }) => {
           counts: meta.counts || countThreads(threads),
           canWrite: Boolean(meta.canWrite),
           canModerate: Boolean(meta.canModerate),
+          positionalThreads: Array.isArray(meta.positionalThreads) ? meta.positionalThreads : [],
         });
       },
       () => {
@@ -87,14 +91,15 @@ export const useComments = ({ target, enabled, panelOpen, elementRef }) => {
         setState((current) => ({ ...current, key, error: true }));
       }
     );
-  }, [enabled, uid, documentId, locale, field, get, params]);
+  }, [enabled, uid, documentId, locale, field, fieldKey, get, params]);
 
   // First load and target changes (locale switch); state of another target is not shown.
   useEffect(() => {
     knownIdsRef.current = null;
     refresh();
   }, [refresh]);
-  const currentKey = `${uid}|${documentId}|${locale || '-'}|${field}`;
+  // Moving an entry changes `field` but not `fieldKey`: the list stays (2.4).
+  const currentKey = `${uid}|${documentId}|${locale || '-'}|${fieldKey ? `#${fieldKey}` : field}`;
   const current =
     state.key === currentKey
       ? state
@@ -106,6 +111,7 @@ export const useComments = ({ target, enabled, panelOpen, elementRef }) => {
           counts: EMPTY,
           canWrite: false,
           canModerate: false,
+          positionalThreads: [],
         };
 
   // Is the field on screen?

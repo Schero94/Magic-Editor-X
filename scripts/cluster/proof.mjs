@@ -533,6 +533,99 @@ if (process.env.MEX_COMPACT_IDLE_S) {
   }
 }
 
+// --- 2.4: a field in a repeatable component is one room per entry -----------------
+// Entry B is moved on one process; a session by its key on another process and a
+// session by its new index on a third share the room, and an edit crosses processes.
+{
+  const CM = '/content-manager/collection-types/api::article.article';
+  const para = (id, text) => ({
+    time: 1,
+    version: '2.31.7',
+    blocks: [{ id, type: 'paragraph', data: { text } }],
+  });
+  const made = await call(BALANCER, 'POST', CM, {
+    token,
+    body: {
+      title: 'Cluster sections',
+      sections: [
+        { heading: 'A', body: para('secA000001', 'Entry A') },
+        { heading: 'B', body: para('secB000001', 'Entry B') },
+      ],
+    },
+  });
+  const docId = made.body.data.documentId;
+  const stored = (await call(url(ports[0]), 'GET', `${CM}/${docId}?locale=en`, { token })).body.data.sections;
+  const keyB = stored[1].body.fieldKey;
+  await call(url(ports[1]), 'PUT', `${CM}/${docId}?locale=en`, {
+    token,
+    body: { sections: [stored[1], stored[0]].map(({ id, heading, body }) => ({ id, heading, body })) },
+  });
+  const join = async (port, extra) => {
+    const sess = await call(url(port), 'POST', '/magic-editor-x/collaboration/session', {
+      token,
+      body: { uid: 'api::article.article', documentId: docId, locale: 'en', ...extra },
+    });
+    const ydoc = new Y.Doc();
+    const socket = io(url(port), {
+      path: sess.body.data.path,
+      transports: ['websocket'],
+      auth: { token: sess.body.data.token, protocol: 3 },
+      reconnection: false,
+    });
+    socket.on('mx:update', (update) => Y.applyUpdate(ydoc, new Uint8Array(update)));
+    await new Promise((resolve) => {
+      socket.on('mx:sync', ({ update }) => {
+        Y.applyUpdate(ydoc, new Uint8Array(update));
+        resolve();
+      });
+      setTimeout(resolve, 5000);
+    });
+    return { ydoc, socket };
+  };
+  const one = await join(ports[2 % ports.length], { field: 'sections.1.body', fieldKey: keyB });
+  const two = await join(ports[5 % ports.length], { field: 'sections.0.body' });
+  const textOf = (ydoc) => JSON.stringify(ydoc.getMap('blocks').toJSON());
+  const sameRoom = textOf(one.ydoc) === textOf(two.ydoc) && textOf(one.ydoc).includes('Entry B');
+  const scratch = new Y.Doc();
+  Y.applyUpdate(scratch, Y.encodeStateAsUpdate(one.ydoc));
+  const before = Y.encodeStateVector(scratch);
+  applyEditorDataToDoc(scratch, {
+    time: 2,
+    version: '2.31.7',
+    blocks: [
+      { id: 'secB000001', type: 'paragraph', data: { text: 'Entry B' } },
+      { id: 'secB000002', type: 'paragraph', data: { text: 'across processes' } },
+    ],
+  });
+  await new Promise((resolve) =>
+    one.socket.timeout(5000).emit('mx:update', Y.encodeStateAsUpdate(scratch, before), () => resolve())
+  );
+  const start = Date.now();
+  while (Date.now() - start < 10000 && !textOf(two.ydoc).includes('across processes')) await sleep(100);
+  const crossed = textOf(two.ydoc).includes('across processes');
+  const rooms = new pg.Client({ connectionString: process.env.MEX_CLUSTER_PG_URL });
+  await rooms.connect();
+  const keyed = (
+    await rooms.query(
+      'select count(distinct room) as n from magic_editor_x_collab_updates where room like $1',
+      [`api::article.article|${docId}|en|%`]
+    )
+  ).rows[0];
+  const identity = (
+    await rooms.query('select count(*) as n from magic_editor_x_collab_updates where room = $1', [
+      `api::article.article|${docId}|en|sections.body#${keyB}`,
+    ])
+  ).rows[0];
+  await rooms.end();
+  one.socket.disconnect();
+  two.socket.disconnect();
+  record(
+    'a field in a repeatable component has one room per entry across processes (2.4)',
+    sameRoom && crossed && Number(keyed.n) === 1 && Number(identity.n) > 0,
+    `same room ${sameRoom}, edit crossed ${crossed}, rooms ${keyed.n}, keyed rows ${identity.n}`
+  );
+}
+
 // --- permission revocation across processes ------------------------------------
 const suffix = crypto.randomBytes(3).toString('hex');
 const role = await call(url(ports[0]), 'POST', '/admin/roles', {

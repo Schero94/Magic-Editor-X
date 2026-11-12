@@ -10,6 +10,12 @@ const {
   groupThreads,
   countThreads,
 } = require('../../../shared/comments.mjs');
+const {
+  parseFieldIdentity,
+  basePathOf,
+  ownerOfBlocks,
+  fieldIdentity,
+} = require('../../../shared/field-identity.mjs');
 
 /**
  * Block comments (2.3).
@@ -128,14 +134,76 @@ module.exports = ({ strapi }) => {
      */
     async findTarget(id) {
       const row = await findRow(id);
+      const parsed = parseFieldIdentity(row.fieldName) || { field: String(row.fieldName), fieldKey: null };
       return {
         row,
         target: {
           uid: row.contentType,
           documentId: row.entryId,
           locale: row.entryLocale || null,
-          field: row.fieldName,
+          field: parsed.field,
+          ...(parsed.fieldKey ? { fieldKey: parsed.fieldKey } : {}),
+          // 2.4: saved under a positional path before 2.4 and not mapped to one entry (read-only).
+          legacy: Boolean(parsed.legacy),
         },
+      };
+    },
+
+    /**
+     * Maps threads stored under positional paths before 2.4 (`sections.0.body`)
+     * to the entry they belong to: a thread whose block exists in exactly one
+     * current entry belongs to it. Threads of entries with a key move to the
+     * entry's identity with their replies, once. Threads that match no entry or
+     * several stay where they are (read-only). Nothing is deleted.
+     * @param {{ uid: string, documentId: string, locale: string|null, basePath: string }} target - Field without index.
+     * @param {Array<{ path: string, fieldKey: string|null, blockIds: Set<string> }>} entries - Stored entries (access.checkField).
+     * @param {number|null} viewerId - Caller's admin id (for `own`).
+     * @returns {Promise<{ mapped: number, byPath: Map<string, object[]>, unmapped: object[] }>} Threads proven per
+     *   entry path (entries without a key) and the unmapped threads.
+     * @sideeffect Updates `fieldName` of mapped legacy rows.
+     */
+    async adoptLegacy({ uid, documentId, locale, basePath }, entries, viewerId) {
+      const top = String(basePath).split('.')[0];
+      const rows = (
+        await query().findMany({
+          where: {
+            contentType: uid,
+            entryId: documentId,
+            entryLocale: locale || null,
+            fieldName: { $startsWith: `${top}.`, $notContains: '#' },
+          },
+          orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+          limit: MAX_COMMENTS_PER_FIELD * 4,
+        })
+      ).filter((row) => {
+        const parsed = parseFieldIdentity(row.fieldName);
+        return parsed && parsed.legacy && basePathOf(row.fieldName) === basePath;
+      });
+      const roots = rows.filter((row) => !row.threadId);
+      const byPath = new Map();
+      const unmappedRows = [];
+      let mapped = 0;
+      for (const root of roots) {
+        const replies = rows.filter((row) => row.threadId === root.documentId);
+        const owner = ownerOfBlocks([root.blockId], entries);
+        const entry = owner === -1 ? null : entries[owner];
+        if (entry && entry.fieldKey) {
+          const ids = [root.id, ...replies.map((reply) => reply.id)];
+          await query().updateMany({
+            where: { id: { $in: ids }, fieldName: root.fieldName },
+            data: { fieldName: fieldIdentity(basePath, entry.fieldKey, true) },
+          });
+          mapped += 1;
+        } else if (entry) {
+          if (!byPath.has(entry.path)) byPath.set(entry.path, []);
+          byPath.get(entry.path).push(root, ...replies);
+        } else unmappedRows.push(root, ...replies);
+      }
+      const threadsOf = (list) => groupThreads(list.map((row) => toDto(row, viewerId)));
+      return {
+        mapped,
+        byPath: new Map(Array.from(byPath, ([path, list]) => [path, threadsOf(list)])),
+        unmapped: threadsOf(unmappedRows).map((thread) => ({ ...thread, positional: true })),
       };
     },
 
