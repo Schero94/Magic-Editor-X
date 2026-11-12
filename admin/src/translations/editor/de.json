@@ -35,7 +35,7 @@
   "editor.history.loading": "Versionen werden geladen",
   "editor.history.error": "Die Versionen konnten nicht geladen werden.",
   "editor.history.retry": "Erneut versuchen",
-  "editor.history.empty": "Noch keine Versionen. Speichern Sie eine, um den Verlauf zu beginnen.",
+  "editor.history.empty": "Noch keine Versionen. Wählen Sie „Aktuelle Version speichern“, um den Verlauf zu beginnen.",
   "editor.history.listLabel": "Versionen",
   "editor.history.version": "Version {version}",
   "editor.history.byline": "{date} von {name}",

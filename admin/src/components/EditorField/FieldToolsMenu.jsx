@@ -23,8 +23,10 @@ const groupLabel = (t, group) => {
   return t('editor.tools.group.view', 'View');
 };
 
-// The DS menu caps its height at 15rem (150 px); the grouped list may use the room Radix reports.
-const CONTENT_MAX_HEIGHT = 'min(48rem, var(--radix-dropdown-menu-content-available-height, 48rem))';
+// The DS menu caps its height at 15rem (150 px); the grouped list may use the room Radix reports,
+// minus the menu's own top and bottom margin (4 px each).
+const CONTENT_MAX_HEIGHT =
+  'min(48rem, calc(var(--radix-dropdown-menu-content-available-height, 48rem) - 0.8rem))';
 const CONTENT_MAX_WIDTH = 'min(36rem, var(--radix-dropdown-menu-content-available-width, 36rem))';
 
 const Shortcut = styled(Typography)`

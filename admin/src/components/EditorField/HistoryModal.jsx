@@ -555,7 +555,10 @@ export const HistoryModal = ({
               ) : null}
               {!state.loading && !state.error && state.items.length === 0 ? (
                 <Typography textColor="neutral600">
-                  {t('editor.history.empty', 'No versions yet. Save one to start the history.')}
+                  {t(
+                    'editor.history.empty',
+                    'No versions yet. Choose Save current version to start the history.'
+                  )}
                 </Typography>
               ) : null}
               {!state.error && state.items.length > 0 ? (

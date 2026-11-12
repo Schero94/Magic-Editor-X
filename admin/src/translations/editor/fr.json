@@ -35,7 +35,7 @@
   "editor.history.loading": "Chargement des versions",
   "editor.history.error": "Les versions n’ont pas pu être chargées.",
   "editor.history.retry": "Réessayer",
-  "editor.history.empty": "Aucune version pour l’instant. Enregistrez-en une pour commencer l’historique.",
+  "editor.history.empty": "Aucune version pour l’instant. Choisissez « Enregistrer la version actuelle » pour commencer l’historique.",
   "editor.history.listLabel": "Versions",
   "editor.history.version": "Version {version}",
   "editor.history.byline": "{date} par {name}",
