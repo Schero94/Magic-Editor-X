@@ -93,6 +93,9 @@ export const ALLOWED_OUTPUT_TAGS = new Set([
   'hr',
   'iframe',
   'button',
+  'video',
+  'audio',
+  'track',
 ]);
 
 export const assertSafeHtml = (html, label) => {
@@ -165,6 +168,65 @@ export const xssDocument = (payload) =>
     },
     { type: 'image', data: { file: { url: payload, alt: payload }, caption: payload } },
     { type: 'simpleImage', data: { url: payload, caption: payload } },
+    {
+      type: 'gallery',
+      data: {
+        images: [
+          {
+            file: {
+              url: 'https://ok.example.test/g.png',
+              alt: payload,
+              formats: { small: { url: payload, width: 2 } },
+            },
+            caption: payload,
+            focalPoint: { x: payload, y: 0.5 },
+          },
+          { file: { url: payload, alt: payload }, caption: payload },
+          {
+            file: { url: '/uploads/g2.png', alt: payload },
+            caption: payload,
+            focalPoint: { x: 0.2, y: 0.8 },
+          },
+        ],
+        layout: payload,
+        columns: payload,
+        caption: payload,
+      },
+    },
+    {
+      type: 'video',
+      data: {
+        file: { url: 'https://ok.example.test/v.webm', mime: 'video/webm', name: payload },
+        poster: { url: payload },
+        title: payload,
+        caption: payload,
+        loop: payload,
+        muted: true,
+        tracks: [
+          { file: { url: 'https://ok.example.test/t.vtt' }, kind: payload, srclang: payload, label: payload },
+          { file: { url: payload, mime: 'text/vtt' }, kind: 'captions', srclang: 'en', label: payload },
+        ],
+      },
+    },
+    { type: 'video', data: { file: { url: payload }, title: payload, caption: payload, tracks: payload } },
+    {
+      type: 'audio',
+      data: {
+        file: { url: '/uploads/a.mp3', mime: 'audio/mpeg', name: payload },
+        title: '',
+        caption: payload,
+        loop: true,
+        tracks: [
+          {
+            file: { url: '/uploads/a.vtt' },
+            kind: 'subtitles',
+            srclang: 'de',
+            label: payload,
+            default: true,
+          },
+        ],
+      },
+    },
     {
       type: 'linkTool',
       data: {

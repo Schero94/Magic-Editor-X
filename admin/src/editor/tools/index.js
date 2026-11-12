@@ -33,6 +33,8 @@ import { ToggleTool } from './toggle';
 import { ChecklistTool } from './checklist';
 import { buildCustomBlockTools } from './custom-block';
 import { MexImageTool } from './alt-text';
+import { GalleryTool, VideoTool, AudioTool } from './media';
+import { MEDIA_BLOCK_MARKERS } from '../../../../shared/sanitize-policy.mjs';
 import { isBlockAllowed } from '../../../../shared/presets.mjs';
 
 export { createUndoManager } from './undo';
@@ -71,6 +73,8 @@ export function buildTools(ctx) {
   const inline = ctx.aiEnabled ? [...allowedInline, 'aiAssistant'] : allowedInline;
   const levels = preset && preset.headingLevels.length ? preset.headingLevels : [1, 2, 3, 4, 5, 6];
   const canUpload = ctx.canUpload !== false;
+  // Choosing files in the Media Library dialog needs `plugin::upload.read`.
+  const canBrowse = ctx.canBrowse === true && typeof ctx.openMediaLibrary === 'function';
   const shared = {
     t,
     fetchClient: ctx.fetchClient,
@@ -199,6 +203,24 @@ export function buildTools(ctx) {
       inlineToolbar: inline,
       config: { ...shared, requireAlt: Boolean(preset && preset.requireAlt) },
     },
+    gallery: {
+      class: GalleryTool,
+      inlineToolbar: inline,
+      toolbox: canBrowse ? undefined : false,
+      config: { ...shared, canBrowse, requireAlt: Boolean(preset && preset.requireAlt) },
+    },
+    video: {
+      class: VideoTool,
+      inlineToolbar: inline,
+      toolbox: canBrowse ? undefined : false,
+      config: { ...shared, canBrowse, getLocale: ctx.getContentLocale },
+    },
+    audio: {
+      class: AudioTool,
+      inlineToolbar: inline,
+      toolbox: canBrowse ? undefined : false,
+      config: { ...shared, canBrowse, getLocale: ctx.getContentLocale },
+    },
     linkTool: { class: LinkPreviewTool, config: shared },
     attaches: {
       class: Attaches,
@@ -251,7 +273,9 @@ export function buildTools(ctx) {
 
   const custom = buildCustomBlockTools(ctx.customBlocks, { ...ctx, t, canUpload }, shared);
   for (const [name, tool] of Object.entries(custom)) {
-    if (!Object.prototype.hasOwnProperty.call(tools, name)) {
+    // A custom block created before 2.3 under a name 2.3 gave to a media block keeps its own tool.
+    const legacy = Object.prototype.hasOwnProperty.call(MEDIA_BLOCK_MARKERS, name);
+    if (legacy || !Object.prototype.hasOwnProperty.call(tools, name)) {
       tools[name] = tool.inlineToolbar === true ? { ...tool, inlineToolbar: inline } : tool;
     }
   }
@@ -344,6 +368,9 @@ export function editorI18n(t) {
         'Raw HTML': tr('tools.names.raw', 'Raw HTML'),
         Image: tr('tools.names.image', 'Image'),
         'Image by URL': tr('tools.names.simpleImage', 'Image by URL'),
+        Gallery: tr('tools.names.gallery', 'Gallery'),
+        Video: tr('tools.names.video', 'Video'),
+        Audio: tr('tools.names.audio', 'Audio'),
         'Link preview': tr('tools.names.linkPreview', 'Link preview'),
         Attachment: tr('tools.names.attachment', 'Attachment'),
         Person: tr('tools.names.person', 'Person'),

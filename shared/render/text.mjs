@@ -33,6 +33,17 @@ const listLines = (items, style, start, depth) => {
 
 const t = (html) => inlineToText(html).trim();
 
+/**
+ * Text of a video or audio block: title and caption, or the file URL.
+ * @param {object} b - Prepared block.
+ * @returns {string} Text.
+ */
+const mediaText = (b) => {
+  if (!b.data.file.url) return '';
+  const parts = [b.data.title.trim(), t(b.data.caption)].filter(Boolean);
+  return parts.length ? parts.join('\n') : b.data.file.url;
+};
+
 /** @type {Record<string, (block: object, options: object, render: Function) => string>} */
 const RENDERERS = {
   paragraph: (b) => t(b.data.text),
@@ -57,6 +68,17 @@ const RENDERERS = {
     b.data.content.map((row) => row.map((cell) => t(cell).replace(/\s+/g, ' ')).join('\t')).join('\n'),
   image: (b) => t(b.data.caption) || (b.raw.decorative === true ? '' : (b.data.file.alt || '').trim()),
   simpleImage: (b) => t(b.data.caption),
+  gallery: (b) =>
+    [
+      ...b.data.images.map((image) =>
+        image.file.url ? t(image.caption) || (image.decorative ? '' : (image.file.alt || '').trim()) : ''
+      ),
+      t(b.data.caption),
+    ]
+      .filter(Boolean)
+      .join('\n'),
+  video: (b) => mediaText(b),
+  audio: (b) => mediaText(b),
   linkTool: (b) => [b.data.meta.title, b.data.link].filter(Boolean).join('\n'),
   attaches: (b) =>
     b.data.file.url ? b.data.title || b.data.file.title || b.data.file.name || b.data.file.url : '',

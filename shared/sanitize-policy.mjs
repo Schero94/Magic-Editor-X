@@ -153,6 +153,82 @@ const int = (value, min, max, fallback) => {
 
 const bool = (value) => value === true;
 
+/** Most images in a gallery block. */
+export const MAX_GALLERY_IMAGES = 50;
+/** Most text tracks (captions, subtitles) of a video or audio block. */
+export const MAX_MEDIA_TRACKS = 8;
+/** Kinds of a `<track>`. */
+export const TRACK_KINDS = Object.freeze(['captions', 'subtitles', 'descriptions', 'chapters']);
+const SRCLANG = /^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{1,8}){0,3}$/;
+
+/**
+ * Focal point of an image: `{ x, y }` in 0..1 with two decimals.
+ * @param {unknown} value - Candidate.
+ * @returns {{ x: number, y: number }|undefined} Clean point or undefined.
+ */
+export const cleanFocalPoint = (value) => {
+  if (!isPlainObject(value)) return undefined;
+  const { x, y } = value;
+  if (![x, y].every((n) => typeof n === 'number' && Number.isFinite(n) && n >= 0 && n <= 1)) return undefined;
+  return { x: Math.round(x * 100) / 100, y: Math.round(y * 100) / 100 };
+};
+
+/**
+ * Cleans a Media Library file reference of a gallery, video or audio block.
+ * The URL must be http(s) or site-relative; when the file names a MIME type it
+ * must start with `mimePrefix` (else the URL is emptied).
+ * @param {unknown} value - Stored file.
+ * @param {{ mimePrefix?: string, image?: boolean, vtt?: boolean }} kind - Expected file kind.
+ * @returns {object} Clean file (`url` always present).
+ */
+export const cleanMediaFile = (value, kind = {}) => {
+  const file = isPlainObject(value) ? value : {};
+  const out = { url: sanitizeUrl(file.url, { schemes: ['http', 'https'] }) };
+  for (const key of ['mime', ...(kind.image ? ['alt'] : []), 'name', 'hash', 'ext'])
+    if (typeof file[key] === 'string') out[key] = plain(file[key], 500);
+  for (const key of ['width', 'height', 'size']) if (Number.isFinite(file[key])) out[key] = file[key];
+  if (kind.image && isPlainObject(file.formats))
+    out.formats = generic(file.formats, (s) => plain(s, 2048), 0, 'formats');
+  if (file.id !== undefined && (Number.isInteger(file.id) || typeof file.id === 'string')) out.id = file.id;
+  if (typeof file.documentId === 'string') out.documentId = plain(file.documentId, 64);
+  const mime = typeof out.mime === 'string' ? out.mime.toLowerCase() : '';
+  if (kind.mimePrefix && mime && !mime.startsWith(kind.mimePrefix)) out.url = '';
+  if (kind.vtt && out.url) {
+    const path = out.url.split(/[?#]/)[0].toLowerCase();
+    const ext = typeof out.ext === 'string' ? out.ext.toLowerCase() : '';
+    if (mime !== 'text/vtt' && ext !== '.vtt' && !path.endsWith('.vtt')) out.url = '';
+  }
+  return out;
+};
+
+/**
+ * Text tracks (WebVTT captions/subtitles) of a video or audio block.
+ * @param {unknown} tracks - Stored tracks.
+ * @returns {Array<object>} Clean tracks (entries without a usable file are dropped).
+ */
+const mediaTracks = (tracks) => {
+  if (!Array.isArray(tracks)) return [];
+  const out = [];
+  let hasDefault = false;
+  for (const track of tracks.slice(0, MAX_MEDIA_TRACKS)) {
+    if (!isPlainObject(track)) continue;
+    const file = cleanMediaFile(track.file, { vtt: true });
+    if (!file.url) continue;
+    const clean = {
+      file,
+      kind: oneOf(track.kind, TRACK_KINDS, 'captions'),
+      srclang: typeof track.srclang === 'string' && SRCLANG.test(track.srclang) ? track.srclang : '',
+      label: plain(track.label, 100),
+    };
+    if (track.default === true && !hasDefault) {
+      clean.default = true;
+      hasDefault = true;
+    }
+    out.push(clean);
+  }
+  return out;
+};
+
 /**
  * Generic sanitiser for unknown block types and custom blocks: every string is
  * treated as inline HTML, every key that names a URL is validated as a URL.
@@ -312,6 +388,8 @@ export const BLOCK_POLICIES = {
     };
     // Intentionally empty alternative text (decorative image), set in the image block.
     if (d.decorative === true) out.decorative = true;
+    const focalPoint = cleanFocalPoint(d.focalPoint);
+    if (focalPoint) out.focalPoint = focalPoint;
     return out;
   },
   simpleImage: (d, inline) => {
@@ -326,6 +404,48 @@ export const BLOCK_POLICIES = {
     if (d.decorative === true) out.decorative = true;
     return out;
   },
+  gallery: (d, inline) => {
+    const images = [];
+    for (const item of Array.isArray(d.images) ? d.images : []) {
+      if (images.length >= MAX_GALLERY_IMAGES) break;
+      if (!isPlainObject(item)) continue;
+      const file = cleanMediaFile(item.file, { image: true, mimePrefix: 'image/' });
+      if (!file.url) continue;
+      const image = { file, caption: inline(item.caption) };
+      if (item.decorative === true) image.decorative = true;
+      const focalPoint = cleanFocalPoint(item.focalPoint);
+      if (focalPoint) image.focalPoint = focalPoint;
+      images.push(image);
+    }
+    return {
+      images,
+      layout: oneOf(d.layout, ['grid', 'carousel'], 'grid'),
+      columns: int(d.columns, 1, 6, 3),
+      caption: inline(d.caption),
+    };
+  },
+  video: (d, inline) => {
+    const out = {
+      file: cleanMediaFile(d.file, { mimePrefix: 'video/' }),
+      title: plain(d.title, 200),
+      caption: inline(d.caption),
+      loop: bool(d.loop),
+      muted: bool(d.muted),
+      tracks: mediaTracks(d.tracks),
+    };
+    if (isPlainObject(d.poster)) {
+      const poster = cleanMediaFile(d.poster, { image: true, mimePrefix: 'image/' });
+      if (poster.url) out.poster = poster;
+    }
+    return out;
+  },
+  audio: (d, inline) => ({
+    file: cleanMediaFile(d.file, { mimePrefix: 'audio/' }),
+    title: plain(d.title, 200),
+    caption: inline(d.caption),
+    loop: bool(d.loop),
+    tracks: mediaTracks(d.tracks),
+  }),
   linkTool: (d) => {
     const meta = isPlainObject(d.meta) ? d.meta : {};
     const image = isPlainObject(meta.image)
@@ -369,6 +489,29 @@ export const BLOCK_POLICIES = {
 };
 
 /**
+ * Block types added in 2.3 and the key their data always has. Before 2.3 a
+ * custom block could use one of these names; such stored data lacks the key
+ * and keeps being treated as custom block data (generic policy, neutral
+ * rendering), so it is never stripped.
+ */
+export const MEDIA_BLOCK_MARKERS = Object.freeze({ gallery: 'images', video: 'file', audio: 'file' });
+
+/**
+ * True when a block is a built-in block type whose policy applies.
+ * @param {{ type?: unknown, data?: unknown }} block - Block.
+ * @returns {boolean} Result.
+ */
+export const isBuiltInBlock = (block) => {
+  if (!block || typeof block.type !== 'string') return false;
+  if (!Object.prototype.hasOwnProperty.call(BLOCK_POLICIES, block.type)) return false;
+  const marker = Object.prototype.hasOwnProperty.call(MEDIA_BLOCK_MARKERS, block.type)
+    ? MEDIA_BLOCK_MARKERS[block.type]
+    : null;
+  if (!marker) return true;
+  return isPlainObject(block.data) && Object.prototype.hasOwnProperty.call(block.data, marker);
+};
+
+/**
  * Sanitises tune data. Known tunes are validated; unknown tunes are dropped.
  * @param {unknown} tunes - Block tunes.
  * @returns {object|undefined} Clean tunes, or undefined when none remain.
@@ -401,9 +544,7 @@ export const sanitizeEditorData = (data, options) => {
   const inline = (value) => (typeof value === 'string' ? options.sanitizeInlineHtml(value) : '');
   const ctx = { rawHtml: options.rawHtml || 'sanitize', rawSanitizer: options.sanitizeRawHtml };
   const blocks = data.blocks.map((block) => {
-    const policy = Object.prototype.hasOwnProperty.call(BLOCK_POLICIES, block.type)
-      ? BLOCK_POLICIES[block.type]
-      : null;
+    const policy = isBuiltInBlock(block) ? BLOCK_POLICIES[block.type] : null;
     const cleanData = policy ? policy(block.data || {}, inline, ctx) : generic(block.data || {}, inline, 0);
     for (const key of Object.keys(cleanData)) if (cleanData[key] === undefined) delete cleanData[key];
     const out = { id: block.id, type: block.type, data: cleanData };

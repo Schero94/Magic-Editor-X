@@ -34,6 +34,10 @@ const RULES = {
     key: 'editor.quality.rule.ambiguousLink',
     text: 'Link text "{text}" does not say where the link goes',
   },
+  'video-no-captions': {
+    key: 'editor.quality.rule.videoCaptions',
+    text: 'Video without captions or subtitles',
+  },
   'table-no-header': { key: 'editor.quality.rule.tableHeader', text: 'Table without a header row' },
   'low-contrast': {
     key: 'editor.quality.rule.lowContrast',

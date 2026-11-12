@@ -240,6 +240,7 @@
   "editor.quality.link.skipped": "Not checked",
   "editor.quality.link.entry": "Entry {documentId} ({type})",
   "editor.quality.link.media": "Media file {id}",
+  "editor.quality.rule.videoCaptions": "Video without captions or subtitles",
   "editor.quality.schedule.title": "Scheduled check",
   "editor.quality.schedule.loading": "Loading the scheduled result",
   "editor.quality.schedule.failed": "The scheduled result could not be loaded.",

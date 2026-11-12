@@ -240,6 +240,7 @@
   "editor.quality.link.skipped": "Non vérifié",
   "editor.quality.link.entry": "Entrée {documentId} ({type})",
   "editor.quality.link.media": "Fichier média {id}",
+  "editor.quality.rule.videoCaptions": "Vidéo sans sous-titres",
   "editor.quality.schedule.title": "Vérification planifiée",
   "editor.quality.schedule.loading": "Chargement du résultat planifié",
   "editor.quality.schedule.failed": "Le résultat de la vérification planifiée n'a pas pu être chargé.",

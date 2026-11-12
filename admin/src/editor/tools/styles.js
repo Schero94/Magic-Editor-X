@@ -954,6 +954,244 @@ export const editorStyles = css`
       width: 100%;
     }
 
+    /* Media Library blocks (gallery, video, audio) and the focal point control */
+    .mex-gallery-tool,
+    .mex-media {
+      display: flex;
+      flex-direction: column;
+      gap: ${s(3)};
+      min-width: 0;
+    }
+
+    .mex-media__toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-end;
+      gap: ${s(3)};
+      min-width: 0;
+
+      .mex-tool__field {
+        flex: 1 1 14rem;
+      }
+    }
+
+    .mex-media__toolbar-action,
+    .mex-media__row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: ${s(2)};
+    }
+
+    .mex-gallery-tool__items {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(min(100%, 22rem), 1fr));
+      gap: ${s(3)};
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+
+    .mex-gallery-tool__item {
+      display: flex;
+      flex-direction: column;
+      gap: ${s(2)};
+      min-width: 0;
+      padding: ${s(3)};
+      border: 1px solid ${c('neutral200')};
+      border-radius: ${radius};
+      background: ${c('neutral0')};
+    }
+
+    .mex-gallery-tool__media {
+      border-radius: ${radius};
+      background: ${c('neutral100')};
+      overflow: hidden;
+      aspect-ratio: 4 / 3;
+    }
+
+    .mex-gallery-tool__thumb {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+
+    .mex-gallery-tool__head {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: ${s(2)};
+    }
+
+    .mex-gallery-tool__position,
+    .mex-media__file {
+      margin: 0;
+      color: ${c('neutral600')};
+      font-size: ${f(1)};
+      overflow-wrap: anywhere;
+      min-width: 0;
+    }
+
+    .mex-gallery-tool__actions {
+      display: flex;
+      gap: ${s(1)};
+    }
+
+    .mex-tool__button--icon {
+      justify-content: center;
+      min-width: 32px;
+      padding: ${s(1)};
+    }
+
+    .mex-tool__button--danger {
+      color: ${c('danger700')};
+      border-color: ${c('danger200')};
+
+      &:hover {
+        background: ${c('danger100')};
+      }
+    }
+
+    .mex-media__caption {
+      text-align: start;
+    }
+
+    .mex-media__preview {
+      border-radius: ${radius};
+      background: ${c('neutral100')};
+      overflow: hidden;
+    }
+
+    .mex-media__player {
+      display: block;
+      width: 100%;
+      max-height: 48rem;
+    }
+
+    .mex-media--audio .mex-media__preview {
+      padding: ${s(3)};
+    }
+
+    .mex-media__flags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: ${s(4)};
+    }
+
+    .mex-media__section {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: ${s(2)};
+      padding-top: ${s(3)};
+      border-top: 1px solid ${c('neutral150')};
+      min-width: 0;
+
+      > * {
+        max-width: 100%;
+      }
+    }
+
+    .mex-media__poster {
+      max-width: min(100%, 24rem);
+      border-radius: ${radius};
+    }
+
+    .mex-media__tracks {
+      display: flex;
+      flex-direction: column;
+      gap: ${s(3)};
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      align-self: stretch;
+    }
+
+    .mex-media__track {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: ${s(2)};
+      padding: ${s(3)};
+      border: 1px solid ${c('neutral200')};
+      border-radius: ${radius};
+
+      .mex-tool__grid {
+        align-self: stretch;
+        margin: 0;
+      }
+    }
+
+    .mex-focal {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: ${s(2)};
+      min-width: 0;
+    }
+
+    .image-tool .mex-focal {
+      margin-bottom: ${s(2)};
+    }
+
+    .mex-focal__panel {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: ${s(2)};
+      max-width: 100%;
+
+      &[hidden] {
+        display: none;
+      }
+    }
+
+    .mex-focal__surface {
+      position: relative;
+      display: inline-block;
+      max-width: min(100%, 36rem);
+      cursor: crosshair;
+      border-radius: ${radius};
+      line-height: 0;
+
+      &:focus-visible {
+        outline: 2px solid ${c('primary600')};
+        outline-offset: 2px;
+      }
+    }
+
+    .mex-focal__img {
+      display: block;
+      max-width: 100%;
+      height: auto;
+      border-radius: ${radius};
+      user-select: none;
+    }
+
+    .mex-focal__marker {
+      position: absolute;
+      width: 24px;
+      height: 24px;
+      margin: -12px 0 0 -12px;
+      border: 3px solid ${c('neutral0')};
+      border-radius: 50%;
+      box-shadow:
+        0 0 0 2px ${c('primary600')},
+        inset 0 0 0 2px ${c('primary600')};
+      pointer-events: none;
+
+      &[hidden] {
+        display: none;
+      }
+    }
+
+    .mex-focal__value {
+      margin: 0;
+      font-size: ${f(1)};
+      color: ${c('neutral800')};
+    }
+
     /* Person */
     .mex-person {
       display: flex;

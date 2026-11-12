@@ -9,7 +9,8 @@
 
 import { isPlainObject, normalizeEditorDataSafe } from './editor-data.mjs';
 import { parseInline, nodesToText } from './render/inline.mjs';
-import { sanitizeUrl } from './sanitize-policy.mjs';
+import { sanitizeUrl, isBuiltInBlock } from './sanitize-policy.mjs';
+import { mediaSlots } from './resolve-references.mjs';
 
 /** Rule ids and their default severity. */
 export const QUALITY_RULES = Object.freeze({
@@ -21,6 +22,7 @@ export const QUALITY_RULES = Object.freeze({
   'ambiguous-link-text': 'warning',
   'table-no-header': 'warning',
   'low-contrast': 'warning',
+  'video-no-captions': 'warning',
 });
 
 /** Most links returned by `extractLinks` per kind. */
@@ -90,30 +92,6 @@ const AMBIGUOUS_LINK_TEXTS = new Set([
 /** Data keys of custom blocks that hold a text colour and a background colour. */
 const TEXT_COLOR_KEYS = ['color', 'textColor', 'foreground', 'textColour', 'colour'];
 const BACKGROUND_COLOR_KEYS = ['background', 'backgroundColor', 'bg', 'backgroundColour', 'bgColor'];
-
-/** Built-in block types whose data is known; anything else is a custom block. */
-const BUILT_IN = new Set([
-  'paragraph',
-  'header',
-  'quote',
-  'list',
-  'checklist',
-  'warning',
-  'alert',
-  'toggle',
-  'code',
-  'codeFlask',
-  'raw',
-  'table',
-  'image',
-  'simpleImage',
-  'linkTool',
-  'attaches',
-  'embed',
-  'personality',
-  'button',
-  'delimiter',
-]);
 
 /**
  * Normalises a link text for comparison.
@@ -212,7 +190,8 @@ const inlineStrings = (block) => {
       }
     });
   };
-  switch (block.type) {
+  // Custom blocks (also ones written before 2.3 under a name 2.3 now uses) take the default branch.
+  switch (isBuiltInBlock(block) ? block.type : '') {
     case 'paragraph':
     case 'header':
     case 'toggle':
@@ -245,10 +224,19 @@ const inlineStrings = (block) => {
     case 'image':
     case 'simpleImage':
     case 'embed':
+    case 'video':
+    case 'audio':
+      add('caption', d.caption);
+      break;
+    case 'gallery':
+      if (Array.isArray(d.images))
+        d.images.forEach(
+          (item, index) => isPlainObject(item) && add(`images.${index}.caption`, item.caption)
+        );
       add('caption', d.caption);
       break;
     default:
-      if (!BUILT_IN.has(block.type)) {
+      if (!isBuiltInBlock(block)) {
         const walk = (value, path, depth) => {
           if (depth > 6) return;
           if (typeof value === 'string') add(path, value);
@@ -375,7 +363,24 @@ export const lintDocument = (value, options = {}) => {
       images += 1;
       if (d.decorative !== true && !hasAlt(d.alt))
         push('image-alt-missing', block, index, { severity: altSeverity, path: 'alt' });
-    } else if (!BUILT_IN.has(block.type)) {
+    } else if (block.type === 'gallery' && isBuiltInBlock(block)) {
+      (Array.isArray(d.images) ? d.images : []).forEach((item, itemIndex) => {
+        if (!isPlainObject(item)) return;
+        images += 1;
+        const file = isPlainObject(item.file) ? item.file : {};
+        if (item.decorative !== true && !hasAlt(file.alt))
+          push('image-alt-missing', block, index, {
+            severity: altSeverity,
+            path: `images.${itemIndex}.file.alt`,
+          });
+      });
+    } else if (block.type === 'video' && isBuiltInBlock(block)) {
+      const tracks = Array.isArray(d.tracks) ? d.tracks : [];
+      const captioned = tracks.some(
+        (track) => isPlainObject(track) && (track.kind === 'captions' || track.kind === 'subtitles')
+      );
+      if (isPlainObject(d.file) && d.file.url && !captioned) push('video-no-captions', block, index);
+    } else if (!isBuiltInBlock(block)) {
       for (const image of customImages(d, '', [])) {
         images += 1;
         if (!hasAlt(image.alt))
@@ -477,10 +482,14 @@ export const extractLinks = (value) => {
         if (isPlainObject(d.file)) addExternal(d.file.url, block.id);
         break;
       case 'image':
-        if (isPlainObject(d.file)) addMedia(d.file.id, block.id);
-        break;
+      case 'gallery':
+      case 'video':
+      case 'audio':
+        for (const slot of mediaSlots(block)) addMedia(slot.file.id, block.id);
+        if (isBuiltInBlock(block)) break;
+      // falls through: a custom block written before 2.3 under one of these names
       default:
-        if (!BUILT_IN.has(block.type))
+        if (!isBuiltInBlock(block))
           for (const value of Object.values(d))
             if (isPlainObject(value) && value.id !== undefined && typeof value.url === 'string')
               addMedia(value.id, block.id);

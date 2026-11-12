@@ -19,7 +19,7 @@
 /**
  * @typedef {{ type: 'text', value: string }} TextNode
  * @typedef {{ type: 'raw', html: string }} RawNode
- * @typedef {{ type: 'element', tag: string, attrs: Record<string, string | true>, children: RenderNode[] }} ElementNode
+ * @typedef {{ type: 'element', tag: string, attrs: Record<string, string | true>, children: RenderNode[], style?: Record<string, string> }} ElementNode
  * @typedef {ElementNode | TextNode | RawNode} RenderNode
  */
 
@@ -119,6 +119,25 @@ export const toNodes = (children) => {
   return out;
 };
 
+/** CSS properties a render node may set through `style` (renderer option `focalPoint: 'style'`). */
+export const STYLE_PROPERTIES = Object.freeze(['object-position']);
+const STYLE_VALUE = /^[0-9]{1,3}(?:\.[0-9]{1,2})?% [0-9]{1,3}(?:\.[0-9]{1,2})?%$/;
+
+/**
+ * Safe inline style declarations of an element node. Only the renderer sets
+ * `style` (never overrides or stored content), only for `STYLE_PROPERTIES`
+ * with percentage values.
+ * @param {unknown} style - `node.style`.
+ * @returns {Array<[string, string]>} Property and value pairs.
+ */
+export const safeStyle = (style) =>
+  style && typeof style === 'object'
+    ? Object.entries(style).filter(
+        ([name, value]) =>
+          STYLE_PROPERTIES.includes(name) && typeof value === 'string' && STYLE_VALUE.test(value)
+      )
+    : [];
+
 /**
  * Serialises render nodes to HTML. Text and attribute values are escaped;
  * raw nodes are written as they are (they were sanitised by the caller).
@@ -139,6 +158,9 @@ export const serializeNodes = (nodes) => {
       for (const [name, value] of Object.entries(node.attrs)) {
         attributes += value === true ? ` ${name}` : ` ${name}="${escapeHtml(value)}"`;
       }
+      const style = safeStyle(node.style);
+      if (style.length)
+        attributes += ` style="${escapeHtml(style.map(([name, value]) => `${name}:${value}`).join(';'))}"`;
       out += VOID_TAGS.has(node.tag)
         ? `<${node.tag}${attributes}>`
         : `<${node.tag}${attributes}>${serializeNodes(node.children)}</${node.tag}>`;

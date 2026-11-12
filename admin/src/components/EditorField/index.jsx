@@ -635,6 +635,7 @@ const EditorField = ({
       aiEnabled: Boolean(config.ai.enabled && permissions.ai && preset.ai),
       preset: preset.restricted ? preset : null,
       canUpload: Boolean(permissions.upload),
+      canBrowse: Boolean(permissions.mediaLibrary),
       linkPreview: config.linkPreview,
       customBlocks,
       placeholder,
@@ -796,9 +797,12 @@ const EditorField = ({
     (assets) => {
       const request = mediaRequest || {};
       setMediaRequest(null);
-      const images = (assets || []).filter(
-        (asset) => typeof asset.mime === 'string' && asset.mime.startsWith('image/')
-      );
+      // Tools pass `accept` (video, audio, WebVTT); everything else takes images only.
+      const accept =
+        typeof request.accept === 'function'
+          ? request.accept
+          : (asset) => typeof asset.mime === 'string' && asset.mime.startsWith('image/');
+      const images = (assets || []).filter((asset) => asset && accept(asset));
       if (typeof request.onSelect === 'function') {
         request.onSelect(images);
         return;
@@ -1320,7 +1324,11 @@ const EditorField = ({
       {mediaRequest && MediaLibraryDialog ? (
         // eslint-disable-next-line react-hooks/static-components -- the dialog is a stable component registered by the upload plugin, not created here
         <MediaLibraryDialog
-          allowedTypes={['images']}
+          allowedTypes={
+            Array.isArray(mediaRequest.allowedTypes) && mediaRequest.allowedTypes.length
+              ? mediaRequest.allowedTypes
+              : ['images']
+          }
           multiple={mediaRequest.multiple !== false}
           onClose={closeMediaLibrary}
           onSelectAssets={onSelectAssets}

@@ -48,6 +48,152 @@
       },
       "additionalProperties": true
     },
+    "focalPoint": {
+      "type": "object",
+      "description": "Focal point of the image (0..1). Media Library formats are resized, not cropped, so it applies to every format.",
+      "properties": {
+        "x": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "From the left edge, two decimals."
+        },
+        "y": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "From the top edge, two decimals."
+        }
+      },
+      "required": ["x", "y"],
+      "additionalProperties": false
+    },
+    "mediaFile": {
+      "type": "object",
+      "description": "Media Library file (video, audio or WebVTT track).",
+      "properties": {
+        "url": {
+          "$ref": "#/$defs/url"
+        },
+        "id": {
+          "type": ["integer", "string"],
+          "description": "Media Library file id."
+        },
+        "documentId": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "mime": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "hash": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "ext": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "width": {
+          "type": "number"
+        },
+        "height": {
+          "type": "number"
+        },
+        "size": {
+          "type": "number"
+        }
+      },
+      "required": ["url"],
+      "additionalProperties": false
+    },
+    "imageFile": {
+      "type": "object",
+      "description": "Media Library image file.",
+      "properties": {
+        "url": {
+          "$ref": "#/$defs/url"
+        },
+        "id": {
+          "type": ["integer", "string"],
+          "description": "Media Library file id."
+        },
+        "documentId": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "alt": {
+          "type": "string",
+          "maxLength": 500,
+          "description": "Alternative text."
+        },
+        "mime": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "hash": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "ext": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "width": {
+          "type": "number"
+        },
+        "height": {
+          "type": "number"
+        },
+        "size": {
+          "type": "number"
+        },
+        "formats": {
+          "type": "object",
+          "description": "Media Library formats (thumbnail, small, medium, large) for responsive images.",
+          "additionalProperties": {
+            "$ref": "#/$defs/mediaFormat"
+          }
+        }
+      },
+      "required": ["url"],
+      "additionalProperties": false
+    },
+    "mediaTrack": {
+      "type": "object",
+      "description": "WebVTT text track from the Media Library.",
+      "properties": {
+        "file": {
+          "$ref": "#/$defs/mediaFile"
+        },
+        "kind": {
+          "type": "string",
+          "enum": ["captions", "subtitles", "descriptions", "chapters"]
+        },
+        "srclang": {
+          "type": "string",
+          "pattern": "^([A-Za-z]{2,3}(-[A-Za-z0-9]{1,8}){0,3})?$"
+        },
+        "label": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "default": {
+          "type": "boolean"
+        }
+      },
+      "required": ["file", "kind", "srclang", "label"],
+      "additionalProperties": false
+    },
     "listItem": {
       "anyOf": [
         {
@@ -378,6 +524,66 @@
             "properties": {
               "data": {
                 "$ref": "#/$defs/data_simpleImage"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "gallery"
+              },
+              "data": {
+                "required": ["images"]
+              }
+            },
+            "required": ["type", "data"]
+          },
+          "then": {
+            "properties": {
+              "data": {
+                "$ref": "#/$defs/data_gallery"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "video"
+              },
+              "data": {
+                "required": ["file"]
+              }
+            },
+            "required": ["type", "data"]
+          },
+          "then": {
+            "properties": {
+              "data": {
+                "$ref": "#/$defs/data_video"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "audio"
+              },
+              "data": {
+                "required": ["file"]
+              }
+            },
+            "required": ["type", "data"]
+          },
+          "then": {
+            "properties": {
+              "data": {
+                "$ref": "#/$defs/data_audio"
               }
             }
           }
@@ -776,6 +982,9 @@
         "decorative": {
           "type": "boolean",
           "description": "True when the image is decorative (rendered with an empty alt)."
+        },
+        "focalPoint": {
+          "$ref": "#/$defs/focalPoint"
         }
       },
       "required": ["file", "caption", "withBorder", "withBackground", "stretched"],
@@ -809,6 +1018,111 @@
         }
       },
       "required": ["url", "caption", "withBorder", "withBackground", "stretched"],
+      "additionalProperties": false
+    },
+    "data_gallery": {
+      "type": "object",
+      "properties": {
+        "images": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "object",
+            "properties": {
+              "file": {
+                "$ref": "#/$defs/imageFile"
+              },
+              "caption": {
+                "$ref": "#/$defs/inlineHtml"
+              },
+              "decorative": {
+                "type": "boolean",
+                "description": "True when the image is decorative (rendered with an empty alt)."
+              },
+              "focalPoint": {
+                "$ref": "#/$defs/focalPoint"
+              }
+            },
+            "required": ["file", "caption"],
+            "additionalProperties": false
+          }
+        },
+        "layout": {
+          "type": "string",
+          "enum": ["grid", "carousel"],
+          "description": "Layout hint for frontends."
+        },
+        "columns": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 6,
+          "description": "Columns of the grid layout (hint)."
+        },
+        "caption": {
+          "$ref": "#/$defs/inlineHtml"
+        }
+      },
+      "required": ["images", "layout", "columns", "caption"],
+      "additionalProperties": false
+    },
+    "data_video": {
+      "type": "object",
+      "properties": {
+        "file": {
+          "$ref": "#/$defs/mediaFile"
+        },
+        "poster": {
+          "$ref": "#/$defs/imageFile"
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "caption": {
+          "$ref": "#/$defs/inlineHtml"
+        },
+        "loop": {
+          "type": "boolean"
+        },
+        "muted": {
+          "type": "boolean"
+        },
+        "tracks": {
+          "type": "array",
+          "maxItems": 8,
+          "items": {
+            "$ref": "#/$defs/mediaTrack"
+          }
+        }
+      },
+      "required": ["file", "title", "caption", "loop", "muted", "tracks"],
+      "additionalProperties": false
+    },
+    "data_audio": {
+      "type": "object",
+      "properties": {
+        "file": {
+          "$ref": "#/$defs/mediaFile"
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "caption": {
+          "$ref": "#/$defs/inlineHtml"
+        },
+        "loop": {
+          "type": "boolean"
+        },
+        "tracks": {
+          "type": "array",
+          "maxItems": 8,
+          "items": {
+            "$ref": "#/$defs/mediaTrack"
+          }
+        }
+      },
+      "required": ["file", "title", "caption", "loop", "tracks"],
       "additionalProperties": false
     },
     "data_linkTool": {
