@@ -156,6 +156,26 @@ test('the package ships only build output, the data contract and the top-level d
     require: './dist/render/index.js',
     default: './dist/render/index.js',
   });
+  // Framework components: the framework is the caller's (optional peer for Vue, admin peer for React).
+  for (const [name, source] of [
+    ['react', './shared/frameworks/react.mjs'],
+    ['vue', './shared/frameworks/vue.mjs'],
+  ]) {
+    assert.deepEqual(pkg.exports[`./${name}`], {
+      source,
+      import: `./dist/${name}/index.mjs`,
+      require: `./dist/${name}/index.js`,
+      default: `./dist/${name}/index.js`,
+    });
+    assert.ok(read(`types/${name}.d.ts`).includes('MagicEditorXContent'), name);
+  }
+  assert.equal(pkg.peerDependencies.vue, '^3.5.0');
+  assert.deepEqual(pkg.peerDependenciesMeta.vue, { optional: true });
+  assert.equal(pkg.peerDependencies.react, '^18.0.0 || ^19.0.0');
+  assert.ok(pkg.devDependencies.vue, 'vue is a devDependency for the tests');
+  assert.equal(pkg.dependencies.vue, undefined);
+  // The core renderer and the server never import a framework.
+  assert.doesNotMatch(read('scripts/build-server-bundle.mjs'), /renderOptions = \{[^}]*external/);
   assert.equal(pkg.exports['./schema'], './schema/magic-editor-x.schema.json');
   assert.equal(pkg.exports['./types'], './types/index.d.ts');
 });
