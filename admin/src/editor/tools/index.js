@@ -225,7 +225,12 @@ export function buildTools(ctx) {
       class: GalleryTool,
       inlineToolbar: inline,
       toolbox: canBrowse ? undefined : false,
-      config: { ...shared, canBrowse, requireAlt: Boolean(preset && preset.requireAlt) },
+      config: {
+        ...shared,
+        canBrowse,
+        requireAlt: Boolean(preset && preset.requireAlt),
+        suggestAltText: ctx.suggestAltText,
+      },
     },
     video: {
       class: VideoTool,

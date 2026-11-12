@@ -1,5 +1,6 @@
 import { ICONS, el, field, input, select, button, editable } from './dom';
 import { createAltControl } from './alt-text';
+import { mediaFileId } from '../ai-alt-text';
 import { createFocalControl } from './focal-point';
 import { sanitizeInline, sanitizeUrl } from '../sanitize';
 import {
@@ -384,6 +385,9 @@ export class GalleryTool extends MediaBaseTool {
       decorative: image.decorative === true,
       required: this.config.requireAlt === true,
       readOnly: this.readOnly,
+      // 2.3: AI alternative text suggestion per image (only when the owner and the field allow it).
+      suggest: typeof this.config.suggestAltText === 'function' ? this.config.suggestAltText : undefined,
+      getFileId: () => mediaFileId(image.file),
       onChange: (value) => {
         image.file = { ...image.file, alt: value.alt };
         if (value.decorative) image.decorative = true;

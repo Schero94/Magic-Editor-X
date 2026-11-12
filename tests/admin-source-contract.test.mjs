@@ -79,3 +79,15 @@ test('internal-link attributes survive the admin sanitiser (DOMPurify treats the
   const source = sources.find(([file]) => file === 'editor/sanitize.js')[1];
   assert.match(source, /ADD_URI_SAFE_ATTR:\s*\[\.\.\.INTERNAL_LINK_ATTRIBUTES\]/);
 });
+
+test('the gallery offers the AI alternative text suggestion per image like the image block', () => {
+  const read = (file) => sources.find(([name]) => name === file)[1];
+  const tools = read('editor/tools/index.js');
+  const gallery = tools.slice(tools.indexOf('gallery: {'), tools.indexOf('video: {'));
+  assert.match(gallery, /suggestAltText:\s*ctx\.suggestAltText/);
+  const media = read('editor/tools/media.js');
+  const item = media.slice(media.indexOf('const alt = createAltControl({'), media.indexOf('const caption ='));
+  assert.match(item, /suggest:\s*typeof this\.config\.suggestAltText === 'function'/);
+  assert.match(item, /getFileId:\s*\(\)\s*=>\s*mediaFileId\(image\.file\)/);
+  assert.match(media, /import \{ mediaFileId \} from '\.\.\/ai-alt-text'/);
+});
