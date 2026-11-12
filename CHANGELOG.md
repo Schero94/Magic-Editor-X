@@ -1,6 +1,12 @@
 # Changelog
 
-## [Unreleased]
+## [2.3.1](https://github.com/Schero94/Magic-Editor-X/compare/v2.3.0...v2.3.1) (2026-11-12)
+
+
+### Bug Fixes
+
+* no live room, history or comments for editor fields with positional paths ([#7](https://github.com/Schero94/Magic-Editor-X/issues/7)) ([4663f82](https://github.com/Schero94/Magic-Editor-X/commit/4663f82a82088a931cd3ca9b51c418075e1fc2a2))
+
 
 ### Fixed
 
