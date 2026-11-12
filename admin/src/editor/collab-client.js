@@ -493,6 +493,12 @@ export const createCollabClient = ({
     canRedo: () => Boolean(replica && replica.canRedo()),
     /** Current shared document. */
     getData: () => (replica ? replica.read() : docToEditorData(new Y.Doc())),
+    /**
+     * 2.4: the shared Y.Doc once the first sync is done (range comment anchors resolve their
+     * relative positions in it), else null. Read only: never write to it outside `pushLocal`.
+     * @returns {Y.Doc|null} Document.
+     */
+    getDoc: () => (replica && synced ? replica.doc : null),
     /** True when the room has content (it was seeded). */
     hasContent() {
       return Boolean(

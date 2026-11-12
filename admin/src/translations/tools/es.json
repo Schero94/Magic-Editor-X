@@ -288,6 +288,7 @@
   "tools.focal.none": "Sin punto focal (los frontends usan el centro).",
   "tools.focal.toggleSet": "Punto focal {x} %, {y} %",
   "tools.focal.toggle": "Definir el punto focal",
+  "tools.names.comment": "Comentar",
   "tools.names.gallery": "Galería",
   "tools.names.video": "Vídeo",
   "tools.names.audio": "Audio",

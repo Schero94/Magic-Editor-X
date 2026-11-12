@@ -106,6 +106,56 @@ module.exports = {
         resolvedAt: { type: 'datetime' },
         resolvedById: { type: 'integer' },
         resolvedByName: { type: 'string', maxLength: 200 },
+        /**
+         * 2.4 range comments (root only): `{ path, start, end, quote: { exact, prefix, suffix } }`
+         * (shared/comment-anchor.mjs `cleanAnchor`). Null for block comments and rows written before 2.4.
+         */
+        anchor: { type: 'json' },
+        /** 2.4 @mentions: admin ids of the people this comment mentions (max 20). Never returned. */
+        mentions: { type: 'json' },
+      },
+    },
+  },
+
+  /**
+   * In-admin notifications of comment mentions and replies (2.4). One row per
+   * recipient and comment (`kind` mention wins over reply). Rows follow the
+   * comment: deleted with the comment, its thread or its entry, and when the
+   * recipient admin is deleted. The text is never copied here; listings read
+   * the comment and check the recipient's access again.
+   */
+  'comment-notification': {
+    schema: {
+      kind: 'collectionType',
+      collectionName: 'magic_editor_comment_notifications',
+      info: {
+        singularName: 'comment-notification',
+        pluralName: 'comment-notifications',
+        displayName: 'Editor comment notification',
+        description: 'Mentions and replies in Magic Editor X comments',
+      },
+      options: { draftAndPublish: false },
+      pluginOptions: hidden,
+      indexes: [
+        { name: 'mex_comment_notes_recipient_idx', columns: ['recipient_id', 'read_at'] },
+        { name: 'mex_comment_notes_comment_idx', columns: ['comment_id'] },
+        { name: 'mex_comment_notes_thread_idx', columns: ['thread_id'] },
+      ],
+      attributes: {
+        /** Admin id of the person notified. */
+        recipientId: { type: 'integer', required: true },
+        /** mention | reply */
+        kind: { type: 'enumeration', enum: ['mention', 'reply'], required: true, default: 'mention' },
+        /** documentId of the comment that caused it, and of its thread's root. */
+        commentId: { type: 'string', required: true },
+        threadId: { type: 'string', required: true },
+        contentType: { type: 'string', required: true },
+        entryId: { type: 'string', required: true },
+        entryLocale: { type: 'string' },
+        fieldName: { type: 'string', required: true },
+        blockId: { type: 'string', maxLength: 64 },
+        readAt: { type: 'datetime' },
+        emailedAt: { type: 'datetime' },
       },
     },
   },

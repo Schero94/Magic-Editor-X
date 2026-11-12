@@ -477,6 +477,20 @@ export const editorStyles = css`
       color: ${c('neutral800')};
     }
 
+    /* 2.4 range comments: commented text, and the thread the caret is in. */
+    ::highlight(mex-comment) {
+      background-color: ${c('secondary100')};
+      text-decoration: underline 2px ${c('secondary500')};
+      text-underline-offset: 3px;
+    }
+
+    ::highlight(mex-comment-active) {
+      background-color: ${c('secondary200')};
+      text-decoration: underline 2px ${c('secondary700')};
+      text-underline-offset: 3px;
+      color: ${c('neutral800')};
+    }
+
     .mex-tool__caption {
       color: ${c('neutral600')};
       font-size: ${f(1)};

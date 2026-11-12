@@ -1,9 +1,11 @@
 import { forwardRef, useState } from 'react';
 import { useIntl } from 'react-intl';
-import { Badge, Box, Button, Field, Flex, Textarea, Typography } from '@strapi/design-system';
+import { Badge, Box, Button, Flex, Typography } from '@strapi/design-system';
 import styled from 'styled-components';
 import { ConfirmAction } from '../ui/ConfirmAction';
-import { MAX_COMMENT_LENGTH, relativeTimeParts } from '../../../../shared/comments.mjs';
+import { MentionTextarea } from './MentionTextarea';
+import { normalizeExcerpt, relativeTimeParts } from '../../../../shared/comments.mjs';
+import { mentionSegments } from '../../../../shared/comment-mentions.mjs';
 
 /**
  * One comment thread in the comments panel: the block it belongs to (or
@@ -32,6 +34,49 @@ const Wrap = styled(Typography)`
   min-width: 0;
 `;
 
+/** 2.4: an @mention in a comment (rendered as text, never HTML). */
+const Mention = styled.span`
+  display: inline;
+  padding: 0 ${({ theme }) => theme.spaces[1]};
+  border-radius: ${({ theme }) => theme.borderRadius};
+  background: ${({ theme }) => theme.colors.primary100};
+  color: ${({ theme }) => theme.colors.primary700};
+  font-weight: 600;
+  &[data-you='true'] {
+    background: ${({ theme }) => theme.colors.alternative100};
+    color: ${({ theme }) => theme.colors.alternative700};
+  }
+`;
+
+/** 2.4: the commented text of a range comment. */
+const Quote = styled(Typography)`
+  display: block;
+  padding-inline-start: ${({ theme }) => theme.spaces[2]};
+  border-inline-start: 3px solid ${({ theme }) => theme.colors.secondary500};
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  min-width: 0;
+`;
+
+/**
+ * Comment text with @mention chips.
+ * @param {{ comment: object }} props - Props.
+ * @returns {JSX.Element[]} Parts.
+ */
+const CommentText = ({ comment }) =>
+  mentionSegments(comment.body, comment.mentions).map((segment, index) =>
+    segment.type === 'mention' ? (
+      <Mention key={index} data-you={segment.you ? 'true' : 'false'} data-testid="mex-comment-mention">
+        {segment.text}
+      </Mention>
+    ) : (
+      <span key={index}>{segment.text}</span>
+    )
+  );
+
+/** Longest quote shown in a thread before it is shortened. */
+const QUOTE_SHOWN = 280;
+
 const List = styled.ol`
   list-style: none;
   margin: 0;
@@ -41,18 +86,6 @@ const List = styled.ol`
   flex-direction: column;
   gap: ${({ theme }) => theme.spaces[3]};
 `;
-
-/**
- * Submits a textarea with Ctrl/Cmd+Enter.
- * @param {KeyboardEvent} event - Key event.
- * @param {() => void} submit - Submit.
- */
-const submitOnModEnter = (event, submit) => {
-  if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
-    event.preventDefault();
-    submit();
-  }
-};
 
 /**
  * Author name, relative time (absolute time as tooltip) and "edited".
@@ -96,6 +129,12 @@ const CommentMeta = ({ comment, t }) => {
  * @param {(message: string) => void} props.announce - Live-region message.
  * @param {(message: string) => void} props.fail - Error notification.
  * @param {{ current: HTMLElement|null }} props.fallbackFocusRef - Focus target after deleting the thread.
+ * @param {'anchored'|'changed'|'detached'|null} [props.anchorStatus] - 2.4: where the commented text of a range
+ *   comment is (null for block comments).
+ * @param {((threadId: string) => void)|null} [props.onShowRange] - 2.4: selects the commented text in the editor.
+ * @param {'mention'|'reply'|null} [props.notification] - 2.4: the caller has an unread notification for this thread.
+ * @param {((text: string) => Promise<Array<object>>)|null} [props.searchMentions] - 2.4: people search for @mentions.
+ * @param {boolean} [props.active] - 2.4: the thread of the highlight the caret is in.
  * @returns {JSX.Element} Thread.
  */
 export const CommentThread = forwardRef(function CommentThread(
@@ -110,11 +149,17 @@ export const CommentThread = forwardRef(function CommentThread(
     announce,
     fail,
     fallbackFocusRef,
+    anchorStatus = null,
+    onShowRange = null,
+    notification = null,
+    searchMentions = null,
+    active = false,
   },
   ref
 ) {
   const [replying, setReplying] = useState(false);
   const [reply, setReply] = useState('');
+  const [replyMentions, setReplyMentions] = useState([]);
   const [editing, setEditing] = useState(null);
   const [busy, setBusy] = useState(null);
   const resolved = thread.status === 'resolved';
@@ -122,6 +167,22 @@ export const CommentThread = forwardRef(function CommentThread(
   const positional = Boolean(thread.positional);
   const excerpt =
     blockExcerpt || thread.excerpt || t('editor.comments.thread.noExcerpt', 'a block without text');
+  // 2.4: range comments show the text they are on.
+  const quote = thread.anchor && thread.anchor.quote ? normalizeExcerpt(thread.anchor.quote.exact) : null;
+  const shownQuote = quote && quote.length > QUOTE_SHOWN ? `${quote.slice(0, QUOTE_SHOWN - 1)}…` : quote;
+  const textChanged = Boolean(quote) && anchorStatus === 'changed' && !thread.detached;
+
+  /** Tells the author when the server left out mentions of people without access. */
+  const reportDropped = (result) => {
+    if (result && result.droppedMentions)
+      fail(
+        t(
+          'editor.comments.mentions.dropped',
+          '{count, plural, one {# person was} other {# people were}} not mentioned: they cannot read this field.',
+          { count: result.droppedMentions }
+        )
+      );
+  };
   const headingId = `mex-comment-thread-${thread.id}`;
 
   const errorMessage = (error) =>
@@ -133,8 +194,9 @@ export const CommentThread = forwardRef(function CommentThread(
     if (!reply.trim() || busy) return;
     setBusy('reply');
     try {
-      await actions.reply(thread.id, reply);
+      reportDropped(await actions.reply(thread.id, reply, replyMentions));
       setReply('');
+      setReplyMentions([]);
       setReplying(false);
       announce(t('editor.comments.announce.replied', 'Reply added'));
     } catch (error) {
@@ -148,7 +210,7 @@ export const CommentThread = forwardRef(function CommentThread(
     if (!editing || !editing.value.trim() || busy) return;
     setBusy(`edit:${editing.id}`);
     try {
-      await actions.edit(editing.id, editing.value);
+      reportDropped(await actions.edit(editing.id, editing.value, editing.mentions));
       setEditing(null);
       announce(t('editor.comments.announce.saved', 'Comment saved'));
     } catch (error) {
@@ -195,25 +257,58 @@ export const CommentThread = forwardRef(function CommentThread(
       aria-labelledby={headingId}
       padding={3}
       hasRadius
-      borderColor={resolved ? 'neutral150' : 'neutral200'}
+      borderColor={active ? 'secondary500' : resolved ? 'neutral150' : 'neutral200'}
       background={resolved ? 'neutral100' : 'neutral0'}
       data-testid="mex-comment-thread"
       data-thread-id={thread.id}
       data-status={thread.status}
       data-detached={thread.detached ? 'true' : 'false'}
       data-positional={positional ? 'true' : 'false'}
+      data-anchor={quote ? anchorStatus || 'unknown' : 'block'}
+      data-active={active ? 'true' : 'false'}
     >
       <Flex direction="column" alignItems="stretch" gap={3}>
         <Flex justifyContent="space-between" alignItems="flex-start" gap={2} wrap="wrap">
           <Flex direction="column" alignItems="flex-start" gap={1} minWidth={0} flex="1 1 16rem">
             <Wrap variant="sigma" tag="h4" id={headingId} textColor="neutral600">
-              {t('editor.comments.thread.on', 'On: {excerpt}', { excerpt })}
+              {quote
+                ? t('editor.comments.thread.onText', 'On selected text')
+                : t('editor.comments.thread.on', 'On: {excerpt}', { excerpt })}
             </Wrap>
+            {quote ? (
+              <Quote variant="omega" textColor="neutral800" data-testid="mex-comment-quote">
+                {shownQuote}
+              </Quote>
+            ) : null}
             <Flex gap={2} wrap="wrap">
+              {notification ? (
+                <Badge
+                  backgroundColor="alternative100"
+                  textColor="alternative700"
+                  data-testid="mex-comment-notified"
+                >
+                  {notification === 'mention'
+                    ? t('editor.comments.notified.mention', 'Mentioned you')
+                    : t('editor.comments.notified.reply', 'New reply')}
+                </Badge>
+              ) : null}
+              {textChanged ? (
+                <Badge backgroundColor="warning100" textColor="neutral800">
+                  {t('editor.comments.textChanged', 'Text changed')}
+                </Badge>
+              ) : null}
               {positional ? (
                 <Badge backgroundColor="neutral150" textColor="neutral800">
                   {t('editor.comments.positional.badge', 'Saved by position')}
                 </Badge>
+              ) : null}
+              {textChanged ? (
+                <Typography variant="pi" textColor="neutral600">
+                  {t(
+                    'editor.comments.textChangedHint',
+                    'The commented text was changed or deleted. The thread stays on its block.'
+                  )}
+                </Typography>
               ) : null}
               {thread.detached && !positional ? (
                 <Badge backgroundColor="warning100" textColor="neutral800">
@@ -227,7 +322,11 @@ export const CommentThread = forwardRef(function CommentThread(
               ) : null}
             </Flex>
           </Flex>
-          {thread.detached || positional ? null : (
+          {thread.detached || positional ? null : quote && anchorStatus === 'anchored' && onShowRange ? (
+            <Button variant="ghost" size="S" onClick={() => onShowRange(thread.id)}>
+              {t('editor.comments.showText', 'Show text')}
+            </Button>
+          ) : (
             <Button variant="ghost" size="S" onClick={() => onSelectBlock(thread.blockId)}>
               {t('editor.comments.showBlock', 'Show block')}
             </Button>
@@ -262,21 +361,19 @@ export const CommentThread = forwardRef(function CommentThread(
                   <CommentMeta comment={comment} t={t} />
                   {isEditing ? (
                     <Flex direction="column" alignItems="stretch" gap={2}>
-                      <Field.Root name={`edit-${comment.id}`}>
-                        <Field.Label>{t('editor.comments.editLabel', 'Edit comment')}</Field.Label>
-                        <Textarea
-                          value={editing.value}
-                          maxLength={MAX_COMMENT_LENGTH}
-                          onChange={(event) => setEditing({ id: comment.id, value: event.target.value })}
-                          onKeyDown={(event) => {
-                            if (event.key === 'Escape') {
-                              event.stopPropagation();
-                              setEditing(null);
-                            } else submitOnModEnter(event, saveEdit);
-                          }}
-                          autoFocus
-                        />
-                      </Field.Root>
+                      <MentionTextarea
+                        name={`edit-${comment.id}`}
+                        label={t('editor.comments.editLabel', 'Edit comment')}
+                        value={editing.value}
+                        onChange={(value) => setEditing((current) => ({ ...current, value }))}
+                        mentions={editing.mentions}
+                        onMentionsChange={(next) => setEditing((current) => ({ ...current, mentions: next }))}
+                        search={searchMentions}
+                        onSubmit={saveEdit}
+                        onCancel={() => setEditing(null)}
+                        t={t}
+                        autoFocus
+                      />
                       <Flex gap={2} wrap="wrap">
                         <Button
                           size="S"
@@ -293,7 +390,7 @@ export const CommentThread = forwardRef(function CommentThread(
                     </Flex>
                   ) : (
                     <Body variant="omega" textColor="neutral800" data-testid="mex-comment-body">
-                      {comment.body}
+                      <CommentText comment={comment} />
                     </Body>
                   )}
                   {!isEditing && ((own && canWrite) || canDelete) ? (
@@ -302,7 +399,13 @@ export const CommentThread = forwardRef(function CommentThread(
                         <Button
                           variant="ghost"
                           size="S"
-                          onClick={() => setEditing({ id: comment.id, value: comment.body })}
+                          onClick={() =>
+                            setEditing({
+                              id: comment.id,
+                              value: comment.body,
+                              mentions: (comment.mentions || []).map(({ id, name }) => ({ id, name })),
+                            })
+                          }
                         >
                           {t('editor.comments.edit', 'Edit')}
                         </Button>
@@ -355,21 +458,19 @@ export const CommentThread = forwardRef(function CommentThread(
           <Flex direction="column" alignItems="stretch" gap={2}>
             {replying ? (
               <>
-                <Field.Root name={`reply-${thread.id}`}>
-                  <Field.Label>{t('editor.comments.replyLabel', 'Reply to this thread')}</Field.Label>
-                  <Textarea
-                    value={reply}
-                    maxLength={MAX_COMMENT_LENGTH}
-                    onChange={(event) => setReply(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Escape') {
-                        event.stopPropagation();
-                        setReplying(false);
-                      } else submitOnModEnter(event, sendReply);
-                    }}
-                    autoFocus
-                  />
-                </Field.Root>
+                <MentionTextarea
+                  name={`reply-${thread.id}`}
+                  label={t('editor.comments.replyLabel', 'Reply to this thread')}
+                  value={reply}
+                  onChange={setReply}
+                  mentions={replyMentions}
+                  onMentionsChange={setReplyMentions}
+                  search={searchMentions}
+                  onSubmit={sendReply}
+                  onCancel={() => setReplying(false)}
+                  t={t}
+                  autoFocus
+                />
                 <Flex gap={2} wrap="wrap">
                   <Button size="S" onClick={sendReply} loading={busy === 'reply'} disabled={!reply.trim()}>
                     {t('editor.comments.reply', 'Reply')}

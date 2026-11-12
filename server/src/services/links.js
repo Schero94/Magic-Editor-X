@@ -111,6 +111,8 @@ module.exports = ({ strapi }) => {
 
   return {
     PAGE_SIZE,
+    /** 2.4: title attribute of a type (comment notifications show the entry title). */
+    titleFieldFor,
 
     /**
      * Re-renders the `href` of every internal link in a stored value from

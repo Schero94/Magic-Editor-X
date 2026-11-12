@@ -151,6 +151,22 @@ export const EnvironmentSection = ({ environment }) => {
                 ),
           },
           {
+            key: 'mentionEmails',
+            label: t('settings.environment.mentionEmails', 'E-mails for comment mentions'),
+            value: on(Boolean(environment.mentionEmails && environment.mentionEmails.enabled)),
+            hint:
+              environment.mentionEmails && environment.mentionEmails.enabled
+                ? t(
+                    'settings.environment.mentionEmailsOn',
+                    'People mentioned in a comment get an e-mail through the Strapi email plugin, at most {count} per hour. It names who mentioned them and links to the entry, never the comment text (comments.notifications.email).',
+                    { count: environment.mentionEmails.perHour ?? 10 }
+                  )
+                : t(
+                    'settings.environment.mentionEmailsOff',
+                    'Mentions show up in the admin only. Turn on e-mails with comments.notifications.email in config/plugins.'
+                  ),
+          },
+          {
             key: 'privateAi',
             label: t('settings.environment.privateAi', 'Private AI hosts allowed'),
             value: on(environment.allowPrivateBaseUrl),

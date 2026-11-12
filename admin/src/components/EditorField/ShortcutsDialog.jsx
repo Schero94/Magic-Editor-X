@@ -55,9 +55,17 @@ const Combo = ({ combo }) => (
  * @param {(name: string) => boolean} props.hasBlock - Whether a block type can be created (Markdown shortcuts shown accordingly).
  * @param {(name: string) => boolean} [props.hasInline] - Whether an inline tool is available (2.4: inline math, footnotes).
  * @param {() => void} props.onClose - Closes the dialog.
+ * @param {boolean} [props.comments] - 2.4: comments are shown in this field (range comment keys).
  * @returns {JSX.Element} Dialog.
  */
-export const ShortcutsDialog = ({ t, tools, hasBlock, hasInline = () => true, onClose }) => {
+export const ShortcutsDialog = ({
+  t,
+  tools,
+  hasBlock,
+  hasInline = () => true,
+  onClose,
+  comments = false,
+}) => {
   const editorKeys = [
     ['CMD+Z', t('editor.shortcuts.undo', 'Undo')],
     ['CMD+SHIFT+Z', t('editor.shortcuts.redo', 'Redo')],
@@ -74,6 +82,12 @@ export const ShortcutsDialog = ({ t, tools, hasBlock, hasInline = () => true, on
       : []),
     ...(hasInline('footnote')
       ? [['CMD+ALT+F', t('editor.shortcuts.footnote', 'Footnote at the caret, or edit the one next to it')]]
+      : []),
+    ...(comments
+      ? [
+          ['CMD+ALT+M', t('editor.shortcuts.comment', 'Comment on the selected text')],
+          ['CMD+ALT+N', t('editor.shortcuts.nextComment', 'Next comment (with Shift: previous comment)')],
+        ]
       : []),
   ];
   const markdown = [
