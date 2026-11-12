@@ -84,23 +84,32 @@ export const buildCodeBlockTools = (ctx) => {
           ? entry.i18n.en
           : {};
     const rules = sanitizeRulesFor(definition.schema);
-    // Editor.js strips every tag from strings of a tool without sanitize rules; derive them from the schema.
+    const toolbox = {
+      title: localized(entry.title, ctx.locale) || definition.name,
+      icon: entry.icon || ICONS.block,
+    };
+    const ownSanitize = Tool.sanitize && typeof Tool.sanitize === 'object';
+    const ownToolbox = Boolean(Tool.toolbox);
+    // Editor.js shows a tool in the toolbox only when its class has a static
+    // `toolbox`, and strips every tag from strings of a tool without sanitize
+    // rules: a subclass adds both when the tool class has none.
     const ToolClass =
-      Tool.sanitize && typeof Tool.sanitize === 'object'
+      ownSanitize && ownToolbox
         ? Tool
         : class CodeBlockTool extends Tool {
             static get sanitize() {
-              return rules;
+              return ownSanitize ? Tool.sanitize : rules;
+            }
+
+            static get toolbox() {
+              return ownToolbox ? Tool.toolbox : toolbox;
             }
           };
     out[definition.name] = {
       class: ToolClass,
       ...(entry.inlineToolbar ? { inlineToolbar: ctx.inline } : {}),
       ...(entry.shortcut ? { shortcut: entry.shortcut } : {}),
-      toolbox: {
-        title: localized(entry.title, ctx.locale) || definition.name,
-        icon: entry.icon || ICONS.block,
-      },
+      toolbox,
       config: {
         ...ctx.shared,
         t: ctx.t,
