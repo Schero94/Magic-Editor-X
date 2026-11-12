@@ -428,6 +428,9 @@ for (let seed = FROM; seed < FROM + SEEDS; seed += 1) {
         churn(sims[round % sims.length], 6);
         await sleep(20 + rnd(40));
       }
+      // Converged: every client is live with nothing unsent, holds the same
+      // shared state and its editor shows it (remote changes render after a
+      // short debounce, so under load an editor can trail the shared state).
       const settle = async (label) => {
         const until = Date.now() + 30000;
         while (Date.now() < until) {
@@ -435,7 +438,11 @@ for (let seed = FROM; seed < FROM + SEEDS; seed += 1) {
           const first = JSON.stringify(sims[0].client.getData().blocks);
           if (
             sims.every((sim) => sim.state.status === 'live' && !sim.state.pending) &&
-            sims.every((sim) => JSON.stringify(sim.client.getData().blocks) === first)
+            sims.every(
+              (sim) =>
+                JSON.stringify(sim.client.getData().blocks) === first &&
+                JSON.stringify(sim.editor.blocks) === first
+            )
           )
             return;
         }
