@@ -240,6 +240,7 @@
   "editor.quality.link.skipped": "No comprobado",
   "editor.quality.link.entry": "Entrada {documentId} ({type})",
   "editor.quality.link.media": "Archivo multimedia {id}",
+  "editor.quality.rule.videoCaptions": "Vídeo sin subtítulos",
   "editor.quality.schedule.title": "Comprobación programada",
   "editor.quality.schedule.loading": "Cargando el resultado programado",
   "editor.quality.schedule.failed": "No se pudo cargar el resultado de la comprobación programada.",

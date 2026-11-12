@@ -240,6 +240,7 @@
   "editor.quality.link.skipped": "Nicht geprüft",
   "editor.quality.link.entry": "Eintrag {documentId} ({type})",
   "editor.quality.link.media": "Mediendatei {id}",
+  "editor.quality.rule.videoCaptions": "Video ohne Untertitel",
   "editor.quality.schedule.title": "Geplante Prüfung",
   "editor.quality.schedule.loading": "Ergebnis der geplanten Prüfung wird geladen",
   "editor.quality.schedule.failed": "Das Ergebnis der geplanten Prüfung konnte nicht geladen werden.",

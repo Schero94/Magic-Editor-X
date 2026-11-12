@@ -138,7 +138,10 @@ test('server adjustments and field errors are reported', () => {
 });
 
 test('reserved block names match the server list', () => {
-  assert.deepEqual([...RESERVED_NAMES].sort(), [...server.RESERVED_NAMES].sort());
+  assert.deepEqual(
+    [...RESERVED_NAMES].sort(),
+    [...server.RESERVED_NAMES, ...server.MEDIA_BLOCK_NAMES].sort()
+  );
 });
 
 test('block names are derived from labels', () => {

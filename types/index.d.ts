@@ -100,6 +100,14 @@ export interface ImageFile {
   size?: number;
   formats?: Record<string, MediaFormat>;
 }
+/**
+ * Focal point of an image in 0..1 (two decimals) from the top left corner.
+ * Media Library formats are resized, not cropped, so it applies to every format.
+ */
+export interface FocalPoint {
+  x: number;
+  y: number;
+}
 export interface ImageData {
   file: ImageFile;
   caption: InlineHtml;
@@ -108,6 +116,7 @@ export interface ImageData {
   stretched: boolean;
   /** True when the image is decorative (rendered with an empty alt). */
   decorative?: boolean;
+  focalPoint?: FocalPoint;
 }
 export interface SimpleImageData {
   url: Url;
@@ -119,6 +128,67 @@ export interface SimpleImageData {
   alt?: string;
   /** True when the image is decorative (rendered with an empty alt). */
   decorative?: boolean;
+}
+export interface GalleryImage {
+  /** Media Library image; `alt` is the alternative text of this image. */
+  file: ImageFile;
+  caption: InlineHtml;
+  /** True when the image is decorative (rendered with an empty alt). */
+  decorative?: boolean;
+  focalPoint?: FocalPoint;
+}
+export interface GalleryData {
+  /** At most 50 images. */
+  images: GalleryImage[];
+  /** Layout hint for frontends. */
+  layout: 'grid' | 'carousel';
+  /** Columns of the grid layout (1 to 6, hint). */
+  columns: number;
+  caption: InlineHtml;
+}
+/** Media Library file of a video, audio or text track. */
+export interface MediaFile {
+  url: Url;
+  id?: number | string;
+  documentId?: string;
+  mime?: string;
+  name?: string;
+  hash?: string;
+  ext?: string;
+  width?: number;
+  height?: number;
+  size?: number;
+}
+/** WebVTT text track from the Media Library. */
+export interface MediaTrack {
+  file: MediaFile;
+  kind: 'captions' | 'subtitles' | 'descriptions' | 'chapters';
+  /** BCP 47 language tag or ''. */
+  srclang: string;
+  label: string;
+  /** At most one track per block is the default. */
+  default?: boolean;
+}
+export interface VideoData {
+  /** Media Library video (`video/*`). */
+  file: MediaFile;
+  /** Media Library image shown before playback. */
+  poster?: ImageFile;
+  title: string;
+  caption: InlineHtml;
+  loop: boolean;
+  muted: boolean;
+  /** At most 8 tracks. */
+  tracks: MediaTrack[];
+}
+export interface AudioData {
+  /** Media Library audio (`audio/*`). */
+  file: MediaFile;
+  title: string;
+  caption: InlineHtml;
+  loop: boolean;
+  /** At most 8 tracks. */
+  tracks: MediaTrack[];
 }
 export interface LinkToolData {
   link: Url;
@@ -166,6 +236,9 @@ export interface BlockDataMap {
   table: TableData;
   image: ImageData;
   simpleImage: SimpleImageData;
+  gallery: GalleryData;
+  video: VideoData;
+  audio: AudioData;
   linkTool: LinkToolData;
   attaches: AttachesData;
   embed: EmbedData;

@@ -253,6 +253,21 @@ const RENDERERS = {
     const alt = b.data.decorative === true ? '' : escapeMarkdown(oneLine(text));
     return `![${alt}](${linkUrl(b.data.url)})`;
   },
+  gallery: (b, o) => {
+    const lines = b.data.images
+      .map((image) => {
+        const file = resolveMedia(image.file, b, o);
+        if (!file.url) return '';
+        const alt = image.decorative ? '' : escapeMarkdown(oneLine(file.alt || ''));
+        return `![${alt}](${linkUrl(file.url)}${linkTitle(inlineToText(image.caption))})`;
+      })
+      .filter(Boolean);
+    if (!lines.length) return '';
+    const caption = oneLine(md(b.data.caption, o));
+    return [lines.join('\n'), caption].filter(Boolean).join('\n\n');
+  },
+  video: (b, o) => mediaLink('video', b, o),
+  audio: (b, o) => mediaLink('audio', b, o),
   linkTool: (b) =>
     b.data.link ? `[${escapeMarkdown(b.data.meta.title || b.data.link)}](${linkUrl(b.data.link)})` : '',
   attaches: (b) => {
@@ -283,6 +298,21 @@ const RENDERERS = {
   },
   delimiter: () => '---',
 };
+
+/**
+ * Markdown of a video or audio block: a link to the file plus the caption.
+ * @param {'video'|'audio'} kind - Block kind.
+ * @param {object} b - Prepared block.
+ * @param {object} o - Render options.
+ * @returns {string} Markdown.
+ */
+function mediaLink(kind, b, o) {
+  const file = resolveMedia(b.data.file, b, o, { mimePrefix: `${kind}/` });
+  if (!file.url) return '';
+  const caption = oneLine(md(b.data.caption, o));
+  const link = `[${escapeMarkdown(oneLine(b.data.title || file.name || file.url))}](${linkUrl(file.url)})`;
+  return [link, caption].filter(Boolean).join('\n\n');
+}
 
 /**
  * Renders Magic Editor X content to Markdown.

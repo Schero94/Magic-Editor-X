@@ -44,6 +44,9 @@ const PLAIN_KEYS = new Set([
 ]);
 /** Keys holding URLs or identifiers: compared as values. */
 const VALUE_KEY = /^(url|href|link|src|photo|source|embed|id|documentId|mime|hash|ext|fk)$/i;
+/** Enumeration and file keys of the 2.3 media blocks: compared as values, not text. */
+const MEDIA_TYPES = new Set(['gallery', 'video', 'audio']);
+const MEDIA_VALUE_KEY = /^(layout|kind|srclang|name)$/;
 
 /**
  * Reads the blocks of any stored value.
@@ -97,6 +100,7 @@ const leafKind = (type, path, value) => {
       .filter((part) => !/^\d+$/.test(part))
       .pop() || '';
   if (VALUE_KEY.test(key)) return 'value';
+  if (MEDIA_TYPES.has(type) && MEDIA_VALUE_KEY.test(key)) return 'value';
   if (PLAIN_TYPES.has(type) || PLAIN_KEYS.has(key)) return 'plain';
   return 'inline';
 };

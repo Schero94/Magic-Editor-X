@@ -17,6 +17,9 @@ export const FIELD_TYPES = Object.freeze([
 export const TUNES = Object.freeze(['alignmentTune', 'textVariant', 'indentTune']);
 export const BLOCK_TYPES = Object.freeze(['simple', 'embedded-entry']);
 
+/** Names that became built-in blocks in 2.3; an existing custom block keeps its name. */
+export const LEGACY_NAMES = Object.freeze(['gallery', 'video', 'audio']);
+
 /** Built-in tool names (lower case), same list as the server. */
 export const RESERVED_NAMES = Object.freeze(
   [
@@ -34,6 +37,9 @@ export const RESERVED_NAMES = Object.freeze(
     'raw',
     'image',
     'simpleImage',
+    'gallery',
+    'video',
+    'audio',
     'linkTool',
     'attaches',
     'personality',
@@ -250,7 +256,7 @@ export const toPayload = (values) => {
 /**
  * Validates the form like the server does.
  * @param {object} values - Form values.
- * @param {{ existingNames?: string[] }} [context] - Names of other blocks (lower case not required).
+ * @param {{ existingNames?: string[], originalName?: string|null }} [context] - Names of other blocks (lower case not required) and the stored name of the block being edited.
  * @returns {Record<string, string>} Path -> error code.
  */
 export const validateBlock = (values, context = {}) => {
@@ -258,7 +264,12 @@ export const validateBlock = (values, context = {}) => {
   const name = String(values.name || '').trim();
   if (!name) errors.name = 'required';
   else if (!NAME_PATTERN.test(name)) errors.name = 'namePattern';
-  else if (RESERVED_NAMES.includes(name.toLowerCase())) errors.name = 'reserved';
+  // A block created before 2.3 may keep a name that 2.3 gave to a built-in block (gallery, video, audio).
+  else if (
+    RESERVED_NAMES.includes(name.toLowerCase()) &&
+    !(LEGACY_NAMES.includes(name) && context.originalName === name)
+  )
+    errors.name = 'reserved';
   else if ((context.existingNames || []).some((other) => other.toLowerCase() === name.toLowerCase()))
     errors.name = 'taken';
   const label = String(values.label || '').trim();

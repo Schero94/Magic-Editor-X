@@ -12,7 +12,7 @@
 
 import * as ReactNamespace from 'react';
 import { createTreeBuilder } from '../render/tree.mjs';
-import { VOID_TAGS } from '../render/nodes.mjs';
+import { VOID_TAGS, safeStyle } from '../render/nodes.mjs';
 import { copyText } from '../render/dom.mjs';
 import {
   isRenderableElement,
@@ -100,6 +100,11 @@ const propsOf = (node, key) => {
   for (const [name, value] of safeAttributes(node.attrs)) {
     props[PROP_NAMES[name] || name] = value === true && !BOOLEAN_PROPS.has(name) ? '' : value;
   }
+  const style = safeStyle(node.style);
+  if (style.length)
+    props.style = Object.fromEntries(
+      style.map(([name, value]) => [name.replace(/-([a-z])/g, (_m, c) => c.toUpperCase()), value])
+    );
   return props;
 };
 

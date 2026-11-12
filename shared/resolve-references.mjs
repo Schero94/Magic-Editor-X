@@ -4,7 +4,8 @@
  * A stored Magic Editor X value can reference other data:
  * - internal links: `<a href data-mex-uid data-mex-document-id data-mex-locale>` in inline HTML,
  * - embedded entries: custom blocks of type `embedded-entry` (`{ entry: { documentId, ... }, contentType }`),
- * - Media Library files: `image` blocks with `file.id` or `file.documentId`.
+ * - Media Library files with `id` or `documentId`: `image` blocks, gallery
+ *   images, video and audio files, video posters and text tracks.
  *
  * This module is pure: it lists the references of a value (`collectReferences`),
  * applies a resolution map produced by the server with the caller's permissions
@@ -13,7 +14,7 @@
  */
 
 import { normalizeEditorDataSafe, isPlainObject } from './editor-data.mjs';
-import { BLOCK_POLICIES } from './sanitize-policy.mjs';
+import { isBuiltInBlock } from './sanitize-policy.mjs';
 import {
   renderHtml,
   renderText,
@@ -80,13 +81,58 @@ export const mediaKey = (file) => {
 export const isEmbeddedEntryBlock = (block) =>
   Boolean(block) &&
   typeof block.type === 'string' &&
-  !Object.prototype.hasOwnProperty.call(BLOCK_POLICIES, block.type) &&
+  !isBuiltInBlock(block) &&
   isPlainObject(block.data) &&
   isPlainObject(block.data.entry) &&
   typeof block.data.entry.documentId === 'string' &&
   DOCUMENT_ID.test(block.data.entry.documentId) &&
   typeof block.data.contentType === 'string' &&
   API_UID.test(block.data.contentType);
+
+/**
+ * Media Library file slots of a built-in block: the image file, gallery
+ * images, video/audio file, poster and track files.
+ * @param {{ type: string, data: unknown }} block - Block.
+ * @returns {Array<{ file: object, image: boolean, set: (data: object, file: object) => object }>} Slots (`set` returns new data).
+ */
+export const mediaSlots = (block) => {
+  const d = block && isPlainObject(block.data) ? block.data : null;
+  if (!d || !isBuiltInBlock(block)) return [];
+  const slots = [];
+  if (block.type === 'image' && isPlainObject(d.file))
+    slots.push({ file: d.file, image: true, set: (data, file) => ({ ...data, file }) });
+  if (block.type === 'gallery' && Array.isArray(d.images))
+    d.images.forEach((item, index) => {
+      if (isPlainObject(item) && isPlainObject(item.file))
+        slots.push({
+          file: item.file,
+          image: true,
+          set: (data, file) => ({
+            ...data,
+            images: data.images.map((other, i) => (i === index ? { ...other, file } : other)),
+          }),
+        });
+    });
+  if (block.type === 'video' || block.type === 'audio') {
+    if (isPlainObject(d.file))
+      slots.push({ file: d.file, image: false, set: (data, file) => ({ ...data, file }) });
+    if (block.type === 'video' && isPlainObject(d.poster))
+      slots.push({ file: d.poster, image: true, set: (data, file) => ({ ...data, poster: file }) });
+    if (Array.isArray(d.tracks))
+      d.tracks.forEach((track, index) => {
+        if (isPlainObject(track) && isPlainObject(track.file))
+          slots.push({
+            file: track.file,
+            image: false,
+            set: (data, file) => ({
+              ...data,
+              tracks: data.tracks.map((other, i) => (i === index ? { ...other, file } : other)),
+            }),
+          });
+      });
+  }
+  return slots;
+};
 
 /**
  * Calls `fn` for every string in block data (depth bounded) and stores its result.
@@ -146,8 +192,8 @@ export const collectReferences = (value, options = {}) => {
         refs.set(key, { kind: 'entry', uid, documentId, locale: fallbackLocale, blockType: block.type });
       continue;
     }
-    if (block.type === 'image' && isPlainObject(block.data) && isPlainObject(block.data.file)) {
-      const key = mediaKey(block.data.file);
+    for (const slot of mediaSlots(block)) {
+      const key = mediaKey(slot.file);
       if (key && !refs.has(key)) {
         const [, by, id] = key.split('|');
         refs.set(key, by === 'id' ? { kind: 'media', id: Number(id) } : { kind: 'media', documentId: id });
@@ -168,8 +214,9 @@ export const collectReferences = (value, options = {}) => {
   return { data, refs };
 };
 
-/** File keys copied from a resolved Media Library file. */
+/** File keys copied from a resolved Media Library file (images; other files skip `alt` and `formats`). */
 const FILE_KEYS = ['url', 'alt', 'name', 'mime', 'ext', 'hash', 'width', 'height', 'size', 'formats'];
+const OTHER_FILE_KEYS = ['url', 'name', 'mime', 'ext', 'hash', 'width', 'height', 'size'];
 
 /**
  * Applies a resolution map to a value.
@@ -202,19 +249,18 @@ export const applyReferences = (data, resolved, options = {}) => {
       return { ...block, data: { ...block.data, entry: hit && hit.entry ? { ...hit.entry } : null } };
     }
     let next = block.data;
-    if (block.type === 'image' && isPlainObject(next) && isPlainObject(next.file)) {
-      const key = mediaKey(next.file);
+    for (const slot of mediaSlots(block)) {
+      const key = mediaKey(slot.file);
       const hit = key ? resolved.get(key) : null;
-      if (hit && isPlainObject(hit.file)) {
-        const file = { ...next.file };
-        for (const name of FILE_KEYS) {
-          // Alternative text written in the block wins; the library's text only fills an empty one.
-          if (name === 'alt' && typeof file.alt === 'string' && file.alt.trim()) continue;
-          if (hit.file[name] !== undefined && hit.file[name] !== null) file[name] = hit.file[name];
-          else if (name === 'formats') delete file.formats;
-        }
-        next = { ...next, file };
+      if (!hit || !isPlainObject(hit.file)) continue;
+      const file = { ...slot.file };
+      for (const name of slot.image ? FILE_KEYS : OTHER_FILE_KEYS) {
+        // Alternative text written in the block wins; the library's text only fills an empty one.
+        if (name === 'alt' && typeof file.alt === 'string' && file.alt.trim()) continue;
+        if (hit.file[name] !== undefined && hit.file[name] !== null) file[name] = hit.file[name];
+        else if (name === 'formats') delete file.formats;
       }
+      next = slot.set(next, file);
     }
     next = mapStrings(next, (text) => {
       if (!text.includes('data-mex-uid')) return text;
@@ -238,7 +284,7 @@ const entryOverrides = (data, format) => {
   const overrides = {};
   for (const block of (data && data.blocks) || []) {
     if (!isPlainObject(block.data) || !Object.prototype.hasOwnProperty.call(block.data, 'entry')) continue;
-    if (Object.prototype.hasOwnProperty.call(BLOCK_POLICIES, block.type)) continue;
+    if (isBuiltInBlock(block)) continue;
     if (overrides[block.type]) continue;
     const type = block.type;
     overrides[type] = (rendered) => {

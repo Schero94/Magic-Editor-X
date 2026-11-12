@@ -70,7 +70,11 @@ export const BlockFormModal = ({
   const [showErrors, setShowErrors] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const errors = useMemo(() => validateBlock(values, { existingNames: otherNames }), [values, otherNames]);
+  const originalName = block ? block.name : null;
+  const errors = useMemo(
+    () => validateBlock(values, { existingNames: otherNames, originalName }),
+    [values, otherNames, originalName]
+  );
   const visible = useMemo(
     () => ({ ...(showErrors ? errors : {}), ...serverErrors }),
     [errors, serverErrors, showErrors]

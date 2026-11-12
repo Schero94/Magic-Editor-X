@@ -33,6 +33,11 @@ export interface RenderElementNode {
   tag: string;
   attrs: Record<string, string | true>;
   children: RenderNode[];
+  /**
+   * Inline style, only set by the renderer for `object-position` of images
+   * with a focal point when `focalPoint: 'style'` is on. Overrides cannot set it.
+   */
+  style?: { 'object-position'?: string };
 }
 
 /**
@@ -123,6 +128,13 @@ export interface RenderOptions {
   imageSizes?: string;
   /** Code block line numbers and copy button. */
   code?: CodeRenderOptions;
+  /**
+   * Focal point of images (image blocks and gallery images with `focalPoint`).
+   * `'data'` (default, CSP friendly): `data-mex-focal-x`/`data-mex-focal-y`
+   * (0..1) on `<img>`. `'style'`: also `style="object-position:X% Y%"`
+   * (React/Vue: the `style` prop), for pages whose CSP allows inline styles.
+   */
+  focalPoint?: 'data' | 'style';
 }
 
 /** Renders a stored value to HTML. Empty or invalid input gives ''. */

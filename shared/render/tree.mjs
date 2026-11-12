@@ -139,6 +139,109 @@ const figure = (url, img, caption, cls) =>
   ]);
 
 /**
+ * Adds a focal point to an `<img>` node: `data-mex-focal-x`/`-y` (0..1) by
+ * default; with `options.focalPoint: 'style'` also `object-position` as an
+ * inline style (the only style the renderer ever writes). Media Library
+ * formats are resized, not cropped, so the point is valid for every srcset
+ * candidate.
+ * @param {RenderNode} img - `<img>` node.
+ * @param {{ x: number, y: number }|undefined} point - Clean focal point.
+ * @param {object} o - Render options.
+ * @returns {RenderNode} The same node.
+ */
+const withFocalPoint = (img, point, o) => {
+  if (!point || img.type !== 'element') return img;
+  img.attrs['data-mex-focal-x'] = String(point.x);
+  img.attrs['data-mex-focal-y'] = String(point.y);
+  if (o.focalPoint === 'style')
+    img.style = { 'object-position': `${Math.round(point.x * 100)}% ${Math.round(point.y * 100)}%` };
+  return img;
+};
+
+/**
+ * `<img>` attributes of a Media Library image (alt, size, srcset from formats).
+ * @param {object} file - Clean file.
+ * @param {boolean} decorative - Empty alt.
+ * @param {object} o - Render options.
+ * @returns {Record<string, unknown>} Attributes (without src/loading/decoding).
+ */
+const libraryImageAttrs = (file, decorative, o) => {
+  const candidates = imageCandidates(file);
+  const img = {
+    alt: decorative ? '' : file.alt || '',
+    width: Number.isInteger(file.width) && file.width > 0 ? file.width : undefined,
+    height: Number.isInteger(file.height) && file.height > 0 ? file.height : undefined,
+  };
+  if (candidates.length > 1) {
+    img.srcset = candidates.map((c) => `${c.url} ${c.width}w`).join(', ');
+    img.sizes =
+      typeof o.imageSizes === 'string' && /^[\w\s(),.:%-]{1,200}$/.test(o.imageSizes)
+        ? o.imageSizes
+        : '100vw';
+  }
+  return img;
+};
+
+/**
+ * `<track>` nodes of a video or audio block.
+ * @param {object} b - Prepared block.
+ * @param {object} o - Render options.
+ * @returns {RenderNode[]} Track nodes.
+ */
+const trackNodes = (b, o) =>
+  b.data.tracks
+    .map((track) => {
+      const file = resolveMedia(track.file, b, o, { vtt: true });
+      if (!file.url) return null;
+      return el('track', {
+        kind: track.kind,
+        src: file.url,
+        srclang: track.srclang || undefined,
+        label: track.label || undefined,
+        default: track.default === true,
+      });
+    })
+    .filter(Boolean);
+
+/**
+ * Video or audio figure.
+ * @param {'video'|'audio'} tag - Element.
+ * @param {object} b - Prepared block.
+ * @param {object} o - Render options.
+ * @returns {RenderNode|null} Figure or null without a file.
+ */
+const mediaFigure = (tag, b, o) => {
+  const file = resolveMedia(b.data.file, b, o, { mimePrefix: `${tag}/` });
+  if (!file.url) return null;
+  const caption = inlineToNodes(b.data.caption, o);
+  const attrs = {
+    src: file.url,
+    controls: true,
+    preload: 'metadata',
+    'aria-label': b.data.title || undefined,
+    loop: b.data.loop === true,
+  };
+  if (tag === 'video') {
+    const poster = b.data.poster ? resolveMedia(b.data.poster, b, o) : null;
+    Object.assign(attrs, {
+      playsinline: true,
+      muted: b.data.muted === true,
+      poster: poster && poster.url ? poster.url : undefined,
+      width: Number.isInteger(file.width) && file.width > 0 ? file.width : undefined,
+      height: Number.isInteger(file.height) && file.height > 0 ? file.height : undefined,
+    });
+  }
+  return el('figure', { class: classes([`mex-${tag}`], b.tunes) }, [
+    el(tag, attrs, [
+      trackNodes(b, o),
+      // Fallback for browsers without media support.
+      el('a', { href: file.url }, b.data.title || file.name || file.url),
+    ]),
+    caption.length ? el('figcaption', {}, caption) : null,
+  ]);
+};
+
+/**
  * Short UI label from an option, or the default.
  * @param {unknown} value - Candidate label.
  * @param {string} fallback - Default label.
@@ -330,25 +433,14 @@ const RENDERERS = {
   image: (b, o) => {
     const file = resolveMedia(b.data.file, b, o);
     if (!file.url) return null;
-    const decorative = b.raw.decorative === true;
-    const candidates = imageCandidates(file);
-    const img = {
-      alt: decorative ? '' : file.alt || '',
-      width: Number.isInteger(file.width) && file.width > 0 ? file.width : undefined,
-      height: Number.isInteger(file.height) && file.height > 0 ? file.height : undefined,
-    };
-    if (candidates.length > 1) {
-      img.srcset = candidates.map((c) => `${c.url} ${c.width}w`).join(', ');
-      img.sizes =
-        typeof o.imageSizes === 'string' && /^[\w\s(),.:%-]{1,200}$/.test(o.imageSizes)
-          ? o.imageSizes
-          : '100vw';
-    }
+    const img = libraryImageAttrs(file, b.raw.decorative === true, o);
     const cls = ['mex-image'];
     if (b.data.withBorder) cls.push('mex-image-border');
     if (b.data.withBackground) cls.push('mex-image-background');
     if (b.data.stretched) cls.push('mex-stretched');
-    return figure(file.url, img, inlineToNodes(b.data.caption, o), classes(cls, b.tunes));
+    const node = figure(file.url, img, inlineToNodes(b.data.caption, o), classes(cls, b.tunes));
+    withFocalPoint(node.children[0], b.data.focalPoint, o);
+    return node;
   },
   simpleImage: (b, o) => {
     if (!b.data.url) return null;
@@ -370,6 +462,44 @@ const RENDERERS = {
       classes(cls, b.tunes)
     );
   },
+  gallery: (b, o) => {
+    const items = b.data.images
+      .map((image) => {
+        const file = resolveMedia(image.file, b, o);
+        if (!file.url) return null;
+        const caption = inlineToNodes(image.caption, o);
+        const img = el('img', {
+          src: file.url,
+          ...libraryImageAttrs(file, image.decorative === true, o),
+          loading: 'lazy',
+          decoding: 'async',
+        });
+        withFocalPoint(img, image.focalPoint, o);
+        return el(
+          'li',
+          { class: 'mex-gallery-item' },
+          el('figure', { class: 'mex-gallery-figure' }, [
+            img,
+            caption.length ? el('figcaption', {}, caption) : null,
+          ])
+        );
+      })
+      .filter(Boolean);
+    if (!items.length) return null;
+    const { layout, columns } = b.data;
+    const caption = inlineToNodes(b.data.caption, o);
+    return el(
+      'figure',
+      {
+        class: classes(['mex-gallery', `mex-gallery-${layout}`, `mex-gallery-cols-${columns}`], b.tunes),
+        'data-mex-layout': layout,
+        'data-mex-columns': String(columns),
+      },
+      [el('ul', { class: 'mex-gallery-items' }, items), caption.length ? el('figcaption', {}, caption) : null]
+    );
+  },
+  video: (b, o) => mediaFigure('video', b, o),
+  audio: (b, o) => mediaFigure('audio', b, o),
   linkTool: (b) => {
     if (!b.data.link) return null;
     const meta = b.data.meta;
@@ -738,9 +868,17 @@ export const flattenBlocks = (nodes) => {
   const out = [];
   for (const node of nodes) {
     if (node.type === 'block') out.push(...flattenBlocks(node.children));
-    else if (node.type === 'element')
-      out.push({ type: 'element', tag: node.tag, attrs: node.attrs, children: flattenBlocks(node.children) });
-    else out.push(node);
+    else if (node.type === 'element') {
+      /** @type {RenderNode} */
+      const element = {
+        type: 'element',
+        tag: node.tag,
+        attrs: node.attrs,
+        children: flattenBlocks(node.children),
+      };
+      if (node.style) element.style = node.style;
+      out.push(element);
+    } else out.push(node);
   }
   return out;
 };

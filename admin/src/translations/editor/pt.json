@@ -240,6 +240,7 @@
   "editor.quality.link.skipped": "Não verificado",
   "editor.quality.link.entry": "Entrada {documentId} ({type})",
   "editor.quality.link.media": "Arquivo de mídia {id}",
+  "editor.quality.rule.videoCaptions": "Vídeo sem legendas",
   "editor.quality.schedule.title": "Verificação agendada",
   "editor.quality.schedule.loading": "Carregando o resultado agendado",
   "editor.quality.schedule.failed": "Não foi possível carregar o resultado da verificação agendada.",

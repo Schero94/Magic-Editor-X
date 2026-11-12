@@ -5,7 +5,13 @@
  */
 
 import { normalizeEditorDataSafe, isPlainObject } from '../editor-data.mjs';
-import { BLOCK_POLICIES, sanitizeTunes, sanitizeUrl } from '../sanitize-policy.mjs';
+import {
+  BLOCK_POLICIES,
+  sanitizeTunes,
+  sanitizeUrl,
+  isBuiltInBlock,
+  cleanMediaFile,
+} from '../sanitize-policy.mjs';
 import { inlineToHtml } from './inline.mjs';
 
 /**
@@ -35,8 +41,8 @@ export const prepareBlocks = (value, options = {}) => {
     options.rawHtml === 'allow' && typeof options.sanitizeRaw === 'function' ? 'allow' : 'disable';
   const ctx = { rawHtml: rawPolicy, rawSanitizer: () => '' };
   const flat = data.blocks.map((block) => {
-    const known = Object.prototype.hasOwnProperty.call(BLOCK_POLICIES, block.type);
     const raw = isPlainObject(block.data) ? block.data : {};
+    const known = isBuiltInBlock({ type: block.type, data: raw });
     const clean = known ? BLOCK_POLICIES[block.type](raw, keepInline, ctx) : raw;
     for (const key of Object.keys(clean)) if (clean[key] === undefined) delete clean[key];
     return {
@@ -111,10 +117,20 @@ export const imageCandidates = (file) => {
  * @param {object} file - Clean file from the block.
  * @param {object} block - Prepared block.
  * @param {{ media?: Function }} options - Render options.
+ * @param {{ mimePrefix?: string, vtt?: boolean }} [kind] - Kind of a non-image file (video, audio, track); images when omitted.
  * @returns {object} File to render.
  */
-export const resolveMedia = (file, block, options) => {
+export const resolveMedia = (file, block, options, kind) => {
   if (typeof options.media !== 'function') return file;
+  if (kind) {
+    let other;
+    try {
+      other = options.media({ ...file }, { id: block.id, type: block.type });
+    } catch {
+      other = null;
+    }
+    return isPlainObject(other) ? cleanMediaFile(other, kind) : file;
+  }
   let next;
   try {
     next = options.media({ ...file }, { id: block.id, type: block.type });

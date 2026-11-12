@@ -1,5 +1,6 @@
 import ImageTool from '@editorjs/image';
 import { el, field, input } from './dom';
+import { createFocalControl } from './focal-point';
 
 /**
  * Alternative text for image blocks: a labelled input plus a "decorative
@@ -99,7 +100,8 @@ export const createAltControl = ({
 /**
  * The official image tool plus the alternative text controls. Stored data
  * stays `{ file: { url, alt, ... }, caption, withBorder, withBackground,
- * stretched }` and gains `decorative: true` for decorative images.
+ * stretched }` and gains `decorative: true` for decorative images and
+ * `focalPoint: { x, y }` (0..1) when a focal point is set.
  */
 export class MexImageTool extends ImageTool {
   /**
@@ -121,6 +123,17 @@ export class MexImageTool extends ImageTool {
       },
     });
     this.mexAlt.element.classList.add('mex-alt--image');
+    const translate = typeof config.t === 'function' ? config.t : (_id, fallback) => fallback;
+    this.mexFocal = createFocalControl({
+      t: translate,
+      url: (data.file && typeof data.file.url === 'string' && data.file.url) || '',
+      point: data.focalPoint,
+      readOnly: Boolean(options && options.readOnly),
+      onChange: () => {
+        if (options && options.block && typeof options.block.dispatchChange === 'function')
+          options.block.dispatchChange();
+      },
+    });
     // A new upload or Media Library file brings its own alternative text.
     const ui = this.ui;
     if (ui && typeof ui.fillImage === 'function') {
@@ -129,6 +142,7 @@ export class MexImageTool extends ImageTool {
         fill(url);
         const file = this.data && this.data.file;
         if (file && typeof file.alt === 'string') this.mexAlt.setAlt(file.alt);
+        this.mexFocal.setUrl(typeof url === 'string' ? url : '');
       };
     }
   }
@@ -142,8 +156,10 @@ export class MexImageTool extends ImageTool {
     // The caption is absolutely positioned at the bottom of the wrapper; the
     // alternative text goes before it, in normal flow below the image.
     const caption = this.ui && this.ui.nodes && this.ui.nodes.caption;
-    if (caption && caption.parentNode === wrapper) wrapper.insertBefore(this.mexAlt.element, caption);
-    else wrapper.appendChild(this.mexAlt.element);
+    if (caption && caption.parentNode === wrapper) {
+      wrapper.insertBefore(this.mexAlt.element, caption);
+      wrapper.insertBefore(this.mexFocal.element, caption);
+    } else wrapper.append(this.mexAlt.element, this.mexFocal.element);
     return wrapper;
   }
 
@@ -157,6 +173,9 @@ export class MexImageTool extends ImageTool {
     const out = { ...data, file: { ...(data.file || {}), alt } };
     if (decorative) out.decorative = true;
     else delete out.decorative;
+    const focalPoint = this.mexFocal.read();
+    if (focalPoint) out.focalPoint = focalPoint;
+    else delete out.focalPoint;
     return out;
   }
 }

@@ -58,6 +58,9 @@ const HTML_FIELDS = {
   toggle: ['text'],
   image: ['caption'],
   simpleImage: ['caption'],
+  gallery: ['caption'],
+  video: ['caption'],
+  audio: ['caption'],
   embed: ['caption'],
 };
 const PLAIN_FIELDS = { code: ['code'], codeFlask: ['code'] };
@@ -88,6 +91,11 @@ export const searchableFields = (block) => {
     };
     walk(data.items, ['items'], 0);
   }
+  if (block.type === 'gallery' && Array.isArray(data.images))
+    data.images.forEach((item, index) => {
+      if (isPlainObject(item) && typeof item.caption === 'string')
+        out.push({ path: ['images', index, 'caption'], kind: 'html', value: item.caption });
+    });
   if (block.type === 'checklist' && Array.isArray(data.items))
     data.items.forEach((item, index) => {
       if (isPlainObject(item) && typeof item.text === 'string')

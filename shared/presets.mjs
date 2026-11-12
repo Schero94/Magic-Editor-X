@@ -35,6 +35,9 @@ export const BUILTIN_BLOCKS = Object.freeze([
   'raw',
   'image',
   'simpleImage',
+  'gallery',
+  'video',
+  'audio',
   'linkTool',
   'attaches',
   'personality',
@@ -74,6 +77,9 @@ export const PRESETS = Object.freeze({
       'table',
       'embed',
       'image',
+      'gallery',
+      'video',
+      'audio',
       'linkTool',
       'attaches',
       'button',
@@ -269,7 +275,7 @@ export const blockLinkKinds = (block) => {
 };
 
 /**
- * True when an image block has an alternative text or is marked decorative.
+ * True when an image block (or every image of a gallery) has an alternative text or is marked decorative.
  * @param {{ type: string, data: object }} block - Block.
  * @returns {boolean|null} Result, or null when the block is not an image.
  */
@@ -284,6 +290,13 @@ export const imageHasAlt = (block) => {
     if (data.decorative === true) return true;
     return typeof data.alt === 'string' && data.alt.trim() !== '';
   }
+  if (block.type === 'gallery' && Array.isArray(data.images))
+    return data.images.every(
+      (item) =>
+        !isPlainObject(item) ||
+        item.decorative === true ||
+        (isPlainObject(item.file) && typeof item.file.alt === 'string' && item.file.alt.trim() !== '')
+    );
   return null;
 };
 

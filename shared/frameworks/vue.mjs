@@ -10,7 +10,7 @@
 
 import { h, defineComponent, ref } from 'vue';
 import { createTreeBuilder } from '../render/tree.mjs';
-import { VOID_TAGS } from '../render/nodes.mjs';
+import { VOID_TAGS, safeStyle } from '../render/nodes.mjs';
 import { copyText } from '../render/dom.mjs';
 import {
   isRenderableElement,
@@ -24,12 +24,14 @@ import {
 /**
  * Vue props of an element node (`true` becomes '' so Vue writes a present attribute).
  * @param {{ attrs: Record<string, string | true> }} node - Element node.
- * @returns {Record<string, string>} Props.
+ * @returns {Record<string, string|Record<string, string>>} Props.
  */
 const propsOf = (node) => {
-  /** @type {Record<string, string>} */
+  /** @type {Record<string, any>} */
   const props = {};
   for (const [name, value] of safeAttributes(node.attrs)) props[name] = value === true ? '' : value;
+  const style = safeStyle(node.style);
+  if (style.length) props.style = Object.fromEntries(style);
   return props;
 };
 
