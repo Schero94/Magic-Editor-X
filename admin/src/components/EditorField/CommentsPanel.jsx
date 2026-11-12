@@ -9,7 +9,6 @@ import {
   Loader,
   SingleSelect,
   SingleSelectOption,
-  TextButton,
   Typography,
   VisuallyHidden,
 } from '@strapi/design-system';
@@ -454,12 +453,14 @@ export const CommentsPanel = ({
                   <Quote variant="omega" textColor="neutral800" data-testid="mex-comment-new-quote">
                     {normalizeExcerpt(draft.anchor.quote.exact)}
                   </Quote>
-                  <TextButton
+                  <Button
+                    size="S"
+                    variant="ghost"
                     onClick={() => setDraft((current) => ({ ...current, anchor: null }))}
                     data-testid="mex-comment-whole-block"
                   >
                     {t('editor.comments.wholeBlock', 'Comment on the whole block instead')}
-                  </TextButton>
+                  </Button>
                 </Flex>
               ) : (
                 <Field.Root name="mex-comment-block">

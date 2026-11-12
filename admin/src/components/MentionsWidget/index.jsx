@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useIntl } from 'react-intl';
 import { Link as RouterLink } from 'react-router-dom';
-import { Box, Flex, IconButton, TextButton, Typography, VisuallyHidden } from '@strapi/design-system';
+import { Box, Button, Flex, IconButton, Typography, VisuallyHidden } from '@strapi/design-system';
 import { Bell, Check } from '@strapi/icons';
 import { Widget, useFetchClient } from '@strapi/strapi/admin';
 import styled from 'styled-components';
@@ -170,7 +170,9 @@ export const MentionsWidget = () => {
           })}
         </Typography>
         {state.unread ? (
-          <TextButton
+          <Button
+            size="S"
+            variant="tertiary"
             onClick={() =>
               act(
                 () => post(API.notificationsReadAll, {}),
@@ -179,7 +181,7 @@ export const MentionsWidget = () => {
             }
           >
             {t('widget.mentions.markAll', 'Mark all as read')}
-          </TextButton>
+          </Button>
         ) : null}
       </Flex>
       <List>
