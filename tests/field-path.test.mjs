@@ -25,3 +25,17 @@ test('the editor field starts live collaboration only for stable paths', () => {
   const block = source.slice(start, source.indexOf('? target', start));
   assert.match(block, /!isPositionalFieldPath\(target\.field\)/);
 });
+
+test('version history and comments are offered only for stable paths', () => {
+  const source = readFileSync(
+    new URL('../admin/src/components/EditorField/index.jsx', import.meta.url),
+    'utf8'
+  );
+  const comments = source.slice(
+    source.indexOf('const commentsEnabled ='),
+    source.indexOf('const comments = useComments(')
+  );
+  assert.match(comments, /!isPositionalFieldPath\(target\.field\)/);
+  const history = source.slice(source.indexOf('historyAvailable='), source.indexOf('onOpenHistory='));
+  assert.match(history, /!isPositionalFieldPath\(target\.field\)/);
+});
