@@ -120,6 +120,8 @@ export const createCollabClient = ({
   let idle = false;
 
   const setState = (patch) => {
+    // Without access the field saves through the form only: nothing is waiting for the room.
+    if (patch.status === 'denied' || patch.status === 'error') unsynced = null;
     state = { ...state, ...patch, pending: Boolean(pending) || inFlight || Boolean(unsynced) };
     onState({ ...state });
   };

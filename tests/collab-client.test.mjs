@@ -257,6 +257,28 @@ test('a read-only session drops edits made before the first sync', async () => {
   client.destroy();
 });
 
+test('a denied session does not keep or report edits made before the first sync', async () => {
+  const states = [];
+  const client = createCollabClient({
+    url: 'http://127.0.0.1:1',
+    requestSession: async () => {
+      throw Object.assign(new Error('no access'), { response: { status: 404 } });
+    },
+    onRemoteData: () => {},
+    onState: (state) => states.push(state),
+    socketFactory: () => {
+      throw new Error('no socket without a session');
+    },
+    win: null,
+  });
+  client.pushLocal({ blocks: [p('x', 'typed')] });
+  assert.equal(states.at(-1).pending, true);
+  await flush();
+  assert.equal(states.at(-1).status, 'denied');
+  assert.equal(states.at(-1).pending, false);
+  client.destroy();
+});
+
 test('backoff grows exponentially with jitter and is capped', () => {
   assert.equal(
     backoffDelay(0, () => 0),
