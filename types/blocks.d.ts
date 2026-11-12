@@ -153,6 +153,8 @@ export class BlockDefinitionError extends Error {
 export const BLOCK_FIELD_TYPES: readonly BlockFieldType[];
 export const BLOCK_PRESETS: readonly ['article', 'basic', 'minimal'];
 export const RESERVED_BLOCK_NAMES: readonly string[];
+/** Built-in names that code blocks may still use (2.4: `math`, a built-in added after the SDK shipped). */
+export const SDK_COMPATIBLE_NAMES: readonly string[];
 export const BLOCK_LIMITS: Readonly<{
   maxFields: number;
   maxDepth: number;
