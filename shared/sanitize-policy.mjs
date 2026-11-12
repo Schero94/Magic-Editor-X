@@ -31,23 +31,30 @@ export const INLINE_TAGS = Object.freeze([
 /**
  * Data attributes of an internal link (`<a href data-mex-uid data-mex-document-id data-mex-locale>`),
  * written by the hyperlink tool's entry picker. Frontends can resolve the entry
- * from them; the `href` stays a normal URL.
+ * from them; the `href` stays a normal URL. A mention (inline entry reference,
+ * 2.3) is an internal link with `data-mex-mention="true"`: the same rules,
+ * link checks and resolution apply, and API output may replace its text with
+ * the entry's current title.
  */
 export const INTERNAL_LINK_ATTRIBUTES = Object.freeze([
   'data-mex-uid',
   'data-mex-document-id',
   'data-mex-locale',
+  'data-mex-mention',
 ]);
 
 const INTERNAL_LINK_RULES = Object.freeze({
   'data-mex-uid': /^api::[a-z0-9-]{1,60}\.[a-z0-9-]{1,60}$/,
   'data-mex-document-id': /^[a-z0-9]{1,64}$/,
   'data-mex-locale': /^[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8}){0,3}$/,
+  // Boolean flag: written as "true"; an empty value (`<a data-mex-mention>`) is accepted and normalised.
+  'data-mex-mention': /^(?:|true)$/,
 });
 
 /**
  * Keeps only valid internal-link attributes. A reference needs both a uid and a
- * documentId; when either is missing or invalid, all three are dropped.
+ * documentId; when either is missing or invalid, all of them are dropped. The
+ * mention flag is normalised to `"true"`.
  * @param {Record<string, unknown>} attribs - Attributes of an `<a>` element.
  * @returns {Record<string, string>} Valid internal-link attributes (possibly empty).
  */
@@ -59,8 +66,19 @@ export const cleanInternalLinkAttributes = (attribs) => {
     if (typeof value === 'string' && INTERNAL_LINK_RULES[name].test(value)) out[name] = value;
   }
   if (!out['data-mex-uid'] || !out['data-mex-document-id']) return {};
+  if (out['data-mex-mention'] !== undefined) out['data-mex-mention'] = 'true';
   return out;
 };
+
+/**
+ * True when link attributes describe a mention (internal link with the mention flag).
+ * @param {Record<string, unknown>|null|undefined} attrs - Clean link attributes.
+ * @returns {boolean} Result.
+ */
+export const isMentionLink = (attrs) =>
+  Boolean(
+    attrs && attrs['data-mex-mention'] === 'true' && attrs['data-mex-uid'] && attrs['data-mex-document-id']
+  );
 
 /** Attributes allowed per inline tag. */
 export const INLINE_ATTRIBUTES = Object.freeze({
@@ -366,6 +384,16 @@ export const BLOCK_POLICIES = {
     openInNewTab: bool(d.openInNewTab),
   }),
   delimiter: () => ({}),
+  toc: (d) => {
+    const minLevel = int(d.minLevel, 1, 6, 2);
+    const maxLevel = int(d.maxLevel, 1, 6, 4);
+    return {
+      title: plain(d.title, 200),
+      minLevel: Math.min(minLevel, maxLevel),
+      maxLevel: Math.max(minLevel, maxLevel),
+      style: oneOf(d.style, ['ordered', 'unordered'], 'unordered'),
+    };
+  },
 };
 
 /**

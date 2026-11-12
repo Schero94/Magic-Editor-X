@@ -2,6 +2,7 @@ import { ICONS, el, button } from './dom';
 import { sanitizeUrl } from '../sanitize';
 import { createLinkPicker } from './link-picker';
 import { readInternalLink, internalLinkAttributes } from './logic.mjs';
+import { LINK_SANITIZE } from './sanitize-config';
 
 /**
  * Inline tools (Editor.js inline toolbar). Bold and italic come from the
@@ -283,16 +284,7 @@ export class HyperlinkTool extends AttributeInlineTool {
   }
 
   static get sanitize() {
-    return {
-      a: {
-        href: true,
-        target: true,
-        rel: true,
-        'data-mex-uid': true,
-        'data-mex-document-id': true,
-        'data-mex-locale': true,
-      },
-    };
+    return { a: { ...LINK_SANITIZE } };
   }
 
   constructor(options) {

@@ -39,6 +39,10 @@ const RULES = {
     key: 'editor.quality.rule.lowContrast',
     text: 'Text colour contrast {ratio}:1 is below 4.5:1',
   },
+  'toc-no-headings': {
+    key: 'editor.quality.rule.tocNoHeadings',
+    text: 'Table of contents without headings between level {minLevel} and {maxLevel}',
+  },
 };
 
 const LINK_STATUS = {

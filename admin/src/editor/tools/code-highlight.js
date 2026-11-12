@@ -1,6 +1,7 @@
 import Prism from './prism';
 import { ICONS, el, select } from './dom';
-import { CODE_LANGUAGES, normalizeCodeFlask } from './logic.mjs';
+import { normalizeCodeFlask } from './logic.mjs';
+import { CODE_LANGUAGES, CODE_LANGUAGE_LABELS } from '../../../../shared/code-languages.mjs';
 
 /**
  * Code block with syntax highlighting. Replaces @calumk/editorjs-codeflask
@@ -9,36 +10,27 @@ import { CODE_LANGUAGES, normalizeCodeFlask } from './logic.mjs';
  *
  * Editing happens in a plain textarea laid over a highlighted <pre>; the
  * highlighted markup comes from Prism, which escapes the code text.
+ *
+ * Languages come from the shared list (shared/code-languages.mjs), the same
+ * ids the renderers write as `language-<id>`. A stored language outside the
+ * list is kept and offered as an extra option (highlighted as plain text).
  */
 
-const LABELS = {
-  plaintext: 'Plain text',
-  javascript: 'JavaScript',
-  typescript: 'TypeScript',
-  jsx: 'JSX',
-  tsx: 'TSX',
-  json: 'JSON',
-  markup: 'HTML / XML',
-  css: 'CSS',
-  scss: 'SCSS',
-  bash: 'Shell',
-  python: 'Python',
-  php: 'PHP',
-  ruby: 'Ruby',
-  java: 'Java',
-  kotlin: 'Kotlin',
-  swift: 'Swift',
-  csharp: 'C#',
-  c: 'C',
-  cpp: 'C++',
-  go: 'Go',
-  rust: 'Rust',
-  sql: 'SQL',
-  graphql: 'GraphQL',
-  yaml: 'YAML',
-  markdown: 'Markdown',
-  docker: 'Dockerfile',
-  diff: 'Diff',
+/**
+ * Display name of a language id.
+ * @param {string} language - Language id.
+ * @returns {string} Label.
+ */
+const labelOf = (language) => CODE_LANGUAGE_LABELS[language] || language;
+
+/**
+ * Options of the language select: the shared list plus a stored language outside it.
+ * @param {string} current - Current language.
+ * @returns {Array<{ value: string, label: string }>} Options.
+ */
+const languageOptions = (current) => {
+  const ids = CODE_LANGUAGES.includes(current) ? CODE_LANGUAGES : [...CODE_LANGUAGES, current];
+  return ids.map((value) => ({ value, label: labelOf(value) }));
 };
 
 /**
@@ -99,15 +91,17 @@ export class CodeHighlightTool {
       header.appendChild(
         el('span', {
           className: 'mex-code__language',
-          text: LABELS[this.data.language] || this.data.language,
+          text: labelOf(this.data.language),
         })
       );
     } else {
-      this.nodes.language = select(
-        CODE_LANGUAGES.map((value) => ({ value, label: LABELS[value] || value })),
-        this.data.language
-      );
+      this.nodes.language = select(languageOptions(this.data.language), this.data.language);
       this.nodes.language.setAttribute('aria-label', this.t('tools.code.language', 'Language'));
+      // Arrow keys and Enter belong to the select, not to Editor.js block navigation.
+      this.nodes.language.addEventListener('keydown', (event) => {
+        if (['Enter', 'ArrowUp', 'ArrowDown', 'Backspace', 'Tab'].includes(event.key))
+          event.stopPropagation();
+      });
       this.nodes.language.addEventListener('change', () => {
         this.data.language = this.nodes.language.value;
         this.paint();

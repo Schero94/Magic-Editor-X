@@ -1,6 +1,7 @@
 import { ICONS, el, field, input, select, button, editable } from './dom';
 import { createAltControl } from './alt-text';
 import { sanitizeInline, sanitizeUrl } from '../sanitize';
+import { LINK_SANITIZE } from './sanitize-config';
 import {
   ALERT_TYPES,
   ALERT_ALIGNMENTS,
@@ -29,7 +30,7 @@ const INLINE_SANITIZE = {
   s: { class: 'cdx-strikethrough' },
   mark: { class: 'cdx-marker' },
   code: { class: 'inline-code' },
-  a: { href: true, target: true, rel: true },
+  a: { ...LINK_SANITIZE },
   span: { class: 'cdx-tooltip', 'data-tooltip': true },
   br: true,
 };

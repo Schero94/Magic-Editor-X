@@ -33,7 +33,9 @@ import {
   overrideFor,
   scalarFields,
   formatSize,
+  annotateHeadings,
 } from './common.mjs';
+import { buildTocTree } from '../toc.mjs';
 
 /**
  * @typedef {import('./nodes.mjs').RenderNode} RenderNode
@@ -151,6 +153,14 @@ const label = (value, fallback) => {
 };
 
 /**
+ * Accessible name of a table of contents without a title (`options.toc.label`).
+ * @param {object} options - Render options.
+ * @returns {string} Label.
+ */
+const tocLabel = (options) =>
+  label(isPlainObject(options.toc) ? options.toc.label : undefined, 'Table of contents');
+
+/**
  * Normalised `options.code`.
  * @param {object} options - Render options.
  * @returns {{ lineNumbers: 'all'|'block'|'none', copy: null | { label: string, copied: string, failed: string } }} Code options.
@@ -199,7 +209,10 @@ const numberedLines = (code) => {
 const codeBlock = (b, language, o) => {
   const { lineNumbers, copy } = codeOptions(o);
   const code = String(b.data.code);
-  const wantNumbers = lineNumbers === 'all' || (lineNumbers === 'block' && b.data.showlinenumbers === true);
+  // 'block' follows the editor: codeFlask shows line numbers unless they were switched off.
+  const wantNumbers =
+    lineNumbers === 'all' ||
+    (lineNumbers === 'block' && b.type === 'codeFlask' && b.data.showlinenumbers !== false);
   const numbers = wantNumbers && code.split('\n').length <= MAX_NUMBERED_LINES;
   const pre = el(
     'pre',
@@ -236,7 +249,11 @@ const codeBlock = (b, language, o) => {
 const RENDERERS = {
   paragraph: (b, o) => el('p', { class: classes(['mex-paragraph'], b.tunes) }, inlineToNodes(b.data.text, o)),
   header: (b, o) =>
-    el(`h${b.data.level}`, { class: classes(['mex-header'], b.tunes) }, inlineToNodes(b.data.text, o)),
+    el(
+      `h${b.data.level}`,
+      { id: b.anchor, class: classes(['mex-header'], b.tunes) },
+      inlineToNodes(b.data.text, o)
+    ),
   quote: (b, o) => {
     const caption = inlineToNodes(b.data.caption, o);
     return el(
@@ -469,6 +486,31 @@ const RENDERERS = {
     return el('p', { class: classes(['mex-button-block'], b.tunes) }, inner);
   },
   delimiter: (b) => el('hr', { class: classes(['mex-delimiter'], b.tunes) }),
+  toc: (b, o) => {
+    const tree = buildTocTree(b.headings || [], b.data);
+    if (!tree.length) return null;
+    const tag = b.data.style === 'ordered' ? 'ol' : 'ul';
+    const list = (nodes) =>
+      el(
+        tag,
+        { class: 'mex-toc-list' },
+        nodes.map((node) =>
+          el('li', { class: 'mex-toc-item' }, [
+            b.linkHeadings && node.id ? el('a', { href: `#${node.id}` }, node.text) : node.text,
+            node.children.length ? list(node.children) : null,
+          ])
+        )
+      );
+    const title = b.data.title.trim();
+    return el(
+      'nav',
+      {
+        class: classes(['mex-toc', `mex-toc-${b.data.style}`], b.tunes),
+        'aria-label': title || tocLabel(o),
+      },
+      [title ? el('p', { class: 'mex-toc-title' }, title) : null, list(tree)]
+    );
+  },
 };
 
 /**
@@ -724,7 +766,7 @@ export const createTreeBuilder = (value, options, mode = {}) => {
     childNodes: renderBlocks,
   };
 
-  const nodes = renderList(prepareBlocks(value, opts));
+  const nodes = renderList(annotateHeadings(prepareBlocks(value, opts), opts));
   return { nodes, renderBlocks, helpers };
 };
 

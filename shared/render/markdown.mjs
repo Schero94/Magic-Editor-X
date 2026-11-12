@@ -5,7 +5,8 @@
  */
 
 import { parseInline, resolveLinkAttributes, inlineToText } from './inline.mjs';
-import { prepareBlocks, resolveMedia, overrideFor, scalarFields } from './common.mjs';
+import { prepareBlocks, resolveMedia, overrideFor, scalarFields, annotateHeadings } from './common.mjs';
+import { buildTocTree } from '../toc.mjs';
 
 /**
  * Escapes Markdown punctuation in text.
@@ -282,6 +283,27 @@ const RENDERERS = {
       : escapeMarkdown(b.data.text);
   },
   delimiter: () => '---',
+  toc: (b) => {
+    const tree = buildTocTree(b.headings || [], b.data);
+    if (!tree.length) return '';
+    const ordered = b.data.style === 'ordered';
+    const lines = (nodes, indent) =>
+      nodes.flatMap((node, index) => {
+        const marker = ordered ? `${index + 1}.` : '-';
+        const text = escapeMarkdown(node.text);
+        // Markdown has no heading ids of its own: entries link to the GitHub-style slug
+        // that Markdown renderers (GitHub, markdown-it-anchor, rehype-slug) give the heading.
+        const entry = b.linkHeadings && node.slug ? `[${text}](#${linkUrl(node.slug)})` : text;
+        return [
+          `${indent}${marker} ${entry}`,
+          ...lines(node.children, `${indent}${' '.repeat(marker.length + 1)}`),
+        ];
+      });
+    const title = b.data.title.trim();
+    return [title ? `**${escapeMarkdown(title)}**` : '', lines(tree, '').join('\n')]
+      .filter(Boolean)
+      .join('\n\n');
+  },
 };
 
 /**
@@ -317,5 +339,5 @@ export const renderMarkdown = (value, options = {}) => {
       })
       .filter((text) => text && text.trim() !== '')
       .join('\n\n');
-  return render(prepareBlocks(value, opts));
+  return render(annotateHeadings(prepareBlocks(value, opts), opts));
 };

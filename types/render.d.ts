@@ -9,6 +9,8 @@ export interface InternalLinkRef {
   locale: string | null;
   /** The href stored when the link was inserted (fallback). */
   href: string | null;
+  /** Present (true) for a mention (`data-mex-mention="true"`, an inline entry reference rendered with class `mex-mention`). */
+  mention?: true;
 }
 
 /** Block handed to an override. `data` is cleaned for built-in types and as stored for custom blocks. */
@@ -123,6 +125,17 @@ export interface RenderOptions {
   imageSizes?: string;
   /** Code block line numbers and copy button. */
   code?: CodeRenderOptions;
+  /**
+   * Heading anchors `id="mex-h-<blockId>"` (stable across text edits and
+   * locales): `true` on every heading, `false` never (table-of-contents entries
+   * are then plain text), default only when the value contains a `toc` block.
+   * Markdown has no heading ids: its table-of-contents entries link to the
+   * GitHub-style slug of the heading text (`#über-uns`, repeats `-1`, `-2`),
+   * which Markdown renderers such as GitHub, markdown-it-anchor and rehype-slug assign.
+   */
+  headingIds?: boolean;
+  /** Table of contents: accessible name of a `toc` block without a title (1 to 80 characters, default 'Table of contents'). */
+  toc?: { label?: string };
 }
 
 /** Renders a stored value to HTML. Empty or invalid input gives ''. */

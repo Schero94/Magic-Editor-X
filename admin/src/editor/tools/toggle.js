@@ -1,5 +1,6 @@
 import { ICONS, el, editable } from './dom';
 import { sanitizeInline } from '../sanitize';
+import { LINK_SANITIZE } from './sanitize-config';
 import { normalizeToggle, toggleChildIndexes, nextToggleItems } from './logic.mjs';
 
 /**
@@ -31,7 +32,7 @@ export class ToggleTool {
         s: { class: 'cdx-strikethrough' },
         mark: { class: 'cdx-marker' },
         code: { class: 'inline-code' },
-        a: { href: true, target: true, rel: true },
+        a: { ...LINK_SANITIZE },
         br: true,
       },
       status: false,

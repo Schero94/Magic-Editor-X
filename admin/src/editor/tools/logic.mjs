@@ -7,6 +7,8 @@
  * sanitiser (shared/sanitize-policy.mjs) accepts it unchanged.
  */
 
+import { CODE_LANGUAGES, normalizeCodeLanguage } from '../../../../shared/code-languages.mjs';
+
 export const ALERT_TYPES = Object.freeze([
   'primary',
   'secondary',
@@ -21,56 +23,7 @@ export const ALERT_ALIGNMENTS = Object.freeze(['left', 'center', 'right']);
 export const ALIGNMENTS = Object.freeze(['left', 'center', 'right', 'justify']);
 export const TEXT_VARIANTS = Object.freeze(['call-out', 'citation', 'details']);
 export const BUTTON_STYLES = Object.freeze(['primary', 'secondary', 'outline', 'ghost', 'danger', 'success']);
-export const CODE_LANGUAGES = Object.freeze([
-  'plaintext',
-  'javascript',
-  'typescript',
-  'jsx',
-  'tsx',
-  'json',
-  'markup',
-  'css',
-  'scss',
-  'bash',
-  'python',
-  'php',
-  'ruby',
-  'java',
-  'kotlin',
-  'swift',
-  'csharp',
-  'c',
-  'cpp',
-  'go',
-  'rust',
-  'sql',
-  'graphql',
-  'yaml',
-  'markdown',
-  'docker',
-  'diff',
-]);
-
-/** Aliases used by 1.x CodeFlask content. */
-const LANGUAGE_ALIASES = {
-  js: 'javascript',
-  ts: 'typescript',
-  html: 'markup',
-  xml: 'markup',
-  svg: 'markup',
-  sh: 'bash',
-  shell: 'bash',
-  py: 'python',
-  yml: 'yaml',
-  md: 'markdown',
-  dockerfile: 'docker',
-  'c#': 'csharp',
-  cs: 'csharp',
-  'c++': 'cpp',
-  text: 'plaintext',
-  plain: 'plaintext',
-  none: 'plaintext',
-};
+export { CODE_LANGUAGES };
 
 const str = (value) => (typeof value === 'string' ? value : '');
 const pick = (value, allowed, fallback) =>
@@ -110,15 +63,12 @@ export const normalizeAlignment = (data, fallback = 'left') => ({
 export const normalizeTextVariant = (data) => pick(data, TEXT_VARIANTS, '');
 
 /**
- * Normalises a code language name.
+ * Normalises a code language name (shared list, see shared/code-languages.mjs):
+ * aliases become the canonical id, other valid identifiers are kept.
  * @param {unknown} language - Stored language.
- * @returns {string} Supported language id.
+ * @returns {string} Language id.
  */
-export const normalizeLanguage = (language) => {
-  const raw = str(language).trim().toLowerCase();
-  const mapped = LANGUAGE_ALIASES[raw] || raw;
-  return CODE_LANGUAGES.includes(mapped) ? mapped : 'plaintext';
-};
+export const normalizeLanguage = (language) => normalizeCodeLanguage(language);
 
 /**
  * Normalises CodeFlask block data (`@calumk/editorjs-codeflask` shape) and plain
@@ -457,16 +407,73 @@ export const readInternalLink = (node) => {
 
 /**
  * Data attributes to write for a link. They are kept only while the href is
- * the one the picker produced; a hand-edited address turns it into a plain link.
+ * the one the picker produced; a hand-edited address turns it into a plain link
+ * (and a mention into a plain link). The mention flag is left alone otherwise.
  * @param {{ href: string, uid: string, documentId: string, locale?: string|null }|null} internal - Picked entry.
  * @param {string} href - The href that is written.
  * @returns {Record<string, string|null>} Attribute values (null removes the attribute).
  */
 export const internalLinkAttributes = (internal, href) => {
   const keep = Boolean(internal && internal.uid && internal.documentId && internal.href === href);
-  return {
+  const out = {
     'data-mex-uid': keep ? internal.uid : null,
     'data-mex-document-id': keep ? internal.documentId : null,
     'data-mex-locale': keep && internal.locale ? internal.locale : null,
+  };
+  // A mention whose address was edited by hand becomes a plain link too.
+  if (!keep) out['data-mex-mention'] = null;
+  return out;
+};
+
+/**
+ * Attributes of a mention chip for a picked entry (an internal link with the
+ * mention flag; validated again by the sanitisers).
+ * @param {{ href?: string, uid?: string, documentId?: string, locale?: string|null }|null} item - Search result.
+ * @returns {Record<string, string>|null} Attributes, or null when the entry has no address or reference.
+ */
+export const mentionAttributes = (item) => {
+  if (!item || typeof item.href !== 'string' || !item.href || !item.uid || !item.documentId) return null;
+  const out = {
+    href: item.href,
+    'data-mex-uid': String(item.uid),
+    'data-mex-document-id': String(item.documentId),
+  };
+  if (item.locale) out['data-mex-locale'] = String(item.locale);
+  out['data-mex-mention'] = 'true';
+  return out;
+};
+
+/**
+ * Text of a new mention chip: the entry title, else the selected text, else the fallback.
+ * @param {{ title?: string }|null} item - Search result.
+ * @param {string} selected - Selected text.
+ * @param {string} fallback - Text for an entry without a title.
+ * @returns {string} Chip text (one line, at most 200 characters).
+ */
+export const mentionText = (item, selected, fallback) => {
+  const clean = (value) => (typeof value === 'string' ? value.replace(/\s+/g, ' ').trim().slice(0, 200) : '');
+  return clean(item && item.title) || clean(selected) || clean(fallback);
+};
+
+/**
+ * Normalises table-of-contents data (`toc` block). A new block lists the
+ * heading levels the field allows (preset `headingLevels`), at most 2 to 4.
+ * @param {unknown} data - Stored data.
+ * @param {number[]} [levels] - Heading levels allowed in the field.
+ * @returns {{ title: string, minLevel: number, maxLevel: number, style: 'ordered'|'unordered' }} Data.
+ */
+export const normalizeToc = (data, levels) => {
+  const d = data && typeof data === 'object' ? data : {};
+  const allowed = Array.isArray(levels) ? levels.filter((level) => Number.isInteger(level)) : [];
+  const fallbackMin = allowed.length ? Math.max(2, Math.min(...allowed)) : 2;
+  const fallbackMax = allowed.length ? Math.max(fallbackMin, Math.min(4, Math.max(...allowed))) : 4;
+  const level = (value, fallback) => (Number.isInteger(value) && value >= 1 && value <= 6 ? value : fallback);
+  const a = level(d.minLevel, fallbackMin);
+  const b = level(d.maxLevel, fallbackMax);
+  return {
+    title: str(d.title).slice(0, 200),
+    minLevel: Math.min(a, b),
+    maxLevel: Math.max(a, b),
+    style: d.style === 'ordered' ? 'ordered' : 'unordered',
   };
 };

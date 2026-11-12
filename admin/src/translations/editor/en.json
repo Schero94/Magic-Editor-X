@@ -139,6 +139,7 @@
   "editor.history.diff.restoreBlockLabel": "Restore block {number} from version {version}",
   "editor.history.diff.blockRestored": "Block restored. Save the entry to keep it.",
   "editor.history.diff.restoreFailed": "The block could not be restored.",
+  "editor.quality.rule.tocNoHeadings": "Table of contents without headings between level {minLevel} and {maxLevel}",
   "editor.history.diff.more": "{count, plural, one {# more change is} other {# more changes are}} not shown.",
   "editor.comments.actionFailed": "This did not work. Try again.",
   "editor.comments.announce.added": "Comment added",

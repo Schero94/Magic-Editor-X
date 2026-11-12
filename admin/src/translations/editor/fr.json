@@ -139,6 +139,7 @@
   "editor.history.diff.restoreBlockLabel": "Restaurer le bloc {number} de la version {version}",
   "editor.history.diff.blockRestored": "Bloc restauré. Enregistrez l'entrée pour le conserver.",
   "editor.history.diff.restoreFailed": "Le bloc n'a pas pu être restauré.",
+  "editor.quality.rule.tocNoHeadings": "Table des matières sans titre entre les niveaux {minLevel} et {maxLevel}",
   "editor.history.diff.more": "{count, plural, one {# autre modification n'est pas affichée} other {# autres modifications ne sont pas affichées}}.",
   "editor.comments.actionFailed": "L'action a échoué. Réessayez.",
   "editor.comments.announce.added": "Commentaire ajouté",

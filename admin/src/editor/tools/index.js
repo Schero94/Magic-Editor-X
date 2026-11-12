@@ -29,6 +29,8 @@ import {
   MediaLibraryTool,
 } from './blocks';
 import { CodeHighlightTool } from './code-highlight';
+import { TocTool } from './toc';
+import { MentionTool } from './mention';
 import { ToggleTool } from './toggle';
 import { ChecklistTool } from './checklist';
 import { buildCustomBlockTools } from './custom-block';
@@ -66,8 +68,17 @@ const INLINE = [
 export function buildTools(ctx) {
   const t = typeof ctx.t === 'function' ? ctx.t : (_id, fallback) => fallback;
   const preset = ctx.preset || null;
-  const allowedInline =
+  const presetInline =
     preset && preset.inline ? INLINE.filter((name) => preset.inline.includes(name)) : INLINE;
+  // Mentions are internal links: offered with the hyperlink tool when the field allows links to entries.
+  const linkTargets = (preset && preset.linkTargets) || 'all';
+  const mentions =
+    presetInline.includes('hyperlink') &&
+    (linkTargets === 'all' || linkTargets === 'internal') &&
+    Boolean(ctx.fetchClient && typeof ctx.fetchClient.get === 'function');
+  const allowedInline = mentions
+    ? presetInline.flatMap((name) => (name === 'hyperlink' ? [name, 'mention'] : [name]))
+    : presetInline;
   const inline = ctx.aiEnabled ? [...allowedInline, 'aiAssistant'] : allowedInline;
   const levels = preset && preset.headingLevels.length ? preset.headingLevels : [1, 2, 3, 4, 5, 6];
   const canUpload = ctx.canUpload !== false;
@@ -151,6 +162,7 @@ export function buildTools(ctx) {
     },
     codeFlask: { class: CodeHighlightTool, config: { ...shared, language: 'javascript' } },
     delimiter: { class: DelimiterTool, shortcut: 'CMD+SHIFT+D', config: shared },
+    toc: { class: TocTool, config: { t, levels } },
     table: {
       class: Table,
       inlineToolbar: inline,
@@ -229,6 +241,15 @@ export function buildTools(ctx) {
         linkTargets: (preset && preset.linkTargets) || 'all',
       },
     },
+    ...(mentions
+      ? {
+          mention: {
+            class: MentionTool,
+            shortcut: 'CMD+SHIFT+2',
+            config: { t, fetchClient: ctx.fetchClient, getLocale: ctx.getContentLocale },
+          },
+        }
+      : {}),
 
     alignmentTune: { class: AlignmentTune, config: { t, default: 'left' } },
     textVariant: { class: TextVariantTune, config: { t } },
@@ -261,6 +282,7 @@ export function buildTools(ctx) {
 /** Tools that are not blocks of their own (inline tools, tunes, the Media Library placeholder). */
 const NOT_BLOCKS = new Set([
   ...INLINE,
+  'mention',
   'aiAssistant',
   'alignmentTune',
   'textVariant',
@@ -340,6 +362,7 @@ export function editorI18n(t) {
         Code: tr('tools.names.code', 'Code'),
         'Code (highlighted)': tr('tools.names.codeHighlighted', 'Code (highlighted)'),
         Delimiter: tr('tools.names.delimiter', 'Delimiter'),
+        'Table of contents': tr('tools.names.toc', 'Table of contents'),
         Table: tr('tools.names.table', 'Table'),
         'Raw HTML': tr('tools.names.raw', 'Raw HTML'),
         Image: tr('tools.names.image', 'Image'),
@@ -351,6 +374,7 @@ export function editorI18n(t) {
         'Media Library': tr('tools.names.mediaLibrary', 'Media Library'),
         'Embedded entry': tr('tools.names.embeddedEntry', 'Embedded entry'),
         Link: tr('tools.names.link', 'Link'),
+        Mention: tr('tools.names.mention', 'Mention'),
         Bold: tr('tools.names.bold', 'Bold'),
         Italic: tr('tools.names.italic', 'Italic'),
         Marker: tr('tools.names.marker', 'Marker'),
