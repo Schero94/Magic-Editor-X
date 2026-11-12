@@ -98,28 +98,34 @@ const transformEditorFields = (strapi, schema, data, transform, depth = 0, prefi
  * @param {object} strapi - Strapi instance.
  * @param {object} contentType - Content-type schema.
  * @param {string} path - Dotted field path.
- * @returns {{ topLevel: string, attribute: object } | null} The editor attribute and the top-level field name.
+ * @returns {{ topLevel: string, permissionField: string, attribute: object } | null} The editor attribute,
+ *   the top-level field name and the field path the Content Manager permissions use
+ *   (`sections.body` inside components; the dynamic zone itself for fields inside one).
  */
 const resolveEditorField = (strapi, contentType, path) => {
   const parts = String(path).split('.');
   let schema = contentType;
   let attribute = null;
   const topLevel = parts[0];
+  const names = [];
+  let inZone = false;
   for (let i = 0; i < parts.length; i += 1) {
     const part = parts[i];
     if (/^\d+$/.test(part)) continue;
     attribute = schema?.attributes?.[part];
     if (!attribute) return null;
+    if (!inZone) names.push(part);
     if (i === parts.length - 1) break;
     if (attribute.type === 'component') schema = strapi.components[attribute.component];
     else if (attribute.type === 'dynamiczone') {
+      inZone = true;
       const next = parts[i + 2];
       const candidates = (attribute.components || []).map((uid) => strapi.components[uid]).filter(Boolean);
       schema = candidates.find((candidate) => candidate.attributes?.[next]) || null;
       i += 1;
     } else return null;
   }
-  return isEditorAttribute(attribute) ? { topLevel, attribute } : null;
+  return isEditorAttribute(attribute) ? { topLevel, permissionField: names.join('.'), attribute } : null;
 };
 
 module.exports = {
