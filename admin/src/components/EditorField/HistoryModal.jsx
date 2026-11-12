@@ -20,6 +20,7 @@ import styled from 'styled-components';
 import { API, readApiError } from '../../utils/api';
 import { VersionDiff } from './VersionDiff';
 import { FieldActivity } from './FieldActivity';
+import { useTooltipSafeEscape } from '../../hooks/useTooltipSafeEscape';
 
 /**
  * Version history of one field: list snapshots, save (and name) the current
@@ -481,9 +482,11 @@ export const HistoryModal = ({
     );
   };
 
+  // One Escape closes the dialog even while an icon button's tooltip is open.
+  const escapeProps = useTooltipSafeEscape(onClose);
   return (
     <Modal.Root open onOpenChange={(open) => !open && onClose()}>
-      <Modal.Content>
+      <Modal.Content {...escapeProps}>
         <Modal.Header closeLabel={t('editor.history.close', 'Close')}>
           <Modal.Title>{t('editor.history.title', 'Version history')}</Modal.Title>
         </Modal.Header>

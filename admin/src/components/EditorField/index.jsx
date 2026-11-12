@@ -222,6 +222,17 @@ const Frame = styled(Box)`
 const EditorArea = styled.div`
   position: relative;
   min-width: 0;
+  /*
+   * Editor.js renders the block menu, the toolbox and their nested popovers
+   * inside .ce-toolbar, which is its own stacking context (will-change:
+   * opacity). Their z-index therefore cannot lift them over positioned
+   * content of the fields that follow (the next field's toolbar and text drew
+   * over the menu). While a popover or the inline toolbar is open, the whole
+   * area is lifted to the DS popover layer.
+   */
+  &:has(.ce-popover--opened, .ce-inline-toolbar--showed) {
+    z-index: ${({ theme }) => theme.zIndices.popover};
+  }
   ${({ $fullscreen }) => ($fullscreen ? 'flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0;' : '')}
   /*
    * Visually hidden while the rendered preview is shown. The editor stays laid

@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Alert, Button } from '@strapi/design-system';
 import { Blocker, Form, Page, useNotification, useRBAC } from '@strapi/strapi/admin';
 import { Check } from '@strapi/icons';
@@ -78,6 +79,9 @@ const ConfigurationPage = () => {
   const { allowedActions, isLoading: rbacLoading } = useRBAC(RBAC);
   const form = useConfigurationForm();
   const title = t('settings.configuration.title', 'Configuration');
+  // Latest link schedule status reported by the "Run now" section, so the read-only environment row
+  // shows the same last run instead of the one from page load.
+  const [liveSchedule, setLiveSchedule] = useState(null);
 
   if (rbacLoading || form.status === 'loading') {
     return (
@@ -236,10 +240,20 @@ const ConfigurationPage = () => {
       ) : null}
       <AiSection form={form} readOnly={readOnly} onTest={onTest} />
       <LanguageToolSection form={form} readOnly={readOnly} onTest={onTestLanguageTool} />
-      <EnvironmentSection environment={form.dto.environment} />
+      <EnvironmentSection
+        environment={
+          liveSchedule && form.dto.environment
+            ? {
+                ...form.dto.environment,
+                linkSchedule: { ...form.dto.environment.linkSchedule, ...liveSchedule },
+              }
+            : form.dto.environment
+        }
+      />
       <LinkScheduleSection
         initial={(form.dto.environment && form.dto.environment.linkSchedule) || null}
         canRun={!readOnly}
+        onStatus={setLiveSchedule}
       />
       <CspSection csp={form.dto.environment && form.dto.environment.csp} />
       <Form method="PUT" initialValues={form.saved}>

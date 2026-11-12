@@ -5,6 +5,7 @@ import styled from 'styled-components';
 import { sanitizeInline, sanitizeUrl } from '../../editor/sanitize';
 import { cleanNoteHtml } from '../../editor/tools/footnote-logic.mjs';
 import { MAX_FOOTNOTE_NOTE } from '../../../../shared/sanitize-policy.mjs';
+import { useTooltipSafeEscape } from '../../hooks/useTooltipSafeEscape';
 
 /**
  * Note editor of one footnote (2.4). The note is inline HTML with the
@@ -280,6 +281,9 @@ export const FootnoteDialog = ({
     }
   };
 
+  // One Escape closes the dialog even while a toolbar button's tooltip is open.
+  const escapeProps = useTooltipSafeEscape(onClose);
+
   /** Toolbar buttons keep the selection of the note area (no focus change on pointer down). */
   const keepSelection = (event) => event.preventDefault();
 
@@ -291,6 +295,7 @@ export const FootnoteDialog = ({
       }}
     >
       <Modal.Content
+        {...escapeProps}
         onOpenAutoFocus={focusNote}
         onCloseAutoFocus={(event) => {
           // The dialog has no trigger: focus returns to where it was opened from.
