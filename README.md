@@ -126,8 +126,6 @@ New in 2.4:
 | ![Versions of a synced block source with a comparison against the current content and Restore](docs/site/img/synced-versions-1440.png)                     | ![Settings, Configuration: the scheduled link check with its time zone, next run and the Run now button](docs/site/img/link-run-now-1440.png) |
 | ![Typing @ in a paragraph opens entry suggestions at the caret](docs/site/img/mention-trigger-1440.png)                                                    | ![Code block with the file name config/plugins.js above the code](docs/site/img/code-filename-1440.png)                                       |
 
-Some 2.4 screenshots (math, footnotes, @ suggestions, range comments, suggestions) were taken before the field toolbar moved its tools into More tools and still show the 2.3 toolbar.
-
 All screenshots use synthetic data (acceptance host: Strapi 5.61.1).
 
 ## Core concepts

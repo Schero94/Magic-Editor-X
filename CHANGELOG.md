@@ -38,6 +38,9 @@ Magic Editor X 2.4 adds better tables, math and footnotes, comments on selected 
 - AI for selected text nested bold tags when the selection crossed formatting.
 - The translate validator accepted the id `"01"` for `"1"`.
 - Block menus opened under the next editor field.
+- Collaboration: text typed in the first moments after a field with existing room content opened could lose its last characters (same cause as the first fix above).
+- Code blocks: tokens without their own colour took the colours of the global code theme loaded by Strapi's Blocks field, some below the contrast minimum (for example Python builtins at 2.93:1); every token now has its own colour (present since 2.3).
+- After "Leave focus mode" keyboard focus fell to the page; it now returns to More tools.
 - Dialogs with icon buttons needed several Escape presses while a tooltip was open.
 
 ### Security
