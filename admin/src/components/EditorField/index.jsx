@@ -65,6 +65,7 @@ import { createAltTextSuggester } from '../../editor/ai-alt-text';
 import { GrammarPanel } from './GrammarPanel';
 import { FieldAiDialog } from './FieldAiDialog';
 import { applySegments } from '../../../../shared/ai-fields.mjs';
+import { isPositionalFieldPath } from '../../editor/field-path.mjs';
 import { escapeHtml } from '../../../../shared/render/inline.mjs';
 import {
   resolveFieldPreset,
@@ -395,7 +396,10 @@ const EditorFieldBody = ({
     permissions.collaborate &&
     preset.collaboration &&
     target.uid &&
-    target.documentId
+    target.documentId &&
+    // Positional paths (`sections.0.body`) can point to another entry after entries are removed or
+    // reordered before saving; their room would show the other entry's content (editor/field-path.mjs).
+    !isPositionalFieldPath(target.field)
       ? target
       : null;
 
