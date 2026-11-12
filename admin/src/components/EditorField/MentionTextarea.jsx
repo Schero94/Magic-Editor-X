@@ -162,7 +162,10 @@ export const MentionTextarea = ({
       return;
     }
     if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+      // Strapi 5.61's edit view saves on Ctrl/Cmd+Enter (window keydown): posting a comment must not
+      // save the entry too (or answer 403 for reviewers), so the key stops here.
       event.preventDefault();
+      event.stopPropagation();
       onSubmit();
     }
   };

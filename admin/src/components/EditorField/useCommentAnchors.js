@@ -116,6 +116,15 @@ export const useCommentAnchors = ({ owner, holderRef, threads, enabled, version,
     const element =
       range.startContainer.nodeType === 1 ? range.startContainer : range.startContainer.parentElement;
     if (element && element.scrollIntoView) element.scrollIntoView({ block: 'center' });
+    // The caret goes to the start of the text (without focusing the editor), so the next
+    // Ctrl/Cmd+Alt+N continues from here and the selection listener keeps this thread active.
+    const selection = window.getSelection();
+    if (selection) {
+      const caret = range.cloneRange();
+      caret.collapse(true);
+      selection.removeAllRanges();
+      selection.addRange(caret);
+    }
     setActiveId(threadId);
     return true;
   }, []);
