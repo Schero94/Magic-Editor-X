@@ -149,10 +149,15 @@ const EditorArea = styled.div`
   position: relative;
   min-width: 0;
   ${({ $fullscreen }) => ($fullscreen ? 'flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0;' : '')}
-  /* Hidden (still mounted) while the rendered preview is shown. */
-  &[hidden] {
-    display: none;
-  }
+  /*
+   * Visually hidden while the rendered preview is shown. The editor stays laid
+   * out: with display: none, Editor.js' mutation observer loops forever when a
+   * collaborator's change is applied to the hidden blocks.
+   */
+  ${({ $concealed }) =>
+    $concealed
+      ? 'position: absolute; visibility: hidden; height: 0; overflow: hidden; pointer-events: none;'
+      : ''}
 `;
 
 const Holder = styled.div`
@@ -1422,7 +1427,13 @@ const EditorFieldBody = ({
               dir={direction}
             />
           ) : null}
-          <EditorArea ref={areaRef} $fullscreen={fullscreen} hidden={previewOpen}>
+          <EditorArea
+            ref={areaRef}
+            $fullscreen={fullscreen && !previewOpen}
+            $concealed={previewOpen}
+            aria-hidden={previewOpen ? true : undefined}
+            inert={previewOpen ? '' : undefined}
+          >
             <BlockSelectionBar
               t={t}
               holderRef={holderRef}

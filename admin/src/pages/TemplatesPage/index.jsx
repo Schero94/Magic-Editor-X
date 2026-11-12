@@ -30,6 +30,7 @@ const TemplatesPage = () => {
   const [preview, setPreview] = useState(null);
   const [busyId, setBusyId] = useState(null);
   const createRef = useRef(null);
+  const previewOpenerRef = useRef(null);
   const title = t('settings.templates.title', 'Templates');
 
   if (rbacLoading || data.status === 'loading') {
@@ -252,7 +253,10 @@ const TemplatesPage = () => {
           templates={data.templates}
           busyId={busyId}
           onToggle={onToggle}
-          onPreview={setPreview}
+          onPreview={(template) => {
+            previewOpenerRef.current = typeof document !== 'undefined' ? document.activeElement : null;
+            setPreview(template);
+          }}
           onEdit={(template) => setEditing({ template, key: Date.now() })}
           onDuplicate={onDuplicate}
           onMove={onMove}
@@ -264,7 +268,10 @@ const TemplatesPage = () => {
         <Modal.Root
           open
           onOpenChange={(next) => {
-            if (!next) setPreview(null);
+            if (next) return;
+            setPreview(null);
+            // The modal is opened from state, not a Dialog trigger: give focus back to the row's preview button.
+            requestAnimationFrame(() => refocusIfLost(previewOpenerRef.current, createRef.current));
           }}
         >
           <Modal.Content>
