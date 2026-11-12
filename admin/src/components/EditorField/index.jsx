@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useIntl } from 'react-intl';
 import { useHref, useNavigate } from 'react-router-dom';
@@ -58,6 +58,8 @@ import { createPasteHandler } from '../../editor/paste';
 import { createMarkdownShortcuts } from '../../editor/markdown-shortcuts';
 import { createMentionKeys } from '../../editor/tools/mention';
 import { restoreBlockInEditor } from '../../editor/restore-block.mjs';
+import { markInputReady, trackUserInput } from '../../editor/input-tracking.mjs';
+import { createStyleOwners } from '../../editor/style-owners.mjs';
 import { highlightMatch, clearHighlight } from '../../editor/find-highlight';
 import { createAltTextSuggester } from '../../editor/ai-alt-text';
 import { GrammarPanel } from './GrammarPanel';
@@ -83,6 +85,29 @@ import {
 const SAVE_DEBOUNCE_MS = 150;
 
 const EditorStyles = createGlobalStyle`${editorStyles}`;
+const styleOwners = createStyleOwners();
+
+/**
+ * Renders the global editor styles once per page: only the first mounted
+ * field owns them (see editor/style-owners.mjs). The owner is decided in a
+ * layout effect, so the styles are in place before the browser paints.
+ * @returns {JSX.Element|null} Styles of the owning field.
+ */
+const SharedEditorStyles = () => {
+  const id = useId();
+  const [owner, setOwner] = useState(false);
+  useLayoutEffect(() => {
+    const update = () => setOwner(styleOwners.owner() === id);
+    const unsubscribe = styleOwners.subscribe(update);
+    styleOwners.add(id);
+    update();
+    return () => {
+      unsubscribe();
+      styleOwners.remove(id);
+    };
+  }, [id]);
+  return owner ? <EditorStyles /> : null;
+};
 
 /** Locales written right to left (language subtag). */
 const RTL_LANGUAGES = new Set([
@@ -483,18 +508,15 @@ const EditorFieldBody = ({
       }
       if (!['Shift', 'Control', 'Alt', 'Meta'].includes(event.key)) leaveArmed = false;
     };
-    const onTouch = () => {
-      userTouchedRef.current = true;
-    };
-    const touchEvents = ['pointerdown', 'keydown', 'input', 'paste', 'drop'];
-    touchEvents.forEach((type) => holder.addEventListener(type, onTouch, true));
     window.addEventListener('keydown', onKeyDown, true);
     holder.addEventListener('focusout', onFocusOut);
     holder.addEventListener('input', onInput);
     holder.addEventListener('click', onClick);
     holder.addEventListener('keyup', onKeyUp);
+    // Readiness signal for people and tests: typing is saved right away from here on.
+    const clearReady = markInputReady(holder);
     return () => {
-      touchEvents.forEach((type) => holder.removeEventListener(type, onTouch, true));
+      clearReady();
       holder.removeEventListener('click', onClick);
       holder.removeEventListener('keyup', onKeyUp);
       holder.removeEventListener('focusout', onFocusOut);
@@ -732,6 +754,12 @@ const EditorFieldBody = ({
       mountSynced,
     });
     const toolNames = new Set(Object.keys(tools));
+    // User input is tracked before Editor.js renders the blocks: after the
+    // create -> edit redirect several fields mount at once, and text typed
+    // before this field's effects ran was never reported to the form.
+    const stopTracking = trackUserInput(holderRef.current, () => {
+      userTouchedRef.current = true;
+    });
     const shortcutList = Object.entries(tools)
       .filter(([name, tool]) => tool && tool.shortcut && tool.toolbox !== false && SHORTCUT_LABELS[name])
       .map(([name, tool]) => ({
@@ -787,10 +815,13 @@ const EditorFieldBody = ({
         });
         mentionKeys = createMentionKeys({ holder: holderRef.current });
         setReady(true);
+        // Edits made while Editor.js was starting are stored right away.
+        if (userTouchedRef.current) scheduleSave(0);
       },
     });
     return () => {
       destroyed = true;
+      stopTracking();
       cspGuard.destroy();
       clearTimeout(saveTimerRef.current);
       setReady(false);
@@ -1526,7 +1557,7 @@ const EditorFieldBody = ({
 
   return (
     <Field.Root name={name} id={name} error={error} hint={fieldHint} required={required}>
-      <EditorStyles />
+      <SharedEditorStyles />
       <Flex direction="column" alignItems="stretch" gap={1}>
         <Field.Label action={labelAction}>{label}</Field.Label>
         <Frame
