@@ -186,7 +186,10 @@ test('link check: readable entries, missing ones, no information for unreadable 
   assert.equal(statuses[0], 'draft');
   assert.ok(['missing', 'unknown'].includes(statuses[1]));
   assert.equal(statuses[2], 'unknown');
-  assert.equal(response.body.data.external[0].status, 'skipped');
+  // With qualityChecks.externalLinks.enabled the address is checked and refused (.test is a local suffix).
+  const config = await call('GET', '/magic-editor-x/config', { token: editor });
+  const externalOn = config.body.data.quality.externalLinks === true;
+  assert.equal(response.body.data.external[0].status, externalOn ? 'blocked' : 'skipped');
   const forbidden = await call('POST', '/magic-editor-x/quality/links', { token: author, body });
   assert.equal(forbidden.status, 403);
   const tooMany = await call('POST', '/magic-editor-x/quality/links', {

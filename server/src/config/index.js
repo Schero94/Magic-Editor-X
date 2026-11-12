@@ -102,6 +102,28 @@ const defaults = {
       timeoutMs: 5000,
       /** External URLs one admin may check per minute, shared by all processes. */
       perMinute: 30,
+      /**
+       * Exact origins (`http://127.0.0.1:8080`) that may be checked although they
+       * are private or loopback addresses, for intranet links or a local test
+       * server. Redirects from them are not followed. Empty (default) keeps the
+       * full SSRF protection for every link.
+       */
+      allowPrivateOrigins: [],
+      /**
+       * Scheduled check of every external link in all Magic Editor X fields
+       * (needs `externalLinks.enabled`). Runs on one process of a cluster.
+       */
+      schedule: {
+        enabled: false,
+        /** Cron rule with five fields (minute hour day month weekday), server time zone. */
+        rule: '0 3 * * *',
+        /** Most URLs requested per run; the least recently checked go first. */
+        maxUrlsPerRun: 500,
+        /** Requests per minute of a run (all hosts). */
+        perMinute: 60,
+        /** Parallel requests to one host. */
+        perHostConcurrency: 2,
+      },
     },
   },
   links: {
@@ -114,6 +136,23 @@ const defaults = {
 };
 
 const positiveInt = (max) => z.number().int().min(1).max(max);
+
+/** Five cron fields (no seconds field, so a run starts at most once a minute). */
+const CRON_RULE = /^[0-9A-Za-z*,/?#-]{1,20}(?:[ \t]+[0-9A-Za-z*,/?#-]{1,20}){4}$/;
+
+/**
+ * True for a bare http(s) origin such as `http://127.0.0.1:8080`.
+ * @param {string} value - Candidate.
+ * @returns {boolean} Result.
+ */
+const isOrigin = (value) => {
+  try {
+    const url = new URL(value);
+    return ['http:', 'https:'].includes(url.protocol) && url.origin === value;
+  } catch {
+    return false;
+  }
+};
 
 const configSchema = z.looseObject({
   debug: z.boolean(),
@@ -178,13 +217,25 @@ const configSchema = z.looseObject({
     }),
   }),
   history: z.looseObject({ maxSnapshotsPerField: positiveInt(1000) }),
-  qualityChecks: z.looseObject({
-    externalLinks: z.looseObject({
-      enabled: z.boolean(),
-      timeoutMs: z.number().int().min(1000).max(15000),
-      perMinute: positiveInt(1000),
+  qualityChecks: z
+    .looseObject({
+      externalLinks: z.looseObject({
+        enabled: z.boolean(),
+        timeoutMs: z.number().int().min(1000).max(15000),
+        perMinute: positiveInt(1000),
+        allowPrivateOrigins: z.array(z.string().max(300).refine(isOrigin)).max(20),
+        schedule: z.looseObject({
+          enabled: z.boolean(),
+          rule: z.string().max(100).regex(CRON_RULE),
+          maxUrlsPerRun: positiveInt(10000),
+          perMinute: positiveInt(600),
+          perHostConcurrency: positiveInt(8),
+        }),
+      }),
+    })
+    .refine((value) => !value.externalLinks.schedule.enabled || value.externalLinks.enabled, {
+      path: ['externalLinks', 'schedule', 'enabled'],
     }),
-  }),
   links: z.looseObject({
     urlPattern: z.string().max(MAX_LINK_PATTERN_LENGTH).refine(isValidLinkPattern),
   }),

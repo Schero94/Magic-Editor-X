@@ -751,24 +751,33 @@ export const applyLocalChanges = (doc, base, local, origin = 'local') => {
     // 2. blocks added or moved locally: place them after their local predecessor
     const baseIds = (base.blocks || []).map((block) => block.id).filter((id) => localSet.has(id));
     const keep = new Set(lcsPairs(baseIds, localIds).map(([i]) => baseIds[i]));
-    localIds.forEach((id, index) => {
-      if (baseById.has(id) && keep.has(id)) return;
-      const current = order.toArray();
-      for (let i = current.length - 1; i >= 0; i -= 1) {
-        if (current[i] === id) order.delete(i, 1);
+    // Seeding an empty document: one insert of every id gives the same order as
+    // placing them one by one, without reading the whole order per block (O(n²)).
+    if (order.length === 0 && localIds.every((id) => !(baseById.has(id) && keep.has(id)))) {
+      if (localIds.length) {
+        order.insert(0, localIds);
+        changed = true;
       }
-      const after = order.toArray();
-      let position = 0;
-      for (let p = index - 1; p >= 0; p -= 1) {
-        const at = after.indexOf(localIds[p]);
-        if (at >= 0) {
-          position = at + 1;
-          break;
+    } else {
+      localIds.forEach((id, index) => {
+        if (baseById.has(id) && keep.has(id)) return;
+        const current = order.toArray();
+        for (let i = current.length - 1; i >= 0; i -= 1) {
+          if (current[i] === id) order.delete(i, 1);
         }
-      }
-      order.insert(position, [id]);
-      changed = true;
-    });
+        const after = order.toArray();
+        let position = 0;
+        for (let p = index - 1; p >= 0; p -= 1) {
+          const at = after.indexOf(localIds[p]);
+          if (at >= 0) {
+            position = at + 1;
+            break;
+          }
+        }
+        order.insert(position, [id]);
+        changed = true;
+      });
+    }
     // 3. block content changed locally
     for (const block of localBlocks) {
       const before = baseById.get(block.id);

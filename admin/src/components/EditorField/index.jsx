@@ -903,6 +903,7 @@ const EditorField = ({
     [currentData, preset]
   );
   const quality = useQualityIssues(currentData, fieldOptions || undefined);
+  const qualityFetch = useMemo(() => ({ get, post }), [get, post]);
   const qualityCount = {
     errors: quality.stats.errors + violations.length,
     total: quality.stats.errors + quality.stats.warnings + violations.length,
@@ -1090,8 +1091,10 @@ const EditorField = ({
                 t={t}
                 data={currentData}
                 options={fieldOptions || undefined}
-                fetchClient={{ post }}
+                fetchClient={qualityFetch}
                 externalEnabled={Boolean(config && config.quality && config.quality.externalLinks)}
+                scheduledEnabled={Boolean(config && config.quality && config.quality.scheduledLinks)}
+                target={target}
                 onSelectBlock={selectBlock}
                 onClose={closeQuality}
                 violations={violations}

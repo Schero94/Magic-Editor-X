@@ -21,6 +21,14 @@ const adminRoutes = [
   ['GET', '/links/types', 'links.types', [ACTIONS.access]],
   ['GET', '/links/search', 'links.search', [ACTIONS.access]],
   ['POST', '/quality/links', 'quality.links', [ACTIONS.access]],
+  ['GET', '/quality/link-report', 'quality.linkReport', [ACTIONS.access]],
+  ['GET', '/quality/link-schedule', 'quality.scheduleStatus', [ACTIONS.settingsRead]],
+  [
+    'POST',
+    '/quality/link-schedule/run',
+    'quality.runSchedule',
+    [ACTIONS.settingsRead, ACTIONS.settingsUpdate],
+  ],
 
   ['GET', '/custom-blocks', 'customBlocks.list', [ACTIONS.access]],
   ['GET', '/custom-blocks/export', 'customBlocks.export', [ACTIONS.customBlocksManage]],

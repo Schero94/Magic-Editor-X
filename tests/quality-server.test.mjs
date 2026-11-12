@@ -276,6 +276,8 @@ test('config: external link checks are off by default and validated', () => {
     enabled: false,
     timeoutMs: 5000,
     perMinute: 30,
+    allowPrivateOrigins: [],
+    schedule: { enabled: false, rule: '0 3 * * *', maxUrlsPerRun: 500, perMinute: 60, perHostConcurrency: 2 },
   });
   config.validator(config.default);
   const bad = structuredClone(config.default);

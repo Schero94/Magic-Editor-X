@@ -6,6 +6,7 @@ module.exports = {
   links: require('./links'),
   references: require('./references'),
   quality: require('./quality'),
+  'link-schedule': require('./link-schedule'),
   editor: require('./editor'),
   settings: require('./settings'),
   ai: require('./ai'),

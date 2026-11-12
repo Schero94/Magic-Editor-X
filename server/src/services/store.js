@@ -16,7 +16,10 @@ const { createLogger } = require('../utils/logger');
  *   snapshot buckets, migrations), made atomic by the primary key, and
  *   cluster-wide signals (permission changes);
  * - magic_editor_x_counters: fixed-window counters shared by every process
- *   (rate limits for sessions and the AI assistant).
+ *   (rate limits for sessions and the AI assistant);
+ * - magic_editor_x_link_fields / magic_editor_x_link_urls: results of the
+ *   scheduled external link check (services/link-schedule.js): one row per
+ *   field version with external links, one row per distinct URL.
  */
 
 const TABLES = Object.freeze({
@@ -24,6 +27,8 @@ const TABLES = Object.freeze({
   presence: 'magic_editor_x_collab_presence',
   locks: 'magic_editor_x_locks',
   counters: 'magic_editor_x_counters',
+  linkFields: 'magic_editor_x_link_fields',
+  linkUrls: 'magic_editor_x_link_urls',
 });
 
 const ABORT = 'magic-editor-x:abort-transaction';
@@ -105,9 +110,30 @@ module.exports = ({ strapi }) => {
             t.integer('count').notNullable().defaultTo(0);
             t.bigInteger('expires_at').notNullable();
           });
+          await ensureTable(TABLES.linkFields, (t) => {
+            t.string('key', 64).primary();
+            t.string('uid', 160).notNullable();
+            t.string('document_id', 64).notNullable();
+            t.string('locale', 40);
+            t.string('field', 200).notNullable();
+            t.string('version', 16).notNullable();
+            t.text('links').notNullable();
+            t.string('run_id', 40).notNullable();
+            t.bigInteger('scanned_at').notNullable();
+            t.index(['run_id'], 'mex_link_fields_run');
+          });
+          await ensureTable(TABLES.linkUrls, (t) => {
+            t.string('hash', 64).primary();
+            t.text('url').notNullable();
+            t.string('status', 16);
+            t.integer('code');
+            t.bigInteger('checked_at').notNullable().defaultTo(0);
+            t.string('run_id', 40).notNullable();
+            t.index(['run_id', 'checked_at'], 'mex_link_urls_run');
+          });
         })().catch((error) => {
           ready = null;
-          logger.error('collaboration tables could not be created', error);
+          logger.error('plugin tables could not be created', error);
           throw error;
         });
       }
@@ -606,6 +632,169 @@ module.exports = ({ strapi }) => {
         .andWhere('updated_at', '>', freshAfter)
         .first('id');
       return Boolean(row);
+    },
+
+    /**
+     * Writes the link rows of field versions seen in a scheduled run
+     * (insert or replace by key).
+     * @param {Array<{ key: string, uid: string, documentId: string, locale: string|null, field: string, version: string, links: Array<{ h: string, b: string }>, runId: string, scannedAt: number }>} rows - Rows (bounded by the caller).
+     * @returns {Promise<void>}
+     */
+    async saveLinkFields(rows) {
+      if (rows.length === 0) return;
+      const keys = rows.map((row) => row.key);
+      const existing = new Set(
+        (await table(TABLES.linkFields).whereIn('key', keys).select('key')).map((row) => row.key)
+      );
+      for (const row of rows) {
+        const values = {
+          uid: row.uid,
+          document_id: row.documentId,
+          locale: row.locale,
+          field: row.field,
+          version: row.version,
+          links: JSON.stringify(row.links),
+          run_id: row.runId,
+          scanned_at: row.scannedAt,
+        };
+        if (existing.has(row.key)) await table(TABLES.linkFields).where({ key: row.key }).update(values);
+        else await table(TABLES.linkFields).insert({ key: row.key, ...values });
+      }
+    },
+
+    /**
+     * Reads link rows by key.
+     * @param {string[]} keys - Row keys.
+     * @returns {Promise<Array<{ key: string, version: string, links: Array<{ h: string, b: string }>, scannedAt: number }>>} Rows.
+     */
+    async getLinkFields(keys) {
+      if (keys.length === 0) return [];
+      const rows = await table(TABLES.linkFields)
+        .whereIn('key', keys)
+        .select('key', 'version', 'links', 'scanned_at');
+      return rows.map((row) => {
+        let links;
+        try {
+          links = JSON.parse(row.links);
+        } catch {
+          links = [];
+        }
+        return {
+          key: row.key,
+          version: row.version,
+          links: Array.isArray(links) ? links : [],
+          scannedAt: Number(row.scanned_at),
+        };
+      });
+    },
+
+    /**
+     * Marks URLs as seen in a run; new URLs are inserted unchecked.
+     * @param {Array<{ hash: string, url: string }>} urls - Distinct URLs (bounded by the caller).
+     * @param {string} runId - Run id.
+     * @returns {Promise<void>}
+     */
+    async markLinkUrls(urls, runId) {
+      if (urls.length === 0) return;
+      const hashes = urls.map((item) => item.hash);
+      const existing = new Set(
+        (await table(TABLES.linkUrls).whereIn('hash', hashes).select('hash')).map((row) => row.hash)
+      );
+      const seen = hashes.filter((hash) => existing.has(hash));
+      if (seen.length) await table(TABLES.linkUrls).whereIn('hash', seen).update({ run_id: runId });
+      const fresh = urls
+        .filter((item) => !existing.has(item.hash))
+        .map((item) => ({ hash: item.hash, url: item.url, checked_at: 0, run_id: runId }));
+      for (let i = 0; i < fresh.length; i += 100) {
+        await table(TABLES.linkUrls).insert(fresh.slice(i, i + 100));
+      }
+    },
+
+    /**
+     * URLs of a run that were not checked since `before`, least recently checked first.
+     * @param {string} runId - Run id.
+     * @param {number} before - Only URLs checked before this time.
+     * @param {number} limit - Max rows.
+     * @returns {Promise<Array<{ hash: string, url: string }>>} URLs.
+     */
+    async linkUrlsToCheck(runId, before, limit) {
+      return table(TABLES.linkUrls)
+        .where({ run_id: runId })
+        .andWhere('checked_at', '<', before)
+        .orderBy([
+          { column: 'checked_at', order: 'asc' },
+          { column: 'hash', order: 'asc' },
+        ])
+        .limit(limit)
+        .select('hash', 'url');
+    },
+
+    /**
+     * Stores the result of one URL check.
+     * @param {string} hash - URL hash.
+     * @param {{ status: string, code?: number }} result - Result.
+     * @param {number} checkedAt - Time of the check.
+     * @returns {Promise<void>}
+     */
+    async setLinkUrlResult(hash, result, checkedAt) {
+      await table(TABLES.linkUrls)
+        .where({ hash })
+        .update({
+          status: result.status,
+          code: Number.isInteger(result.code) ? result.code : null,
+          checked_at: checkedAt,
+        });
+    },
+
+    /**
+     * Reads URL rows by hash.
+     * @param {string[]} hashes - URL hashes.
+     * @returns {Promise<Map<string, { url: string, status: string|null, code: number|null, checkedAt: number }>>} Rows by hash.
+     */
+    async getLinkUrls(hashes) {
+      const out = new Map();
+      for (let i = 0; i < hashes.length; i += 500) {
+        const rows = await table(TABLES.linkUrls)
+          .whereIn('hash', hashes.slice(i, i + 500))
+          .select('hash', 'url', 'status', 'code', 'checked_at');
+        for (const row of rows)
+          out.set(row.hash, {
+            url: row.url,
+            status: row.status || null,
+            code: row.code === null || row.code === undefined ? null : Number(row.code),
+            checkedAt: Number(row.checked_at),
+          });
+      }
+      return out;
+    },
+
+    /**
+     * Deletes link rows that a complete run did not see (deleted entries,
+     * removed links or fields). Bounded batches.
+     * @param {string} runId - Run id of the complete run.
+     * @returns {Promise<{ fields: number, urls: number }>} Rows removed.
+     */
+    async pruneLinkRows(runId) {
+      const removed = { fields: 0, urls: 0 };
+      for (const [name, column, counter] of [
+        [TABLES.linkFields, 'key', 'fields'],
+        [TABLES.linkUrls, 'hash', 'urls'],
+      ]) {
+        for (;;) {
+          const rows = await table(name).whereNot({ run_id: runId }).select(column).limit(500);
+          if (rows.length === 0) break;
+          const deleted = await table(name)
+            .whereIn(
+              column,
+              rows.map((row) => row[column])
+            )
+            .whereNot({ run_id: runId })
+            .del();
+          removed[counter] += deleted;
+          if (deleted === 0) break;
+        }
+      }
+      return removed;
     },
   };
 };
