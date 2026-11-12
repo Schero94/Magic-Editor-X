@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useIntl } from 'react-intl';
 import { useHref, useNavigate } from 'react-router-dom';
@@ -59,6 +59,7 @@ import { createMarkdownShortcuts } from '../../editor/markdown-shortcuts';
 import { createMentionKeys } from '../../editor/tools/mention';
 import { restoreBlockInEditor } from '../../editor/restore-block.mjs';
 import { markInputReady, trackUserInput } from '../../editor/input-tracking.mjs';
+import { createStyleOwners } from '../../editor/style-owners.mjs';
 import { highlightMatch, clearHighlight } from '../../editor/find-highlight';
 import { createAltTextSuggester } from '../../editor/ai-alt-text';
 import { GrammarPanel } from './GrammarPanel';
@@ -84,6 +85,29 @@ import {
 const SAVE_DEBOUNCE_MS = 150;
 
 const EditorStyles = createGlobalStyle`${editorStyles}`;
+const styleOwners = createStyleOwners();
+
+/**
+ * Renders the global editor styles once per page: only the first mounted
+ * field owns them (see editor/style-owners.mjs). The owner is decided in a
+ * layout effect, so the styles are in place before the browser paints.
+ * @returns {JSX.Element|null} Styles of the owning field.
+ */
+const SharedEditorStyles = () => {
+  const id = useId();
+  const [owner, setOwner] = useState(false);
+  useLayoutEffect(() => {
+    const update = () => setOwner(styleOwners.owner() === id);
+    const unsubscribe = styleOwners.subscribe(update);
+    styleOwners.add(id);
+    update();
+    return () => {
+      unsubscribe();
+      styleOwners.remove(id);
+    };
+  }, [id]);
+  return owner ? <EditorStyles /> : null;
+};
 
 /** Locales written right to left (language subtag). */
 const RTL_LANGUAGES = new Set([
@@ -1533,7 +1557,7 @@ const EditorFieldBody = ({
 
   return (
     <Field.Root name={name} id={name} error={error} hint={fieldHint} required={required}>
-      <EditorStyles />
+      <SharedEditorStyles />
       <Flex direction="column" alignItems="stretch" gap={1}>
         <Field.Label action={labelAction}>{label}</Field.Label>
         <Frame
