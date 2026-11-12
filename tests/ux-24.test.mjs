@@ -39,3 +39,13 @@ test('the environment row shows the last link run reported by "Run now"', () => 
   const section = read('admin/src/pages/ConfigurationPage/LinkScheduleSection.jsx');
   assert.match(section, /if \(onStatus && status && status !== initial\) onStatus\(status\);/);
 });
+
+test('an exit button ("Leave focus mode") hands focus to the More tools trigger, never to the page body', () => {
+  // The exit button unmounts with its tool: without a target, keyboard focus fell to <body>.
+  const toolbar = read('admin/src/components/EditorField/EditorToolbar.jsx');
+  const exit = toolbar.slice(toolbar.indexOf('{exitTools(tools).map('), toolbar.indexOf('{identityHint ?'));
+  assert.match(
+    exit.replace(/\s*\/\/[^\n]*/g, '').replace(/\s+/g, ' '),
+    /onClick=\{\(\) => \{ entry\.onSelect\(\); if \(!entry\.movesFocus\) window\.requestAnimationFrame\(\(\) => moreButtonRef\.current && moreButtonRef\.current\.focus\(\)\);/
+  );
+});

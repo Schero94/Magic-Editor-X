@@ -160,7 +160,12 @@ export const EditorToolbar = ({
             key={entry.id}
             size="S"
             variant="secondary"
-            onClick={entry.onSelect}
+            onClick={() => {
+              entry.onSelect();
+              // The button unmounts with its tool: focus goes to the More tools trigger, not <body>.
+              if (!entry.movesFocus)
+                window.requestAnimationFrame(() => moreButtonRef.current && moreButtonRef.current.focus());
+            }}
             data-testid={`mex-tool-exit-${entry.id}`}
           >
             {entry.exitLabel}
