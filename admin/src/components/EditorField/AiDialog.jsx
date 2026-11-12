@@ -12,7 +12,7 @@ import {
 } from '@strapi/design-system';
 import { useFetchClient } from '@strapi/strapi/admin';
 import { API, readApiError } from '../../utils/api';
-import { diffText } from '../../../../shared/diff.mjs';
+import { changeViews } from '../../../../shared/ai-blocks.mjs';
 import { TextOps } from './VersionDiff';
 
 /**
@@ -189,7 +189,9 @@ export const AiDialog = ({ t, request, config, target, onApply, onClose }) => {
                   {t('editor.ai.suggestion', 'Suggestion')}
                 </Typography>
                 <Box data-testid="mex-ai-suggestion">
-                  <TextOps ops={diffText(originalText, toText(state.result))} t={t} />
+                  {changeViews(originalText, toText(state.result)).map((ops, index) => (
+                    <TextOps key={index} ops={ops} t={t} />
+                  ))}
                 </Box>
               </Box>
             ) : null}

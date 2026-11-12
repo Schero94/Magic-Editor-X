@@ -132,17 +132,13 @@ export const EnvironmentSection = ({ environment }) => {
           {
             key: 'privateImages',
             label: t('settings.environment.privateImages', 'Private image storage for alt text'),
-            value: privateImages.length ? (
-              <Badge backgroundColor="warning100" textColor="warning700">
-                {t(
+            value: privateImages.length
+              ? t(
                   'settings.environment.privateImagesCount',
                   '{count, plural, =0 {Off} one {# origin} other {# origins}}',
                   { count: privateImages.length }
-                )}
-              </Badge>
-            ) : (
-              on(false)
-            ),
+                )
+              : on(false),
             hint: privateImages.length
               ? t(
                   'settings.environment.privateImagesHint',

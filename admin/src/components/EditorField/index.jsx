@@ -705,7 +705,9 @@ const EditorFieldBody = ({
   }, []);
   const onBlockAiRequest = useCallback((ids) => {
     const editor = editorRef.current;
+    // Close the block toolbar and its tooltip so nothing floats above the dialog.
     if (editor && editor.toolbar && typeof editor.toolbar.close === 'function') editor.toolbar.close();
+    if (editor && editor.tooltip && typeof editor.tooltip.hide === 'function') editor.tooltip.hide();
     if (Array.isArray(ids) && ids.length) setBlockAiRequest({ ids: [...ids] });
   }, []);
 
@@ -1219,6 +1221,10 @@ const EditorFieldBody = ({
     window.requestAnimationFrame(() => qualityButtonRef.current && qualityButtonRef.current.focus());
   }, []);
 
+  // 2.4: block AI by keyboard. Ctrl/Cmd+Shift+G without a text selection opens it for the
+  // selected blocks or the block with the caret (with selected text the inline AI tool runs).
+  const blockAiByKey = Boolean(aiAllowed && target.uid && !readOnly);
+
   // Editor shortcuts: Ctrl/Cmd+Shift+F find and replace, Ctrl/Cmd+/ help.
   useEffect(() => {
     if (!ready) return undefined;
@@ -1227,6 +1233,26 @@ const EditorFieldBody = ({
       if (!frame || !frame.contains(document.activeElement)) return;
       const mod = event.metaKey || event.ctrlKey;
       if (!mod || event.altKey) return;
+      if (event.shiftKey && (event.key === 'g' || event.key === 'G') && blockAiByKey) {
+        const selection = window.getSelection();
+        const holder = holderRef.current;
+        const editor = editorRef.current;
+        if (!holder || !editor || (selection && !selection.isCollapsed && selection.toString().trim()))
+          return;
+        let ids = Array.from(holder.querySelectorAll('.ce-block--selected'))
+          .map((node) => node.getAttribute('data-id'))
+          .filter(Boolean);
+        if (!ids.length) {
+          const index = editor.blocks.getCurrentBlockIndex();
+          const block = index >= 0 ? editor.blocks.getBlockByIndex(index) : null;
+          if (block && holder.contains(document.activeElement)) ids = [block.id];
+        }
+        if (!ids.length) return;
+        event.preventDefault();
+        event.stopPropagation();
+        onBlockAiRequest(ids);
+        return;
+      }
       if (event.shiftKey && (event.key === 'f' || event.key === 'F')) {
         event.preventDefault();
         event.stopPropagation();
@@ -1239,7 +1265,7 @@ const EditorFieldBody = ({
     };
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
-  }, [ready]);
+  }, [ready, blockAiByKey, onBlockAiRequest]);
 
   // Blocks of the current content for the comments panel, and open threads per block.
   const commentBlocks = useMemo(

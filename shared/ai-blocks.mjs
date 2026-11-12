@@ -14,6 +14,7 @@
 
 import { applySegments, collectSegments, readSegment } from './ai-fields.mjs';
 import { checkBlockStructure, fixPresetViolations } from './presets.mjs';
+import { diffText } from './diff.mjs';
 
 /**
  * @typedef {{ blockId: string, path: string, html: string }} Segment
@@ -68,4 +69,19 @@ export const applyBlockResult = (data, sent, result, preset) => {
     return fixed.length === 1 ? fixed[0] : block;
   });
   return { ok: true, data: { ...applied.data, blocks }, changed: applied.changed };
+};
+
+/**
+ * How a change is shown: a word diff when most words stay, otherwise the old
+ * text (removed) above the new text (added), which reads better for
+ * translations and full rewrites.
+ * @param {string} before - Old text.
+ * @param {string} after - New text.
+ * @returns {Array<Array<{ op: string, text: string }>>} One or two diff lines.
+ */
+export const changeViews = (before, after) => {
+  const ops = diffText(before, after);
+  const kept = ops.filter((op) => op.op === 'equal').reduce((sum, op) => sum + op.text.length, 0);
+  if (kept >= Math.max(before.length, after.length) * 0.5) return [ops];
+  return [[{ op: 'delete', text: before }], [{ op: 'insert', text: after }]];
 };

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Flex,
   IconButton,
@@ -74,6 +74,15 @@ export const BlockSelectionBar = ({
   const [ids, setIds] = useState([]);
   const actingRef = useRef(false);
   const hideTimer = useRef(null);
+  const barRef = useRef(null);
+  // Keyboard users reach the bar with Escape, then Shift+Tab (Escape clears the
+  // Editor.js selection); the bar stays while focus is inside it (2.4).
+  const hideLater = useCallback(() => {
+    clearTimeout(hideTimer.current);
+    hideTimer.current = setTimeout(() => {
+      if (!(barRef.current && barRef.current.contains(document.activeElement))) setIds([]);
+    }, 400);
+  }, []);
 
   useEffect(() => {
     const holder = holderRef.current;
@@ -82,7 +91,7 @@ export const BlockSelectionBar = ({
       const next = selectedIds(holder);
       clearTimeout(hideTimer.current);
       if (next.length >= 2) setIds(next);
-      else if (!actingRef.current) hideTimer.current = setTimeout(() => setIds([]), 400);
+      else if (!actingRef.current) hideLater();
     };
     const observer = new MutationObserver(update);
     observer.observe(holder, { subtree: true, attributes: true, attributeFilter: ['class'] });
@@ -90,9 +99,22 @@ export const BlockSelectionBar = ({
       observer.disconnect();
       clearTimeout(hideTimer.current);
     };
-  }, [holderRef, ready]);
+  }, [holderRef, ready, hideLater]);
 
-  if (readOnly || ids.length < 2) return null;
+  // Editor.js handles Tab on `document` (capture) while a block is current and moves the caret
+  // back into the editor; Tab inside the bar must move focus between its controls instead.
+  const visible = !readOnly && ids.length >= 2;
+  useEffect(() => {
+    if (!visible) return undefined;
+    const onKey = (event) => {
+      if (event.key === 'Tab' && barRef.current && barRef.current.contains(event.target))
+        event.stopPropagation();
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [visible]);
+
+  if (!visible) return null;
 
   const indices = () => {
     const editor = editorRef.current;
@@ -196,6 +218,7 @@ export const BlockSelectionBar = ({
 
   return (
     <Bar
+      ref={barRef}
       role="toolbar"
       aria-label={t('editor.selection.label', 'Selected blocks')}
       gap={2}
@@ -207,6 +230,11 @@ export const BlockSelectionBar = ({
       onPointerDownCapture={keep}
       onPointerUp={() => {
         actingRef.current = false;
+      }}
+      onBlur={(event) => {
+        if (!barRef.current || !barRef.current.contains(event.relatedTarget)) {
+          if (holderRef.current && selectedIds(holderRef.current).length < 2) hideLater();
+        }
       }}
     >
       <Typography variant="pi" fontWeight="bold" textColor="primary700">

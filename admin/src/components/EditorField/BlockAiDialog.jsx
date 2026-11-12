@@ -16,8 +16,7 @@ import styled from 'styled-components';
 import { API, readApiError } from '../../utils/api';
 import { sanitizeInline } from '../../editor/sanitize';
 import { segmentPlainText } from '../../../../shared/ai-fields.mjs';
-import { applyBlockResult, blockSegments } from '../../../../shared/ai-blocks.mjs';
-import { diffText } from '../../../../shared/diff.mjs';
+import { applyBlockResult, blockSegments, changeViews } from '../../../../shared/ai-blocks.mjs';
 import { TextOps } from './VersionDiff';
 
 /**
@@ -158,7 +157,7 @@ export const BlockAiDialog = ({
       const rows = received.map((item) => {
         const before = sent.get(`${item.blockId}|${item.path}`);
         const html = sanitizeInline(item.html);
-        return { ...item, html, ops: diffText(toText(before.html), toText(html)) };
+        return { ...item, html, views: changeViews(toText(before.html), toText(html)) };
       });
       setState({ status: 'done', result: { segments: rows, sent: segments }, error: '' });
     } catch (error) {
@@ -318,7 +317,9 @@ export const BlockAiDialog = ({
                   <Box tag="ul" margin={0} padding={0}>
                     {result.segments.map((segment) => (
                       <Row key={`${segment.blockId}-${segment.path}`}>
-                        <TextOps ops={segment.ops} t={t} />
+                        {segment.views.map((ops, index) => (
+                          <TextOps key={index} ops={ops} t={t} />
+                        ))}
                       </Row>
                     ))}
                   </Box>

@@ -11,7 +11,7 @@ import { createRequire } from 'node:module';
 import http from 'node:http';
 import os from 'node:os';
 import { collectSegments } from '../shared/ai-fields.mjs';
-import { blockSegments, applyBlockResult } from '../shared/ai-blocks.mjs';
+import { blockSegments, applyBlockResult, changeViews } from '../shared/ai-blocks.mjs';
 import { resolveFieldPreset } from '../shared/presets.mjs';
 
 const require = createRequire(import.meta.url);
@@ -508,6 +508,17 @@ test('blockSegments keeps document order, skips unknown ids and blocks without t
       data.blocks.map((b) => b.id)
     ).length
   );
+});
+
+test('changeViews: word diff for small edits, old above new for rewrites and translations', () => {
+  const small = changeViews('The tour starts at the old harbur.', 'The tour starts at the old harbour.');
+  assert.equal(small.length, 1);
+  assert.ok(small[0].some((op) => op.op === 'equal'));
+  const rewrite = changeViews('Bring water today.', 'Bringen Sie heute Wasser mit.');
+  assert.deepEqual(rewrite, [
+    [{ op: 'delete', text: 'Bring water today.' }],
+    [{ op: 'insert', text: 'Bringen Sie heute Wasser mit.' }],
+  ]);
 });
 
 /* ------------------------------------------------------- private image storage (item 14) */
