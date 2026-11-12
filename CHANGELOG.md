@@ -1,6 +1,12 @@
 # Changelog
 
-## [Unreleased]
+# [2.2.0](https://github.com/Schero94/Magic-Editor-X/compare/v2.1.0...v2.2.0) (2026-11-12)
+
+
+### Features
+
+* field presets, renderers, paste cleanup, versions diff and quality checks ([#5](https://github.com/Schero94/Magic-Editor-X/issues/5)) ([583b86b](https://github.com/Schero94/Magic-Editor-X/commit/583b86b0f1a3eccbcc43099cd09c025f1e21f670))
+
 
 Magic Editor X 2.2 makes one editor fit every field and every frontend: per-field presets enforced on the server, renderers with a published schema and types, clean paste and migrations, faster writing, version comparison and quality checks. No migration is needed; stored content keeps the same Editor.js JSON.
 
