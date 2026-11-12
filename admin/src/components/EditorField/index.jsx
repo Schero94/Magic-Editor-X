@@ -58,6 +58,7 @@ import { createPasteHandler } from '../../editor/paste';
 import { createMarkdownShortcuts } from '../../editor/markdown-shortcuts';
 import { createMentionKeys } from '../../editor/tools/mention';
 import { restoreBlockInEditor } from '../../editor/restore-block.mjs';
+import { markInputReady, trackUserInput } from '../../editor/input-tracking.mjs';
 import { highlightMatch, clearHighlight } from '../../editor/find-highlight';
 import { createAltTextSuggester } from '../../editor/ai-alt-text';
 import { GrammarPanel } from './GrammarPanel';
@@ -483,18 +484,15 @@ const EditorFieldBody = ({
       }
       if (!['Shift', 'Control', 'Alt', 'Meta'].includes(event.key)) leaveArmed = false;
     };
-    const onTouch = () => {
-      userTouchedRef.current = true;
-    };
-    const touchEvents = ['pointerdown', 'keydown', 'input', 'paste', 'drop'];
-    touchEvents.forEach((type) => holder.addEventListener(type, onTouch, true));
     window.addEventListener('keydown', onKeyDown, true);
     holder.addEventListener('focusout', onFocusOut);
     holder.addEventListener('input', onInput);
     holder.addEventListener('click', onClick);
     holder.addEventListener('keyup', onKeyUp);
+    // Readiness signal for people and tests: typing is saved right away from here on.
+    const clearReady = markInputReady(holder);
     return () => {
-      touchEvents.forEach((type) => holder.removeEventListener(type, onTouch, true));
+      clearReady();
       holder.removeEventListener('click', onClick);
       holder.removeEventListener('keyup', onKeyUp);
       holder.removeEventListener('focusout', onFocusOut);
@@ -732,6 +730,12 @@ const EditorFieldBody = ({
       mountSynced,
     });
     const toolNames = new Set(Object.keys(tools));
+    // User input is tracked before Editor.js renders the blocks: after the
+    // create -> edit redirect several fields mount at once, and text typed
+    // before this field's effects ran was never reported to the form.
+    const stopTracking = trackUserInput(holderRef.current, () => {
+      userTouchedRef.current = true;
+    });
     const shortcutList = Object.entries(tools)
       .filter(([name, tool]) => tool && tool.shortcut && tool.toolbox !== false && SHORTCUT_LABELS[name])
       .map(([name, tool]) => ({
@@ -787,10 +791,13 @@ const EditorFieldBody = ({
         });
         mentionKeys = createMentionKeys({ holder: holderRef.current });
         setReady(true);
+        // Edits made while Editor.js was starting are stored right away.
+        if (userTouchedRef.current) scheduleSave(0);
       },
     });
     return () => {
       destroyed = true;
+      stopTracking();
       cspGuard.destroy();
       clearTimeout(saveTimerRef.current);
       setReady(false);
