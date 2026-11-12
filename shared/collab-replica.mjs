@@ -20,7 +20,7 @@
  */
 
 import * as Y from 'yjs';
-import { applyLocalChanges, createDocReader, docToEditorData, epochOf } from './ydoc.mjs';
+import { applyLocalChanges, createDocReader, docToEditorData, epochOf, getTypes } from './ydoc.mjs';
 
 /** Transaction origin of local edits applied to `doc` (tracked by undo). */
 export const LOCAL_ORIGIN = Object.freeze({ name: 'magic-editor-x-local' });
@@ -38,6 +38,26 @@ const SHADOW_SYNC = Object.freeze({ name: 'magic-editor-x-shadow-sync' });
  * @param {number} [options.maxUndoSteps=200] - Undo steps kept; older ones are dropped so long sessions do not keep every deleted item alive.
  * @returns {object} Replica API.
  */
+/**
+ * The part of what an editor shows that a reference state has (2.5): blocks
+ * whose id the reference lacks are left out. The base of a local diff must
+ * only claim blocks the shared document really has: Editor.js shows one empty
+ * default paragraph in an empty field (and after rendering an empty room),
+ * which no shared document contains. With that block in the base, the next
+ * local diff took it (and the text typed into it) for an existing block and
+ * never added its id to `order`, so nothing typed into an empty field reached
+ * the other editors.
+ * @param {{ blocks?: Array<{ id: string }> }|null} view - What the editor shows.
+ * @param {Iterable<string>} ids - Block ids of the reference state.
+ * @returns {{ blocks: Array<object> }} View without the other blocks (the same object when nothing is left out).
+ */
+export const restrictView = (view, ids) => {
+  const blocks = view && Array.isArray(view.blocks) ? view.blocks : [];
+  const keep = ids instanceof Set ? ids : new Set(ids);
+  if (blocks.every((block) => block && keep.has(block.id))) return view || { blocks: [] };
+  return { ...view, blocks: blocks.filter((block) => block && keep.has(block.id)) };
+};
+
 export const createReplica = ({
   onLocalUpdate = () => {},
   onShouldRender = () => {},
@@ -115,7 +135,8 @@ export const createReplica = ({
      */
     markShown(catchUp, shown) {
       Y.applyUpdate(shadow, catchUp, SHADOW_SYNC);
-      base = shown || docToEditorData(shadow);
+      // Blocks the editor added itself (its default paragraph) are not in the room yet (2.5).
+      base = shown ? restrictView(shown, getTypes(shadow).order.toArray()) : docToEditorData(shadow);
     },
 
     /** What the editor showed last (the base of the next local diff). */

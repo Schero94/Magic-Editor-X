@@ -663,3 +663,69 @@ test('header-safe text and e-mail pattern', () => {
   assert.ok(!EMAIL_PATTERN.test('Ben <ben@example.test>'));
   assert.ok(!EMAIL_PATTERN.test('a,b@example.test'));
 });
+
+test('2.5: mention e-mails use the recipient admin language (preferedLanguage), English otherwise', async () => {
+  const {
+    mentionMailLanguage,
+    mentionMailTexts,
+    MENTION_MAIL_MESSAGES,
+  } = require('../server/src/utils/mention-mail.js');
+  assert.equal(mentionMailLanguage('de'), 'de');
+  assert.equal(mentionMailLanguage('pt-BR'), 'pt');
+  assert.equal(mentionMailLanguage('FR'), 'fr');
+  assert.equal(mentionMailLanguage('es_ES'), 'es');
+  assert.equal(mentionMailLanguage('zh-Hans'), 'en');
+  assert.equal(mentionMailLanguage(null), 'en');
+  assert.equal(mentionMailLanguage({ toString: () => 'de' }), 'en');
+  // Every language has every message; placeholders are the only syntax.
+  const names = Object.keys(MENTION_MAIL_MESSAGES.en).sort();
+  for (const language of ['en', 'de', 'fr', 'es', 'pt']) {
+    assert.deepEqual(Object.keys(MENTION_MAIL_MESSAGES[language]).sort(), names, language);
+    for (const message of Object.values(MENTION_MAIL_MESSAGES[language]))
+      assert.ok(!/\{(?!actor\}|title\}|type\}|url\})/.test(message), `${language}: ${message}`);
+  }
+  // Values are inserted literally ($ patterns, braces).
+  const texts = mentionMailTexts('de', { actor: '$& {title}', title: 'T $1', type: 'Article', url: null });
+  assert.equal(texts.subject, '$& {title} hat Sie in einem Kommentar erwähnt');
+  assert.equal(texts.sentence, '$& {title} hat Sie in einem Kommentar zu „T $1“ (Article) erwähnt.');
+  assert.equal(
+    mentionMailTexts('fr', { actor: '', title: '', type: 'Article', url: null }).sentence.startsWith(
+      "Quelqu'un"
+    ),
+    true
+  );
+
+  const expected = {
+    de: /^Anna Beispiel hat Sie in einem Kommentar erwähnt$/,
+    'pt-BR': /^Anna Beispiel mencionou você em um comentário$/,
+    fr: /^Anna Beispiel vous a mentionné dans un commentaire$/,
+    es: /^Anna Beispiel le ha mencionado en un comentario$/,
+    'zh-Hans': /^Anna Beispiel mentioned you in a comment$/,
+    '': /^Anna Beispiel mentioned you in a comment$/,
+  };
+  for (const [language, subject] of Object.entries(expected)) {
+    const fx = createFixture({ email: true });
+    fx.db.rowsOf('admin::user')[1].preferedLanguage = language || null;
+    fx.users[0].firstname = 'Anna';
+    await fx.comment(1, 'create', {
+      body: { ...TARGET, blockId: 'b', body: 'Secret note @Ben Muster', mentions: ['adm2'] },
+    });
+    await flush();
+    assert.equal(fx.mails.length, 1, language);
+    const [mail] = fx.mails;
+    assert.match(mail.subject, subject, language);
+    assert.ok(!/[\r\n]/.test(mail.subject));
+    assert.ok(!mail.text.includes('Secret note') && !mail.html.includes('Secret note'), 'no comment text');
+    assert.ok(mail.html.startsWith('<p>') && !mail.html.includes('<script'));
+  }
+  // German HTML part escapes the title and name.
+  const evil = createFixture({ email: true });
+  evil.db.rowsOf('admin::user')[1].preferedLanguage = 'de';
+  evil.users[0].firstname = '<b>Anna</b>';
+  await evil.comment(1, 'create', {
+    body: { ...TARGET, blockId: 'b', body: '@Ben Muster', mentions: ['adm2'] },
+  });
+  await flush();
+  assert.ok(evil.mails[0].html.includes('&lt;b&gt;Anna&lt;/b&gt;'));
+  assert.match(evil.mails[0].html, /Kommentar öffnen<\/a>/);
+});

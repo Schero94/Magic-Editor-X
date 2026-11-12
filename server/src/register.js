@@ -12,7 +12,13 @@ const { registerCommentRetention } = require('./utils/comment-retention');
 const { registerAuditTrail } = require('./utils/audit-trail');
 const { OUTPUT_FORMATS } = require('../../shared/resolve-references.mjs');
 const { registerGraphql } = require('./graphql');
-const { readPositionalEntries } = require('./utils/field-identity');
+const {
+  readPositionalEntries,
+  rememberedKeysOf,
+  fieldKeyScopeOf,
+  registerDiscardKeys,
+  REMEMBER_TTL_MS,
+} = require('./utils/field-identity');
 const {
   assignFieldKeys,
   basePathOf,
@@ -21,41 +27,111 @@ const {
 } = require('../../shared/field-identity.mjs');
 
 /**
- * Keys of the stored draft's positional values per component row, so a write
- * that sends an existing component entry (its `id`) without the key keeps the
- * entry's key (API clients that drop unknown keys). Returns an empty map when
- * nothing needs it or the draft cannot be read.
+ * Positional values of a write that belong to an existing component row (`id` sent).
+ * @param {Array<{ path: string, value: object|null, container: object }>} items - Clean values of the write.
+ * @returns {Array<object>} Items.
+ */
+const existingRows = (items) =>
+  items.filter(
+    (item) =>
+      isPositionalFieldPath(item.path) &&
+      item.container &&
+      item.container.id !== undefined &&
+      item.container.id !== null
+  );
+
+/**
+ * Stored draft entries of the base paths a write needs (2.4 and 2.5): base
+ * paths with an existing component entry sent without key (keeps the stored
+ * key, for API clients that drop unknown keys), sent as `null` (remembers the
+ * key of an emptied entry, 2.5) or whose row has a remembered key (gives it
+ * back, 2.5). One draft read per such base path; none for other writes.
  * @param {object} strapi - Strapi instance.
  * @param {object} ctx - Document Service middleware context.
  * @param {Array<{ path: string, value: object|null, container: object }>} items - Clean values of the write.
  * @param {object} logger - Plugin logger.
- * @returns {Promise<Map<string, string>>} `<base path>|<component id>` -> key.
+ * @returns {Promise<Map<string, Array<object>>>} Base path -> entries (`readPositionalEntries`).
  */
-const storedKeysFor = async (strapi, ctx, items, logger) => {
-  const keys = new Map();
-  if (ctx.action !== 'update' || !ctx.params || typeof ctx.params.documentId !== 'string') return keys;
-  const wanted = new Set();
-  for (const item of items) {
-    const id = item.container && item.container.id;
-    if (item.value && !isValidFieldKey(item.value.fieldKey) && isPositionalFieldPath(item.path) && id != null)
-      wanted.add(basePathOf(item.path));
+const storedEntriesFor = async (strapi, ctx, items, logger) => {
+  const out = new Map();
+  if (ctx.action !== 'update' || !ctx.params || typeof ctx.params.documentId !== 'string') return out;
+  const target = {
+    uid: ctx.uid,
+    documentId: ctx.params.documentId,
+    locale: typeof ctx.params.locale === 'string' ? ctx.params.locale : undefined,
+  };
+  const byBase = new Map();
+  for (const item of existingRows(items)) {
+    const basePath = basePathOf(item.path);
+    if (!byBase.has(basePath)) byBase.set(basePath, []);
+    byBase.get(basePath).push(item);
   }
-  for (const basePath of wanted) {
+  for (const [basePath, rows] of byBase) {
     try {
-      const entries = await readPositionalEntries(strapi, {
-        uid: ctx.uid,
-        documentId: ctx.params.documentId,
-        locale: typeof ctx.params.locale === 'string' ? ctx.params.locale : undefined,
-        basePath,
-      });
-      for (const entry of entries) {
-        if (entry.fieldKey && entry.componentId) keys.set(`${basePath}|${entry.componentId}`, entry.fieldKey);
+      const needed = rows.some((item) => !item.value || !isValidFieldKey(item.value.fieldKey));
+      if (!needed) {
+        const { keys } = await rememberedKeysOf(strapi, { ...target, basePath });
+        if (!rows.some((item) => keys.has(String(item.container.id)))) continue;
       }
+      out.set(basePath, await readPositionalEntries(strapi, { ...target, basePath }));
     } catch (error) {
       logger.warn('stored field keys could not be read', { code: error && error.code });
     }
   }
-  return keys;
+  return out;
+};
+
+/**
+ * The stored entry of the component row an item belongs to.
+ * @param {Map<string, Array<object>>} stored - `storedEntriesFor` result.
+ * @param {{ path: string, container: object }} item - Item.
+ * @returns {object|undefined} Entry.
+ */
+const storedRowOf = (stored, item) => {
+  const entries = stored.get(basePathOf(item.path));
+  const id = item.container && item.container.id;
+  if (!entries || id === undefined || id === null) return undefined;
+  return entries.find((entry) => entry.componentId === String(id));
+};
+
+/**
+ * 2.5: remembers the key of entries emptied by this write and forgets the
+ * remembered key of entries that have content again (after the write).
+ * @param {object} strapi - Strapi instance.
+ * @param {object} ctx - Document Service middleware context.
+ * @param {Array<object>} items - Clean values of the write (keys assigned).
+ * @param {Map<string, Array<object>>} stored - `storedEntriesFor` result.
+ * @param {object} logger - Plugin logger.
+ * @returns {Promise<void>}
+ */
+const updateRememberedKeys = async (strapi, ctx, items, stored, logger) => {
+  if (stored.size === 0) return;
+  const changes = new Map();
+  for (const item of existingRows(items)) {
+    const entry = storedRowOf(stored, item);
+    if (!entry || !entry.fieldKey) continue;
+    const basePath = basePathOf(item.path);
+    if (!changes.has(basePath)) changes.set(basePath, { remember: [], forget: [] });
+    if (!item.value && !entry.remembered)
+      changes.get(basePath).remember.push([entry.componentId, entry.fieldKey]);
+    else if (item.value && entry.remembered) changes.get(basePath).forget.push(entry.componentId);
+  }
+  for (const [basePath, { remember, forget }] of changes) {
+    if (!remember.length && !forget.length) continue;
+    try {
+      const store = strapi.plugin('magic-editor-x').service('store');
+      const scope = await fieldKeyScopeOf(strapi, {
+        uid: ctx.uid,
+        documentId: ctx.params.documentId,
+        locale: ctx.params.locale,
+        basePath,
+      });
+      if (remember.length) await store.rememberFieldKeys(scope, remember, REMEMBER_TTL_MS);
+      if (forget.length) await store.forgetFieldKeys(scope, forget);
+    } catch (error) {
+      logger.warn('field keys of emptied entries could not be updated', { code: error && error.code });
+    }
+  }
 };
 
 /**
@@ -146,14 +222,27 @@ module.exports = ({ strapi }) => {
     }
     // 2.4 field identity: every non-null value inside a repeatable component or dynamic zone
     // carries a `fieldKey`, unique within the write; null stays null (required checks unchanged).
-    const stored = await storedKeysFor(strapi, ctx, items, logger);
+    const stored = await storedEntriesFor(strapi, ctx, items, logger);
+    // 2.5: an entry that was emptied (stored null) gets its remembered key back, also when the
+    // writer sent a new key (the admin generates one for an empty field) that is stored nowhere.
+    for (const item of existingRows(items)) {
+      const entry = storedRowOf(stored, item);
+      if (!entry || !entry.remembered || !item.value || item.value.fieldKey === entry.fieldKey) continue;
+      const entries = stored.get(basePathOf(item.path));
+      const savedElsewhere = entries.some(
+        (other) => !other.remembered && other.fieldKey === item.value.fieldKey
+      );
+      if (!savedElsewhere) delete item.value.fieldKey;
+    }
     assignFieldKeys(items, {
       inherit: (item) => {
-        const id = item.container && item.container.id;
-        return id == null ? null : stored.get(`${basePathOf(item.path)}|${String(id)}`);
+        const entry = storedRowOf(stored, item);
+        return entry ? entry.fieldKey : null;
       },
     });
-    return next();
+    const result = await next();
+    await updateRememberedKeys(strapi, ctx, items, stored, logger);
+    return result;
   };
   // 2.4: writes of Strapi's i18n AI translations are rebuilt from the source locale first
   // (no-op for every other write), then cleaned and checked like any write.
@@ -165,4 +254,6 @@ module.exports = ({ strapi }) => {
   registerGraphql(strapi);
   registerCommentRetention(strapi);
   registerAuditTrail(strapi);
+  // 2.5: after the audit trail, so its "after" read of a discarded draft sees the kept keys.
+  registerDiscardKeys(strapi, logger);
 };

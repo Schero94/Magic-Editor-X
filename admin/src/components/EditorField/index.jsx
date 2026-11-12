@@ -93,6 +93,8 @@ import {
 import { FootnoteDialog } from './FootnoteDialog';
 import { FootnotesPanel } from './FootnotesPanel';
 import { restoreBlockInEditor } from '../../editor/restore-block.mjs';
+import { installEditorKeyGuard } from '../../editor/focus-guard.mjs';
+import { restrictView } from '../../../../shared/collab-replica.mjs';
 import { markInputReady, trackUserInput } from '../../editor/input-tracking.mjs';
 import { createStyleOwners } from '../../editor/style-owners.mjs';
 import { highlightMatch, clearHighlight } from '../../editor/find-highlight';
@@ -348,6 +350,9 @@ const EditorFieldBody = ({
     (id, defaultMessage, values) => formatMessage({ id: getTranslation(id), defaultMessage }, values),
     [formatMessage]
   );
+
+  // 2.5: keys typed outside the editors (dialogs, popovers, other fields) never reach Editor.js.
+  useEffect(() => installEditorKeyGuard(), []);
 
   const holderRef = useRef(null);
   const editorRef = useRef(null);
@@ -1090,8 +1095,12 @@ const EditorFieldBody = ({
           editor
             .save()
             .then((data) => {
+              // Only stored blocks: the default paragraph of an empty field is not in any room (2.5).
               if (!destroyed && !userTouchedRef.current && data && Array.isArray(data.blocks))
-                viewRef.current = data;
+                viewRef.current = restrictView(
+                  data,
+                  ((initial && initial.blocks) || []).map((block) => block.id)
+                );
             })
             .catch(() => null);
       },
