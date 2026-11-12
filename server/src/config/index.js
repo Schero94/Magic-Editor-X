@@ -3,6 +3,7 @@
 const { z } = require('zod');
 const { isTimeZone } = require('../utils/time-zone');
 const { isValidLinkPattern, MAX_LINK_PATTERN_LENGTH } = require('../../../shared/link-pattern.mjs');
+const { isListablePrivateOrigin } = require('../utils/url-security');
 
 /**
  * Plugin configuration (config/plugins.js -> 'magic-editor-x': { config: {...} }).
@@ -49,6 +50,18 @@ const defaults = {
     apiKey: undefined,
     requestsPerMinute: 20,
     timeoutMs: 60000,
+    altText: {
+      /**
+       * 2.4: exact origins (`http://minio.internal:9000`) of self-hosted image
+       * storage on a private network (S3/MinIO) that alt text suggestions may
+       * read images from. Relaxes the SSRF protection for these origins only:
+       * redirects are never followed, size, type and dimension caps stay, and
+       * link-local or cloud metadata addresses stay refused (also refused here
+       * at boot). Empty (default) reads public URLs only. Config only, never in
+       * the Settings UI.
+       */
+      allowPrivateOrigins: [],
+    },
   },
   languageTool: {
     /** Allow LanguageTool base URLs on private or loopback hosts (self-hosted server in the LAN). Owner opt-in only. */
@@ -198,6 +211,9 @@ const configSchema = z.looseObject({
     apiKey: z.string().min(1).max(500).optional(),
     requestsPerMinute: positiveInt(1000),
     timeoutMs: z.number().int().min(1000).max(300000),
+    altText: z.looseObject({
+      allowPrivateOrigins: z.array(z.string().max(300).refine(isListablePrivateOrigin)).max(20),
+    }),
   }),
   languageTool: z.looseObject({
     allowPrivateBaseUrl: z.boolean(),

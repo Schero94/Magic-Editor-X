@@ -1,7 +1,7 @@
 'use strict';
 
 const { errors } = require('@strapi/utils');
-const { fetchBounded, requestOnce } = require('../utils/url-security');
+const { fetchBounded, privateOriginOptions } = require('../utils/url-security');
 const { createRateLimiter } = require('../utils/rate-limit');
 const { createLogger } = require('../utils/logger');
 
@@ -26,22 +26,6 @@ const CACHE_MAX = 1000;
 const HEAD_MAX_BYTES = 64 * 1024;
 const GET_MAX_BYTES = 256 * 1024;
 const CONCURRENCY = 4;
-
-/**
- * One request that hands a redirect back as a final answer (the status stays
- * 3xx), so a listed private origin cannot redirect the check elsewhere.
- * @param {URL} url - Target.
- * @param {object} options - requestOnce options.
- * @returns {Promise<{ statusCode: number, headers: object, body: Buffer }>} Response.
- */
-const requestWithoutRedirect = async (url, options) => {
-  const response = await requestOnce(url, options);
-  if (response.statusCode >= 300 && response.statusCode < 400) {
-    const { location: _location, ...headers } = response.headers || {};
-    return { ...response, headers };
-  }
-  return response;
-};
 
 module.exports = ({ strapi }, dependencies = {}) => {
   const logger = createLogger(strapi);
@@ -154,24 +138,21 @@ module.exports = ({ strapi }, dependencies = {}) => {
    */
   const checkUrl = async (url) => {
     const timeoutMs = Number(conf('timeoutMs', 5000)) || 5000;
-    const allowed = conf('allowPrivateOrigins', []);
-    let origin = '';
+    // An origin the owner listed may be private; its redirects are reported, never followed
+    // (shared helper with `ai.altText.allowPrivateOrigins`: pinned DNS, no metadata addresses).
+    let privateOrigin;
     try {
-      origin = new URL(url).origin;
+      privateOrigin = privateOriginOptions(url, conf('allowPrivateOrigins', []));
     } catch {
-      // validateHttpUrl rejects it below
+      return { status: 'blocked' };
     }
-    // An origin the owner listed may be private; its redirects are reported, never followed.
-    const privateOrigin = Array.isArray(allowed) && origin !== '' && allowed.includes(origin);
     const request = (method, maxBytes) =>
       safeFetch(url, {
         method,
         maxBytes,
         timeoutMs,
         acceptStatus: () => true,
-        ...(privateOrigin
-          ? { allowPrivate: true, maxRedirects: 0, request: requestWithoutRedirect }
-          : { maxRedirects: 5 }),
+        ...(privateOrigin || { maxRedirects: 5 }),
       });
     let response;
     try {

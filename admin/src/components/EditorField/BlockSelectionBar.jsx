@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Flex,
   IconButton,
@@ -7,7 +7,7 @@ import {
   Typography,
   VisuallyHidden,
 } from '@strapi/design-system';
-import { ArrowDown, ArrowUp, Duplicate, Trash, Code, Layout } from '@strapi/icons';
+import { ArrowDown, ArrowUp, Duplicate, Trash, Code, Layout, Sparkle } from '@strapi/icons';
 import styled from 'styled-components';
 import { renderMarkdown } from '../../../../shared/render/index.mjs';
 
@@ -56,6 +56,7 @@ const selectedIds = (holder) =>
  * @param {() => void} props.onChanged - Called after an action changed the content.
  * @param {(message: string) => void} props.notify - Success message.
  * @param {(ids: string[]) => void} [props.onSaveSelection] - "Save as pattern" for template managers (2.3).
+ * @param {(ids: string[]) => void} [props.onAi] - Block AI actions (2.4); absent when AI is not allowed here.
  * @returns {JSX.Element|null} Bar.
  */
 export const BlockSelectionBar = ({
@@ -68,10 +69,20 @@ export const BlockSelectionBar = ({
   onChanged,
   notify,
   onSaveSelection,
+  onAi,
 }) => {
   const [ids, setIds] = useState([]);
   const actingRef = useRef(false);
   const hideTimer = useRef(null);
+  const barRef = useRef(null);
+  // Keyboard users reach the bar with Escape, then Shift+Tab (Escape clears the
+  // Editor.js selection); the bar stays while focus is inside it (2.4).
+  const hideLater = useCallback(() => {
+    clearTimeout(hideTimer.current);
+    hideTimer.current = setTimeout(() => {
+      if (!(barRef.current && barRef.current.contains(document.activeElement))) setIds([]);
+    }, 400);
+  }, []);
 
   useEffect(() => {
     const holder = holderRef.current;
@@ -80,7 +91,7 @@ export const BlockSelectionBar = ({
       const next = selectedIds(holder);
       clearTimeout(hideTimer.current);
       if (next.length >= 2) setIds(next);
-      else if (!actingRef.current) hideTimer.current = setTimeout(() => setIds([]), 400);
+      else if (!actingRef.current) hideLater();
     };
     const observer = new MutationObserver(update);
     observer.observe(holder, { subtree: true, attributes: true, attributeFilter: ['class'] });
@@ -88,9 +99,22 @@ export const BlockSelectionBar = ({
       observer.disconnect();
       clearTimeout(hideTimer.current);
     };
-  }, [holderRef, ready]);
+  }, [holderRef, ready, hideLater]);
 
-  if (readOnly || ids.length < 2) return null;
+  // Editor.js handles Tab on `document` (capture) while a block is current and moves the caret
+  // back into the editor; Tab inside the bar must move focus between its controls instead.
+  const visible = !readOnly && ids.length >= 2;
+  useEffect(() => {
+    if (!visible) return undefined;
+    const onKey = (event) => {
+      if (event.key === 'Tab' && barRef.current && barRef.current.contains(event.target))
+        event.stopPropagation();
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [visible]);
+
+  if (!visible) return null;
 
   const indices = () => {
     const editor = editorRef.current;
@@ -194,6 +218,7 @@ export const BlockSelectionBar = ({
 
   return (
     <Bar
+      ref={barRef}
       role="toolbar"
       aria-label={t('editor.selection.label', 'Selected blocks')}
       gap={2}
@@ -205,6 +230,11 @@ export const BlockSelectionBar = ({
       onPointerDownCapture={keep}
       onPointerUp={() => {
         actingRef.current = false;
+      }}
+      onBlur={(event) => {
+        if (!barRef.current || !barRef.current.contains(event.relatedTarget)) {
+          if (holderRef.current && selectedIds(holderRef.current).length < 2) hideLater();
+        }
       }}
     >
       <Typography variant="pi" fontWeight="bold" textColor="primary700">
@@ -228,6 +258,21 @@ export const BlockSelectionBar = ({
       >
         <Code />
       </IconButton>
+      {onAi ? (
+        <IconButton
+          label={t('editor.aiBlocks.open', 'AI for the chosen blocks')}
+          variant="ghost"
+          onClick={() => {
+            const selection = [...ids];
+            actingRef.current = false;
+            setIds([]);
+            onAi(selection);
+          }}
+          data-testid="mex-selection-ai"
+        >
+          <Sparkle />
+        </IconButton>
+      ) : null}
       {onSaveSelection ? (
         <IconButton
           label={t('editor.selection.saveTemplate', 'Save as pattern')}

@@ -17,7 +17,7 @@ import {
   HyperlinkTool,
   AiInlineTool,
 } from './inline';
-import { AlignmentTune, TextVariantTune } from './tunes';
+import { AiBlockTune, AlignmentTune, TextVariantTune } from './tunes';
 import {
   AlertTool,
   DelimiterTool,
@@ -349,6 +349,9 @@ export function buildTools(ctx) {
     };
   }
 
+  const withAiTune = ctx.aiEnabled && typeof ctx.onBlockAi === 'function';
+  if (withAiTune) tools.aiBlockTune = { class: AiBlockTune, config: { t, onBlockAi: ctx.onBlockAi } };
+
   const custom = buildCustomBlockTools(ctx.customBlocks, { ...ctx, t, canUpload }, shared);
   for (const [name, tool] of Object.entries(custom)) {
     // A custom block created before 2.3 under a name 2.3 gave to a built-in tool
@@ -363,6 +366,13 @@ export function buildTools(ctx) {
   // cannot exist (the server refuses to start), so the code tool wins.
   const code = buildCodeBlockTools({ t, locale: ctx.locale, inline, shared });
   for (const [name, tool] of Object.entries(code)) tools[name] = tool;
+  // 2.4: text blocks (those with an inline toolbar) get "AI assistant" in their block menu.
+  if (withAiTune) {
+    for (const [name, tool] of Object.entries(tools)) {
+      if (NOT_BLOCKS.has(name) || !tool || !tool.inlineToolbar) continue;
+      tools[name] = { ...tool, tunes: [...(Array.isArray(tool.tunes) ? tool.tunes : []), 'aiBlockTune'] };
+    }
+  }
   return preset ? applyPreset(tools, preset) : tools;
 }
 
@@ -373,6 +383,7 @@ const NOT_BLOCKS = new Set([
   'mention',
   MENTION_FALLBACK_KEY,
   'aiAssistant',
+  'aiBlockTune',
   'alignmentTune',
   'textVariant',
   'indentTune',

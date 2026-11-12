@@ -12,11 +12,16 @@ import {
 } from '@strapi/design-system';
 import { useFetchClient } from '@strapi/strapi/admin';
 import { API, readApiError } from '../../utils/api';
+import { changeViews } from '../../../../shared/ai-blocks.mjs';
+import { TextOps } from './VersionDiff';
 
 /**
  * AI assistant dialog: the admin picks an action for the selected text, the
  * server asks the configured provider and the suggestion can replace the
- * selection. Nothing changes until "Replace" is chosen.
+ * selection. Nothing changes until "Replace" is chosen. The selection is sent
+ * with its inline formatting and links, and the suggestion keeps them (2.4:
+ * shown as a word diff; the server allows only the field preset's inline
+ * tags and no new link targets).
  */
 
 const ACTION_LABELS = {
@@ -183,14 +188,11 @@ export const AiDialog = ({ t, request, config, target, onApply, onClose }) => {
                 <Typography variant="sigma" textColor="primary700" tag="p">
                   {t('editor.ai.suggestion', 'Suggestion')}
                 </Typography>
-                <Typography
-                  tag="p"
-                  variant="omega"
-                  textColor="neutral800"
-                  style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}
-                >
-                  {toText(state.result)}
-                </Typography>
+                <Box data-testid="mex-ai-suggestion">
+                  {changeViews(originalText, toText(state.result)).map((ops, index) => (
+                    <TextOps key={index} ops={ops} t={t} />
+                  ))}
+                </Box>
               </Box>
             ) : null}
           </Flex>

@@ -244,4 +244,120 @@ async function fetchBounded(input, options = {}) {
   }
 }
 
-module.exports = { isPublicAddress, validateHttpUrl, resolvePublicAddresses, fetchBounded, requestOnce };
+/**
+ * Cloud metadata endpoints and names. They stay refused even when the owner
+ * lists their origin as a private origin: no storage or intranet service
+ * lives there, and they hand out credentials.
+ */
+const METADATA_ADDRESSES = new Set(['169.254.169.254', '169.254.170.2', 'fd00:ec2::254', '100.100.100.200']);
+const METADATA_HOSTS = new Set(['metadata.google.internal', 'metadata.goog', 'metadata']);
+
+/**
+ * True for addresses a listed private origin may never reach: link-local
+ * (cloud metadata lives in 169.254.0.0/16 and fe80::/10), unspecified,
+ * multicast, broadcast, reserved and the known metadata addresses.
+ * Loopback, RFC 1918, unique-local and CGNAT addresses are allowed.
+ * @param {string} address - IPv4 or IPv6 address.
+ * @returns {boolean} Forbidden or not.
+ */
+function isForbiddenPrivateAddress(address) {
+  try {
+    const parsed = ipaddr.process(address);
+    if (METADATA_ADDRESSES.has(parsed.toString())) return true;
+    return ['linkLocal', 'unspecified', 'multicast', 'broadcast', 'reserved'].includes(parsed.range());
+  } catch {
+    return true;
+  }
+}
+
+/**
+ * True when an origin may be listed as a private origin: http(s), exactly
+ * `URL.origin`, not a metadata host or a link-local/unspecified address.
+ * Used by the config validator (refused at boot).
+ * @param {unknown} value - Origin.
+ * @returns {boolean} Allowed or not.
+ */
+function isListablePrivateOrigin(value) {
+  if (typeof value !== 'string' || value.length > 300) return false;
+  let url;
+  try {
+    url = new URL(value);
+  } catch {
+    return false;
+  }
+  if (!['http:', 'https:'].includes(url.protocol) || url.origin !== value) return false;
+  const host = url.hostname.toLowerCase().replace(/^\[|\]$/g, '');
+  if (METADATA_HOSTS.has(host)) return false;
+  return !(ipaddr.isValid(host) && isForbiddenPrivateAddress(host));
+}
+
+/**
+ * Request function that never follows a redirect: the Location header is
+ * dropped, so `fetchBounded` returns or rejects the 3xx response itself.
+ * @param {URL} url - Target.
+ * @param {object} options - `requestOnce` options.
+ * @returns {Promise<{ statusCode: number, headers: object, body: Buffer }>} Response.
+ */
+async function requestWithoutRedirect(url, options) {
+  const response = await requestOnce(url, options);
+  if (response.statusCode >= 300 && response.statusCode < 400) {
+    const { location: _location, ...headers } = response.headers || {};
+    return { ...response, headers };
+  }
+  return response;
+}
+
+/**
+ * Fetch options for a URL whose exact origin (`URL.origin`) the owner listed
+ * as private (`qualityChecks.externalLinks.allowPrivateOrigins`,
+ * `ai.altText.allowPrivateOrigins`). Returns null when the origin is not
+ * listed, so the caller keeps the full public-only policy.
+ *
+ * A listed origin may resolve to loopback or private addresses, but:
+ * - redirects are never followed (a 3xx is returned or rejected as is);
+ * - the host is resolved once and the connection is pinned to the checked
+ *   address (the same DNS-rebinding defence as public URLs);
+ * - link-local, unspecified, multicast, reserved and cloud metadata addresses
+ *   stay refused, also when a listed host name resolves to them.
+ * @param {string} input - URL.
+ * @param {unknown} allowedOrigins - Listed origins (config).
+ * @param {{ resolve?: Function }} [options] - DNS lookup (tests).
+ * @returns {{ allowPrivate: true, maxRedirects: 0, request: Function, resolve: Function }|null} Options or null.
+ * @throws {Error} 400 when a listed origin points at a forbidden address.
+ */
+function privateOriginOptions(input, allowedOrigins, options = {}) {
+  if (!Array.isArray(allowedOrigins) || allowedOrigins.length === 0) return null;
+  let url;
+  try {
+    url = new URL(input);
+  } catch {
+    return null;
+  }
+  if (!allowedOrigins.includes(url.origin)) return null;
+  const host = url.hostname.toLowerCase().replace(/^\[|\]$/g, '');
+  if (METADATA_HOSTS.has(host) || (ipaddr.isValid(host) && isForbiddenPrivateAddress(host))) {
+    throw securityError('Metadata and link-local addresses are not allowed');
+  }
+  const lookup = options.resolve || dns.lookup;
+  const resolve = async (hostname, lookupOptions) => {
+    const addresses = await lookup(hostname, lookupOptions);
+    const list = Array.isArray(addresses) ? addresses : [];
+    if (list.some(({ address }) => isForbiddenPrivateAddress(address))) {
+      throw securityError('Metadata and link-local addresses are not allowed');
+    }
+    return list;
+  };
+  return { allowPrivate: true, maxRedirects: 0, request: requestWithoutRedirect, resolve };
+}
+
+module.exports = {
+  isPublicAddress,
+  validateHttpUrl,
+  resolvePublicAddresses,
+  fetchBounded,
+  requestOnce,
+  requestWithoutRedirect,
+  isForbiddenPrivateAddress,
+  isListablePrivateOrigin,
+  privateOriginOptions,
+};
