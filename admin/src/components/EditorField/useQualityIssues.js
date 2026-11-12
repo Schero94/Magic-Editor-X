@@ -25,11 +25,13 @@ const hasMath = (data) =>
  * badge; the quality panel lists `issues`. With math in the document the TeX
  * check (`checkMath`, loaded on demand) adds `math-invalid`.
  * @param {object|null} data - Editor data.
- * @param {object} [options] - Field options (`attribute.options`), reads `requireAlt`.
+ * @param {object} [options] - Field options (`attribute.options`), reads `requireAlt` and (2.5) `inlineColors`.
+ * @param {object|null} [palette] - 2.5: normalised colour palette; with `inlineColors` it enables `color-contrast`.
  * @returns {{ issues: Array<object>, stats: { errors: number, warnings: number, blocks: number, links: number, images: number } }} Lint result.
  */
-export const useQualityIssues = (data, options) => {
+export const useQualityIssues = (data, options, palette = null) => {
   const requireAlt = Boolean(options && options.requireAlt === true);
+  const checkColors = Boolean(options && options.inlineColors === true && palette);
   const [checkMath, setCheckMath] = useState(null);
   const needsMath = hasMath(data);
   useEffect(() => {
@@ -45,8 +47,13 @@ export const useQualityIssues = (data, options) => {
     };
   }, [needsMath, checkMath]);
   return useMemo(
-    () => lintDocument(data, { requireAlt, checkMath: checkMath || undefined }),
-    [data, requireAlt, checkMath]
+    () =>
+      lintDocument(data, {
+        requireAlt,
+        checkMath: checkMath || undefined,
+        palette: checkColors ? palette : undefined,
+      }),
+    [data, requireAlt, checkMath, checkColors, palette]
   );
 };
 

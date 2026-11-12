@@ -2,7 +2,8 @@
 
 const { createLogger } = require('./utils/logger');
 const { cleanEditorValue } = require('./utils/sanitizer');
-const { resolveFieldPreset, allowedInlineTags, checkPreset } = require('../../shared/presets.mjs');
+const { resolveFieldPreset, inlinePolicy, checkPreset } = require('../../shared/presets.mjs');
+const { paletteOf } = require('./utils/inline-policy');
 const { schemaHasEditorFields, transformEditorFields } = require('./utils/editor-fields');
 const { registerPublishGuard } = require('./utils/publish-guard');
 const { createRepairMiddleware } = require('./utils/ai-localization-guard');
@@ -111,7 +112,10 @@ module.exports = ({ strapi }) => {
       transformEditorFields(strapi, contentType, ctx.params.data, (value, attribute, path, container) => {
         current = path;
         const preset = resolveFieldPreset(attribute && attribute.options);
-        const clean = cleanEditorValue(value, { rawHtml, inlineTags: allowedInlineTags(preset) });
+        const clean = cleanEditorValue(value, {
+          rawHtml,
+          inline: inlinePolicy(preset, { palette: paletteOf(strapi) }),
+        });
         if (preset.restricted) {
           for (const violation of checkPreset(clean, preset)) {
             if (violations.length < 50) violations.push({ field: path, ...violation });

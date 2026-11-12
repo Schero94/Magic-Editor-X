@@ -632,5 +632,6 @@
   "editor.suggestions.showAll": "Show suggestions",
   "editor.toolbar.suggest": "Suggest changes",
   "editor.toolbar.suggestionsCount": "Suggestions ({count, plural, one {# open} other {# open}})",
-  "editor.toolbar.suggestions": "Suggestions"
+  "editor.toolbar.suggestions": "Suggestions",
+  "editor.quality.rule.colorContrast": "{mode, select, dark {Dark theme} other {Light theme}}: text colour / highlight {pair} has contrast {ratio}:1, below 4.5:1"
 }

@@ -14,7 +14,10 @@ import {
   walkInlineElements,
   isMathNode,
   isFootnoteNode,
+  isColorNode,
+  isHighlightNode,
 } from './render/inline.mjs';
+import { normalizePalette, COLOR_ATTRIBUTE, HIGHLIGHT_ATTRIBUTE } from './inline-format.mjs';
 import { sanitizeUrl, isBuiltInBlock, registeredBlockOf } from './sanitize-policy.mjs';
 import { mediaSlots } from './resolve-references.mjs';
 import { tocRange } from './toc.mjs';
@@ -35,6 +38,8 @@ export const QUALITY_RULES = Object.freeze({
   'toc-no-headings': 'warning',
   'math-invalid': 'warning',
   'footnote-empty': 'warning',
+  // 2.5: text colour / highlight token combination below WCAG AA (4.5:1) in the light or dark site theme.
+  'color-contrast': 'warning',
 });
 
 /**
@@ -207,12 +212,85 @@ export const contrastRatio = (a, b) => {
   return (light + 0.05) / (dark + 0.05);
 };
 
+/** WCAG 2.x AA minimum for normal text. */
+export const MIN_TEXT_CONTRAST = 4.5;
+
+const floorRatio = (ratio) => Math.floor(ratio * 100) / 100;
+
+/**
+ * Contrast of one token combination (2.5) in one site theme: a text colour
+ * token on the page background or on a highlight, or the default text
+ * colour on a highlight.
+ * @param {import('./inline-format.mjs').Palette} palette - Normalised palette.
+ * @param {string|null} color - Text colour token.
+ * @param {string|null} highlight - Highlight token.
+ * @param {'light'|'dark'} mode - Site theme.
+ * @returns {number|null} Ratio, or null when a token is not in the palette.
+ */
+export const tokenContrast = (palette, color, highlight, mode) => {
+  const fg = color ? palette.colors.find((token) => token.name === color) : null;
+  const bg = highlight ? palette.highlights.find((token) => token.name === highlight) : null;
+  if ((color && !fg) || (highlight && !bg)) return null;
+  const text = parseColor(fg ? fg[mode] : palette.text[mode]);
+  const back = parseColor(bg ? bg[mode] : palette.background[mode]);
+  return text && back ? contrastRatio(text, back) : null;
+};
+
+/**
+ * Every token combination of a palette below 4.5:1 (2.5): each colour on the
+ * page background, the default text on each highlight and each colour on
+ * each highlight, in the light and the dark theme. Shown in Settings and
+ * logged (token names and ratios only) when Strapi starts.
+ * @param {unknown} input - Palette configuration (normalised here).
+ * @returns {Array<{ color: string|null, highlight: string|null, mode: 'light'|'dark', ratio: number }>} Issues.
+ */
+export const paletteContrastIssues = (input) => {
+  const palette = normalizePalette(input);
+  const pairs = [
+    ...palette.colors.map((token) => [token.name, null]),
+    ...palette.highlights.map((token) => [null, token.name]),
+    ...palette.colors.flatMap((color) => palette.highlights.map((highlight) => [color.name, highlight.name])),
+  ];
+  const issues = [];
+  for (const mode of ['light', 'dark'])
+    for (const [color, highlight] of pairs) {
+      const ratio = tokenContrast(palette, color, highlight, mode);
+      if (ratio !== null && ratio < MIN_TEXT_CONTRAST)
+        issues.push({ color, highlight, mode, ratio: floorRatio(ratio) });
+    }
+  return issues;
+};
+
+/**
+ * Token combinations used by text in parsed inline nodes (2.5).
+ * @param {Array} nodes - Parsed nodes.
+ * @param {Map<string, [string|null, string|null]>} out - Collector (key -> pair).
+ * @param {string|null} [color] - Colour in effect.
+ * @param {string|null} [highlight] - Highlight in effect.
+ * @param {number} [depth] - Depth.
+ * @returns {Map<string, [string|null, string|null]>} Pairs.
+ */
+const usedTokenPairs = (nodes, out, color = null, highlight = null, depth = 0) => {
+  if (depth > 64) return out;
+  for (const node of nodes) {
+    if (node.type === 'text') {
+      if ((color || highlight) && node.value.trim()) out.set(`${color}|${highlight}`, [color, highlight]);
+      continue;
+    }
+    if (isFootnoteNode(node)) continue;
+    const nextColor = isColorNode(node) ? node.attrs[COLOR_ATTRIBUTE] : color;
+    const nextHighlight = isHighlightNode(node) ? node.attrs[HIGHLIGHT_ATTRIBUTE] : highlight;
+    usedTokenPairs(node.children, out, nextColor, nextHighlight, depth + 1);
+  }
+  return out;
+};
+
 /**
  * Collects the inline HTML strings of one block with their data path.
  * @param {{ type: string, data: object }} block - Block.
  * @returns {Array<{ path: string, html: string }>} Inline strings.
  */
-const inlineStrings = (block) => {
+export const inlineStrings = (block) => {
   const d = isPlainObject(block.data) ? block.data : {};
   const out = [];
   const add = (path, value) => {
@@ -376,7 +454,7 @@ const customImages = (value, path, out, depth = 0) => {
 /**
  * Lints a document for accessibility problems.
  * @param {unknown} value - Stored or editor value (normalised internally).
- * @param {{ requireAlt?: boolean, locale?: string, checkMath?: (tex: string, options: { display: boolean }) => boolean | { ok: boolean } }} [options] - `requireAlt` makes missing alt texts errors (field preset); `checkMath` (2.4, e.g. `checkMath` of `magic-editor-x/math`) enables `math-invalid`.
+ * @param {{ requireAlt?: boolean, locale?: string, checkMath?: (tex: string, options: { display: boolean }) => boolean | { ok: boolean }, palette?: object }} [options] - `requireAlt` makes missing alt texts errors (field preset); `checkMath` (2.4, e.g. `checkMath` of `magic-editor-x/math`) enables `math-invalid`; `palette` (2.5, the configured colour palette) enables `color-contrast`.
  * @returns {{ issues: Array<{ rule: string, severity: 'error'|'warning', blockId: string, blockIndex: number, path?: string, params?: object }>, stats: { errors: number, warnings: number, blocks: number, links: number, images: number } }} Issues in document order.
  */
 export const lintDocument = (value, options = {}) => {
@@ -390,6 +468,9 @@ export const lintDocument = (value, options = {}) => {
   const headingLevels = [];
   const tocs = [];
   const altSeverity = options.requireAlt === true ? 'error' : 'warning';
+  // 2.5: palette for the colour contrast rule (only checked when given).
+  const palette = options.palette ? normalizePalette(options.palette) : null;
+  const contrastSeen = new Set();
   const push = (rule, block, blockIndex, extra = {}) =>
     issues.push({
       rule,
@@ -484,6 +565,30 @@ export const lintDocument = (value, options = {}) => {
     for (const { path, html } of inlineStrings(block)) {
       if (!html.includes('<')) continue;
       const parsed = parseInline(html);
+      // 2.5: colour and highlight tokens below 4.5:1 (the worse of the light and dark theme).
+      if (palette && (html.includes(COLOR_ATTRIBUTE) || html.includes(HIGHLIGHT_ATTRIBUTE)))
+        for (const [color, highlight] of usedTokenPairs(parsed, new Map()).values()) {
+          const key = `${block.id}|${color}|${highlight}`;
+          if (contrastSeen.has(key)) continue;
+          contrastSeen.add(key);
+          const ratios = ['light', 'dark'].map((mode) => [
+            mode,
+            tokenContrast(palette, color, highlight, mode),
+          ]);
+          const worst = ratios.filter(([, ratio]) => ratio !== null).sort((a, b) => a[1] - b[1])[0];
+          if (worst && worst[1] < MIN_TEXT_CONTRAST)
+            push('color-contrast', block, index, {
+              path,
+              params: {
+                color: color || '',
+                highlight: highlight || '',
+                // Token pair for messages: text colour / highlight, `-` for the site default.
+                pair: `${color || '-'} / ${highlight || '-'}`,
+                mode: worst[0],
+                ratio: floorRatio(worst[1]),
+              },
+            });
+        }
       // 2.4: inline math that does not parse, footnotes without text.
       walkInlineElements(parsed, (node) => {
         if (isMathNode(node) && !mathIsValid(options.checkMath, nodesToText(node.children), false))

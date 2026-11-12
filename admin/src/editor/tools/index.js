@@ -41,6 +41,9 @@ import { MathTool } from './math';
 import { InlineMathTool } from './inline-math';
 import { FootnoteTool } from './footnote';
 import { CommentInlineTool } from './comment';
+import { ColorTool, SuperscriptTool, SubscriptTool, createAnnotationTool } from './inline-format';
+import { allowAnnotationKeys } from './sanitize-config';
+import { hasPalette } from '../../../../shared/inline-format.mjs';
 import { MARKED_BLOCKS } from '../../../../shared/sanitize-policy.mjs';
 import { markedTool } from './marked';
 import { isBlockAllowed } from '../../../../shared/presets.mjs';
@@ -87,6 +90,15 @@ const MENTION_FALLBACK_KEY = 'mention$mex';
  */
 const COMMENT_TOOL = 'comment$mex';
 
+/**
+ * 2.5: keys of the extra inline tools (fields opt in; `$` keeps them apart from
+ * custom block names). Annotation tools are `annotation$<name>`.
+ */
+const COLOR_TOOL = 'color$mex';
+const SUPERSCRIPT_TOOL = 'superscript$mex';
+const SUBSCRIPT_TOOL = 'subscript$mex';
+const ANNOTATION_TOOL_PREFIX = 'annotation$';
+
 /** Keys of the 2.4 inline tools when a custom block (Settings or code) owns their name. */
 const INLINE_FALLBACK_KEYS = Object.freeze({ inlineMath: 'inlineMath$mex', footnote: 'footnote$mex' });
 
@@ -128,7 +140,20 @@ export function buildTools(ctx) {
   const allowedInline = mentions
     ? keyed.flatMap((name) => (name === 'hyperlink' ? [name, mentionKey] : [name]))
     : keyed;
-  const withAi = ctx.aiEnabled ? [...allowedInline, 'aiAssistant'] : allowedInline;
+  // 2.5: extra inline formatting the field turns on (preset options), after the preset's tools.
+  // `ctx.inlineExtras` comes from the field preset (also for the full preset, which is passed as null).
+  const extras = ctx.inlineExtras || {};
+  const colorsOn = Boolean(extras.colors && hasPalette(ctx.palette));
+  const scriptOn = Boolean(extras.script);
+  const annotations = Array.isArray(ctx.annotations) ? ctx.annotations : [];
+  const extraInline = [
+    ...(scriptOn ? [SUPERSCRIPT_TOOL, SUBSCRIPT_TOOL] : []),
+    ...(colorsOn ? [COLOR_TOOL] : []),
+    ...annotations.map((definition) => `${ANNOTATION_TOOL_PREFIX}${definition.name}`),
+  ];
+  allowAnnotationKeys(annotations.flatMap((definition) => Object.keys(definition.attributes || {})));
+  const formatted = [...allowedInline, ...extraInline];
+  const withAi = ctx.aiEnabled ? [...formatted, 'aiAssistant'] : formatted;
   // 2.4: "Comment" on a selection, for fields with comments the admin may write. Not content, so presets
   // never remove it.
   const commentsOn = typeof ctx.onComment === 'function';
@@ -360,6 +385,28 @@ export function buildTools(ctx) {
     };
   }
 
+  if (scriptOn) {
+    tools[SUPERSCRIPT_TOOL] = { class: SuperscriptTool, shortcut: 'CMD+.' };
+    tools[SUBSCRIPT_TOOL] = { class: SubscriptTool, shortcut: 'CMD+SHIFT+.' };
+  }
+  if (colorsOn) {
+    tools[COLOR_TOOL] = {
+      class: ColorTool,
+      config: { t, palette: ctx.palette, locale: ctx.locale, isDark: ctx.isDark },
+    };
+  }
+  for (const definition of annotations) {
+    tools[`${ANNOTATION_TOOL_PREFIX}${definition.name}`] = {
+      class: createAnnotationTool(definition),
+      // The built-in abbreviation has translated labels; code-registered annotations use their own.
+      config: {
+        t,
+        labels:
+          definition.name === 'abbreviation' ? { title: t('tools.annotation.fullForm', 'Full form') } : null,
+      },
+    };
+  }
+
   if (commentsOn) {
     tools[COMMENT_TOOL] = {
       class: CommentInlineTool,
@@ -387,7 +434,7 @@ export function buildTools(ctx) {
   // 2.4: text blocks (those with an inline toolbar) get "AI assistant" in their block menu.
   if (withAiTune) {
     for (const [name, tool] of Object.entries(tools)) {
-      if (NOT_BLOCKS.has(name) || !tool || !tool.inlineToolbar) continue;
+      if (isInlineKey(name) || !tool || !tool.inlineToolbar) continue;
       tools[name] = { ...tool, tunes: [...(Array.isArray(tool.tunes) ? tool.tunes : []), 'aiBlockTune'] };
     }
   }
@@ -407,7 +454,17 @@ const NOT_BLOCKS = new Set([
   'textVariant',
   'indentTune',
   'mediaLib',
+  COLOR_TOOL,
+  SUPERSCRIPT_TOOL,
+  SUBSCRIPT_TOOL,
 ]);
+
+/**
+ * True for tools that are not blocks (2.5: also the annotation tools, whose keys depend on the registry).
+ * @param {string} name - Tool key.
+ * @returns {boolean} Result.
+ */
+const isInlineKey = (name) => NOT_BLOCKS.has(name) || name.startsWith(ANNOTATION_TOOL_PREFIX);
 
 /**
  * Wraps a block tool so it is not offered for new content: no toolbox entry,
@@ -434,7 +491,7 @@ export function applyPreset(tools, preset) {
   for (const [name, tool] of Object.entries(tools)) {
     if (preset.inline && INLINE.includes(name) && !preset.inline.includes(name)) continue;
     if (name === 'mediaLib' && !isBlockAllowed(preset, 'image')) continue;
-    if (NOT_BLOCKS.has(name) || isBlockAllowed(preset, name)) {
+    if (isInlineKey(name) || isBlockAllowed(preset, name)) {
       out[name] = tool;
       continue;
     }
@@ -509,6 +566,10 @@ export function editorI18n(t) {
         'Inline math': tr('tools.names.inlineMath', 'Inline math'),
         Footnote: tr('tools.names.footnote', 'Footnote'),
         Comment: tr('tools.names.comment', 'Comment'),
+        Colour: tr('tools.names.color', 'Colour'),
+        Superscript: tr('tools.names.superscript', 'Superscript'),
+        Subscript: tr('tools.names.subscript', 'Subscript'),
+        Abbreviation: tr('tools.names.abbreviation', 'Abbreviation'),
       },
       tools: {
         link: { 'Add a link': tr('tools.hyperlink.placeholder', 'Paste a link and press Enter') },

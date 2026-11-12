@@ -8,6 +8,7 @@ import { useConfigurationForm } from './useConfigurationForm';
 import { AiSection } from './AiSection';
 import { EnvironmentSection } from './EnvironmentSection';
 import { CspSection } from './CspSection';
+import { PaletteSection } from './PaletteSection';
 import { LanguageToolSection } from './LanguageToolSection';
 import { LinkScheduleSection } from './LinkScheduleSection';
 
@@ -256,6 +257,7 @@ const ConfigurationPage = () => {
         onStatus={setLiveSchedule}
       />
       <CspSection csp={form.dto.environment && form.dto.environment.csp} />
+      <PaletteSection palette={form.dto.environment && form.dto.environment.palette} />
       <Form method="PUT" initialValues={form.saved}>
         <DraftSync values={form.draft} />
         <Blocker />

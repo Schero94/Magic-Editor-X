@@ -36,5 +36,12 @@
   "field.options.linkTargets.all": "Entries and web addresses",
   "field.options.linkTargets.internal": "Only entries of this site",
   "field.options.linkTargets.external": "Only web addresses",
-  "field.options.linkTargets.none": "No links"
+  "field.options.linkTargets.none": "No links",
+  "field.options.formatting": "Extra formatting",
+  "field.options.inlineColors.label": "Text colour and highlight",
+  "field.options.inlineColors.description": "Editors pick from the colours your developer set in the plugin configuration (palette). Without a palette nothing is shown.",
+  "field.options.inlineScript.label": "Superscript and subscript",
+  "field.options.inlineScript.description": "For formulas and units such as m² or H₂O",
+  "field.options.inlineAnnotations.label": "Annotations",
+  "field.options.inlineAnnotations.description": "Comma-separated annotation names, for example: abbreviation. Your developer can add more, such as glossary."
 }

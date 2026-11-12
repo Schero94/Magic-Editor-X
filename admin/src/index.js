@@ -237,6 +237,53 @@ export default {
               },
             ],
           },
+          // 2.5: extra inline formatting, off unless turned on here.
+          {
+            sectionTitle: {
+              id: getTranslation('field.options.formatting'),
+              defaultMessage: 'Extra formatting',
+            },
+            items: [
+              {
+                intlLabel: {
+                  id: getTranslation('field.options.inlineColors.label'),
+                  defaultMessage: 'Text colour and highlight',
+                },
+                description: {
+                  id: getTranslation('field.options.inlineColors.description'),
+                  defaultMessage:
+                    'Editors pick from the colours your developer set in the plugin configuration (palette). Without a palette nothing is shown.',
+                },
+                name: 'options.inlineColors',
+                type: 'checkbox',
+              },
+              {
+                intlLabel: {
+                  id: getTranslation('field.options.inlineScript.label'),
+                  defaultMessage: 'Superscript and subscript',
+                },
+                description: {
+                  id: getTranslation('field.options.inlineScript.description'),
+                  defaultMessage: 'For formulas and units such as m² or H₂O',
+                },
+                name: 'options.inlineScript',
+                type: 'checkbox',
+              },
+              {
+                intlLabel: {
+                  id: getTranslation('field.options.inlineAnnotations.label'),
+                  defaultMessage: 'Annotations',
+                },
+                description: {
+                  id: getTranslation('field.options.inlineAnnotations.description'),
+                  defaultMessage:
+                    'Comma-separated annotation names, for example: abbreviation. Your developer can add more, such as glossary.',
+                },
+                name: 'options.inlineAnnotations',
+                type: 'text',
+              },
+            ],
+          },
           {
             sectionTitle: { id: getTranslation('field.options.features'), defaultMessage: 'Features' },
             items: [

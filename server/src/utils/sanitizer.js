@@ -140,10 +140,47 @@ const inlineSanitizerFor = (tags) => {
   return restrictedInline.get(key);
 };
 
+const policyInline = new Map();
+const MAX_POLICY_CACHE = 200;
+
+/**
+ * Inline sanitiser for a field's full inline policy (2.5, `inlinePolicy` in
+ * shared/presets.mjs): the preset's tags as `inlineSanitizerFor`, then the
+ * policy's colour and highlight tokens, annotations (cleaned with their
+ * definitions), footnote rule and special-only tags (`canonicalInlineExtras`).
+ * Cached per policy (bounded).
+ * @param {{ tags: string[]|null, footnotes: boolean, colors: string[], highlights: string[], annotations: Map<string, object>, plainTags: string[] }} policy - Field policy.
+ * @returns {(html: string) => string} Sanitiser.
+ */
+const inlineSanitizerForPolicy = (policy) => {
+  const annotations = policy.annotations instanceof Map ? policy.annotations : new Map();
+  const key = JSON.stringify([
+    policy.tags,
+    policy.footnotes !== false,
+    policy.colors || [],
+    policy.highlights || [],
+    [...annotations.keys()],
+    policy.plainTags || [],
+  ]);
+  if (!policyInline.has(key)) {
+    if (policyInline.size >= MAX_POLICY_CACHE) policyInline.clear();
+    const extras = {
+      footnotes: policy.footnotes !== false,
+      colors: policy.colors || [],
+      highlights: policy.highlights || [],
+      annotations,
+      plainTags: policy.plainTags || [],
+    };
+    const base = Array.isArray(policy.tags) ? inlineSanitizerFor(policy.tags) : sanitizeInlineHtml;
+    policyInline.set(key, (html) => canonicalInlineExtras(base(html), extras));
+  }
+  return policyInline.get(key);
+};
+
 /**
  * Normalises and sanitises one Magic Editor X field value.
  * @param {unknown} value - Submitted or stored value.
- * @param {{ rawHtml?: 'sanitize'|'allow'|'disable', inlineTags?: string[]|null }} [options] - Raw HTML policy and, for field presets, the allowed inline tags.
+ * @param {{ rawHtml?: 'sanitize'|'allow'|'disable', inlineTags?: string[]|null, inline?: object }} [options] - Raw HTML policy and, for field presets, the allowed inline tags or (2.5) the field's whole inline policy (`inlinePolicy`), which wins over `inlineTags`.
  * @returns {object|null} Clean Editor.js object or null.
  * @throws {import('../../../shared/editor-data.mjs').EditorDataError} When the value is not editor content or too large.
  */
@@ -151,12 +188,21 @@ const cleanEditorValue = (value, options = {}) => {
   const normalized = normalizeEditorData(value);
   if (!normalized) return null;
   return sanitizeEditorData(normalized, {
-    sanitizeInlineHtml: Array.isArray(options.inlineTags)
-      ? inlineSanitizerFor(options.inlineTags)
-      : sanitizeInlineHtml,
+    sanitizeInlineHtml:
+      options.inline && typeof options.inline === 'object'
+        ? inlineSanitizerForPolicy(options.inline)
+        : Array.isArray(options.inlineTags)
+          ? inlineSanitizerFor(options.inlineTags)
+          : sanitizeInlineHtml,
     sanitizeRawHtml,
     rawHtml: options.rawHtml || 'sanitize',
   });
 };
 
-module.exports = { sanitizeInlineHtml, sanitizeRawHtml, cleanEditorValue, inlineSanitizerFor };
+module.exports = {
+  sanitizeInlineHtml,
+  sanitizeRawHtml,
+  cleanEditorValue,
+  inlineSanitizerFor,
+  inlineSanitizerForPolicy,
+};

@@ -523,5 +523,19 @@
   "settings.audit.event.suggestionAccept": "Sugestão aceite",
   "settings.audit.event.suggestionReject": "Sugestão rejeitada",
   "settings.audit.event.suggestionWithdraw": "Sugestão retirada",
-  "settings.audit.counts.outdated": "Substituída uma versão mais recente do bloco"
+  "settings.audit.counts.outdated": "Substituída uma versão mais recente do bloco",
+  "settings.palette.title": "Cores do texto e destaques",
+  "settings.palette.subtitle": "Definidas na configuração do plugin (config/plugins.js, chave palette). Os campos oferecem-nas quando a opção «Cor do texto e destaque» está ativada.",
+  "settings.palette.empty": "Não há paleta configurada, por isso os editores não veem a ferramenta de cor. Peça ao seu desenvolvedor que adicione cores à configuração do plugin.",
+  "settings.palette.issuesTitle": "{count, plural, one {# combinação é difícil} other {# combinações são difíceis}} de ler",
+  "settings.palette.issue": "{mode, select, dark {Tema escuro} other {Tema claro}}: {pair} tem contraste de {ratio}:1 (necessário 4,5:1)",
+  "settings.palette.defaultText": "texto padrão",
+  "settings.palette.page": "fundo da página",
+  "settings.palette.colors": "Cores do texto",
+  "settings.palette.highlights": "Destaques",
+  "settings.palette.light": "Tema claro",
+  "settings.palette.dark": "Tema escuro",
+  "settings.palette.css": "CSS para o seu site",
+  "settings.palette.copy": "Copiar o CSS",
+  "settings.palette.annotations": "Anotações para a opção de campo «Anotações»: {names}"
 }

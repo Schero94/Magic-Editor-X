@@ -8,6 +8,7 @@ const { isEditorAttribute, schemaHasEditorFields, transformEditorFields } = requ
 const { guardQuery, collectGuarded } = require('./publish-guard');
 const { formErrorDetails } = require('./form-errors');
 const { resolveFieldPreset, allowedInlineTags } = require('../../../shared/presets.mjs');
+const { fieldInlinePolicy } = require('./inline-policy');
 const { toTranslationPayload, repairLocalizedValue } = require('../../../shared/ai-localization.mjs');
 const { isPlainObject } = require('../../../shared/editor-data.mjs');
 const { fieldIdentity } = require('../../../shared/audit.mjs');
@@ -51,11 +52,12 @@ const TRANSLATIONS_UID = 'plugin::i18n.ai-translations';
  * Inline tags the field preset allows (same cleaning as on save).
  * @param {object} strapi - Strapi instance.
  * @param {object} attribute - Schema attribute.
- * @returns {{ rawHtml: string, inlineTags: string[]|null }} Clean options.
+ * @returns {{ rawHtml: string, inlineTags: string[]|null, inline: object }} Clean options (2.5: `inline` is the field's whole inline policy).
  */
 const cleanOptionsFor = (strapi, attribute) => ({
   rawHtml: strapi.config.get('plugin::magic-editor-x.rawHtml') || 'sanitize',
   inlineTags: allowedInlineTags(resolveFieldPreset(attribute && attribute.options)),
+  inline: fieldInlinePolicy(strapi, attribute && attribute.options),
 });
 
 /**

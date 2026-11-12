@@ -186,6 +186,28 @@ export interface RenderOptions {
    * Text output: `[n]` and a list; Markdown: GFM `[^n]` footnotes.
    */
   footnotes?: { label?: string; backLabel?: string; prefix?: string };
+  /**
+   * Inline annotations (2.5, `defineInlineAnnotation` from `magic-editor-x/blocks`):
+   * `<span data-mex-annotation="name">` is rendered with the definition's
+   * `render` (one validated wrapper element around the text). These
+   * definitions replace the bundle's registry for that call; the built-in
+   * `abbreviation` (`<abbr title>`) is always known. Unknown annotations get
+   * `<span class="mex-annotation mex-annotation-<name>" data-mex-annotation …>`.
+   * Pass a stable array. Text and Markdown output keep the text only.
+   */
+  annotations?: ReadonlyArray<import('./blocks.js').InlineAnnotationDefinition>;
+  /**
+   * Value of an annotation for its `render` (`resolved`), e.g. a glossary
+   * definition looked up by the caller. A string (max 2000 characters) or a
+   * plain object; anything else, or a throw, is ignored. Content API output
+   * (`?mex=`) and GraphQL `…Rendered` pass the results of the definitions'
+   * server-side `resolve`.
+   */
+  resolveAnnotation?: (annotation: {
+    name: string;
+    attrs: Record<string, string>;
+    text: string;
+  }) => string | Record<string, unknown> | null | undefined;
 }
 
 /** Renders TeX: MathML markup or render nodes; null/undefined for the fallback. */

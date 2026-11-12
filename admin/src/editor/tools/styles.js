@@ -2183,6 +2183,76 @@ export const editorStyles = css`
       color: ${c('neutral600')};
       font-size: ${f(1)};
     }
+
+    /* 2.5: highlights keep the text colour of the theme; token colours come from PaletteStyles. */
+    .ce-block mark[data-mex-highlight] {
+      color: inherit;
+      padding: 0 1px;
+      border-radius: 2px;
+      box-decoration-break: clone;
+      -webkit-box-decoration-break: clone;
+    }
+
+    /* 2.5: inline annotations (abbreviation, glossary, ...) are marked with a dotted underline. */
+    .ce-block span[data-mex-annotation] {
+      text-decoration: underline dotted ${c('primary600')};
+      text-decoration-thickness: 2px;
+      text-underline-offset: 3px;
+    }
+
+    .mex-annotation-form {
+      max-width: min(32rem, calc(100vw - 4rem));
+    }
+
+    .mex-annotation-form__row {
+      display: flex;
+      flex-direction: column;
+      gap: ${s(1)};
+      font-size: ${f(1)};
+      font-weight: 600;
+      color: ${c('neutral800')};
+    }
+
+    .mex-annotation-form__error {
+      margin: 0;
+      color: ${c('danger600')};
+      font-size: ${f(1)};
+    }
+
+    .mex-annotation-form__buttons {
+      display: flex;
+      justify-content: flex-end;
+      flex-wrap: wrap;
+      gap: ${s(2)};
+    }
+
+    .mex-annotation-form__apply,
+    .mex-annotation-form__remove {
+      min-height: 3.2rem;
+      padding: 0 ${s(3)};
+      border-radius: ${radius};
+      font-size: ${f(1)};
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .mex-annotation-form__apply {
+      border: 1px solid ${c('primary600')};
+      background: ${c('primary600')};
+      color: ${c('neutral0')};
+    }
+
+    .mex-annotation-form__remove {
+      border: 1px solid ${c('neutral200')};
+      background: ${c('neutral0')};
+      color: ${c('neutral800')};
+    }
+
+    .mex-annotation-form__apply:focus-visible,
+    .mex-annotation-form__remove:focus-visible {
+      outline: 2px solid ${c('primary600')};
+      outline-offset: 2px;
+    }
   }
 `;
 

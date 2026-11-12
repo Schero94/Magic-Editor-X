@@ -1,6 +1,8 @@
 'use strict';
 
 const { createLogger } = require('./utils/logger');
+const { paletteOf } = require('./utils/inline-policy');
+const { paletteContrastIssues } = require('../../shared/quality.mjs');
 const { registerPermissions } = require('./permissions');
 const { subscribeCommentAuthorCleanup } = require('./utils/comment-retention');
 const { subscribeAuditActorCleanup } = require('./utils/audit-trail');
@@ -40,6 +42,12 @@ module.exports = async ({ strapi }) => {
 
   // Code-registered blocks (custom block SDK): a Settings block with the same name stops the start.
   await plugin.service('blocks').verify();
+  // 2.5: colour tokens whose combinations are below WCAG AA; Settings > Magic Editor X lists them.
+  const lowContrast = paletteContrastIssues(paletteOf(strapi)).length;
+  if (lowContrast)
+    logger.warn(
+      `palette: ${lowContrast} colour/highlight combination(s) are below the 4.5:1 contrast ratio (Settings > Magic Editor X > Configuration lists them)`
+    );
 
   // The plugin never changes the CSP; it only tells the owner what the editor preview needs.
   try {
