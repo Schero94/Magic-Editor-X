@@ -40,10 +40,20 @@ test('block hashes ignore the id and key order and change with content and tunes
       id: 'x1',
       type: 'paragraph',
       data: { text: 'Hi', extra: 1 },
-      tunes: { alignmentTune: 'center' },
+      tunes: { alignmentTune: { alignment: 'center' } },
     })
   );
   assert.equal(blockHash(null), null);
+  // The editor writes default tunes and unset data leaves that stored content does not have.
+  const stored = { id: 'x1', type: 'image', data: { file: { url: '/a.png' }, caption: 'C' } };
+  const saved = {
+    ...stored,
+    data: { ...stored.data, withBorder: false, stretched: false, alt: '' },
+    tunes: { alignmentTune: { alignment: 'left' }, textVariant: '', indentTune: { indentLevel: 0 } },
+  };
+  assert.equal(blockHash(stored), blockHash(saved));
+  assert.notEqual(blockHash(stored), blockHash({ ...saved, data: { ...saved.data, withBorder: true } }));
+  assert.notEqual(blockHash(stored), blockHash({ ...saved, tunes: { indentTune: { indentLevel: 1 } } }));
 });
 
 test('the diff of an edited copy becomes one suggestion per changed, inserted or deleted block', () => {

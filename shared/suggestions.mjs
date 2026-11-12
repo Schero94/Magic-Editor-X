@@ -14,7 +14,7 @@
  * `shared/diff.mjs`.
  */
 
-import { canonicalJson, diffDocuments } from './diff.mjs';
+import { canonicalJson, diffDocuments, diffTunes } from './diff.mjs';
 import { normalizeCommentBody } from './comments.mjs';
 
 /** Operations of a suggestion. */
@@ -75,13 +75,39 @@ const cyrb53 = (text) => {
 };
 
 /**
- * Comparable content of a block: type, data and tunes (never the id).
+ * Data without the leaves that mean "not set" (`false`, `null`, `''`): the
+ * editor writes defaults such as `withBorder: false` that stored content may
+ * not have, and they must not count as a change.
+ * @param {unknown} value - Value.
+ * @param {number} [depth] - Depth (bounded).
+ * @returns {unknown} Value without unset leaves.
+ */
+const withoutUnset = (value, depth = 0) => {
+  if (depth > 24 || !value || typeof value !== 'object') return value;
+  if (Array.isArray(value)) return value.map((item) => withoutUnset(item, depth + 1));
+  const out = {};
+  for (const [key, item] of Object.entries(value)) {
+    if (item === false || item === null || item === '' || item === undefined) continue;
+    out[key] = withoutUnset(item, depth + 1);
+  }
+  return out;
+};
+
+/**
+ * Comparable content of a block: type, data and tunes, never the id. Built-in
+ * tunes at their default value (the editor writes `alignmentTune: left`,
+ * `textVariant: ''` and `indentTune: 0` on every block, stored content has
+ * none) and unset data leaves do not count (`diffTunes` of shared/diff.mjs).
  * @param {{ type?: string, data?: unknown, tunes?: unknown }|null} block - Block.
  * @returns {string} Canonical JSON.
  */
 export const blockContentKey = (block) =>
   block && typeof block === 'object'
-    ? canonicalJson({ type: block.type, data: block.data || {}, tunes: block.tunes || {} })
+    ? canonicalJson({
+        type: block.type,
+        data: withoutUnset(block.data || {}),
+        tunes: diffTunes({}, block.tunes).map((change) => [change.tune, change.after]),
+      })
     : '';
 
 /**

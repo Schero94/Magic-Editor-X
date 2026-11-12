@@ -350,6 +350,10 @@ const EditorFieldBody = ({
   const [undoState, setUndoState] = useState({ canUndo: false, canRedo: false });
   const [valueError, setValueError] = useState(null);
   const [currentData, setCurrentData] = useState(null);
+  const currentDataRef = useRef(null);
+  useEffect(() => {
+    currentDataRef.current = currentData;
+  }, [currentData]);
   const [findOpen, setFindOpen] = useState(false);
   const [qualityOpen, setQualityOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
@@ -1567,8 +1571,13 @@ const EditorFieldBody = ({
   const startSuggest = useCallback(async () => {
     const editor = editorRef.current;
     if (!editor || !canSuggest) return;
-    const saved = await editor.save().catch(() => null);
-    const base = prepareEditorValue(saved).data || { time: Date.now(), version: '2.31.7', blocks: [] };
+    // Read-only editors (no update right) cannot be saved by every tool; the field keeps what it shows.
+    const saved = editor.readOnly && editor.readOnly.isEnabled ? null : await editor.save().catch(() => null);
+    const base = prepareEditorValue(saved || currentDataRef.current).data || {
+      time: Date.now(),
+      version: '2.31.7',
+      blocks: [],
+    };
     setFindOpen(false);
     setQualityOpen(false);
     setGrammarOpen(false);

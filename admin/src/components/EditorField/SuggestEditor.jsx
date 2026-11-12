@@ -18,6 +18,7 @@ import { prepareEditorValue } from '../../editor/sanitize';
 import { createPasteHandler } from '../../editor/paste';
 import { createMarkdownShortcuts } from '../../editor/markdown-shortcuts';
 import { ConfirmAction } from '../ui/ConfirmAction';
+import { markInputReady } from '../../editor/input-tracking.mjs';
 import { checkPreset, isBlockAllowed } from '../../../../shared/presets.mjs';
 import { MAX_SUGGESTION_NOTE_LENGTH, suggestionsFromDiff } from '../../../../shared/suggestions.mjs';
 
@@ -210,11 +211,14 @@ export const SuggestEditor = ({
           onConverted: () => recompute(40),
         });
         setReady(true);
-        // Focus the copy so the user can start right away.
-        try {
-          editor.focus();
-        } catch {
-          // empty editors without a block cannot take the caret
+        // Focus the copy so the user can start right away, unless they already clicked into it
+        // while Editor.js was starting (moving the caret then breaks the "/" toolbox of the new block).
+        if (!holderRef.current.contains(document.activeElement)) {
+          try {
+            editor.focus();
+          } catch {
+            // empty editors without a block cannot take the caret
+          }
         }
       },
     });
@@ -272,7 +276,10 @@ export const SuggestEditor = ({
       if (!['Shift', 'Control', 'Alt', 'Meta'].includes(event.key)) leaveArmed = false;
     };
     window.addEventListener('keydown', onKeyDown, true);
+    // Readiness signal for people and tests (same attribute as the field editor).
+    const clearReady = markInputReady(holder);
     return () => {
+      clearReady();
       holder.removeEventListener('input', onInput);
       holder.removeEventListener('click', onInput);
       window.removeEventListener('keydown', onKeyDown, true);
