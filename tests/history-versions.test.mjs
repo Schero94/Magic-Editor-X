@@ -105,6 +105,65 @@ test('a label for unchanged content names the latest version instead of creating
   assert.equal(unchanged.snapshot.label, 'Approved');
 });
 
+// 2.4: Editor.js writes default tune values into every block it saves, stored
+// content often has none. Identical content must not create a version (seen as
+// session-end versions without changes).
+test('default tune values do not make content different; stored data keeps its tunes', async () => {
+  const { comparableBlocks } = await import('../shared/default-tunes.mjs');
+  const query = fakeQuery();
+  const { services } = fakeStrapi(query);
+  const withTunes = (text, tunes) => ({
+    ...content(text),
+    blocks: [{ id: 'a', type: 'paragraph', data: { text }, tunes }],
+  });
+  const defaults = { alignmentTune: { alignment: 'left' }, textVariant: '', indentTune: { indentLevel: 0 } };
+  assert.equal((await services.history.create(target, content('Same'))).created, true);
+  const again = await services.history.create(target, withTunes('Same', defaults), { trigger: 'auto' });
+  assert.equal(again.created, false);
+  assert.equal(query.rows.length, 1);
+  // A real tune change is a change, and the version keeps the tunes as stored.
+  const centered = withTunes('Same', { ...defaults, alignmentTune: { alignment: 'center' } });
+  const changed = await services.history.create(target, centered, { trigger: 'auto' });
+  assert.equal(changed.created, true);
+  assert.deepEqual(query.rows[1].jsonContent.blocks[0].tunes.alignmentTune, { alignment: 'center' });
+  assert.deepEqual(query.rows[1].jsonContent.blocks[0].tunes.indentTune, { indentLevel: 0 });
+  // The default form of the same content again is a change back (alignment left).
+  assert.equal((await services.history.create(target, withTunes('Same', defaults))).created, true);
+  assert.deepEqual(comparableBlocks([{ id: 'a', type: 'p', data: {}, tunes: defaults }]), [
+    { id: 'a', type: 'p', data: {} },
+  ]);
+});
+
+test('a version stored before 2.4 (hash with default tunes) is recognised as unchanged content', async () => {
+  const { createHash } = await import('node:crypto');
+  const { stableStringify } = await import('../shared/ydoc.mjs');
+  const query = fakeQuery();
+  const { services } = fakeStrapi(query);
+  const old = {
+    ...content('Kept'),
+    blocks: [
+      { id: 'a', type: 'paragraph', data: { text: 'Kept' }, tunes: { alignmentTune: { alignment: 'left' } } },
+    ],
+  };
+  await query.create({
+    data: {
+      ...target,
+      roomId: 'legacy',
+      contentType: target.uid,
+      entryId: target.documentId,
+      entryLocale: target.locale,
+      fieldName: target.field,
+      version: 1,
+      trigger: 'auto',
+      contentHash: createHash('sha256').update(stableStringify(old.blocks)).digest('hex'),
+      jsonContent: old,
+    },
+  });
+  const outcome = await services.history.create(target, content('Kept'), { trigger: 'auto' });
+  assert.equal(outcome.created, false);
+  assert.equal(query.rows.length, 1);
+});
+
 test('rename sets, normalises and clears labels; unknown ids are 404', async () => {
   const { services } = fakeStrapi(fakeQuery());
   const { snapshot } = await services.history.create(target, content('One'));

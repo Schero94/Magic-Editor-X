@@ -16,6 +16,7 @@ const {
   stableStringify,
 } = require('../../../shared/ydoc.mjs');
 const { applyCheckedUpdate } = require('../../../shared/ydoc-guard.mjs');
+const { comparableBlocks } = require('../../../shared/default-tunes.mjs');
 const { resolveFieldPreset, checkBlockStructure } = require('../../../shared/presets.mjs');
 const { resolveEditorField } = require('../utils/editor-fields');
 const { readPositionalEntries } = require('../utils/field-identity');
@@ -706,7 +707,9 @@ module.exports = ({ strapi }) => {
             return null;
           }
         };
-        const blocksOf = (value) => stableStringify(value && Array.isArray(value.blocks) ? value.blocks : []);
+        // Default tune values count as "no tune": the editor writes them into the room, stored content may lack them.
+        const blocksOf = (value) =>
+          stableStringify(comparableBlocks(value && Array.isArray(value.blocks) ? value.blocks : []));
         let saved = null;
         try {
           saved = clean(await readStoredValue(target));
