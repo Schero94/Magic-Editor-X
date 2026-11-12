@@ -4,6 +4,7 @@ module.exports = {
   store: require('./store'),
   access: require('./access'),
   links: require('./links'),
+  references: require('./references'),
   quality: require('./quality'),
   editor: require('./editor'),
   settings: require('./settings'),
