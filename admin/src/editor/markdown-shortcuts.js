@@ -57,7 +57,7 @@ export const createMarkdownShortcuts = ({ holder, editor, getPreset, hasTool, on
     editor.blocks.insert(block.type, block.data, undefined, current.index, true, true);
     // Put the caret into the new block right away, so the next keystroke
     // (which may follow within milliseconds) lands there.
-    let placed = false;
+    let placed;
     try {
       placed = editor.caret.setToBlock(current.index, 'start');
     } catch {
