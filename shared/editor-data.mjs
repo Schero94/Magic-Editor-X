@@ -311,6 +311,8 @@ export const computeStats = (data) => {
     }
   };
   data.blocks.forEach((block) => {
+    // A synced block (2.3) stores only a reference; its text belongs to the source.
+    if (block && block.type === 'synced' && isPlainObject(block.data) && 'ref' in block.data) return;
     // Code-registered blocks (custom block SDK) count their text and inline fields only.
     const definition = block && activeBlock(block.type);
     if (definition) definition.fields(block.data).forEach((field) => collect(field.value));

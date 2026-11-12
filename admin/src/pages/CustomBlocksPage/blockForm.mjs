@@ -18,7 +18,7 @@ export const TUNES = Object.freeze(['alignmentTune', 'textVariant', 'indentTune'
 export const BLOCK_TYPES = Object.freeze(['simple', 'embedded-entry']);
 
 /** Names that became built-in blocks in 2.3; an existing custom block keeps its name. */
-export const LEGACY_NAMES = Object.freeze(['gallery', 'video', 'audio']);
+export const LEGACY_NAMES = Object.freeze(['gallery', 'video', 'audio', 'synced']);
 
 /** Built-in tool names (lower case), same list as the server. */
 export const RESERVED_NAMES = Object.freeze(
@@ -41,6 +41,7 @@ export const RESERVED_NAMES = Object.freeze(
     'gallery',
     'video',
     'audio',
+    'synced',
     'linkTool',
     'attaches',
     'personality',
@@ -266,7 +267,7 @@ export const validateBlock = (values, context = {}) => {
   const name = String(values.name || '').trim();
   if (!name) errors.name = 'required';
   else if (!NAME_PATTERN.test(name)) errors.name = 'namePattern';
-  // A block created before 2.3 may keep a name that 2.3 gave to a built-in block (gallery, video, audio).
+  // A block created before 2.3 may keep a name that 2.3 gave to a built-in block (gallery, video, audio, synced).
   else if (
     RESERVED_NAMES.includes(name.toLowerCase()) &&
     !(LEGACY_NAMES.includes(name) && context.originalName === name)

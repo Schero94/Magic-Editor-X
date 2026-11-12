@@ -266,5 +266,8 @@ export const xssDocument = (payload) =>
     { type: 'button', data: { text: payload, link: payload, style: payload } },
     { type: 'toc', data: { title: payload, minLevel: payload, maxLevel: 6, style: payload } },
     { type: 'toc', data: { title: '', minLevel: 1, maxLevel: 6, style: 'ordered' } },
+    // Synced blocks render nothing without `options.synced` (the Content API expands them).
+    { type: 'synced', data: { ref: payload } },
+    { type: 'synced', data: { ref: 'abc123' } },
     { type: 'custom-x', data: { title: payload, url: payload, nested: { a: payload } } }
   );

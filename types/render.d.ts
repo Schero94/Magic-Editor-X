@@ -156,7 +156,25 @@ export interface RenderOptions {
    * still win.
    */
   blocks?: ReadonlyArray<import('./blocks.js').BlockDefinition<any>>;
+  /**
+   * Synced blocks (2.3): the sources of `synced` reference blocks, as a map
+   * `{ [ref]: document | blocks }` (object or Map) or a function
+   * `(ref) => document | blocks | null`. A reference is replaced by a copy of
+   * its source (nested references inside a source are dropped). Without this
+   * option, or for an unknown reference, a synced block renders nothing.
+   * Content API output (`?mex=`) and GraphQL `…Rendered`/`…Resolved` already
+   * come expanded.
+   */
+  synced?: SyncedSources;
 }
+
+/** A synced block source: an Editor.js document or its block array. */
+export type SyncedSource = { blocks: ReadonlyArray<unknown> } | ReadonlyArray<unknown>;
+/** Sources of synced blocks by reference (the source's documentId). */
+export type SyncedSources =
+  | Readonly<Record<string, SyncedSource>>
+  | ReadonlyMap<string, SyncedSource>
+  | ((ref: string) => SyncedSource | null | undefined);
 
 /** Renders a stored value to HTML. Empty or invalid input gives ''. */
 export function renderHtml(value: unknown, options?: RenderOptions): string;

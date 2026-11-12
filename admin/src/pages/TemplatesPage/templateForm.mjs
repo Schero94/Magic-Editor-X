@@ -6,6 +6,7 @@
 
 import { TEMPLATE_LIMITS, isEmptyDocument, normalizeScope } from '../../../../shared/templates.mjs';
 import { PRESET_NAMES } from '../../../../shared/presets.mjs';
+import { containsSynced } from '../../../../shared/synced.mjs';
 
 export { PRESET_NAMES };
 
@@ -48,7 +49,7 @@ export const fromDto = (dto) => {
   return {
     name: dto.name || '',
     description: dto.description || '',
-    kind: dto.kind === 'pattern' ? 'pattern' : 'template',
+    kind: dto.kind === 'pattern' || dto.kind === 'synced' ? dto.kind : 'template',
     enabled: dto.enabled !== false,
     scopeMode: scope.all ? 'all' : 'limited',
     presets: scope.presets,
@@ -60,7 +61,7 @@ export const fromDto = (dto) => {
 /**
  * Validates values with the server's rules.
  * @param {object} values - Form values.
- * @returns {Record<string, string>} Error codes by field (`required`, `tooLong`, `scope`, `content`, `tooManyBlocks`).
+ * @returns {Record<string, string>} Error codes by field (`required`, `tooLong`, `scope`, `content`, `tooManyBlocks`, `nestedSynced`).
  */
 export const validateTemplate = (values) => {
   const errors = {};
@@ -73,6 +74,7 @@ export const validateTemplate = (values) => {
     errors.scope = 'scope';
   if (isEmptyDocument(values.blocks)) errors.blocks = 'content';
   else if (values.blocks.blocks.length > TEMPLATE_LIMITS.blocks) errors.blocks = 'tooManyBlocks';
+  else if (values.kind === 'synced' && containsSynced(values.blocks.blocks)) errors.blocks = 'nestedSynced';
   return errors;
 };
 
@@ -118,6 +120,40 @@ export const mapServerErrors = (details) => {
   if (formErrors[0]) out._form = formErrors[0];
   return out;
 };
+
+/**
+ * Moves an item within the visible (filtered) part of the list: it swaps
+ * places with its visible neighbour; hidden items keep their positions.
+ * @param {string[]} ids - Every id in order.
+ * @param {string[]} visibleIds - Ids shown, in order.
+ * @param {string} id - Item to move.
+ * @param {-1|1} direction - Up or down.
+ * @returns {string[]|null} New order, or null when it cannot move.
+ */
+export const moveWithin = (ids, visibleIds, id, direction) => {
+  const at = visibleIds.indexOf(id);
+  const neighbour = visibleIds[at + direction];
+  if (at < 0 || neighbour === undefined) return null;
+  const next = [...ids];
+  const a = next.indexOf(id);
+  const b = next.indexOf(neighbour);
+  if (a < 0 || b < 0) return null;
+  next[a] = neighbour;
+  next[b] = id;
+  return next;
+};
+
+/** Kind filter values of the list. */
+export const KIND_FILTERS = Object.freeze(['all', 'template', 'pattern', 'synced']);
+
+/**
+ * Templates shown for a kind filter.
+ * @param {object[]} templates - Templates.
+ * @param {string} filter - One of `KIND_FILTERS`.
+ * @returns {object[]} Templates.
+ */
+export const filterByKind = (templates, filter) =>
+  filter && filter !== 'all' ? templates.filter((template) => template.kind === filter) : templates;
 
 /**
  * Comparable form of values (block ids and times are kept; the editor emits

@@ -1,5 +1,17 @@
-import { useRef, useState } from 'react';
-import { Alert, Box, Button, EmptyStateLayout, Modal } from '@strapi/design-system';
+import { useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import {
+  Alert,
+  Box,
+  Button,
+  EmptyStateLayout,
+  Field,
+  Flex,
+  Modal,
+  SingleSelect,
+  SingleSelectOption,
+  Typography,
+} from '@strapi/design-system';
 import { Plus } from '@strapi/icons';
 import { EmptyDocuments } from '@strapi/icons/symbols';
 import { Page, useFetchClient, useNotification, useRBAC } from '@strapi/strapi/admin';
@@ -8,16 +20,24 @@ import { API, readApiError } from '../../utils/api';
 import { PageShell, SectionCard, refocusIfLost, useT } from '../../components/ui';
 import { RenderedContent } from '../../components/RenderedContent';
 import { resetEditorConfigCache } from '../../hooks/useEditorConfig';
-import { moveId } from '../CustomBlocksPage/blockForm.mjs';
-import { mapServerErrors, toPayload, withEnabled } from './templateForm.mjs';
+import {
+  KIND_FILTERS,
+  filterByKind,
+  mapServerErrors,
+  moveWithin,
+  toPayload,
+  withEnabled,
+} from './templateForm.mjs';
 import { useTemplateList } from './useTemplateList';
 import { TemplateList } from './TemplateList';
 import { TemplateEditor } from './TemplateEditor';
 
 /**
- * Settings -> Magic Editor X -> Templates (2.3): templates and block patterns
- * that editors insert from the editor toolbar. The list and the editor view
- * share this page; the editor view replaces the list while it is open.
+ * Settings -> Magic Editor X -> Templates (2.3): templates, block patterns
+ * and synced blocks that editors insert from the editor toolbar. The list and
+ * the editor view share this page; the editor view replaces the list while it
+ * is open. `?edit=<id>` opens a template directly ("Edit source" of a synced
+ * block in the editor links here).
  * @returns {JSX.Element} Page.
  */
 const TemplatesPage = () => {
@@ -31,7 +51,25 @@ const TemplatesPage = () => {
   const [busyId, setBusyId] = useState(null);
   const createRef = useRef(null);
   const previewOpenerRef = useRef(null);
+  const [kindFilter, setKindFilter] = useState('all');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const editParam = searchParams.get('edit');
   const title = t('settings.templates.title', 'Templates');
+
+  // Deep link from a synced block: open its source once the list is loaded (state adjusted while rendering).
+  const [handledEdit, setHandledEdit] = useState(null);
+  if (editParam && editParam !== handledEdit && data.status === 'ready') {
+    setHandledEdit(editParam);
+    const found = data.templates.find((item) => item.id === editParam);
+    if (found) setEditing({ template: found, key: editParam });
+  }
+  // Then drop the parameter, so "Back" and reloads show the list.
+  useEffect(() => {
+    if (!editParam || editParam !== handledEdit) return;
+    const next = new URLSearchParams(searchParams);
+    next.delete('edit');
+    setSearchParams(next, { replace: true });
+  }, [editParam, handledEdit, searchParams, setSearchParams]);
 
   if (rbacLoading || data.status === 'loading') {
     return (
@@ -168,9 +206,12 @@ const TemplatesPage = () => {
     }
   };
 
+  const shownTemplates = filterByKind(data.templates, kindFilter);
+
   const onMove = async (template, direction) => {
-    const ids = moveId(
+    const ids = moveWithin(
       data.templates.map((item) => item.id),
+      shownTemplates.map((item) => item.id),
       template.id,
       direction
     );
@@ -249,20 +290,51 @@ const TemplatesPage = () => {
           />
         </SectionCard>
       ) : (
-        <TemplateList
-          templates={data.templates}
-          busyId={busyId}
-          onToggle={onToggle}
-          onPreview={(template) => {
-            previewOpenerRef.current = typeof document !== 'undefined' ? document.activeElement : null;
-            setPreview(template);
-          }}
-          onEdit={(template) => setEditing({ template, key: Date.now() })}
-          onDuplicate={onDuplicate}
-          onMove={onMove}
-          onDelete={onDelete}
-          fallbackFocusRef={createRef}
-        />
+        <Flex direction="column" alignItems="stretch" gap={4}>
+          <Box maxWidth="32rem">
+            <Field.Root name="mex-template-kind-filter">
+              <Field.Label>{t('settings.templates.filter.label', 'Show')}</Field.Label>
+              <SingleSelect
+                value={kindFilter}
+                onChange={(value) => setKindFilter(KIND_FILTERS.includes(value) ? value : 'all')}
+                data-testid="mex-template-filter"
+              >
+                <SingleSelectOption value="all">
+                  {t('settings.templates.filter.all', 'All types')}
+                </SingleSelectOption>
+                <SingleSelectOption value="template">
+                  {t('settings.templates.filter.template', 'Templates')}
+                </SingleSelectOption>
+                <SingleSelectOption value="pattern">
+                  {t('settings.templates.filter.pattern', 'Patterns')}
+                </SingleSelectOption>
+                <SingleSelectOption value="synced">
+                  {t('settings.templates.filter.synced', 'Synced blocks')}
+                </SingleSelectOption>
+              </SingleSelect>
+            </Field.Root>
+          </Box>
+          {shownTemplates.length === 0 ? (
+            <Typography variant="omega" textColor="neutral600" role="status">
+              {t('settings.templates.filter.empty', 'Nothing of this type yet.')}
+            </Typography>
+          ) : (
+            <TemplateList
+              templates={shownTemplates}
+              busyId={busyId}
+              onToggle={onToggle}
+              onPreview={(template) => {
+                previewOpenerRef.current = typeof document !== 'undefined' ? document.activeElement : null;
+                setPreview(template);
+              }}
+              onEdit={(template) => setEditing({ template, key: Date.now() })}
+              onDuplicate={onDuplicate}
+              onMove={onMove}
+              onDelete={onDelete}
+              fallbackFocusRef={createRef}
+            />
+          )}
+        </Flex>
       )}
       {preview ? (
         <Modal.Root

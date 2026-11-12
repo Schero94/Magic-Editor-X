@@ -23,7 +23,7 @@ const UID = 'plugin::magic-editor-x.custom-block';
  * data lacks the built-in marker key, see `MEDIA_BLOCK_MARKERS`) and can still
  * be edited under its name.
  */
-const MEDIA_BLOCK_NAMES = new Set(['gallery', 'video', 'audio']);
+const MEDIA_BLOCK_NAMES = new Set(['gallery', 'video', 'audio', 'synced']);
 
 /** Built-in tool names a custom block must not shadow. */
 const RESERVED_NAMES = new Set(

@@ -37,6 +37,7 @@ export const API = {
   templatesOrder: '/magic-editor-x/templates/order',
   template: (id) => `/magic-editor-x/templates/${encodeURIComponent(id)}`,
   templateDuplicate: (id) => `/magic-editor-x/templates/${encodeURIComponent(id)}/duplicate`,
+  templateUsage: (id) => `/magic-editor-x/templates/${encodeURIComponent(id)}/usage`,
   settings: '/magic-editor-x/settings',
   settingsAiTest: '/magic-editor-x/settings/ai/test',
   settingsLanguageToolTest: '/magic-editor-x/settings/language-tool/test',

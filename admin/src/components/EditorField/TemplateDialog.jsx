@@ -15,7 +15,8 @@ import { ConfirmDialog } from '@strapi/strapi/admin';
 import styled from 'styled-components';
 import { RenderedContent } from '../RenderedContent';
 import { useTemplates } from './useTemplates';
-import { prepareInsertion, searchTemplates } from '../../../../shared/templates.mjs';
+import { filterSyncedForField, prepareInsertion, searchTemplates } from '../../../../shared/templates.mjs';
+import { sourceBlocksOf } from '../../../../shared/synced.mjs';
 
 /**
  * "Insert template" dialog (2.3): lists the templates and patterns offered in
@@ -23,6 +24,8 @@ import { prepareInsertion, searchTemplates } from '../../../../shared/templates.
  * of what would be inserted (blocks the field does not allow are already left
  * out). Using a template on a field with content asks for confirmation
  * first. Managers can save the field's content as a new template from here.
+ * Synced blocks (2.3) are listed in their own section: inserting one adds a
+ * reference, and the preview shows what this field outputs for it.
  */
 
 /** One selectable template: a real button with aria-pressed, full width. */
@@ -89,11 +92,33 @@ export const TemplateDialog = ({
   const visible = useMemo(() => searchTemplates(items, query), [items, query]);
   const selected = visible.find((item) => item.id === selectedId) || visible[0] || null;
 
-  const plan = useMemo(
-    () => (selected ? prepareInsertion(selected.blocks.blocks, preset.restricted ? preset : null) : null),
-    [selected, preset]
-  );
+  const plan = useMemo(() => {
+    if (!selected) return null;
+    const restricted = preset.restricted ? preset : null;
+    if (selected.kind === 'synced') {
+      // What readers see: the source filtered by this field (the reference itself is one block).
+      const shown = filterSyncedForField(sourceBlocksOf(selected.blocks), restricted);
+      return { blocks: shown.blocks, omitted: shown.omitted ? [{ type: '', count: shown.omitted }] : [] };
+    }
+    return prepareInsertion(selected.blocks.blocks, restricted);
+  }, [selected, preset]);
   const omitted = plan ? plan.omitted.reduce((sum, entry) => sum + entry.count, 0) : 0;
+  const groups = useMemo(
+    () =>
+      [
+        {
+          key: 'templates',
+          label: t('editor.templates.list', 'Templates and patterns'),
+          items: visible.filter((item) => item.kind !== 'synced'),
+        },
+        {
+          key: 'synced',
+          label: t('editor.synced.section', 'Synced blocks'),
+          items: visible.filter((item) => item.kind === 'synced'),
+        },
+      ].filter((group) => group.items.length),
+    [visible, t]
+  );
 
   const run = async (template) => {
     setBusy(true);
@@ -118,10 +143,11 @@ export const TemplateDialog = ({
     await run(selected);
   };
 
-  const kindLabel = (kind) =>
-    kind === 'template'
-      ? t('editor.templates.kind.template', 'Template')
-      : t('editor.templates.kind.pattern', 'Pattern');
+  const kindLabel = (kind) => {
+    if (kind === 'template') return t('editor.templates.kind.template', 'Template');
+    if (kind === 'synced') return t('editor.synced.kind', 'Synced block');
+    return t('editor.templates.kind.pattern', 'Pattern');
+  };
 
   let body;
   if (status === 'loading' || status === 'idle') {
@@ -177,39 +203,62 @@ export const TemplateDialog = ({
         ) : (
           <Grid.Root gap={4}>
             <Grid.Item col={5} s={12} xs={12} direction="column" alignItems="stretch">
-              <List aria-label={t('editor.templates.list', 'Templates and patterns')}>
-                {visible.map((item) => (
-                  <li key={item.id}>
-                    <Option
-                      type="button"
-                      $selected={selected && selected.id === item.id}
-                      aria-pressed={Boolean(selected && selected.id === item.id)}
-                      onClick={() => setSelectedId(item.id)}
-                      onDoubleClick={() => applyRef.current && applyRef.current.click()}
-                      data-testid="mex-template-option"
+              <Flex direction="column" alignItems="stretch" gap={3} minWidth={0}>
+                {groups.map((group) => (
+                  <Flex key={group.key} direction="column" alignItems="stretch" gap={2} minWidth={0}>
+                    {groups.length > 1 || group.key === 'synced' ? (
+                      <Typography
+                        variant="sigma"
+                        tag="h3"
+                        textColor="neutral600"
+                        id={`mex-template-group-${group.key}`}
+                      >
+                        {group.label}
+                      </Typography>
+                    ) : null}
+                    <List
+                      aria-label={group.label}
+                      data-testid={group.key === 'synced' ? 'mex-synced-options' : undefined}
                     >
-                      <Flex direction="column" alignItems="flex-start" gap={1}>
-                        <Flex gap={2} wrap="wrap" alignItems="center">
-                          <Typography variant="omega" fontWeight="bold" textColor="neutral800">
-                            {item.name}
-                          </Typography>
-                          <Badge>{kindLabel(item.kind)}</Badge>
-                        </Flex>
-                        {item.description ? (
-                          <Typography variant="pi" textColor="neutral600">
-                            {item.description}
-                          </Typography>
-                        ) : null}
-                        <Typography variant="pi" textColor="neutral600">
-                          {t('editor.templates.blocks', '{count, plural, one {# block} other {# blocks}}', {
-                            count: item.blockCount,
-                          })}
-                        </Typography>
-                      </Flex>
-                    </Option>
-                  </li>
+                      {group.items.map((item) => (
+                        <li key={item.id}>
+                          <Option
+                            type="button"
+                            $selected={selected && selected.id === item.id}
+                            aria-pressed={Boolean(selected && selected.id === item.id)}
+                            onClick={() => setSelectedId(item.id)}
+                            onDoubleClick={() => applyRef.current && applyRef.current.click()}
+                            data-testid="mex-template-option"
+                          >
+                            <Flex direction="column" alignItems="flex-start" gap={1}>
+                              <Flex gap={2} wrap="wrap" alignItems="center">
+                                <Typography variant="omega" fontWeight="bold" textColor="neutral800">
+                                  {item.name}
+                                </Typography>
+                                <Badge>{kindLabel(item.kind)}</Badge>
+                              </Flex>
+                              {item.description ? (
+                                <Typography variant="pi" textColor="neutral600">
+                                  {item.description}
+                                </Typography>
+                              ) : null}
+                              <Typography variant="pi" textColor="neutral600">
+                                {t(
+                                  'editor.templates.blocks',
+                                  '{count, plural, one {# block} other {# blocks}}',
+                                  {
+                                    count: item.blockCount,
+                                  }
+                                )}
+                              </Typography>
+                            </Flex>
+                          </Option>
+                        </li>
+                      ))}
+                    </List>
+                  </Flex>
                 ))}
-              </List>
+              </Flex>
             </Grid.Item>
             <Grid.Item col={7} s={12} xs={12} direction="column" alignItems="stretch">
               {selected ? (
@@ -220,10 +269,15 @@ export const TemplateDialog = ({
                   <Typography variant="pi" textColor="neutral600">
                     {selected.kind === 'template'
                       ? t('editor.templates.hintTemplate', 'A template replaces the content of this field.')
-                      : t(
-                          'editor.templates.hintPattern',
-                          'A pattern is inserted after the block you worked on last.'
-                        )}
+                      : selected.kind === 'synced'
+                        ? t(
+                            'editor.synced.hint',
+                            'A synced block is inserted as a reference after the block you worked on last. When its source changes, every field that uses it shows the new content.'
+                          )
+                        : t(
+                            'editor.templates.hintPattern',
+                            'A pattern is inserted after the block you worked on last.'
+                          )}
                   </Typography>
                   {omitted ? (
                     <Typography variant="pi" textColor="danger600" data-testid="mex-template-omit">
@@ -284,7 +338,9 @@ export const TemplateDialog = ({
           >
             {selected && selected.kind === 'template'
               ? t('editor.templates.apply', 'Use template')
-              : t('editor.templates.insert', 'Insert pattern')}
+              : selected && selected.kind === 'synced'
+                ? t('editor.synced.insert', 'Insert synced block')
+                : t('editor.templates.insert', 'Insert pattern')}
           </Button>
         </Modal.Footer>
       </Modal.Content>

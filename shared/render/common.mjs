@@ -16,6 +16,7 @@ import {
 import { compileBlockList } from '../blocks/define.mjs';
 import { inlineToHtml, inlineToText } from './inline.mjs';
 import { createAnchorAllocator, createSlugAllocator } from '../toc.mjs';
+import { containsSynced, expandSynced, syncedLookup } from '../synced.mjs';
 
 /**
  * @typedef {object} PreparedBlock
@@ -38,12 +39,16 @@ const keepInline = (html) => inlineToHtml(html, { storage: true });
 /**
  * Normalises any stored value and returns cleaned blocks with toggle children grouped.
  * @param {unknown} value - Stored field value (object, JSON string, legacy shapes).
- * @param {{ rawHtml?: string, sanitizeRaw?: (html: string) => string }} [options] - Render options.
+ * @param {{ rawHtml?: string, sanitizeRaw?: (html: string) => string, synced?: unknown }} [options] - Render options.
  * @returns {PreparedBlock[]} Blocks in document order.
  */
 export const prepareBlocks = (value, options = {}) => {
-  const data = normalizeEditorDataSafe(value);
-  if (!data) return [];
+  const normalized = normalizeEditorDataSafe(value);
+  if (!normalized) return [];
+  // Synced blocks (2.3): replaced by their source from `options.synced`, else by nothing.
+  const data = containsSynced(normalized.blocks)
+    ? expandSynced(normalized, syncedLookup(options.synced)).data
+    : normalized;
   const rawPolicy =
     options.rawHtml === 'allow' && typeof options.sanitizeRaw === 'function' ? 'allow' : 'disable';
   const ctx = { rawHtml: rawPolicy, rawSanitizer: () => '' };

@@ -110,6 +110,17 @@ module.exports = ({ strapi }) => {
       ctx.body = { data: await templates().duplicate(id, ctx.state.user) };
     },
 
+    /**
+     * @route GET /magic-editor-x/templates/:id/usage
+     * @auth admin; access + templates.manage
+     * @returns {{ data: { entries: number, fields: number, templates: number, complete: boolean } }} How often a synced source is referenced (counts only).
+     * @throws {errors.NotFoundError} Unknown id or not a synced source.
+     */
+    async usage(ctx) {
+      const { id } = parseOrThrow(idParams, { id: ctx.params.id });
+      ctx.body = { data: await templates().usage(id) };
+    },
+
     /** @route PUT /magic-editor-x/templates/order { ids } @auth admin; access + templates.manage @sideeffect Saves the order. */
     async reorder(ctx) {
       const { ids } = parseOrThrow(

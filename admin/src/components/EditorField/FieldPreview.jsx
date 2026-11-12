@@ -28,6 +28,7 @@ const Region = styled(Box)`
  * @param {object} props - Props.
  * @param {Function} props.t - Translator.
  * @param {object|null} props.data - Current editor data.
+ * @param {Map<string, object[]>} [props.synced] - Sources of the synced blocks (filtered for the field).
  * @param {boolean} props.allowRaw - Render Raw HTML blocks (sanitised).
  * @param {number} props.minHeight - Minimum height in pixels (the field option).
  * @param {boolean} props.fullscreen - Field is in full screen.
@@ -38,7 +39,7 @@ const Region = styled(Box)`
  * @returns {JSX.Element} Preview region.
  */
 export const FieldPreview = forwardRef(function FieldPreview(
-  { t, data, allowRaw, minHeight, fullscreen, lang, dir, id },
+  { t, data, synced, allowRaw, minHeight, fullscreen, lang, dir, id },
   ref
 ) {
   return (
@@ -61,7 +62,7 @@ export const FieldPreview = forwardRef(function FieldPreview(
           {t('editor.preview.empty', 'Nothing to preview yet.')}
         </Typography>
       ) : (
-        <RenderedContent value={data} t={t} allowRaw={allowRaw} lang={lang} dir={dir} />
+        <RenderedContent value={data} t={t} synced={synced} allowRaw={allowRaw} lang={lang} dir={dir} />
       )}
     </Region>
   );

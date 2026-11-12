@@ -62,8 +62,8 @@ const middleware = (_config, { strapi }) => {
     const service = strapi.plugin('magic-editor-x').service('references');
 
     const targets = [];
-    walkOutput(strapi, schema, ctx.body.data, (holder, key, _attribute, locale) => {
-      targets.push({ holder, key, value: holder[key], locale });
+    walkOutput(strapi, schema, ctx.body.data, (holder, key, attribute, locale) => {
+      targets.push({ holder, key, value: holder[key], locale, options: attribute && attribute.options });
     });
     if (!targets.length) return;
     try {

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useIntl } from 'react-intl';
 import { useHref, useNavigate } from 'react-router-dom';
 import EditorJS from '@editorjs/editorjs';
@@ -43,7 +44,16 @@ import { blockExcerpt, openThreadsByBlock } from '../../../../shared/comments.mj
 import { FieldPreview } from './FieldPreview';
 import { TemplateDialog } from './TemplateDialog';
 import { SaveTemplateDialog } from './SaveTemplateDialog';
-import { insertBlocksAt, isEmptyDocument, prepareInsertion } from '../../../../shared/templates.mjs';
+import {
+  filterSyncedForField,
+  insertBlocksAt,
+  isEmptyDocument,
+  newBlockId,
+  prepareInsertion,
+} from '../../../../shared/templates.mjs';
+import { replaceBlocks, sourceBlocksOf, syncedRefOf, syncedRefsOf } from '../../../../shared/synced.mjs';
+import { loadSynced, primeSynced, useSyncedSources } from '../../editor/synced-store';
+import { SyncedBlockView } from './SyncedBlockView';
 import { createPasteHandler } from '../../editor/paste';
 import { createMarkdownShortcuts } from '../../editor/markdown-shortcuts';
 import { createMentionKeys } from '../../editor/tools/mention';
@@ -127,6 +137,7 @@ const PanelSlot = styled(Box)`
 
 /** Settings page that explains the CSP sources (registered in admin/src/index.js). */
 const SETTINGS_PATH = '/settings/magic-editor-x/configuration';
+const TEMPLATES_PATH = '/settings/magic-editor-x/templates';
 
 const Frame = styled(Box)`
   min-width: 0;
@@ -243,6 +254,7 @@ const EditorFieldBody = ({
   const { config, customBlocks, error: configError, loading: configLoading, retry } = useEditorConfig();
   const navigate = useNavigate();
   const settingsHref = useHref(SETTINGS_PATH);
+  const templatesHref = useHref(TEMPLATES_PATH);
   // The editor is not rebuilt on a locale switch; the link picker reads the current locale through this ref.
   const contentLocaleRef = useRef(target.locale);
   useEffect(() => {
@@ -312,6 +324,21 @@ const EditorFieldBody = ({
   const previewButtonRef = useRef(null);
   const templatesButtonRef = useRef(null);
   const lastBlockIdRef = useRef(null);
+  // Synced blocks (2.3): the tool hands its element to the field, which renders the view through a portal.
+  const [syncedMounts, setSyncedMounts] = useState(() => new Map());
+  const syncedKeyRef = useRef(0);
+  const mountSynced = useCallback((element, info) => {
+    syncedKeyRef.current += 1;
+    const key = syncedKeyRef.current;
+    setSyncedMounts((current) => new Map(current).set(key, { element, ...info }));
+    return () =>
+      setSyncedMounts((current) => {
+        if (!current.has(key)) return current;
+        const next = new Map(current);
+        next.delete(key);
+        return next;
+      });
+  }, []);
 
   useEffect(() => {
     onChangeRef.current = onChange;
@@ -702,6 +729,7 @@ const EditorFieldBody = ({
       customBlocks,
       placeholder,
       attachmentTypes: config.uploads.attachmentTypes,
+      mountSynced,
     });
     const toolNames = new Set(Object.keys(tools));
     const shortcutList = Object.entries(tools)
@@ -1230,6 +1258,122 @@ const EditorFieldBody = ({
   }, []);
 
   /**
+   * Inserts a reference to a synced source after the last used block (or
+   * into an empty field). Only the reference is stored in the field.
+   */
+  const insertSynced = useCallback(
+    async (template, saved) => {
+      if (!isBlockAllowed(preset, 'synced')) return false;
+      const taken = new Set(saved.blocks.map((block) => block.id));
+      let id = newBlockId();
+      while (taken.has(id)) id = newBlockId();
+      const block = { id, type: 'synced', data: { ref: template.id } };
+      primeSynced(template);
+      const empty = isEmptyDocument(saved);
+      const anchor =
+        !empty && lastBlockIdRef.current
+          ? saved.blocks.findIndex((item) => item.id === lastBlockIdRef.current)
+          : -1;
+      const next = empty
+        ? { time: Date.now(), version: saved.version || '2.31.7', blocks: [block] }
+        : insertBlocksAt(saved, [block], anchor >= 0 ? anchor : saved.blocks.length - 1);
+      await replaceContent(next);
+      lastBlockIdRef.current = id;
+      toggleNotification({
+        type: 'success',
+        message: t('editor.synced.inserted', 'Synced block {name} inserted.', { name: template.name }),
+      });
+      return true;
+    },
+    [preset, replaceContent, t, toggleNotification]
+  );
+
+  /**
+   * "Detach": replaces a synced block with a copy of its source's current
+   * blocks (fresh ids, filtered by the field preset like a pattern), through
+   * the same path as other whole-document changes, so Undo brings the
+   * reference back.
+   */
+  const detachSynced = useCallback(
+    async (blockId) => {
+      const editor = editorRef.current;
+      if (!editor || readOnly) return;
+      const saved = await editor.save().catch(() => null);
+      const block = saved ? saved.blocks.find((item) => item.id === blockId) : null;
+      const ref = block ? syncedRefOf(block) : null;
+      if (!ref) return;
+      const entry = await loadSynced(get, ref, { force: true });
+      if (!entry.template) {
+        toggleNotification({
+          type: 'warning',
+          message: t(
+            'editor.synced.detachFailed',
+            'The synced block could not be loaded, so it was not detached.'
+          ),
+        });
+        return;
+      }
+      const plan = prepareInsertion(
+        sourceBlocksOf(entry.template.blocks),
+        preset.restricted ? preset : null,
+        {
+          existingCount: saved.blocks.length - 1,
+          existingIds: saved.blocks.map((item) => item.id),
+        }
+      );
+      if (!plan.blocks.length) {
+        toggleNotification({
+          type: 'warning',
+          message: t('editor.templates.nothing', 'No block of {name} fits this field.', {
+            name: entry.template.name,
+          }),
+        });
+        return;
+      }
+      const next = {
+        time: Date.now(),
+        version: saved.version || '2.31.7',
+        blocks: replaceBlocks(saved.blocks, (item) => (item.id === blockId ? plan.blocks : null)),
+      };
+      await replaceContent(next);
+      lastBlockIdRef.current = plan.blocks[plan.blocks.length - 1].id;
+      selectBlock(plan.blocks[0].id);
+      toggleNotification({
+        type: 'success',
+        message: t(
+          'editor.synced.detached',
+          '{name} detached: {count, plural, one {# block is} other {# blocks are}} now regular content of this field. Undo brings the synced block back.',
+          { name: entry.template.name, count: plan.blocks.length }
+        ),
+      });
+    },
+    [get, preset, readOnly, replaceContent, selectBlock, t, toggleNotification]
+  );
+
+  const syncedEditHref = useCallback(
+    (id) => (canManageTemplates ? `${templatesHref}?edit=${encodeURIComponent(id)}` : null),
+    [canManageTemplates, templatesHref]
+  );
+
+  // The preview renders synced blocks with their current source (filtered like the API output).
+  const previewSyncedRefs = useMemo(
+    () => (previewOpen ? syncedRefsOf(currentData) : []),
+    [previewOpen, currentData]
+  );
+  const { entries: previewSources } = useSyncedSources(previewSyncedRefs);
+  const previewSynced = useMemo(() => {
+    const map = new Map();
+    for (const [ref, entry] of previewSources)
+      if (entry.template)
+        map.set(
+          ref,
+          filterSyncedForField(sourceBlocksOf(entry.template.blocks), preset.restricted ? preset : null)
+            .blocks
+        );
+    return map;
+  }, [previewSources, preset]);
+
+  /**
    * Applies a template (replaces the content) or inserts a pattern after the
    * last used block, through the same path as other whole-document changes
    * (Editor.js block API, shared document, undo). Blocks the field does not
@@ -1240,6 +1384,7 @@ const EditorFieldBody = ({
       const editor = editorRef.current;
       if (!editor || readOnly) return false;
       const saved = (await editor.save().catch(() => null)) || { blocks: [] };
+      if (template.kind === 'synced') return insertSynced(template, saved);
       const source = prepareEditorValue(template.blocks).data;
       if (!source) return false;
       const replacing = template.kind === 'template' || isEmptyDocument(saved);
@@ -1304,7 +1449,7 @@ const EditorFieldBody = ({
       if (notes.length) toggleNotification({ type: 'warning', message: notes.join(' ') });
       return true;
     },
-    [preset, readOnly, replaceContent, selectBlock, t, toggleNotification]
+    [insertSynced, preset, readOnly, replaceContent, selectBlock, t, toggleNotification]
   );
 
   /** "Save as pattern" from the block selection bar (template managers). */
@@ -1525,6 +1670,7 @@ const EditorFieldBody = ({
               id={`${name}-mex-preview`}
               t={t}
               data={currentData}
+              synced={previewSynced}
               allowRaw={allowRawPreview}
               minHeight={minHeight}
               fullscreen={fullscreen}
@@ -1662,6 +1808,23 @@ const EditorFieldBody = ({
           onClose={() => setShortcutsOpen(false)}
         />
       ) : null}
+      {[...syncedMounts].map(([key, mount]) =>
+        createPortal(
+          <SyncedBlockView
+            t={t}
+            refId={mount.ref}
+            readOnly={Boolean(mount.readOnly || readOnly)}
+            preset={preset}
+            editHref={syncedEditHref}
+            onDetach={() => detachSynced(mount.blockId)}
+            allowRaw={allowRawPreview}
+            lang={target.locale || undefined}
+            dir={direction}
+          />,
+          mount.element,
+          String(key)
+        )
+      )}
       {templatesOpen ? (
         <TemplateDialog
           t={t}

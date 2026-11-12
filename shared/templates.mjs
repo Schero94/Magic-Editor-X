@@ -14,9 +14,17 @@
  */
 
 import { isPlainObject } from './editor-data.mjs';
-import { checkBlockStructure, fixPresetViolations, isBlockAllowed, PRESET_NAMES } from './presets.mjs';
+import {
+  checkBlockStructure,
+  fixPresetViolations,
+  imageHasAlt,
+  isBlockAllowed,
+  PRESET_NAMES,
+} from './presets.mjs';
+import { replaceBlocks } from './synced.mjs';
 
-export const TEMPLATE_KINDS = Object.freeze(['template', 'pattern']);
+/** `synced` (2.3): the source of synced blocks; fields store a reference to it. */
+export const TEMPLATE_KINDS = Object.freeze(['template', 'pattern', 'synced']);
 
 /** Bounds of one template (enforced on the server; the admin checks them before sending). */
 export const TEMPLATE_LIMITS = Object.freeze({
@@ -161,6 +169,45 @@ export const prepareInsertion = (blocks, preset, options = {}) => {
     adjusted,
     truncated,
   };
+};
+
+/**
+ * The blocks of a synced source that a field shows (its preset decides):
+ * blocks of types the field does not allow are left out (a disallowed
+ * toggle's content stays), heading levels and links are fixed the way "Fix
+ * automatically" fixes them, unfixable blocks and images without the
+ * alternative text a `requireAlt` field needs are left out. Ids are kept.
+ * Limits (`maxBlocks`, `maxCharacters`) count the reference as one block and
+ * are not applied to the source.
+ * @param {Array<{ id: string, type: string, data: object, tunes?: object }>} blocks - Source blocks (normalised).
+ * @param {import('./presets.mjs').FieldPreset|null} preset - Field preset (null = every block allowed).
+ * @returns {{ blocks: Array<object>, omitted: number }} Blocks and the number left out.
+ */
+export const filterSyncedForField = (blocks, preset) => {
+  const list = Array.isArray(blocks) ? blocks : [];
+  if (!preset || !preset.restricted) return { blocks: list, omitted: 0 };
+  let omitted = 0;
+  const out = replaceBlocks(list, (block) => {
+    if (!isBlockAllowed(preset, block.type)) {
+      omitted += 1;
+      return [];
+    }
+    let next = block;
+    if (checkBlockStructure(preset, block)) {
+      const fixed = fixPresetViolations({ blocks: [block] }, preset).data.blocks[0];
+      if (!fixed || checkBlockStructure(preset, fixed)) {
+        omitted += 1;
+        return [];
+      }
+      next = fixed;
+    }
+    if (preset.requireAlt && imageHasAlt(next) === false) {
+      omitted += 1;
+      return [];
+    }
+    return next === block ? null : [next];
+  });
+  return { blocks: out, omitted };
 };
 
 /**
