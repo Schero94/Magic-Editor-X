@@ -14,6 +14,7 @@ import {
   VisuallyHidden,
 } from '@strapi/design-system';
 import { useFetchClient, useNotification, useStrapiApp } from '@strapi/strapi/admin';
+import { Lightbulb, Pencil } from '@strapi/icons';
 import styled, { createGlobalStyle } from 'styled-components';
 import { buildTools, editorI18n, createUndoManager, createDragDrop } from '../../editor/tools';
 import { editorStyles } from '../../editor/tools/styles';
@@ -2304,9 +2305,16 @@ const EditorFieldBody = ({
                     'You cannot edit this field, but you can suggest changes.'
                   )}
                 </Typography>
-                <TextButton onClick={startSuggest} disabled={!ready} data-testid="mex-suggest-start">
+                <Button
+                  variant="ghost"
+                  size="S"
+                  startIcon={<Pencil />}
+                  onClick={startSuggest}
+                  disabled={!ready}
+                  data-testid="mex-suggest-start"
+                >
                   {t('editor.suggest.start', 'Suggest changes')}
-                </TextButton>
+                </Button>
               </>
             ) : null}
             {suggestionsOpenCount > 0 && !suggestionsOpen ? (
@@ -2318,11 +2326,17 @@ const EditorFieldBody = ({
                     { count: suggestionsOpenCount }
                   )}
                 </Typography>
-                <TextButton onClick={() => setSuggestionsOpen(true)} data-testid="mex-suggestions-show">
+                <Button
+                  variant="ghost"
+                  size="S"
+                  startIcon={<Lightbulb />}
+                  onClick={() => setSuggestionsOpen(true)}
+                  data-testid="mex-suggestions-show"
+                >
                   {suggestions.canReview && editableOutsideSuggest
                     ? t('editor.suggestions.review', 'Review suggestions')
                     : t('editor.suggestions.showAll', 'Show suggestions')}
-                </TextButton>
+                </Button>
               </>
             ) : null}
           </Flex>

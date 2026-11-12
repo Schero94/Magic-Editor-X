@@ -7,7 +7,6 @@ import {
   Flex,
   IconButton,
   Loader,
-  TextButton,
   Typography,
   VisuallyHidden,
 } from '@strapi/design-system';
@@ -434,7 +433,7 @@ export const SuggestionsPanel = ({
                     {extra ? (
                       <Badge
                         backgroundColor={state === 'outdated' ? 'warning100' : 'neutral150'}
-                        textColor={state === 'outdated' ? 'warning700' : 'neutral800'}
+                        textColor="neutral800"
                       >
                         {t(extra.key, extra.text)}
                       </Badge>
@@ -530,7 +529,9 @@ export const SuggestionsPanel = ({
                       />
                     ) : null}
                     {state !== 'missing' ? (
-                      <TextButton
+                      <Button
+                        variant="ghost"
+                        size="S"
                         onClick={() =>
                           onSelectBlock(
                             suggestion.op === 'insert'
@@ -540,7 +541,7 @@ export const SuggestionsPanel = ({
                         }
                       >
                         {t('editor.suggestions.show', 'Show block')}
-                      </TextButton>
+                      </Button>
                     ) : null}
                   </Flex>
                 </Flex>

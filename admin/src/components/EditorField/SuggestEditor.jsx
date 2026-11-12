@@ -383,7 +383,16 @@ export const SuggestEditor = ({
           <Button
             ref={sendButtonRef}
             size="S"
-            onClick={() => setSendOpen(true)}
+            onClick={() => {
+              // An open Editor.js toolbar keeps a document Tab handler (Flipper) that would take the
+              // first Tab presses inside the dialog.
+              const editor = editorRef.current;
+              if (editor && editor.toolbar && typeof editor.toolbar.close === 'function')
+                editor.toolbar.close();
+              if (editor && editor.inlineToolbar && typeof editor.inlineToolbar.close === 'function')
+                editor.inlineToolbar.close();
+              setSendOpen(true);
+            }}
             disabled={!ready || !pending || blocked}
             data-testid="mex-suggest-send"
           >
