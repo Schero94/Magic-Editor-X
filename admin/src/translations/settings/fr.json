@@ -216,7 +216,6 @@
   "settings.templates.list.label": "Gabarits",
   "settings.templates.list.name": "Nom",
   "settings.templates.list.scope": "Proposé dans",
-  "settings.templates.list.size": "Taille",
   "settings.templates.loadError": "Les gabarits n’ont pas pu être chargés.",
   "settings.templates.moveError": "L’ordre n’a pas pu être enregistré.",
   "settings.templates.noDescription": "Aucune description",

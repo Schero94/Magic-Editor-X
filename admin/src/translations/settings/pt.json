@@ -216,7 +216,6 @@
   "settings.templates.list.label": "Modelos",
   "settings.templates.list.name": "Nome",
   "settings.templates.list.scope": "Disponível em",
-  "settings.templates.list.size": "Tamanho",
   "settings.templates.loadError": "Não foi possível carregar os modelos.",
   "settings.templates.moveError": "Não foi possível guardar a ordem.",
   "settings.templates.noDescription": "Sem descrição",

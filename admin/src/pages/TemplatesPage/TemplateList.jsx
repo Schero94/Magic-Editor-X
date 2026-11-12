@@ -235,7 +235,7 @@ export const TemplateList = ({ templates, busyId, onToggle, ...actions }) => {
   }
 
   return (
-    <Table colCount={6} rowCount={templates.length + 1}>
+    <Table colCount={5} rowCount={templates.length + 1}>
       <Thead>
         <Tr>
           <Th>
@@ -246,9 +246,6 @@ export const TemplateList = ({ templates, busyId, onToggle, ...actions }) => {
           </Th>
           <Th>
             <Typography variant="sigma">{t('settings.templates.list.scope', 'Offered in')}</Typography>
-          </Th>
-          <Th>
-            <Typography variant="sigma">{t('settings.templates.list.size', 'Size')}</Typography>
           </Th>
           <Th>
             <Typography variant="sigma">{t('settings.templates.list.enabled', 'In the editor')}</Typography>
@@ -265,13 +262,15 @@ export const TemplateList = ({ templates, busyId, onToggle, ...actions }) => {
               <Identity template={template} />
             </Td>
             <Td>
-              <Badge>{kindLabel(t, template.kind)}</Badge>
+              <Flex direction="column" alignItems="flex-start" gap={1}>
+                <Badge>{kindLabel(t, template.kind)}</Badge>
+                <Typography variant="pi" textColor="neutral600">
+                  {blocksText(template)}
+                </Typography>
+              </Flex>
             </Td>
             <Td>
               <Typography textColor="neutral800">{scopeSummary(t, template.scope)}</Typography>
-            </Td>
-            <Td>
-              <Typography textColor="neutral800">{blocksText(template)}</Typography>
             </Td>
             <Td>
               <EnabledSwitch template={template} busy={busyId === template.id} onToggle={onToggle} />

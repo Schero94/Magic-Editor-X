@@ -216,7 +216,6 @@
   "settings.templates.list.label": "Templates",
   "settings.templates.list.name": "Name",
   "settings.templates.list.scope": "Offered in",
-  "settings.templates.list.size": "Size",
   "settings.templates.loadError": "The templates could not be loaded.",
   "settings.templates.moveError": "The order could not be saved.",
   "settings.templates.noDescription": "No description",

@@ -216,7 +216,6 @@
   "settings.templates.list.label": "Plantillas",
   "settings.templates.list.name": "Nombre",
   "settings.templates.list.scope": "Ofrecida en",
-  "settings.templates.list.size": "Tamaño",
   "settings.templates.loadError": "No se pudieron cargar las plantillas.",
   "settings.templates.moveError": "No se pudo guardar el orden.",
   "settings.templates.noDescription": "Sin descripción",

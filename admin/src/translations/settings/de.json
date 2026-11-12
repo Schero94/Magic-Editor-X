@@ -216,7 +216,6 @@
   "settings.templates.list.label": "Vorlagen",
   "settings.templates.list.name": "Name",
   "settings.templates.list.scope": "Angeboten in",
-  "settings.templates.list.size": "Umfang",
   "settings.templates.loadError": "Die Vorlagen konnten nicht geladen werden.",
   "settings.templates.moveError": "Die Reihenfolge konnte nicht gespeichert werden.",
   "settings.templates.noDescription": "Keine Beschreibung",
