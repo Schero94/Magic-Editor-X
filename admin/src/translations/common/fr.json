@@ -24,6 +24,8 @@
   "field.options.maxCharacters.description": "Texte visible, compté comme dans la barre d’outils de l’éditeur. Vide ou 0 signifie aucune limite.",
   "field.options.features": "Fonctionnalités",
   "field.options.disableAi.label": "Désactiver l’assistant IA pour ce champ",
+  "field.options.disableGrammar.label": "Désactiver la vérification grammaticale pour ce champ",
+  "field.options.disableGrammar.description": "Aucun texte de ce champ n’est envoyé à LanguageTool",
   "field.options.disableCollaboration.label": "Désactiver la collaboration en direct pour ce champ",
   "field.options.publishGuard.label": "Bloquer la publication tant que les contrôles qualité signalent des erreurs",
   "field.options.publishGuard.description": "Les erreurs sont les textes alternatifs manquants (si exigés) et les liens vides",

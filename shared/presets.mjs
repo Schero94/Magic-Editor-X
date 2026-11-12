@@ -11,7 +11,7 @@
  * - `maxBlocks`, `maxCharacters`: positive integers (0 or empty = no limit)
  * - `requireAlt`: images need an alternative text or the "decorative" flag
  * - `linkTargets`: 'all' (default) | 'internal' | 'external' | 'none'
- * - `disableAi`, `disableCollaboration`, `publishGuard`: booleans
+ * - `disableAi`, `disableGrammar`, `disableCollaboration`, `publishGuard`: booleans
  */
 
 import { isPlainObject, computeStats } from './editor-data.mjs';
@@ -166,6 +166,7 @@ const limitOf = (value) => {
  * @property {boolean} requireAlt - Images need an alternative text or the decorative flag.
  * @property {'all'|'internal'|'external'|'none'} linkTargets - Allowed link destinations.
  * @property {boolean} ai - AI assistant allowed.
+ * @property {boolean} grammar - Grammar check (LanguageTool) allowed; independent of `ai`.
  * @property {boolean} collaboration - Live collaboration allowed.
  * @property {boolean} publishGuard - Quality errors block publishing.
  * @property {boolean} restricted - True when any rule differs from the full preset.
@@ -206,6 +207,7 @@ export const resolveFieldPreset = (options) => {
     requireAlt: source.requireAlt === true,
     linkTargets,
     ai: source.disableAi !== true,
+    grammar: source.disableGrammar !== true,
     collaboration: source.disableCollaboration !== true,
     publishGuard: source.publishGuard === true,
   };

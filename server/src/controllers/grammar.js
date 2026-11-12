@@ -3,6 +3,7 @@
 const { service } = require('./helpers');
 const { z, parseOrThrow, localeSchema, errors } = require('../utils/validation');
 const { resolveEditorField } = require('../utils/editor-fields');
+const { resolveFieldPreset } = require('../../../shared/presets.mjs');
 const { segmentsSchema, targetSchema } = require('./ai');
 
 const checkSchema = z.strictObject({
@@ -48,13 +49,16 @@ module.exports = ({ strapi }) => ({
    * @auth admin; plugin::magic-editor-x.access + plugin::magic-editor-x.grammar.use
    * @returns {{ data: { language: string, matches: Array<{ blockId, path, offset, length, text, message, shortMessage, replacements, rule }>, truncated: boolean } }} Matches; offsets count characters of the string's plain text.
    * @throws {errors.NotFoundError} Unknown content type or field (404).
+   * @throws {errors.ForbiddenError} The field's options turn the grammar check off (`disableGrammar`, 403). Nothing is sent.
    * @sideeffect Sends the plain text of the strings to the LanguageTool server the owner configured. Text is never logged.
    */
   async check(ctx) {
     const input = parseOrThrow(checkSchema, ctx.request.body || {});
     const contentType = strapi.contentType(input.target.uid);
-    if (!contentType || !resolveEditorField(strapi, contentType, input.target.field))
-      throw new errors.NotFoundError('Not found');
+    const resolved = contentType ? resolveEditorField(strapi, contentType, input.target.field) : null;
+    if (!resolved) throw new errors.NotFoundError('Not found');
+    if (!resolveFieldPreset(resolved.attribute.options).grammar)
+      throw new errors.ForbiddenError('The grammar check is turned off for this field');
     try {
       ctx.body = {
         data: await service(strapi, 'grammar').check(

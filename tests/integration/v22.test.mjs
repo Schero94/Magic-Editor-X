@@ -9,7 +9,7 @@ import { applyEditorDataToDoc } from '../../shared/ydoc.mjs';
  * channel and for AI; named versions; the link check; the publish guard.
  *
  * Host fields (see CONTRIBUTING.md): `summary` has
- * `{ preset: 'basic', requireAlt: true, maxCharacters: 400, linkTargets: 'internal', disableAi: true, disableCollaboration: true, publishGuard: true }`,
+ * `{ preset: 'basic', requireAlt: true, maxCharacters: 400, linkTargets: 'internal', disableAi: true, disableGrammar: true, disableCollaboration: true, publishGuard: true }`,
  * `teaser` has `{ preset: 'minimal' }`.
  */
 

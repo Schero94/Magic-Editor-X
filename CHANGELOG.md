@@ -31,6 +31,7 @@ Magic Editor X 2.3 connects the editor to the rest of your stack: React and Vue 
 - Admin routes for comments, templates (including usage), the link report and the link schedule, AI alternative text and field actions, the grammar check and the LanguageTool connection test (see the README route table).
 - Config keys `comments.enabled`, `comments.perMinute`, `qualityChecks.externalLinks.allowPrivateOrigins`, `qualityChecks.externalLinks.schedule`, `languageTool.allowPrivateBaseUrl`, `languageTool.requestsPerMinute`, `languageTool.timeoutMs`; settings `ai.allowImages`, `ai.allowFieldActions` and `languageTool`.
 - Quality rules `video-no-captions` and `toc-no-headings`; `npm run bench`.
+- Custom field option `disableGrammar` (Content-Type Builder > Advanced settings): the field shows no "Check grammar" button and `POST /magic-editor-x/grammar/check` answers 403 for it, so its text is never sent to LanguageTool. It is independent of `disableAi`.
 
 ### Changed
 
