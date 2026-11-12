@@ -61,6 +61,12 @@
       "require": "./dist/vue/index.js",
       "default": "./dist/vue/index.js"
     },
+    "./blocks": {
+      "source": "./shared/blocks/index.mjs",
+      "import": "./dist/blocks/index.mjs",
+      "require": "./dist/blocks/index.js",
+      "default": "./dist/blocks/index.js"
+    },
     "./schema": "./schema/magic-editor-x.schema.json",
     "./types": "./types/index.d.ts"
   },

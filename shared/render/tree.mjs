@@ -657,6 +657,33 @@ const neutral = (b) =>
     )
   );
 
+/**
+ * Default rendering of a code-registered block without a `render` function:
+ * the top-level fields in schema order (text, enum, number and boolean as
+ * text, inline HTML through the inline parser, URLs as links; empty values,
+ * arrays and objects are left out).
+ * @param {object} b - Prepared block (with `definition`).
+ * @param {object} o - Render options.
+ * @returns {RenderNode} Node.
+ */
+const registeredDefault = (b, o) => {
+  const children = [];
+  for (const [key, field] of Object.entries(b.definition.schema)) {
+    const value = b.data[key];
+    if (value === undefined || value === null || value === '') continue;
+    const attrs = { class: 'mex-field', 'data-mex-field': key };
+    if (field.type === 'inline') children.push(el('div', attrs, inlineToNodes(value, o)));
+    else if (field.type === 'url') children.push(el('div', attrs, el('a', { href: value }, value)));
+    else if (['text', 'enum', 'number', 'boolean'].includes(field.type))
+      children.push(el('div', attrs, String(value)));
+  }
+  return el(
+    'div',
+    { class: classes(['mex-block', `mex-${b.type}`], b.tunes), 'data-mex-block': b.type },
+    children
+  );
+};
+
 /* ------------------------------------------------------- override nodes */
 
 /** Tags an override may not output (script, style, document-level and plugin containers). */
@@ -862,7 +889,41 @@ export const createTreeBuilder = (value, options, mode = {}) => {
       }
     }
     if (block.known) return toNodes(RENDERERS[block.type](block, opts, renderList));
+    if (block.definition) return registeredContent(block);
     return [neutral(block)];
+  };
+
+  /**
+   * Output of a code-registered block: its `render(block, helpers)` result as
+   * validated nodes (same rules as overrides). A string is used only with the
+   * raw opt-in (`rawHtml: 'allow'` + `sanitizeRaw`), also in `renderHtml`; an
+   * empty array renders nothing. A function that throws or returns
+   * null/undefined gives the default rendering.
+   * @param {object} block - Prepared block with `definition`.
+   * @returns {Array<RenderNode|BlockNode>} Nodes.
+   */
+  const registeredContent = (block) => {
+    const render = block.definition.render;
+    if (render) {
+      let out;
+      try {
+        out = render(toPublic(block), helpers);
+      } catch {
+        out = undefined;
+      }
+      if (typeof out === 'string') {
+        if (rawAllowed(opts)) {
+          const html = opts.sanitizeRaw(out);
+          if (typeof html === 'string' && html)
+            return [
+              el('div', { class: 'mex-override', 'data-mex-block': block.type }, { type: 'raw', html }),
+            ];
+        }
+      } else if (out && typeof out === 'object') {
+        return cleanOverrideNodes(out, trusted);
+      }
+    }
+    return [registeredDefault(block, opts)];
   };
 
   /** @param {object[]} blocks - Prepared blocks. @returns {Array<RenderNode|BlockNode>} Block nodes separated by line breaks. */

@@ -9,7 +9,7 @@
 
 import { isPlainObject, normalizeEditorDataSafe } from './editor-data.mjs';
 import { parseInline, nodesToText } from './render/inline.mjs';
-import { sanitizeUrl, isBuiltInBlock } from './sanitize-policy.mjs';
+import { sanitizeUrl, isBuiltInBlock, registeredBlockOf } from './sanitize-policy.mjs';
 import { mediaSlots } from './resolve-references.mjs';
 import { tocRange } from './toc.mjs';
 
@@ -182,6 +182,13 @@ const inlineStrings = (block) => {
   const add = (path, value) => {
     if (typeof value === 'string' && value) out.push({ path, html: value });
   };
+  // Code-registered blocks (custom block SDK): the inline fields of their schema.
+  const definition = registeredBlockOf(block);
+  if (definition) {
+    for (const field of definition.fields(d))
+      if (field.kind === 'html') add(field.path.join('.'), field.value);
+    return out;
+  }
   const listItems = (items, path, depth = 0) => {
     if (!Array.isArray(items) || depth > 12) return;
     items.forEach((item, index) => {
@@ -482,6 +489,12 @@ export const extractLinks = (value) => {
             });
         } else if (attrs.href) addExternal(attrs.href, block.id);
       }
+    }
+    const definition = registeredBlockOf(block);
+    if (definition) {
+      // URL fields of a code-registered block; its data has no Media Library files.
+      for (const { value } of definition.urls(d)) addExternal(value, block.id);
+      continue;
     }
     switch (block.type) {
       case 'linkTool':

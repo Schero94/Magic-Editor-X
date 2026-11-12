@@ -343,6 +343,13 @@ module.exports = ({ strapi }) => {
   };
 
   const assertNameFree = async (name, exceptDocumentId) => {
+    // A block registered in code (custom block SDK) owns its name.
+    if (strapi.plugin('magic-editor-x').service('blocks').isRegisteredName(name)) {
+      throw new errors.ValidationError('Validation failed', {
+        formErrors: [],
+        fieldErrors: { name: ['A block with this name is defined in code'] },
+      });
+    }
     const rows = await query().findMany({ select: ['documentId', 'name'] });
     const clash = rows.find(
       (row) => row.name.toLowerCase() === name.toLowerCase() && row.documentId !== exceptDocumentId
@@ -529,7 +536,11 @@ module.exports = ({ strapi }) => {
         const name = typeof entry.name === 'string' ? entry.name.slice(0, 50) : '';
         if (!result.success || MEDIA_BLOCK_NAMES.has(result.data.name.toLowerCase()))
           skipped.push({ name, reason: 'invalid' });
-        else if (taken.has(result.data.name.toLowerCase())) skipped.push({ name, reason: 'exists' });
+        else if (
+          taken.has(result.data.name.toLowerCase()) ||
+          strapi.plugin('magic-editor-x').service('blocks').isRegisteredName(result.data.name)
+        )
+          skipped.push({ name, reason: 'exists' });
         else {
           taken.add(result.data.name.toLowerCase());
           valid.push(result.data);

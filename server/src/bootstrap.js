@@ -36,6 +36,9 @@ module.exports = async ({ strapi }) => {
     logger.error('database setup failed', error);
   }
 
+  // Code-registered blocks (custom block SDK): a Settings block with the same name stops the start.
+  await plugin.service('blocks').verify();
+
   // The plugin never changes the CSP; it only tells the owner what the editor preview needs.
   try {
     const csp = plugin.service('settings').inspectAdminCsp();

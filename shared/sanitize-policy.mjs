@@ -10,6 +10,7 @@
  */
 
 import { isPlainObject } from './editor-data.mjs';
+import { activeBlock } from './blocks/active.mjs';
 
 /** Inline tags the editor tools produce. Everything else is removed (text is kept). */
 export const INLINE_TAGS = Object.freeze([
@@ -562,9 +563,26 @@ export const sanitizeTunes = (tunes) => {
 };
 
 /**
+ * Code-registered definition that applies to a block, or null. Built-in
+ * blocks always keep their own policy (registration refuses their names).
+ * @param {{ type?: unknown, data?: unknown }} block - Block.
+ * @param {Map<string, object>|null} [explicit] - Compiled definitions to use instead of the bundle registry.
+ * @returns {object|null} Compiled definition.
+ */
+export const registeredBlockOf = (block, explicit) => {
+  if (!block || typeof block.type !== 'string' || isBuiltInBlock(block)) return null;
+  if (explicit instanceof Map) return explicit.get(block.type) || null;
+  return activeBlock(block.type);
+};
+
+/**
  * Sanitises a normalised Editor.js document.
+ *
+ * Built-in blocks use `BLOCK_POLICIES`, code-registered blocks (custom block
+ * SDK) their definition's schema, everything else (Settings-defined custom
+ * blocks, blocks whose definition was removed) the generic policy.
  * @param {{ time: number, blocks: Array<{id: string, type: string, data: object, tunes?: object}>, version: string }} data - Normalised document.
- * @param {{ sanitizeInlineHtml: (html: string) => string, sanitizeRawHtml: (html: string) => string, rawHtml?: 'sanitize'|'allow'|'disable' }} options - Sanitisers and raw HTML policy.
+ * @param {{ sanitizeInlineHtml: (html: string) => string, sanitizeRawHtml: (html: string) => string, rawHtml?: 'sanitize'|'allow'|'disable', blocks?: Map<string, object> }} options - Sanitisers, raw HTML policy and (tests) compiled definitions instead of the registry.
  * @returns {typeof data} A new, sanitised document.
  */
 export const sanitizeEditorData = (data, options) => {
@@ -573,7 +591,12 @@ export const sanitizeEditorData = (data, options) => {
   const ctx = { rawHtml: options.rawHtml || 'sanitize', rawSanitizer: options.sanitizeRawHtml };
   const blocks = data.blocks.map((block) => {
     const policy = isBuiltInBlock(block) ? BLOCK_POLICIES[block.type] : null;
-    const cleanData = policy ? policy(block.data || {}, inline, ctx) : generic(block.data || {}, inline, 0);
+    const registered = policy ? null : registeredBlockOf(block, options.blocks);
+    const cleanData = policy
+      ? policy(block.data || {}, inline, ctx)
+      : registered
+        ? registered.clean(block.data || {}, inline)
+        : generic(block.data || {}, inline, 0);
     for (const key of Object.keys(cleanData)) if (cleanData[key] === undefined) delete cleanData[key];
     const out = { id: block.id, type: block.type, data: cleanData };
     const tunes = sanitizeTunes(block.tunes);
