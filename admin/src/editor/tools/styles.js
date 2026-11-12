@@ -24,6 +24,24 @@ const f =
     theme.fontSizes[index];
 const radius = ({ theme }) => theme.borderRadius;
 
+/** Half width (and height) of the select caret: a 12 x 6 px triangle like the DS CaretDown at 16 px. */
+const SELECT_CARET = '0.6rem';
+
+/**
+ * DS CaretDown drawn as two half-square gradients in neutral500 on the inline
+ * end of a native select (the 1px soft stop smooths the diagonal edge).
+ */
+const selectCaret = css`
+  background-image:
+    linear-gradient(45deg, transparent calc(50% - 0.5px), ${c('neutral500')} calc(50% + 0.5px)),
+    linear-gradient(135deg, ${c('neutral500')} calc(50% - 0.5px), transparent calc(50% + 0.5px));
+  background-position:
+    right calc(${s(3)} + ${SELECT_CARET}) center,
+    right ${s(3)} center;
+  background-size: ${SELECT_CARET} ${SELECT_CARET};
+  background-repeat: no-repeat;
+`;
+
 const ALERT_TONES = {
   primary: ['primary100', 'primary600', 'primary700'],
   secondary: ['secondary100', 'secondary600', 'secondary700'],
@@ -230,8 +248,46 @@ export const editorStyles = css`
       }
     }
 
+    /*
+     * Native <select> styled like the DS SingleSelect trigger: same border,
+     * radius, font and focus ring as the other block inputs (so a select and
+     * an input in one row have the same height), the DS caret (CaretDown,
+     * neutral500) on the inline end, pointer cursor, neutral300 border on
+     * hover. The element stays a native select, so labels, keyboard and
+     * screen reader behaviour are the browser's. The caret is drawn with two
+     * gradients from theme tokens: no image request, nothing for a strict
+     * img-src CSP to block, and it follows dark mode.
+     */
     .mex-tool__select {
-      appearance: auto;
+      appearance: none;
+      cursor: pointer;
+      color-scheme: ${({ theme }) => theme.colorScheme};
+      padding-inline-end: calc(${s(3)} + ${SELECT_CARET} * 2 + ${s(2)});
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      overflow: hidden;
+      ${selectCaret}
+
+      &:hover:not(:disabled):not(:focus) {
+        border-color: ${c('neutral300')};
+      }
+
+      &:disabled {
+        cursor: not-allowed;
+        background-color: ${c('neutral150')};
+        ${selectCaret}
+      }
+
+      &:dir(rtl) {
+        background-position:
+          left ${s(3)} center,
+          left calc(${s(3)} + ${SELECT_CARET}) center;
+      }
+
+      option {
+        background: ${c('neutral0')};
+        color: ${c('neutral800')};
+      }
     }
 
     .cdx-button,
@@ -935,9 +991,12 @@ export const editorStyles = css`
       padding: ${s(2)};
       border-bottom: 1px solid ${c('neutral200')};
 
+      /* Compact like the DS SingleSelect size S; the inline end keeps room for the caret. */
       .mex-tool__select {
         width: auto;
-        padding: ${s(1)} ${s(2)};
+        max-width: 100%;
+        padding-block: ${s(1)};
+        padding-inline-start: ${s(2)};
         font-size: ${f(1)};
       }
     }

@@ -51,13 +51,20 @@ export const input = ({ value = '', placeholder = '', type = 'text', readOnly = 
 };
 
 /**
- * Creates a select element.
+ * Creates a select element (a native select, styled like the DS SingleSelect
+ * by `.mex-tool__select` in styles.js).
  * @param {Array<{ value: string, label: string }>} options - Options.
  * @param {string} value - Selected value.
  * @returns {HTMLSelectElement} Select.
  */
 export const select = (options, value) => {
   const node = el('select', { className: 'mex-tool__select' });
+  // Chromium submits the surrounding form when Enter is pressed on a closed
+  // select; inside the Content Manager that saved the entry. Enter has no
+  // other job on a closed select (an open list handles its own keys).
+  node.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') event.preventDefault();
+  });
   for (const option of options) {
     const opt = el('option', { text: option.label, attrs: { value: option.value } });
     if (option.value === value) opt.selected = true;

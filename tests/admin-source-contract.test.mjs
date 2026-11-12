@@ -91,3 +91,23 @@ test('the gallery offers the AI alternative text suggestion per image like the i
   assert.match(item, /getFileId:\s*\(\)\s*=>\s*mediaFileId\(image\.file\)/);
   assert.match(media, /import \{ mediaFileId \} from '\.\.\/ai-alt-text'/);
 });
+
+test('block selects are styled native selects with the DS caret, not the browser default', () => {
+  const read = (file) => sources.find(([name]) => name === file)[1];
+  const styles = read('editor/tools/styles.js');
+  const dom = read('editor/tools/dom.js');
+  // Every block select (gallery layout/columns, track kind, TOC levels/style, code language, custom block fields) comes from one helper.
+  assert.match(dom, /el\('select', \{ className: 'mex-tool__select' \}\)/);
+  // Enter on a closed select must not submit (save) the Content Manager form.
+  assert.match(dom, /event\.key === 'Enter'\) event\.preventDefault\(\)/);
+  assert.doesNotMatch(styles, /appearance:\s*auto/);
+  const start = styles.indexOf('.mex-tool__select {\n      appearance: none;');
+  assert.ok(start > 0, 'the select rule removes the native appearance');
+  const rule = styles.slice(start);
+  assert.match(rule.slice(0, 1200), /\$\{selectCaret\}/);
+  assert.match(rule.slice(0, 1200), /&:disabled \{[\s\S]*?\$\{selectCaret\}/);
+  assert.match(styles, /const selectCaret = css`[\s\S]*?c\('neutral500'\)/);
+  // A padding shorthand on a select would hide the caret room on the inline end.
+  const code = styles.slice(styles.indexOf('.mex-code__header {'), styles.indexOf('.mex-code__language {'));
+  assert.doesNotMatch(code, /\.mex-tool__select \{[^}]*\bpadding:/);
+});
