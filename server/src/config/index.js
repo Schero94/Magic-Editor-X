@@ -125,6 +125,15 @@ const defaults = {
     /** Comments and replies one admin may post per minute, shared by all processes. */
     perMinute: 30,
   },
+  suggestions: {
+    /**
+     * Block suggestions (2.4). Shown only to admins with `suggestions.create` or
+     * `suggestions.review`; off hides them and the suggestion routes answer 404.
+     */
+    enabled: true,
+    /** Suggestion requests (each "Send suggestions") one admin may make per minute, shared by all processes. */
+    perMinute: 20,
+  },
   qualityChecks: {
     externalLinks: {
       /** Let the quality panel check external links (outgoing requests through the SSRF-safe fetcher). Owner opt-in. */
@@ -267,6 +276,7 @@ const configSchema = z.looseObject({
   }),
   history: z.looseObject({ maxSnapshotsPerField: positiveInt(1000) }),
   comments: z.looseObject({ enabled: z.boolean(), perMinute: positiveInt(1000) }),
+  suggestions: z.looseObject({ enabled: z.boolean(), perMinute: positiveInt(1000) }),
   qualityChecks: z
     .looseObject({
       externalLinks: z.looseObject({

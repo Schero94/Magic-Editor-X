@@ -111,6 +111,58 @@ module.exports = {
   },
 
   /**
+   * Block suggestions (2.4). One row per proposed change to one block of one
+   * editor field of one document locale, keyed like comments (`fieldName` is
+   * the field identity of `access.checkField`). `proposed` is a single block,
+   * normalised, sanitised and checked against the field preset on write.
+   * Author and decider are admin id + name snapshots, cleared when the admin
+   * user is deleted. Plain-text `note`.
+   */
+  suggestion: {
+    schema: {
+      kind: 'collectionType',
+      collectionName: 'magic_editor_suggestions',
+      info: {
+        singularName: 'suggestion',
+        pluralName: 'suggestions',
+        displayName: 'Editor suggestion',
+        description: 'Block suggestions of Magic Editor X fields',
+      },
+      options: { draftAndPublish: false },
+      pluginOptions: hidden,
+      indexes: [{ name: 'mex_suggestions_target_idx', columns: ['entry_id', 'field_name', 'content_type'] }],
+      attributes: {
+        contentType: { type: 'string', required: true },
+        entryId: { type: 'string', required: true },
+        entryLocale: { type: 'string' },
+        fieldName: { type: 'string', required: true },
+        /** Editor.js id of the block changed or deleted, or of the inserted block. */
+        blockId: { type: 'string', required: true, maxLength: 64 },
+        op: { type: 'enumeration', enum: ['update', 'insert', 'delete'], required: true },
+        /** Inserts: id of the block the new block goes after (null: at the start). */
+        afterBlockId: { type: 'string', maxLength: 64 },
+        /** Proposed block `{ id, type, data, tunes? }` (null for deletes). */
+        proposed: { type: 'json' },
+        /** Hash of the block when the change was suggested (`shared/suggestions.mjs` blockHash). */
+        baseHash: { type: 'string', maxLength: 32 },
+        /** Optional plain-text note of the author. */
+        note: { type: 'text' },
+        status: {
+          type: 'enumeration',
+          enum: ['open', 'accepted', 'rejected'],
+          required: true,
+          default: 'open',
+        },
+        authorId: { type: 'integer' },
+        authorName: { type: 'string', maxLength: 200 },
+        decidedAt: { type: 'datetime' },
+        decidedById: { type: 'integer' },
+        decidedByName: { type: 'string', maxLength: 200 },
+      },
+    },
+  },
+
+  /**
    * Templates, block patterns and synced block sources (2.3; `kind`
    * `synced`: fields store a reference to the row's documentId). `blocks` is an Editor.js document,
    * normalised and sanitised on every write (services/templates.js); `scope`

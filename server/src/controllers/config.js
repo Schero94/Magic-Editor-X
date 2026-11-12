@@ -55,6 +55,7 @@ module.exports = ({ strapi }) => ({
           scheduledLinks: service(strapi, 'link-schedule').settings().enabled,
         },
         comments: { enabled: conf('comments.enabled', true) !== false },
+        suggestions: { enabled: conf('suggestions.enabled', true) !== false },
         audit: { enabled: conf('audit.enabled', true) !== false },
         rawHtml: conf('rawHtml', 'sanitize'),
         // 2.3: code-registered blocks (custom block SDK): names and field types only.
@@ -72,6 +73,8 @@ module.exports = ({ strapi }) => ({
           grammar: can(ACTIONS.grammar),
           templatesManage: can(ACTIONS.templatesManage),
           auditRead: can(ACTIONS.auditRead),
+          suggestionsCreate: can(ACTIONS.suggestionsCreate),
+          suggestionsReview: can(ACTIONS.suggestionsReview),
         },
       },
     };

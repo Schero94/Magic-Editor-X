@@ -12,6 +12,7 @@ module.exports = {
   links: require('./links'),
   quality: require('./quality'),
   comments: require('./comments'),
+  suggestions: require('./suggestions'),
   templates: require('./templates'),
   audit: require('./audit'),
 };

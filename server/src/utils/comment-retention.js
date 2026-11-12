@@ -3,7 +3,7 @@
 const { createLogger } = require('./logger');
 
 /**
- * Retention of block comments (2.3).
+ * Retention of block comments (2.3) and block suggestions (2.4).
  *
  * - Entry deleted: a Document Service middleware on `delete` removes the
  *   comments of every document locale the call deleted (`result.entries`),
@@ -54,6 +54,15 @@ const registerCommentRetention = (strapi) => {
     } catch (error) {
       logger.error('comments of a deleted entry could not be removed', error);
     }
+    // 2.4: block suggestions follow the same retention.
+    try {
+      await strapi
+        .plugin('magic-editor-x')
+        .service('suggestions')
+        .removeForEntries(ctx.uid, documentId, locales);
+    } catch (error) {
+      logger.error('suggestions of a deleted entry could not be removed', error);
+    }
     return result;
   });
 };
@@ -71,6 +80,11 @@ const subscribeCommentAuthorCleanup = (strapi) => {
       await strapi.plugin('magic-editor-x').service('comments').anonymizeUser(id);
     } catch (error) {
       logger.error('comment authors of a deleted admin could not be anonymised', error);
+    }
+    try {
+      await strapi.plugin('magic-editor-x').service('suggestions').anonymizeUser(id);
+    } catch (error) {
+      logger.error('suggestion authors of a deleted admin could not be anonymised', error);
     }
   };
   const unsubscribe = strapi.db.lifecycles.subscribe({ models: ['admin::user'], afterDelete: onDelete });

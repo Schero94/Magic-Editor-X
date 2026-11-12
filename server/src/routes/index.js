@@ -100,6 +100,13 @@ const adminRoutes = [
   // Own comments need comments.write, anyone's comments.moderate (checked in the handler).
   ['DELETE', '/comments/:id', 'comments.remove', [ACTIONS.access, ACTIONS.commentsRead]],
 
+  // 2.4 block suggestions. Listing needs suggestions.create or suggestions.review (checked in the handler).
+  ['GET', '/suggestions', 'suggestions.list', [ACTIONS.access]],
+  ['POST', '/suggestions', 'suggestions.create', [ACTIONS.access, ACTIONS.suggestionsCreate]],
+  ['POST', '/suggestions/:id/accept', 'suggestions.accept', [ACTIONS.access, ACTIONS.suggestionsReview]],
+  ['POST', '/suggestions/:id/reject', 'suggestions.reject', [ACTIONS.access, ACTIONS.suggestionsReview]],
+  ['DELETE', '/suggestions/:id', 'suggestions.withdraw', [ACTIONS.access, ACTIONS.suggestionsCreate]],
+
   ['POST', '/ai/:action', 'ai.run', [ACTIONS.access, ACTIONS.ai]],
   ['POST', '/ai/image/alt-text', 'ai.altText', [ACTIONS.access, ACTIONS.ai]],
   ['POST', '/ai/field/:action', 'ai.field', [ACTIONS.access, ACTIONS.ai]],

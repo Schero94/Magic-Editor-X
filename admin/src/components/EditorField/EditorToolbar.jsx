@@ -22,8 +22,10 @@ import {
   EyeStriked,
   Feather,
   Layout,
+  Lightbulb,
   Monitor,
   More,
+  Pencil,
   SealCheck,
   Search,
   Sparkle,
@@ -149,7 +151,14 @@ export const EditorToolbar = ({
   onTogglePreview,
   previewButtonRef,
   previewId,
+  hidden = false,
+  onStartSuggest,
+  onToggleSuggestions,
+  suggestionsOpen = false,
+  suggestionsCount = 0,
 }) => {
+  // 2.4: suggest mode shows its own bar instead.
+  if (hidden) return null;
   const status = STATUS[collaboration.status];
   const peers = collaboration.peers || [];
   const upgrade = collaboration.status === 'error' && collaboration.error === 'UPGRADE_REQUIRED';
@@ -338,6 +347,28 @@ export const EditorToolbar = ({
           {onOpenFieldAi ? (
             <MenuItem onSelect={onOpenFieldAi} startIcon={<Sparkle />}>
               {t('editor.toolbar.fieldAi', 'AI for the whole field')}
+            </MenuItem>
+          ) : null}
+          {onStartSuggest ? (
+            <MenuItem onSelect={onStartSuggest} startIcon={<Pencil />} data-testid="mex-menu-suggest">
+              {t('editor.toolbar.suggest', 'Suggest changes')}
+            </MenuItem>
+          ) : null}
+          {onToggleSuggestions ? (
+            <MenuItem
+              onSelect={onToggleSuggestions}
+              startIcon={<Lightbulb />}
+              data-testid="mex-menu-suggestions"
+            >
+              {suggestionsOpen
+                ? t('editor.toolbar.suggestionsClose', 'Hide suggestions')
+                : suggestionsCount
+                  ? t(
+                      'editor.toolbar.suggestionsCount',
+                      'Suggestions ({count, plural, one {# open} other {# open}})',
+                      { count: suggestionsCount }
+                    )
+                  : t('editor.toolbar.suggestions', 'Suggestions')}
             </MenuItem>
           ) : null}
           {onOpenShortcuts ? (
