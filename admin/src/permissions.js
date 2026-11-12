@@ -11,6 +11,9 @@ export const PERMISSIONS = {
   customBlocksManage: action('custom-blocks.manage'),
   settingsRead: action('settings.read'),
   settingsUpdate: action('settings.update'),
+  commentsRead: action('comments.read'),
+  commentsWrite: action('comments.write'),
+  commentsModerate: action('comments.moderate'),
 };
 
 export default PERMISSIONS;

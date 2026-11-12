@@ -2,6 +2,7 @@
 
 const { createLogger } = require('./utils/logger');
 const { registerPermissions } = require('./permissions');
+const { subscribeCommentAuthorCleanup } = require('./utils/comment-retention');
 
 /**
  * Bootstrap: RBAC actions, plugin tables, migrations, the response parser
@@ -84,4 +85,7 @@ module.exports = async ({ strapi }) => {
     afterDelete: onPermissionChange,
     afterDeleteMany: onPermissionChange,
   });
+
+  // Block comments: clear the author snapshot of deleted admin users.
+  subscribeCommentAuthorCleanup(strapi);
 };

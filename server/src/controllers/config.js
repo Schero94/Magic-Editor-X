@@ -50,6 +50,7 @@ module.exports = ({ strapi }) => ({
           externalLinks: conf('qualityChecks.externalLinks.enabled', false) === true,
           scheduledLinks: service(strapi, 'link-schedule').settings().enabled,
         },
+        comments: { enabled: conf('comments.enabled', true) !== false },
         rawHtml: conf('rawHtml', 'sanitize'),
         permissions: {
           collaborate: can(ACTIONS.collaborate),
@@ -58,6 +59,9 @@ module.exports = ({ strapi }) => ({
           mediaLibrary: can('plugin::upload.read'),
           customBlocksManage: can(ACTIONS.customBlocksManage),
           settingsRead: can(ACTIONS.settingsRead),
+          commentsRead: can(ACTIONS.commentsRead),
+          commentsWrite: can(ACTIONS.commentsWrite),
+          commentsModerate: can(ACTIONS.commentsModerate),
         },
       },
     };

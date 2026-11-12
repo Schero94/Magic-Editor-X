@@ -16,6 +16,7 @@ import {
   ClockCounterClockwise,
   Collapse,
   Command,
+  Discuss,
   Expand,
   Eye,
   EyeStriked,
@@ -28,7 +29,7 @@ import { peerFamily } from './RemoteCarets';
 
 /**
  * Toolbar above the editor: undo/redo, version history, find and replace,
- * quality checks, focus mode, keyboard shortcuts, fullscreen, live
+ * quality checks, block comments, focus mode, keyboard shortcuts, fullscreen, live
  * collaboration status with the people in the room, and counts (blocks,
  * words, characters, reading time) with the limits of the field preset.
  */
@@ -127,6 +128,11 @@ export const EditorToolbar = ({
   focusMode = false,
   onToggleFocus,
   onOpenShortcuts,
+  commentsAvailable = false,
+  commentsOpen = false,
+  onToggleComments,
+  commentsCount = 0,
+  commentsButtonRef,
 }) => {
   const status = STATUS[collaboration.status];
   const peers = collaboration.peers || [];
@@ -216,6 +222,34 @@ export const EditorToolbar = ({
                 textColor={qualityCount.errors ? 'danger700' : 'neutral800'}
               >
                 {qualityCount.total > 99 ? '99+' : qualityCount.total}
+              </Badge>
+            ) : null}
+          </CountBadge>
+        ) : null}
+        {commentsAvailable && onToggleComments ? (
+          <CountBadge>
+            <IconButton
+              ref={commentsButtonRef}
+              label={
+                commentsCount
+                  ? t(
+                      'editor.toolbar.commentsCount',
+                      'Comments ({count, plural, one {# open thread} other {# open threads}})',
+                      { count: commentsCount }
+                    )
+                  : t('editor.toolbar.comments', 'Comments')
+              }
+              variant="ghost"
+              onClick={onToggleComments}
+              aria-pressed={commentsOpen}
+              disabled={!ready}
+              data-testid="mex-comments-toggle"
+            >
+              <Discuss />
+            </IconButton>
+            {commentsCount ? (
+              <Badge size="S" aria-hidden="true" backgroundColor="primary100" textColor="primary700">
+                {commentsCount > 99 ? '99+' : commentsCount}
               </Badge>
             ) : null}
           </CountBadge>

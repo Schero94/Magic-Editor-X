@@ -36,6 +36,10 @@ import { useQualityIssues } from './useQualityIssues';
 import { FindReplacePanel } from './FindReplacePanel';
 import { ShortcutsDialog } from './ShortcutsDialog';
 import { BlockSelectionBar } from './BlockSelectionBar';
+import { useComments } from './useComments';
+import { CommentsPanel } from './CommentsPanel';
+import { CommentMarkers } from './CommentMarkers';
+import { blockExcerpt, openThreadsByBlock } from '../../../../shared/comments.mjs';
 import { createPasteHandler } from '../../editor/paste';
 import { createMarkdownShortcuts } from '../../editor/markdown-shortcuts';
 import { restoreBlockInEditor } from '../../editor/restore-block.mjs';
@@ -151,6 +155,8 @@ const Holder = styled.div`
   }
   min-height: ${({ $minHeight }) => `${$minHeight}px`};
   ${({ $fullscreen }) => ($fullscreen ? 'flex: 1 1 auto; overflow: auto;' : '')}
+  /* Room for the block comment markers at the inline end (they sit outside the holder). */
+  ${({ $gutter, theme }) => ($gutter ? `&& { padding-inline-end: ${theme.spaces[8]}; }` : '')}
   ${({ $focus, theme }) =>
     $focus
       ? `
@@ -257,6 +263,10 @@ const EditorField = ({
   const [toolShortcuts, setToolShortcuts] = useState([]);
   const qualityButtonRef = useRef(null);
   const frameRef = useRef(null);
+  const [commentsOpen, setCommentsOpen] = useState(false);
+  const [commentFocusThread, setCommentFocusThread] = useState(null);
+  const [currentBlockId, setCurrentBlockId] = useState(null);
+  const commentsButtonRef = useRef(null);
 
   useEffect(() => {
     onChangeRef.current = onChange;
@@ -513,6 +523,22 @@ const EditorField = ({
   }, [ready, collabUndo, collaboration.client]);
 
   const announcement = usePresenceAnnouncements(collaboration.peers, t);
+
+  // Block comments (2.3): stored apart from the field value, polled while the field is visible.
+  const commentsEnabled = Boolean(
+    config &&
+    config.comments &&
+    config.comments.enabled &&
+    permissions.commentsRead &&
+    target.uid &&
+    target.documentId
+  );
+  const comments = useComments({
+    target,
+    enabled: commentsEnabled,
+    panelOpen: commentsOpen,
+    elementRef: frameRef,
+  });
 
   // Upload helpers (multipart through the admin fetch client).
   const upload = useCallback(
@@ -1020,6 +1046,50 @@ const EditorField = ({
     return () => window.removeEventListener('keydown', onKey, true);
   }, [ready]);
 
+  // Blocks of the current content for the comments panel, and open threads per block.
+  const commentBlocks = useMemo(
+    () =>
+      (currentData && Array.isArray(currentData.blocks) ? currentData.blocks : []).map((block, index) => ({
+        id: block.id,
+        index,
+        excerpt: blockExcerpt(block),
+      })),
+    [currentData]
+  );
+  const commentBlockIds = useMemo(() => commentBlocks.map((block) => block.id), [commentBlocks]);
+  const commentCounts = useMemo(() => openThreadsByBlock(comments.threads), [comments.threads]);
+
+  // The block the caret or pointer was in last ("comment on this block").
+  useEffect(() => {
+    const holder = holderRef.current;
+    if (!holder || !ready || !commentsEnabled) return undefined;
+    const remember = (event) => {
+      const block = event.target && event.target.closest ? event.target.closest('.ce-block[data-id]') : null;
+      if (block && holder.contains(block)) setCurrentBlockId(block.getAttribute('data-id'));
+    };
+    holder.addEventListener('focusin', remember);
+    holder.addEventListener('pointerdown', remember);
+    return () => {
+      holder.removeEventListener('focusin', remember);
+      holder.removeEventListener('pointerdown', remember);
+    };
+  }, [ready, commentsEnabled]);
+
+  const closeComments = useCallback(() => {
+    setCommentsOpen(false);
+    window.requestAnimationFrame(() => commentsButtonRef.current && commentsButtonRef.current.focus());
+  }, []);
+
+  /** Marker click: open the panel on the block's first open thread. */
+  const openBlockComments = useCallback(
+    (blockId) => {
+      const thread = comments.threads.find((item) => item.blockId === blockId && item.status === 'open');
+      setCommentFocusThread(thread ? thread.id : null);
+      setCommentsOpen(true);
+    },
+    [comments.threads]
+  );
+
   const fieldHint = valueError
     ? t('editor.value.invalid', 'The stored content could not be read. It is kept until you edit this field.')
     : hint;
@@ -1071,6 +1141,11 @@ const EditorField = ({
               })
             }
             onOpenShortcuts={() => setShortcutsOpen(true)}
+            commentsAvailable={commentsEnabled}
+            commentsOpen={commentsOpen}
+            onToggleComments={() => (commentsOpen ? closeComments() : setCommentsOpen(true))}
+            commentsCount={comments.counts.open}
+            commentsButtonRef={commentsButtonRef}
           />
           {findOpen && ready ? (
             <PanelSlot padding={2} $fullscreen={fullscreen}>
@@ -1099,6 +1174,21 @@ const EditorField = ({
                 onClose={closeQuality}
                 violations={violations}
                 onFixViolations={readOnly ? null : fixViolations}
+              />
+            </PanelSlot>
+          ) : null}
+          {commentsOpen && commentsEnabled && ready ? (
+            <PanelSlot padding={2} $fullscreen={fullscreen}>
+              <CommentsPanel
+                t={t}
+                comments={comments}
+                blocks={commentBlocks}
+                currentBlockId={currentBlockId}
+                onSelectBlock={selectBlock}
+                onClose={closeComments}
+                focusThreadId={commentFocusThread}
+                onFocusHandled={() => setCommentFocusThread(null)}
+                fail={(message) => toggleNotification({ type: 'danger', message })}
               />
             </PanelSlot>
           ) : null}
@@ -1139,10 +1229,22 @@ const EditorField = ({
               $minHeight={minHeight}
               $fullscreen={fullscreen}
               $focus={focusMode}
+              $gutter={commentsEnabled}
               data-testid="magic-editor-x"
               aria-busy={!ready}
               aria-describedby={`${name}-mex-keyboard`}
             />
+            {commentsEnabled && ready ? (
+              <CommentMarkers
+                containerRef={areaRef}
+                holderRef={holderRef}
+                counts={commentCounts}
+                blockIds={commentBlockIds}
+                version={contentVersion}
+                onOpen={openBlockComments}
+                t={t}
+              />
+            ) : null}
             {collaboration.active && collaboration.peers.length > 0 ? (
               <RemoteCarets
                 containerRef={areaRef}

@@ -24,6 +24,11 @@ export const API = {
   history: '/magic-editor-x/history',
   historyItem: (id) => `/magic-editor-x/history/${encodeURIComponent(id)}`,
   ai: (action) => `/magic-editor-x/ai/${encodeURIComponent(action)}`,
+  comments: '/magic-editor-x/comments',
+  comment: (id) => `/magic-editor-x/comments/${encodeURIComponent(id)}`,
+  commentReplies: (id) => `/magic-editor-x/comments/${encodeURIComponent(id)}/replies`,
+  commentResolve: (id) => `/magic-editor-x/comments/${encodeURIComponent(id)}/resolve`,
+  commentReopen: (id) => `/magic-editor-x/comments/${encodeURIComponent(id)}/reopen`,
   settings: '/magic-editor-x/settings',
   settingsAiTest: '/magic-editor-x/settings/ai/test',
 };

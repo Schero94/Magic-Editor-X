@@ -6,6 +6,7 @@ const { resolveFieldPreset, allowedInlineTags, checkPreset } = require('../../sh
 const { schemaHasEditorFields, transformEditorFields } = require('./utils/editor-fields');
 const { registerPublishGuard } = require('./utils/publish-guard');
 const { formErrorDetails } = require('./utils/form-errors');
+const { registerCommentRetention } = require('./utils/comment-retention');
 const { OUTPUT_FORMATS } = require('../../shared/resolve-references.mjs');
 const { registerGraphql } = require('./graphql');
 
@@ -98,4 +99,5 @@ module.exports = ({ strapi }) => {
   registerPublishGuard(strapi);
   registerOutputParam(strapi);
   registerGraphql(strapi);
+  registerCommentRetention(strapi);
 };
