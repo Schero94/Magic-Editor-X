@@ -57,6 +57,10 @@ import { SyncedBlockView } from './SyncedBlockView';
 import { createPasteHandler } from '../../editor/paste';
 import { createMarkdownShortcuts } from '../../editor/markdown-shortcuts';
 import { createMentionKeys } from '../../editor/tools/mention';
+import { createInlineMathKeys } from '../../editor/tools/inline-math';
+import { FOOTNOTE_SELECTOR, createFootnoteKeys, notifyFootnoteInput } from '../../editor/tools/footnote';
+import { FootnoteDialog } from './FootnoteDialog';
+import { FootnotesPanel } from './FootnotesPanel';
 import { restoreBlockInEditor } from '../../editor/restore-block.mjs';
 import { markInputReady, trackUserInput } from '../../editor/input-tracking.mjs';
 import { createStyleOwners } from '../../editor/style-owners.mjs';
@@ -72,6 +76,7 @@ import {
   checkPreset,
   fixPresetViolations,
   isBlockAllowed,
+  allowedInlineTags,
 } from '../../../../shared/presets.mjs';
 
 /**
@@ -365,6 +370,26 @@ const EditorFieldBody = ({
         return next;
       });
   }, []);
+
+  // Footnotes (2.4): the note dialog edits the marker the tool or the list points at.
+  const [footnoteEdit, setFootnoteEdit] = useState(null);
+  const footnoteEditRef = useRef(null);
+  const onFootnoteEdit = useCallback((marker, info = {}) => {
+    const holder = holderRef.current;
+    if (!holder || !marker) return;
+    const markers = Array.from(holder.querySelectorAll(FOOTNOTE_SELECTOR));
+    const index = markers.indexOf(marker);
+    if (index < 0) return;
+    setFootnoteEdit({
+      id: marker.getAttribute('data-mex-footnote'),
+      index,
+      isNew: Boolean(info.isNew),
+      html: marker.getAttribute('data-mex-note') || '',
+    });
+  }, []);
+  useEffect(() => {
+    footnoteEditRef.current = onFootnoteEdit;
+  }, [onFootnoteEdit]);
 
   useEffect(() => {
     onChangeRef.current = onChange;
@@ -727,6 +752,8 @@ const EditorFieldBody = ({
     let paste = null;
     let shortcuts = null;
     let mentionKeys = null;
+    let mathKeys = null;
+    let footnoteKeys = null;
     // Registered before Editor.js renders, so violations of the first render are seen.
     const cspGuard = createCspGuard(holderRef.current, {
       t,
@@ -759,6 +786,7 @@ const EditorFieldBody = ({
       placeholder,
       attachmentTypes: config.uploads.attachmentTypes,
       mountSynced,
+      onFootnoteEdit: (marker, info) => footnoteEditRef.current && footnoteEditRef.current(marker, info),
     });
     const toolNames = new Set(Object.keys(tools));
     // User input is tracked before Editor.js renders the blocks: after the
@@ -811,6 +839,7 @@ const EditorFieldBody = ({
           uploadImageFile: (file) => upload(API.imageByFile, 'image', file),
           notify: ({ type, message }) => toggleNotification({ type, message }),
           onInserted: markTouched,
+          hasTool: (name) => toolNames.has(name),
         });
         shortcuts = createMarkdownShortcuts({
           holder: holderRef.current,
@@ -821,6 +850,19 @@ const EditorFieldBody = ({
           onConverted: markTouched,
         });
         mentionKeys = createMentionKeys({ holder: holderRef.current });
+        // 2.4: inline math (Ctrl/Cmd+Shift+E, preview popover) and footnotes (Ctrl/Cmd+Alt+F).
+        const inlineAllowed = (tool) => !presetRef.current.inline || presetRef.current.inline.includes(tool);
+        mathKeys = createInlineMathKeys({
+          holder: holderRef.current,
+          t,
+          enabled: () => inlineAllowed('inlineMath'),
+        });
+        footnoteKeys = createFootnoteKeys({
+          holder: holderRef.current,
+          onEdit: (marker, info) => footnoteEditRef.current && footnoteEditRef.current(marker, info),
+          enabled: () => inlineAllowed('footnote'),
+          readOnly: () => Boolean(editor.readOnly && editor.readOnly.isEnabled),
+        });
         setReady(true);
         // Edits made while Editor.js was starting are stored right away.
         if (userTouchedRef.current) scheduleSave(0);
@@ -838,6 +880,8 @@ const EditorFieldBody = ({
       if (paste) paste.destroy();
       if (shortcuts) shortcuts.destroy();
       if (mentionKeys) mentionKeys.destroy();
+      if (mathKeys) mathKeys.destroy();
+      if (footnoteKeys) footnoteKeys.destroy();
       editorRef.current = null;
       editor.isReady.then(() => editor.destroy()).catch(() => {});
     };
@@ -1101,6 +1145,93 @@ const EditorFieldBody = ({
       // blocks without a caret position (images) are only scrolled into view
     }
   }, []);
+
+  /**
+   * Footnote marker by reading-order position, checked against its id
+   * (collaborators may have added or removed markers meanwhile).
+   * @param {number} index - Position.
+   * @param {string|null} [id] - Expected id.
+   * @returns {HTMLElement|null} Marker.
+   */
+  const footnoteMarker = useCallback((index, id = null) => {
+    const holder = holderRef.current;
+    if (!holder) return null;
+    const markers = Array.from(holder.querySelectorAll(FOOTNOTE_SELECTOR));
+    const at = markers[index];
+    if (at && (!id || at.getAttribute('data-mex-footnote') === id)) return at;
+    return id ? markers.find((marker) => marker.getAttribute('data-mex-footnote') === id) || null : null;
+  }, []);
+
+  /** Puts the caret after a marker and scrolls it into view. */
+  const caretAfter = useCallback((marker) => {
+    const editable = marker && marker.closest('[contenteditable="true"]');
+    if (!editable) return;
+    marker.scrollIntoView({ block: 'center' });
+    editable.focus();
+    const selection = window.getSelection();
+    if (!selection) return;
+    const range = document.createRange();
+    range.setStartAfter(marker);
+    range.collapse(true);
+    selection.removeAllRanges();
+    selection.addRange(range);
+  }, []);
+
+  /** Writes the note of the edited footnote (an empty new footnote is removed instead). */
+  const saveFootnote = useCallback(
+    (html) => {
+      const edit = footnoteEdit;
+      setFootnoteEdit(null);
+      if (!edit) return;
+      const marker = footnoteMarker(edit.index, edit.id);
+      if (!marker) {
+        toggleNotification({
+          type: 'warning',
+          message: t('editor.footnotes.gone', 'This footnote was removed meanwhile. The note was not saved.'),
+        });
+        return;
+      }
+      userTouchedRef.current = true;
+      if (html) marker.setAttribute('data-mex-note', html);
+      else marker.removeAttribute('data-mex-note');
+      notifyFootnoteInput(marker);
+      scheduleSave(40);
+      requestAnimationFrame(() => caretAfter(marker));
+    },
+    [footnoteEdit, footnoteMarker, caretAfter, scheduleSave, t, toggleNotification]
+  );
+
+  /** Closes the note dialog; a footnote that was just inserted and never got a note is removed. */
+  const closeFootnote = useCallback(() => {
+    const edit = footnoteEdit;
+    setFootnoteEdit(null);
+    if (!edit) return;
+    const marker = footnoteMarker(edit.index, edit.id);
+    if (!marker) return;
+    if (edit.isNew && !marker.getAttribute('data-mex-note')) {
+      const parent = marker.parentNode;
+      const next = marker.nextSibling;
+      marker.remove();
+      if (next && next.nodeType === Node.TEXT_NODE && next.data === '\u00a0') next.remove();
+      notifyFootnoteInput(parent);
+      return;
+    }
+    requestAnimationFrame(() => caretAfter(marker));
+  }, [footnoteEdit, footnoteMarker, caretAfter]);
+
+  /** Removes the n-th footnote (list action, confirmed). */
+  const removeFootnote = useCallback(
+    (index) => {
+      const marker = footnoteMarker(index);
+      if (!marker) return;
+      const parent = marker.parentNode;
+      userTouchedRef.current = true;
+      marker.remove();
+      notifyFootnoteInput(parent);
+      scheduleSave(40);
+    },
+    [footnoteMarker, scheduleSave]
+  );
 
   /** Restores one block of a version (sanitised like any remote content). */
   const restoreBlock = useCallback(
@@ -1773,6 +1904,21 @@ const EditorFieldBody = ({
               />
             ) : null}
           </EditorArea>
+          {!previewOpen ? (
+            <FootnotesPanel
+              t={t}
+              id={`${name}-mex`}
+              holderRef={holderRef}
+              ready={ready}
+              readOnly={readOnly}
+              onEdit={(index) => {
+                const marker = footnoteMarker(index);
+                if (marker) onFootnoteEdit(marker);
+              }}
+              onGoTo={(index) => caretAfter(footnoteMarker(index))}
+              onRemove={removeFootnote}
+            />
+          ) : null}
           <VisuallyHidden aria-live="polite" aria-atomic="true">
             {announcement}
           </VisuallyHidden>
@@ -1845,6 +1991,7 @@ const EditorFieldBody = ({
           t={t}
           tools={toolShortcuts}
           hasBlock={(type) => isBlockAllowed(preset, type)}
+          hasInline={(tool) => !readOnly && (!preset.inline || preset.inline.includes(tool))}
           onClose={() => setShortcutsOpen(false)}
         />
       ) : null}
@@ -1875,6 +2022,17 @@ const EditorFieldBody = ({
           onSaveCurrent={canManageTemplates ? saveWholeContent : null}
           onClose={closeTemplates}
           allowRaw={allowRawPreview}
+        />
+      ) : null}
+      {footnoteEdit ? (
+        <FootnoteDialog
+          t={t}
+          number={footnoteEdit.index + 1}
+          html={footnoteEdit.html}
+          readOnly={readOnly}
+          allowedTags={allowedInlineTags(preset)}
+          onSave={saveFootnote}
+          onClose={closeFootnote}
         />
       ) : null}
       {saveTemplate ? (

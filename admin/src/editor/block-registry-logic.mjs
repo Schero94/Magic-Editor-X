@@ -47,7 +47,7 @@ export const sanitizeRulesFor = (fields) => {
         s: { class: true },
         mark: { class: true },
         code: { class: true },
-        span: { class: true, 'data-tooltip': true },
+        span: { class: true, 'data-tooltip': true, 'data-mex-math': true },
         sub: true,
         sup: true,
         br: true,

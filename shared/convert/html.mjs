@@ -27,6 +27,9 @@ import {
   wrapLink,
   wrapMark,
 } from './common.mjs';
+import { escapeHtml } from '../editor-data.mjs';
+import { FOOTNOTE_ID } from '../sanitize-policy.mjs';
+import { canonicalInlineExtras } from '../render/inline.mjs';
 
 /** Longest HTML input the converter reads (characters). */
 export const MAX_HTML_LENGTH = 5 * 1024 * 1024;
@@ -264,6 +267,19 @@ const inlineOf = (nodes, state, depth = 0) => {
       continue;
     }
     previousBlock = false;
+    // 2.4: inline math and footnote markers copied from a Magic Editor X field keep their
+    // stored form (rebuilt through the strict inline parser, never copied markup).
+    if (name === 'span' && Object.prototype.hasOwnProperty.call(node.attribs || {}, 'data-mex-math')) {
+      const tex = textOf(node).replace(/\u200b/g, '');
+      if (tex.trim()) html += `<span data-mex-math="true">${escapeText(tex)}</span>`;
+      continue;
+    }
+    if (name === 'sup' && FOOTNOTE_ID.test(attr(node, 'data-mex-footnote'))) {
+      html += canonicalInlineExtras(
+        `<sup data-mex-footnote="${escapeHtml(attr(node, 'data-mex-footnote'))}" data-mex-note="${escapeHtml(attr(node, 'data-mex-note'))}">*</sup>`
+      );
+      continue;
+    }
     if (name === 'code' || name === 'kbd' || name === 'samp' || name === 'tt') {
       html += wrapMark(escapeText(textOf(node)), 'code');
       continue;

@@ -1,8 +1,10 @@
-import { useMemo } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Typography } from '@strapi/design-system';
 import styled from 'styled-components';
 import { MagicEditorXContent } from '../../../../shared/frameworks/react.mjs';
 import { sanitizeRawPreview } from './sanitize-raw';
+import { loadMath } from '../../editor/math-view';
+import { MATH_ATTRIBUTE } from '../../../../shared/sanitize-policy.mjs';
 
 /**
  * Rendered output of Magic Editor X content inside the admin (field preview,
@@ -208,7 +210,48 @@ const Prose = styled.div`
   & .mex-field + .mex-field {
     margin-top: ${({ theme }) => theme.spaces[1]};
   }
+  /* 2.4: math (MathML, or the TeX source while the renderer loads) and footnotes. */
+  & .mex-math-display {
+    display: block;
+    overflow-x: auto;
+    text-align: center;
+    font-size: ${({ theme }) => theme.fontSizes[3]};
+  }
+  & .mex-footnote-ref a {
+    text-decoration: none;
+    font-weight: ${({ theme }) => theme.fontWeights.bold};
+  }
+  & .mex-footnotes {
+    border-top: 1px solid ${({ theme }) => theme.colors.neutral200};
+    padding-top: ${({ theme }) => theme.spaces[3]};
+    font-size: ${({ theme }) => theme.fontSizes[1]};
+  }
+  & .mex-footnotes-label {
+    font-size: ${({ theme }) => theme.fontSizes[2]};
+    margin-top: 0;
+  }
+  & .mex-footnotes-list {
+    padding-inline-start: ${({ theme }) => theme.spaces[5]};
+  }
+  & .mex-footnote-back {
+    text-decoration: none;
+  }
 `;
+
+/**
+ * True when a value has math (a math block or inline math), so the math
+ * renderer is worth loading.
+ * @param {unknown} value - Field value.
+ * @returns {boolean} Result.
+ */
+const hasMath = (value) => {
+  const blocks = value && typeof value === 'object' && Array.isArray(value.blocks) ? value.blocks : null;
+  if (!blocks) return typeof value === 'string' && value.includes(MATH_ATTRIBUTE);
+  return blocks.some(
+    (block) =>
+      block && (block.type === 'math' || (block.data && JSON.stringify(block.data).includes(MATH_ATTRIBUTE)))
+  );
+};
 
 /**
  * Host name of a URL, or '' when it cannot be parsed.
@@ -279,14 +322,40 @@ const TableScroll = ({ children, t }) => (
  * @returns {JSX.Element} Rendered content.
  */
 export const RenderedContent = ({ value, t, allowRaw = false, lang, dir, synced }) => {
+  // 2.4: MathML through the math helper (separate chunk), loaded only when the value has math.
+  const [math, setMath] = useState(null);
+  const needsMath = hasMath(value);
+  useEffect(() => {
+    if (!needsMath || math) return undefined;
+    let active = true;
+    loadMath()
+      .then((module) => {
+        if (active) setMath(() => module.renderMath);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [needsMath, math]);
+  // Footnote ids of this preview (several previews may be on one page).
+  const reactId = useId();
+  const prefix = `mex-p${reactId.replace(/[^A-Za-z0-9]/g, '')}-`;
+  const proseRef = useRef(null);
   const options = useMemo(
     () => ({
       rawHtml: allowRaw ? 'allow' : 'sanitize',
       sanitizeRaw: allowRaw ? sanitizeRawPreview : undefined,
       code: { lineNumbers: true },
       synced,
+      math: math || undefined,
+      footnotes: {
+        prefix,
+        label: t('editor.preview.footnotes', 'Footnotes'),
+        // `{n}` stays a placeholder for the renderer.
+        backLabel: t('editor.preview.footnoteBack', 'Back to reference {n}', { n: '{n}' }),
+      },
     }),
-    [allowRaw, synced]
+    [allowRaw, synced, math, prefix, t]
   );
   const components = useMemo(
     () => ({
@@ -298,10 +367,28 @@ export const RenderedContent = ({ value, t, allowRaw = false, lang, dir, synced 
   // Links and downloads stay inside the admin: the preview is for reading.
   const stop = (event) => {
     const link = event.target && event.target.closest ? event.target.closest('a[href]') : null;
-    if (link) event.preventDefault();
+    if (!link) return;
+    event.preventDefault();
+    // Footnote references and back links move within the preview.
+    const href = link.getAttribute('href') || '';
+    if (href.startsWith('#') && proseRef.current) {
+      const target = proseRef.current.querySelector(`[id="${CSS.escape(href.slice(1))}"]`);
+      if (target) {
+        target.scrollIntoView({ block: 'center' });
+        const focusable = target.matches('a') ? target : target.querySelector('a');
+        if (focusable) focusable.focus();
+      }
+    }
   };
   return (
-    <Prose className="mex-preview" lang={lang} dir={dir} onClickCapture={stop} data-testid="mex-rendered">
+    <Prose
+      ref={proseRef}
+      className="mex-preview"
+      lang={lang}
+      dir={dir}
+      onClickCapture={stop}
+      data-testid="mex-rendered"
+    >
       <MagicEditorXContent value={value} options={options} components={components} />
     </Prose>
   );

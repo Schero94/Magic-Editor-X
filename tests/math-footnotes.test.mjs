@@ -530,3 +530,69 @@ test('Yjs guard accepts math blocks, inline math and footnotes; presets refuse t
     /From A[\s\S]*From B|From B[\s\S]*From A/
   );
 });
+
+/* ------------------------------------------------------------- admin logic */
+
+test('admin: footnote ids, note cleaning, Editor.js block clipboard and pasted HTML', async () => {
+  const { newFootnoteId, cleanNoteHtml, noteText } =
+    await import('../admin/src/editor/tools/footnote-logic.mjs');
+  const { editorClipboardFits, decidePaste, PROTECTED_TOOLS } =
+    await import('../admin/src/editor/paste-logic.mjs');
+  const { htmlToBlocks, parseHtmlWithHtmlparser2 } = await import('../shared/convert/index.mjs');
+  const ids = new Set(Array.from({ length: 200 }, () => newFootnoteId()));
+  assert.equal(ids.size, 200);
+  for (const id of ids) assert.match(id, /^fn[a-z0-9]{10}$/);
+  assert.equal(
+    cleanNoteHtml(
+      '<b>Bold</b> <i>it</i> <a href="https://e.example.test">l</a><script>x</script><sup data-mex-footnote="n">1</sup>',
+      ['b', 'br']
+    ),
+    '<b>Bold</b> it l<sup>1</sup>'.replace('<sup>1</sup>', '1')
+  );
+  assert.equal(cleanNoteHtml('<b> </b> ', null), '');
+  assert.equal(noteText('<b>A</b>  long\nnote', 6), 'A lon…');
+  // Editor.js block clipboard: left to Editor.js only when every block fits the field.
+  const json = JSON.stringify([
+    { tool: 'math', data: { tex: 'x' } },
+    { tool: 'paragraph', data: { text: 'a' } },
+  ]);
+  assert.equal(
+    editorClipboardFits(json, () => true),
+    true
+  );
+  assert.equal(
+    editorClipboardFits(json, (tool) => tool === 'paragraph'),
+    false
+  );
+  assert.equal(
+    editorClipboardFits('{bad', () => true),
+    false
+  );
+  assert.equal(
+    editorClipboardFits('[]', () => true),
+    false
+  );
+  assert.equal(decidePaste({ html: '<p>a</p><p>b</p>', editorBlocks: true }), null);
+  assert.equal(decidePaste({ html: '<p>a</p><p>b</p>', editorBlocks: false }), 'html');
+  assert.equal(decidePaste({ text: 'x', editorBlocks: true, plainOnly: true }), 'plain');
+  assert.ok(PROTECTED_TOOLS.includes('math'));
+  // Copied text with math and footnotes keeps them (rebuilt by the strict parser).
+  const { blocks } = htmlToBlocks(
+    `<p>a <span data-mex-math="true" class="evil">x^2</span>${note('fn1', '<b>N</b><img src=x onerror=alert(1)>')}</p><p>b</p>`,
+    { parse: parseHtmlWithHtmlparser2 }
+  );
+  assert.equal(
+    blocks[0].data.text,
+    'a <span data-mex-math="true">x^2</span><sup data-mex-footnote="fn1" data-mex-note="&lt;b&gt;N&lt;/b&gt;">*</sup>'
+  );
+});
+
+test('Content API output: MathML and a footnote id prefix per value', async () => {
+  const { renderResolved } = await import('../shared/resolve-references.mjs');
+  const value = doc({ type: 'math', data: { tex: 'x' } }, p(`a${note('n', 'Note')}`));
+  const html = renderResolved(value, 'html', { math: renderMath, footnotes: { prefix: 'mex-ab12cd34-' } });
+  assert.match(html, /<math display="block"/);
+  assert.match(html, /id="mex-ab12cd34-fnref-n"/);
+  assert.equal(renderResolved(value, 'text'), 'x\n\na[1]\n\nFootnotes\n[1] Note');
+  assert.equal(renderResolved(value, 'markdown'), '$$\nx\n$$\n\na[^1]\n\n[^1]: Note');
+});

@@ -1,7 +1,7 @@
 import { ICONS, el, field, input, select, button, editable } from './dom';
 import { createAltControl } from './alt-text';
 import { sanitizeInline, sanitizeUrl } from '../sanitize';
-import { LINK_SANITIZE } from './sanitize-config';
+import { LINK_SANITIZE, SPAN_SANITIZE, SUP_SANITIZE } from './sanitize-config';
 import {
   ALERT_TYPES,
   ALERT_ALIGNMENTS,
@@ -31,7 +31,8 @@ const INLINE_SANITIZE = {
   mark: { class: 'cdx-marker' },
   code: { class: 'inline-code' },
   a: { ...LINK_SANITIZE },
-  span: { class: 'cdx-tooltip', 'data-tooltip': true },
+  span: { ...SPAN_SANITIZE },
+  sup: { ...SUP_SANITIZE },
   br: true,
 };
 

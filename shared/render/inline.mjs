@@ -223,7 +223,10 @@ const finalizeSpecial = (nodes, depth = 0) => {
   for (const node of nodes) {
     if (node.type !== 'element') continue;
     if (isMathNode(node)) {
-      const tex = nodesToText(node.children, { raw: true }).slice(0, MAX_INLINE_TEX);
+      // The editor keeps a zero-width space in an empty formula for the caret; it is not TeX.
+      const tex = nodesToText(node.children, { raw: true })
+        .replace(/\u200b/g, '')
+        .slice(0, MAX_INLINE_TEX);
       node.children = tex ? [{ type: 'text', value: tex }] : [];
     } else if (isFootnoteNode(node)) {
       const text = nodesToText(node.children, { raw: true }).slice(0, MAX_MARKER_TEXT);
@@ -460,7 +463,8 @@ export const inlineNodesToRender = (nodes, options = {}) => {
     if (isMathNode(node)) {
       const tex = nodesToText(node.children);
       if (state && !options.storage) {
-        out.push(state.math(tex, false));
+        // An empty formula renders nothing.
+        if (tex.trim()) out.push(state.math(tex, false));
         continue;
       }
       out.push({

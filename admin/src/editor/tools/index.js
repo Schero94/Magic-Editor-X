@@ -37,10 +37,13 @@ import { ChecklistTool } from './checklist';
 import { buildCustomBlockTools } from './custom-block';
 import { MexImageTool } from './alt-text';
 import { GalleryTool, VideoTool, AudioTool } from './media';
+import { MathTool } from './math';
+import { InlineMathTool } from './inline-math';
+import { FootnoteTool } from './footnote';
 import { MARKED_BLOCKS } from '../../../../shared/sanitize-policy.mjs';
 import { markedTool } from './marked';
 import { isBlockAllowed } from '../../../../shared/presets.mjs';
-import { buildCodeBlockTools } from '../block-registry';
+import { buildCodeBlockTools, codeBlocks } from '../block-registry';
 
 export { createUndoManager } from './undo';
 export { createDragDrop } from './drag-drop';
@@ -63,6 +66,9 @@ const INLINE = [
   'strikethrough',
   'inlineCode',
   'tooltip',
+  // 2.4
+  'inlineMath',
+  'footnote',
 ];
 
 /** Names 2.3 gave to built-in tools that a Settings custom block could already have. */
@@ -73,6 +79,9 @@ const LEGACY_CUSTOM_NAMES = new Set([...Object.keys(MARKED_BLOCKS), 'mention']);
  * block names cannot contain `$`, so it never clashes with one.
  */
 const MENTION_FALLBACK_KEY = 'mention$mex';
+
+/** Keys of the 2.4 inline tools when a custom block (Settings or code) owns their name. */
+const INLINE_FALLBACK_KEYS = Object.freeze({ inlineMath: 'inlineMath$mex', footnote: 'footnote$mex' });
 
 /**
  * True when an enabled custom block has this exact name.
@@ -102,9 +111,16 @@ export function buildTools(ctx) {
   // A custom block named `mention` from before 2.3 keeps the name; the inline tool then uses another key
   // (inline tools store no name, so this changes nothing in the content).
   const mentionKey = hasCustomBlock(ctx.customBlocks, 'mention') ? MENTION_FALLBACK_KEY : 'mention';
+  // 2.4: inline math and footnotes keep working when a custom block (Settings or code) has their name.
+  const codeNames = new Set(codeBlocks().map((entry) => entry.definition.name));
+  const inlineKey = (name) =>
+    INLINE_FALLBACK_KEYS[name] && (hasCustomBlock(ctx.customBlocks, name) || codeNames.has(name))
+      ? INLINE_FALLBACK_KEYS[name]
+      : name;
+  const keyed = presetInline.map(inlineKey);
   const allowedInline = mentions
-    ? presetInline.flatMap((name) => (name === 'hyperlink' ? [name, mentionKey] : [name]))
-    : presetInline;
+    ? keyed.flatMap((name) => (name === 'hyperlink' ? [name, mentionKey] : [name]))
+    : keyed;
   const inline = ctx.aiEnabled ? [...allowedInline, 'aiAssistant'] : allowedInline;
   const levels = preset && preset.headingLevels.length ? preset.headingLevels : [1, 2, 3, 4, 5, 6];
   const canUpload = ctx.canUpload !== false;
@@ -191,6 +207,8 @@ export function buildTools(ctx) {
     codeFlask: { class: CodeHighlightTool, config: { ...shared, language: 'javascript' } },
     delimiter: { class: DelimiterTool, shortcut: 'CMD+SHIFT+D', config: shared },
     toc: { class: markedTool(TocTool, 'toc'), config: { t, levels } },
+    // Math block (2.4): TeX with a live preview (Temml, loaded on demand).
+    math: { class: markedTool(MathTool, 'math'), config: { t } },
     // Synced block (2.3): inserted from the template dialog; the field renders its view (`ctx.mountSynced`).
     synced: { class: markedTool(SyncedTool, 'synced'), config: { t, mount: ctx.mountSynced } },
     table: {
@@ -296,6 +314,11 @@ export function buildTools(ctx) {
         linkTargets: (preset && preset.linkTargets) || 'all',
       },
     },
+    [inlineKey('inlineMath')]: { class: InlineMathTool, config: { t } },
+    [inlineKey('footnote')]: {
+      class: FootnoteTool,
+      config: { t, onEdit: typeof ctx.onFootnoteEdit === 'function' ? ctx.onFootnoteEdit : null },
+    },
     ...(mentions
       ? {
           [mentionKey]: {
@@ -345,6 +368,7 @@ export function buildTools(ctx) {
 /** Tools that are not blocks of their own (inline tools, tunes, the Media Library placeholder). */
 const NOT_BLOCKS = new Set([
   ...INLINE,
+  ...Object.values(INLINE_FALLBACK_KEYS),
   'mention',
   MENTION_FALLBACK_KEY,
   'aiAssistant',
@@ -450,6 +474,9 @@ export function editorI18n(t) {
         'Inline Code': tr('tools.names.inlineCode', 'Inline code'),
         Tooltip: tr('tools.names.tooltip', 'Tooltip'),
         'AI assistant': tr('tools.names.ai', 'AI assistant'),
+        Math: tr('tools.names.math', 'Math'),
+        'Inline math': tr('tools.names.inlineMath', 'Inline math'),
+        Footnote: tr('tools.names.footnote', 'Footnote'),
       },
       tools: {
         link: { 'Add a link': tr('tools.hyperlink.placeholder', 'Paste a link and press Enter') },
