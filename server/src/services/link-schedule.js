@@ -4,6 +4,8 @@ const { createHash, randomUUID } = require('node:crypto');
 const { createLogger } = require('../utils/logger');
 const { isEditorAttribute, schemaHasEditorFields } = require('../utils/editor-fields');
 const { guardQuery, collectGuarded } = require('../utils/publish-guard');
+const { isTimeZone } = require('../utils/time-zone');
+const { recordAudit } = require('../utils/audit-record');
 const { extractLinks } = require('../../../shared/quality.mjs');
 
 /**
@@ -130,13 +132,14 @@ module.exports = ({ strapi }, dependencies = {}) => {
   };
 
   /**
-   * @returns {{ enabled: boolean, rule: string, maxUrlsPerRun: number, perMinute: number, perHostConcurrency: number }} Effective schedule.
+   * @returns {{ enabled: boolean, rule: string, tz: string|null, maxUrlsPerRun: number, perMinute: number, perHostConcurrency: number }} Effective schedule (`tz` null = server time zone).
    */
   const settings = () => {
     const schedule = conf('schedule', {}) || {};
     return {
       enabled: conf('enabled', false) === true && schedule.enabled === true,
       rule: typeof schedule.rule === 'string' ? schedule.rule : '0 3 * * *',
+      tz: typeof schedule.tz === 'string' && isTimeZone(schedule.tz) ? schedule.tz : null,
       maxUrlsPerRun: Number(schedule.maxUrlsPerRun) || 500,
       perMinute: Number(schedule.perMinute) || 60,
       perHostConcurrency: Number(schedule.perHostConcurrency) || 2,
@@ -276,9 +279,10 @@ module.exports = ({ strapi }, dependencies = {}) => {
   /**
    * The run body. The caller holds the lease.
    * @param {string} trigger - 'cron' or 'manual'.
+   * @param {object|null} [actor] - Admin who started a manual run (audit trail).
    * @returns {Promise<object>} Run record (counts only).
    */
-  const execute = async (trigger) => {
+  const execute = async (trigger, actor = null) => {
     const runId = `${now().toString(36)}-${randomUUID().slice(0, 8)}`;
     const startedAt = now();
     const stats = {
@@ -339,6 +343,17 @@ module.exports = ({ strapi }, dependencies = {}) => {
         logger.warn('scheduled link check result could not be stored', error);
       }
     }
+    await recordAudit(strapi, {
+      event: 'linkcheck.run',
+      counts: {
+        documents: stats.documents,
+        checked: stats.checked,
+        problems: stats.problems,
+        pruned: stats.pruned,
+      },
+      meta: { trigger, complete: complete ? 'true' : 'false' },
+      actor: actor || (trigger === 'cron' ? 'system' : undefined),
+    });
     logger.info('scheduled link check finished', {
       documents: stats.documents,
       linkedFields: stats.linkedFields,
@@ -353,15 +368,16 @@ module.exports = ({ strapi }, dependencies = {}) => {
   /**
    * Takes the cluster lease and starts a run in the background.
    * @param {'cron'|'manual'} trigger - Who started it.
+   * @param {object|null} [actor] - Admin user of a manual run.
    * @returns {Promise<{ started: boolean, reason?: 'DISABLED'|'RUNNING', done?: Promise<object> }>} Outcome.
    */
-  const start = async (trigger) => {
+  const start = async (trigger, actor = null) => {
     if (!settings().enabled) return { started: false, reason: 'DISABLED' };
     if (running || !(await store().acquire(LEASE_KEY, PROCESS_ID, LEASE_TTL_MS)))
       return { started: false, reason: 'RUNNING' };
     running = true;
     stopping = false;
-    const done = execute(trigger).finally(async () => {
+    const done = execute(trigger, actor).finally(async () => {
       running = false;
       try {
         await store().release(LEASE_KEY, PROCESS_ID);
@@ -385,15 +401,17 @@ module.exports = ({ strapi }, dependencies = {}) => {
     /**
      * Registers the cron job when the schedule is enabled. Every process
      * registers it; `onCron` makes sure one process runs per fire time.
+     * With `schedule.tz` the rule is read in that IANA time zone: Strapi 5.61
+     * passes `options.tz` to croner as `timezone` (`{ task, options: { rule, tz } }`).
      * @returns {boolean} True when a job was registered.
      */
     schedule() {
-      const { enabled, rule } = settings();
+      const { enabled, rule, tz } = settings();
       if (!enabled || !strapi.cron || typeof strapi.cron.add !== 'function') return false;
       strapi.cron.add({
         [CRON_NAME]: {
           task: (_context, fireDate) => api.onCron(fireDate),
-          options: { rule },
+          options: tz ? { rule, tz } : { rule },
         },
       });
       scheduled = Array.isArray(strapi.cron.jobs)
@@ -404,7 +422,26 @@ module.exports = ({ strapi }, dependencies = {}) => {
     },
 
     /**
+     * Next planned run of this process's cron job (from the job handle's
+     * `nextInvocation()`), or null.
+     * @returns {Date|null} Next fire time.
+     */
+    nextRun() {
+      try {
+        const entry = (strapi.cron && Array.isArray(strapi.cron.jobs) ? strapi.cron.jobs : []).find(
+          (job) => job && job.name === CRON_NAME
+        );
+        const next = entry && entry.job && entry.job.nextInvocation ? entry.job.nextInvocation() : null;
+        return next instanceof Date && !Number.isNaN(next.getTime()) ? next : null;
+      } catch {
+        return null;
+      }
+    },
+
+    /**
      * Cron entry point. One process per fire time (one-time key), one run at a time (lease).
+     * The key is the fire time's minute since the epoch (an absolute instant),
+     * so it is the same on every process whatever their or the rule's time zone.
      * @param {Date} [fireDate] - Planned fire time from the cron service.
      * @returns {Promise<object|null>} Run record, or null when another process runs it.
      */
@@ -423,10 +460,11 @@ module.exports = ({ strapi }, dependencies = {}) => {
 
     /**
      * Starts a run now (admin route). Resolves when the run has started.
+     * @param {object|null} [actor] - Admin user (recorded in the audit trail).
      * @returns {Promise<{ started: boolean, reason?: string }>} Outcome.
      */
-    async runNow() {
-      const outcome = await start('manual');
+    async runNow(actor = null) {
+      const outcome = await start('manual', actor);
       if (outcome.started) {
         outcome.done.catch(() => {});
         return { started: true };
@@ -445,8 +483,9 @@ module.exports = ({ strapi }, dependencies = {}) => {
     },
 
     /**
-     * Schedule state for Settings (no URLs, counts only).
-     * @returns {Promise<{ enabled: boolean, scheduled: boolean, rule: string, maxUrlsPerRun: number, perMinute: number, perHostConcurrency: number, running: boolean, lastRun: object|null }>} State.
+     * Schedule state for Settings (no URLs, counts only). `running` is true
+     * while any process of the cluster holds the run lease.
+     * @returns {Promise<{ enabled: boolean, scheduled: boolean, rule: string, tz: string|null, nextRunAt: string|null, maxUrlsPerRun: number, perMinute: number, perHostConcurrency: number, running: boolean, lastRun: object|null }>} State.
      */
     async status() {
       const current = settings();
@@ -457,7 +496,22 @@ module.exports = ({ strapi }, dependencies = {}) => {
       } catch {
         // no stored run yet or the store is unavailable
       }
-      return { ...current, scheduled, running, lastRun };
+      let held = running;
+      if (!held) {
+        try {
+          held = await store().isHeld(LEASE_KEY);
+        } catch {
+          held = false;
+        }
+      }
+      const next = scheduled ? api.nextRun() : null;
+      return {
+        ...current,
+        scheduled,
+        nextRunAt: next ? next.toISOString() : null,
+        running: held,
+        lastRun,
+      };
     },
 
     /**

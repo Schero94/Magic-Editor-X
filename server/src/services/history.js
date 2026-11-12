@@ -4,8 +4,10 @@ const { randomUUID } = require('node:crypto');
 const { errors } = require('@strapi/utils');
 const { cleanEditorValue } = require('../utils/sanitizer');
 const { sha256 } = require('../utils/crypto');
+const { recordAudit } = require('../utils/audit-record');
 const { stableStringify } = require('../../../shared/ydoc.mjs');
 const { computeStats } = require('../../../shared/editor-data.mjs');
+const { fieldIdentity } = require('../../../shared/audit.mjs');
 
 /**
  * Version history of Magic Editor X fields.
@@ -196,7 +198,15 @@ module.exports = ({ strapi }) => {
           populate: { createdBy: { select: ['firstname', 'lastname', 'username'] } },
         });
         await this.prune(target);
-        return { created: true, snapshot: toDto(row) };
+        const snapshot = toDto(row);
+        await recordAudit(strapi, {
+          event: 'version.create',
+          target: { ...target, field: fieldIdentity(target.field, clean) },
+          counts: { version: snapshot.version, blocks: clean.blocks.length },
+          meta: { trigger: snapshot.trigger },
+          actor: options.trigger === 'auto' ? 'system' : undefined,
+        });
+        return { created: true, snapshot };
       } finally {
         await store().release(key, PROCESS_ID);
       }

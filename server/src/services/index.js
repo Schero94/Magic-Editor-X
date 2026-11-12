@@ -16,6 +16,8 @@ module.exports = {
   history: require('./history'),
   comments: require('./comments'),
   templates: require('./templates'),
+  'synced-versions': require('./synced-versions'),
+  audit: require('./audit'),
   collaboration: require('./collaboration'),
   migrations: require('./migrations'),
   migrate: require('./migrate'),

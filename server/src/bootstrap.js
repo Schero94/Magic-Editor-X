@@ -3,6 +3,7 @@
 const { createLogger } = require('./utils/logger');
 const { registerPermissions } = require('./permissions');
 const { subscribeCommentAuthorCleanup } = require('./utils/comment-retention');
+const { subscribeAuditActorCleanup } = require('./utils/audit-trail');
 
 /**
  * Bootstrap: RBAC actions, plugin tables, migrations, the response parser
@@ -91,4 +92,13 @@ module.exports = async ({ strapi }) => {
 
   // Block comments: clear the author snapshot of deleted admin users.
   subscribeCommentAuthorCleanup(strapi);
+
+  // Audit trail (2.4): hourly retention pruning, Enterprise Audit Logs when available,
+  // anonymised actors of deleted admin users.
+  try {
+    plugin.service('audit').start();
+  } catch (error) {
+    logger.error('the audit trail could not start', error);
+  }
+  subscribeAuditActorCleanup(strapi);
 };

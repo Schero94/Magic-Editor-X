@@ -261,6 +261,9 @@ module.exports = ({ strapi }) => {
         enabled: status.enabled,
         scheduled: status.scheduled,
         rule: status.rule,
+        tz: status.tz || null,
+        nextRunAt: status.nextRunAt || null,
+        running: status.running === true,
         maxUrlsPerRun: status.maxUrlsPerRun,
         perMinute: status.perMinute,
         lastRun: status.lastRun

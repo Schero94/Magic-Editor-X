@@ -22,6 +22,7 @@ const ACTIONS = Object.freeze({
   commentsModerate: `plugin::${PLUGIN}.comments.moderate`,
   grammar: `plugin::${PLUGIN}.grammar.use`,
   templatesManage: `plugin::${PLUGIN}.templates.manage`,
+  auditRead: `plugin::${PLUGIN}.audit.read`,
 });
 
 const ACTION_DEFINITIONS = [
@@ -39,6 +40,7 @@ const ACTION_DEFINITIONS = [
   { uid: 'comments.moderate', displayName: "Moderate block comments (delete anyone's)" },
   { uid: 'grammar.use', displayName: 'Use the grammar check (LanguageTool)' },
   { uid: 'templates.manage', displayName: 'Manage templates and block patterns' },
+  { uid: 'audit.read', displayName: 'Read the audit trail (who changed what and when)' },
 ];
 
 /**

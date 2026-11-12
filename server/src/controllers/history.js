@@ -1,6 +1,7 @@
 'use strict';
 
-const { service } = require('./helpers');
+const { service, recordAudit } = require('./helpers');
+const { fieldIdentity } = require('../../../shared/audit.mjs');
 const { z, parseOrThrow, fieldTargetSchema, documentIdSchema } = require('../utils/validation');
 
 /** Version name: plain text, at most 120 characters, no control characters; '' or null removes it. */
@@ -44,7 +45,15 @@ module.exports = ({ strapi }) => {
     async findOne(ctx) {
       const { id } = parseOrThrow(z.strictObject({ id: documentIdSchema }), { id: ctx.params.id });
       const { target, snapshot } = await history().findOne(id);
-      await access().checkField({ userAbility: ctx.state.userAbility, ...target });
+      const result = await access().checkField({ userAbility: ctx.state.userAbility, ...target });
+      // 2.4: `?intent=restore` (sent by the editor's Restore action) records `version.restore`
+      // in the audit trail; restoring itself still happens in the browser.
+      if (ctx.query && ctx.query.intent === 'restore' && result.canUpdate)
+        await recordAudit(strapi, {
+          event: 'version.restore',
+          target: { ...target, locale: result.locale, field: fieldIdentity(target.field) },
+          counts: { version: Number(snapshot.version) || 0, blocks: snapshot.stats?.blocks || 0 },
+        });
       ctx.body = { data: snapshot };
     },
 
@@ -82,6 +91,11 @@ module.exports = ({ strapi }) => {
       const result = await access().checkField({ userAbility: ctx.state.userAbility, ...target });
       if (!result.canUpdate) return ctx.forbidden('You cannot edit this document');
       ctx.body = { data: await history().rename(id, label) };
+      await recordAudit(strapi, {
+        event: 'version.rename',
+        target: { ...target, locale: result.locale, field: fieldIdentity(target.field) },
+        counts: { version: Number(ctx.body.data.version) || 0 },
+      });
       return undefined;
     },
   };

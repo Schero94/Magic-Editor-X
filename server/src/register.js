@@ -7,6 +7,7 @@ const { schemaHasEditorFields, transformEditorFields } = require('./utils/editor
 const { registerPublishGuard } = require('./utils/publish-guard');
 const { formErrorDetails } = require('./utils/form-errors');
 const { registerCommentRetention } = require('./utils/comment-retention');
+const { registerAuditTrail } = require('./utils/audit-trail');
 const { OUTPUT_FORMATS } = require('../../shared/resolve-references.mjs');
 const { registerGraphql } = require('./graphql');
 
@@ -100,4 +101,5 @@ module.exports = ({ strapi }) => {
   registerOutputParam(strapi);
   registerGraphql(strapi);
   registerCommentRetention(strapi);
+  registerAuditTrail(strapi);
 };

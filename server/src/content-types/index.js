@@ -46,6 +46,15 @@ module.exports = {
         /** 1.x Yjs state (base64). Read once by the 2.0 migration, never written again. */
         yjsSnapshot: { type: 'text' },
         createdBy: { type: 'relation', relation: 'oneToOne', target: 'admin::user' },
+        /**
+         * Synced source versions (2.4, `contentType` = `plugin::magic-editor-x.template`,
+         * `fieldName` = `blocks`, `entryLocale` null): the source name at that version, and the
+         * author as admin id + name snapshot (both cleared when the admin is deleted; the id is
+         * never returned). Null on field versions.
+         */
+        sourceName: { type: 'string', maxLength: 100 },
+        authorId: { type: 'integer' },
+        authorName: { type: 'string', maxLength: 200 },
       },
     },
   },

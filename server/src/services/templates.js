@@ -3,6 +3,7 @@
 const { z } = require('zod');
 const { errors } = require('@strapi/utils');
 const { issueDetails } = require('../utils/validation');
+const { recordAudit } = require('../utils/audit-record');
 const { cleanEditorValue } = require('../utils/sanitizer');
 const { isEditorAttribute, resolveEditorField, schemaHasEditorFields } = require('../utils/editor-fields');
 const { guardQuery, collectGuarded } = require('../utils/publish-guard');
@@ -188,6 +189,42 @@ const toDto = (row) => {
 module.exports = ({ strapi }) => {
   const query = () => strapi.db.query(UID);
   const rawHtml = () => strapi.config.get('plugin::magic-editor-x.rawHtml') || 'sanitize';
+  const plugin = () => strapi.plugin('magic-editor-x');
+
+  /**
+   * Audit event and, for synced sources, a version after a write. The
+   * version is part of the save (an error is reported); the audit event
+   * never fails the save.
+   * @param {'create'|'update'|'delete'|'restore'} action - What happened.
+   * @param {object} row - Stored row (after the write; before it for delete).
+   * @param {object|null} user - Admin user.
+   * @param {{ trigger?: 'manual'|'restore', counts?: object }} [extra] - Version trigger, audit counts.
+   * @returns {Promise<void>}
+   */
+  const afterWrite = async (action, row, user, extra = {}) => {
+    const synced = row.kind === 'synced';
+    let versions;
+    try {
+      versions = plugin().service('synced-versions');
+    } catch {
+      versions = null;
+    }
+    if (synced && versions && action !== 'delete')
+      await versions.record(
+        { documentId: row.documentId, name: row.name, blocks: row.blocks },
+        user,
+        extra.trigger || 'manual'
+      );
+    if (synced && versions && action === 'delete') await versions.removeAll(row.documentId);
+    const blocks = row.blocks && Array.isArray(row.blocks.blocks) ? row.blocks.blocks.length : 0;
+    await recordAudit(strapi, {
+      event: `${synced ? 'synced' : 'template'}.${action === 'restore' && !synced ? 'update' : action}`,
+      target: { uid: UID, documentId: row.documentId },
+      counts: { blocks, ...(extra.counts || {}) },
+      meta: { kind: TEMPLATE_KINDS.includes(row.kind) ? row.kind : 'pattern' },
+      actor: user && Number.isInteger(user.id) ? user : undefined,
+    });
+  };
 
   const findRow = async (documentId) => {
     if (typeof documentId !== 'string' || !ID_PATTERN.test(documentId)) throw notFound();
@@ -347,33 +384,84 @@ module.exports = ({ strapi }) => {
         throw new errors.ValidationError('Too many templates', { code: 'TOO_MANY_TEMPLATES' });
       if (data.sortOrder === undefined) data.sortOrder = await nextSortOrder();
       const row = await query().create({ data: { ...data, createdByName: displayName(user) } });
+      await afterWrite('create', row, user);
       return toDto(row);
     },
 
     /**
-     * Replaces a template definition.
+     * Replaces a template definition. A synced source gets a new version
+     * (unless name and blocks are unchanged).
      * @param {string} documentId - Id.
      * @param {unknown} input - Full definition.
+     * @param {object|null} [user] - Admin user (version author, audit actor).
+     * @param {{ trigger?: 'manual'|'restore' }} [options] - Version trigger.
      * @returns {Promise<object>} Updated template.
      */
-    async update(documentId, input) {
+    async update(documentId, input, user = null, options = {}) {
       const existing = await findRow(documentId);
       const data = toRow(input);
       // References point at synced sources: neither side may change kind.
       if ((existing.kind === 'synced') !== (data.kind === 'synced'))
         invalid('kind', 'The type of a synced block cannot be changed');
       const row = await query().update({ where: { id: existing.id }, data });
+      await afterWrite(options.trigger === 'restore' ? 'restore' : 'update', row, user, {
+        trigger: options.trigger,
+      });
       return toDto(row);
     },
 
     /**
-     * Deletes a template. Content created from it is not affected.
+     * Restores a version of a synced source: its blocks and name replace the
+     * current ones through a normal update (description, scope, enabled and
+     * order stay), which stores a new version with trigger `restore`.
+     * @param {string} documentId - Source id.
+     * @param {string} versionId - Version id.
+     * @param {object|null} user - Admin user.
+     * @returns {Promise<object>} Updated source.
+     * @throws {errors.NotFoundError} When the id is not a synced source or the version not one of its versions.
+     */
+    async restoreVersion(documentId, versionId, user) {
+      const existing = await findRow(documentId);
+      if (existing.kind !== 'synced') throw notFound();
+      const version = await plugin().service('synced-versions').findOne(documentId, versionId);
+      const current = toDto(existing);
+      return this.update(
+        documentId,
+        {
+          name: version.name || current.name,
+          description: current.description || null,
+          kind: 'synced',
+          blocks: version.content,
+          scope: current.scope,
+          enabled: current.enabled,
+          sortOrder: current.sortOrder,
+        },
+        user,
+        { trigger: 'restore' }
+      );
+    },
+
+    /**
+     * Throws 404 unless the id is a synced source.
      * @param {string} documentId - Id.
+     * @returns {Promise<void>}
+     */
+    async assertSynced(documentId) {
+      const row = await findRow(documentId);
+      if (row.kind !== 'synced') throw notFound();
+    },
+
+    /**
+     * Deletes a template. Content created from it is not affected. A synced
+     * source's versions are deleted with it.
+     * @param {string} documentId - Id.
+     * @param {object|null} [user] - Admin user (audit actor).
      * @returns {Promise<{ id: string }>} Deleted id.
      */
-    async remove(documentId) {
+    async remove(documentId, user = null) {
       const existing = await findRow(documentId);
       await query().delete({ where: { id: existing.id } });
+      await afterWrite('delete', existing, user);
       return { id: existing.documentId };
     },
 

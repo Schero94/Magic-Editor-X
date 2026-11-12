@@ -1,6 +1,7 @@
 'use strict';
 
 const { z } = require('zod');
+const { isTimeZone } = require('../utils/time-zone');
 const { isValidLinkPattern, MAX_LINK_PATTERN_LENGTH } = require('../../../shared/link-pattern.mjs');
 
 /**
@@ -128,8 +129,10 @@ const defaults = {
        */
       schedule: {
         enabled: false,
-        /** Cron rule with five fields (minute hour day month weekday), server time zone. */
+        /** Cron rule with five fields (minute hour day month weekday), in `tz` (default: the server time zone). */
         rule: '0 3 * * *',
+        // `tz` (2.4, optional, no default): IANA time zone of the rule (`Europe/Berlin`, `UTC`);
+        // unset uses the server time zone. Validated with utils/time-zone.js.
         /** Most URLs requested per run; the least recently checked go first. */
         maxUrlsPerRun: 500,
         /** Requests per minute of a run (all hosts). */
@@ -138,6 +141,12 @@ const defaults = {
         perHostConcurrency: 2,
       },
     },
+  },
+  audit: {
+    /** Audit trail (2.4): who changed what and when, counts and block ids only, never content. */
+    enabled: true,
+    /** Days records are kept; older ones are pruned once an hour by one process. 0 keeps them. */
+    retentionDays: 180,
   },
   links: {
     /**
@@ -246,6 +255,7 @@ const configSchema = z.looseObject({
         schedule: z.looseObject({
           enabled: z.boolean(),
           rule: z.string().max(100).regex(CRON_RULE),
+          tz: z.string().max(64).refine(isTimeZone).optional(),
           maxUrlsPerRun: positiveInt(10000),
           perMinute: positiveInt(600),
           perHostConcurrency: positiveInt(8),
@@ -255,6 +265,14 @@ const configSchema = z.looseObject({
     .refine((value) => !value.externalLinks.schedule.enabled || value.externalLinks.enabled, {
       path: ['externalLinks', 'schedule', 'enabled'],
     }),
+  audit: z.looseObject({
+    enabled: z.boolean(),
+    retentionDays: z
+      .number()
+      .int()
+      .min(0)
+      .max(10 * 366),
+  }),
   links: z.looseObject({
     urlPattern: z.string().max(MAX_LINK_PATTERN_LENGTH).refine(isValidLinkPattern),
   }),

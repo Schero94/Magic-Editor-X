@@ -155,6 +155,13 @@ const TemplatesPage = () => {
     }
   };
 
+  /** A synced source version was restored (2.4): reload and reopen the source with its new content. */
+  const onRestored = async (template) => {
+    resetEditorConfigCache();
+    await data.reload();
+    setEditing({ template, key: `${template.id}:${template.updatedAt || Date.now()}` });
+  };
+
   if (editing) {
     return (
       <TemplateEditor
@@ -164,6 +171,7 @@ const TemplatesPage = () => {
         onRetryTargets={data.reloadTargets}
         onSubmit={onSubmit}
         onBack={backToList}
+        onRestored={onRestored}
       />
     );
   }
