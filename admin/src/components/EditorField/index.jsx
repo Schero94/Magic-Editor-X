@@ -240,8 +240,11 @@ const Holder = styled.div`
   }
   min-height: ${({ $minHeight }) => `${$minHeight}px`};
   ${({ $fullscreen }) => ($fullscreen ? 'flex: 1 1 auto; overflow: auto;' : '')}
-  /* Room for the block comment markers at the inline end (they sit outside the holder). */
-  ${({ $gutter, theme }) => ($gutter ? `&& { padding-inline-end: ${theme.spaces[8]}; }` : '')}
+  /* Room for the block comment and suggestion markers at the inline end (they sit outside the holder). */
+  ${({ $gutter, theme }) =>
+    $gutter
+      ? `&& { padding-inline-end: ${$gutter === 2 ? `calc(${theme.spaces[8]} + 3.6rem)` : theme.spaces[8]}; }`
+      : ''}
   ${({ $focus, theme }) =>
     $focus
       ? `
@@ -1567,6 +1570,13 @@ const EditorFieldBody = ({
     [suggestionsEnabled, suggestions.suggestions, commentBlockIds]
   );
   const suggestionsOpenCount = suggestionsEnabled ? suggestions.counts.open : 0;
+  // Marker columns at the inline end: two only while a block has both a comment and a suggestion marker.
+  const markerColumns =
+    commentsEnabled || suggestionsEnabled
+      ? Array.from(suggestionCounts.keys()).some((id) => commentsEnabled && commentCounts.has(id))
+        ? 2
+        : 1
+      : 0;
 
   /** Starts suggest mode on a copy of what the editor shows now. */
   const startSuggest = useCallback(async () => {
@@ -2232,7 +2242,7 @@ const EditorFieldBody = ({
               $minHeight={minHeight}
               $fullscreen={fullscreen}
               $focus={focusMode}
-              $gutter={commentsEnabled || suggestionsEnabled}
+              $gutter={markerColumns}
               data-testid="magic-editor-x"
               aria-busy={!ready}
               aria-describedby={`${name}-mex-keyboard`}
@@ -2253,7 +2263,7 @@ const EditorFieldBody = ({
                 containerRef={areaRef}
                 holderRef={holderRef}
                 counts={suggestionCounts}
-                stackBelow={commentsEnabled ? commentCounts : undefined}
+                beside={commentsEnabled ? commentCounts : undefined}
                 blockIds={commentBlockIds}
                 version={contentVersion}
                 onOpen={openBlockSuggestions}

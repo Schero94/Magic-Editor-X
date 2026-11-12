@@ -6,12 +6,10 @@ import styled from 'styled-components';
  * Per-block suggestion indicators (2.4), pattern of the comment markers: a
  * small button with the number of open suggestions at the inline end of every
  * block that has some (inserts count on the block they go after). On a block
- * that also has a comment marker it sits below that one. The layer is next to
- * the Editor.js holder, never inside it.
+ * that also has a comment marker it sits beside that one (the field widens its
+ * gutter for this, see `$gutter` in index.jsx). The layer is next to the
+ * Editor.js holder, never inside it.
  */
-
-/** Distance below a comment marker on the same block (marker height 3.2rem plus a gap). */
-const STACK_OFFSET_PX = 36;
 
 const Layer = styled.div`
   position: absolute;
@@ -22,7 +20,8 @@ const Layer = styled.div`
 
 const Marker = styled.button`
   position: absolute;
-  inset-inline-end: ${({ theme }) => theme.spaces[1]};
+  /* Beside a comment marker: one marker width (3.2rem) plus the gap to the right. */
+  inset-inline-end: ${({ theme, $beside }) => ($beside ? `calc(${theme.spaces[2]} + 3.2rem)` : theme.spaces[1])};
   pointer-events: auto;
   display: inline-flex;
   align-items: center;
@@ -62,7 +61,7 @@ const Marker = styled.button`
  * @param {{ current: HTMLElement|null }} props.containerRef - Positioned element around the holder.
  * @param {{ current: HTMLElement|null }} props.holderRef - Editor.js holder.
  * @param {Map<string, number>} props.counts - Open suggestions per block id.
- * @param {Map<string, number>} [props.stackBelow] - Blocks with a comment marker (this marker goes below it).
+ * @param {Map<string, number>} [props.beside] - Blocks with a comment marker (this marker goes beside it).
  * @param {string[]} props.blockIds - Block ids in document order.
  * @param {number} props.version - Changes when the content changed.
  * @param {(blockId: string) => void} props.onOpen - Opens the block's suggestions.
@@ -73,7 +72,7 @@ export const SuggestionMarkers = ({
   containerRef,
   holderRef,
   counts,
-  stackBelow = new Map(),
+  beside = new Map(),
   blockIds,
   version,
   onOpen,
@@ -82,7 +81,7 @@ export const SuggestionMarkers = ({
   const [positions, setPositions] = useState([]);
   const frame = useRef(0);
   const key = Array.from(counts.entries())
-    .map(([id, count]) => `${id}:${count}:${stackBelow.has(id) ? 1 : 0}`)
+    .map(([id, count]) => `${id}:${count}:${beside.has(id) ? 1 : 0}`)
     .join(',');
 
   useLayoutEffect(() => {
@@ -105,8 +104,9 @@ export const SuggestionMarkers = ({
           next.push({
             blockId,
             count,
-            top: rect.top - origin.top + (stackBelow.has(blockId) ? STACK_OFFSET_PX : 0),
+            top: rect.top - origin.top,
             index: blockIds.indexOf(blockId),
+            besideComment: beside.has(blockId),
           });
         }
         next.sort((a, b) => a.top - b.top);
@@ -124,16 +124,17 @@ export const SuggestionMarkers = ({
       window.removeEventListener('resize', update);
       holder.removeEventListener('scroll', update, true);
     };
-    // counts and stackBelow are compared through `key`
+    // counts and beside are compared through `key`
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `key` stands for counts
   }, [containerRef, holderRef, key, version, blockIds]);
 
   if (positions.length === 0) return null;
   return (
     <Layer data-testid="mex-suggestion-markers">
-      {positions.map(({ blockId, count, top, index }) => (
+      {positions.map(({ blockId, count, top, index, besideComment }) => (
         <Marker
           key={blockId}
+          $beside={besideComment}
           type="button"
           style={{ top }}
           data-block-id={blockId}
