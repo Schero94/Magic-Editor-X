@@ -468,6 +468,7 @@
   "editor.find.truncated": "(only the first matches are shown)",
   "editor.find.error.invalid": "This regular expression is not valid.",
   "editor.find.error.tooLong": "Search for at most {max} characters.",
+  "editor.paste.mediaFailed": "{count, plural, one {# video or audio file} other {# video or audio files}} could not be copied from {count, plural, one {its address} other {their addresses}} and {count, plural, one {was} other {were}} left out. Add {count, plural, one {it} other {them}} with the video or audio block.",
   "editor.preset.title": "Field settings",
   "editor.preset.fix": "Fix automatically",
   "editor.preset.hint": "Saving fails until this content matches the settings of the field. Automatic fixes change heading levels, turn blocks that are not allowed into paragraphs and remove links that are not allowed.",

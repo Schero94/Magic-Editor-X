@@ -181,6 +181,7 @@ export const xssDocument = (payload) =>
     { type: 'toggle', data: { text: payload, items: 0 } },
     { type: 'code', data: { code: payload } },
     { type: 'codeFlask', data: { code: payload, language: payload } },
+    { type: 'codeFlask', data: { code: payload, language: 'js', filename: payload } },
     { type: 'raw', data: { html: payload } },
     {
       type: 'table',

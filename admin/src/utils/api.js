@@ -9,6 +9,7 @@ export const API = {
   imageByFile: '/magic-editor-x/image/byFile',
   imageByUrl: '/magic-editor-x/image/byUrl',
   fileUpload: '/magic-editor-x/file/upload',
+  mediaByUrl: '/magic-editor-x/media/byUrl',
   contentTypes: '/magic-editor-x/content-types',
   linkTypes: '/magic-editor-x/links/types',
   linkSearch: '/magic-editor-x/links/search',

@@ -348,6 +348,37 @@ const listItems = (items, inline, depth = 0) => {
  * only ever contains what the tool itself writes.
  * @type {Record<string, (data: object, inline: (html: string) => string, ctx: { rawHtml: string, rawSanitizer: (html: string) => string }) => object>}
  */
+/** Longest file name label of a code block (2.4). */
+export const MAX_CODE_FILENAME = 200;
+
+/** C0/C1 controls, DEL, bidi overrides, zero-width marks and line/paragraph separators. */
+const FILENAME_STRIP =
+  // eslint-disable-next-line no-control-regex -- the point is to remove control characters
+  /[\u0000-\u001f\u007f-\u009f\u061c\u200b-\u200f\u2028-\u202e\u2060\u2066-\u2069\ufeff]/g;
+
+/**
+ * Cleans the file name label of a code block (`codeFlask.filename`, 2.4).
+ * It is plain text shown above the code, never a path the plugin opens:
+ * control, bidi and zero-width characters are removed, white space is
+ * collapsed, the result is trimmed and cut to 200 characters.
+ * @param {unknown} value - Candidate.
+ * @returns {string} Clean label ('' when nothing usable remains).
+ */
+export const cleanCodeFilename = (value) => {
+  if (typeof value !== 'string') return '';
+  return Array.from(
+    value
+      .slice(0, 4 * MAX_CODE_FILENAME)
+      .replace(/[\t\n\r\f\v]/g, ' ')
+      .replace(FILENAME_STRIP, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+  )
+    .slice(0, MAX_CODE_FILENAME)
+    .join('')
+    .trim();
+};
+
 export const BLOCK_POLICIES = {
   paragraph: (d, inline) => ({ text: inline(d.text) }),
   header: (d, inline) => ({ text: inline(d.text), level: int(d.level, 1, 6, 2) }),
@@ -407,6 +438,9 @@ export const BLOCK_POLICIES = {
         typeof d.language === 'string' && /^[a-z0-9+#-]{1,32}$/i.test(d.language) ? d.language : 'plaintext',
     };
     if (typeof d.showlinenumbers === 'boolean') out.showlinenumbers = d.showlinenumbers;
+    // 2.4: optional file name label; omitted when empty so older data stays unchanged.
+    const filename = cleanCodeFilename(d.filename);
+    if (filename) out.filename = filename;
     return out;
   },
   raw: (d, _inline, ctx) => {

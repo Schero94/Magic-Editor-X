@@ -56,7 +56,8 @@ import { loadSynced, primeSynced, useSyncedSources } from '../../editor/synced-s
 import { SyncedBlockView } from './SyncedBlockView';
 import { createPasteHandler } from '../../editor/paste';
 import { createMarkdownShortcuts } from '../../editor/markdown-shortcuts';
-import { createMentionKeys } from '../../editor/tools/mention';
+import { MentionTool, createMentionKeys } from '../../editor/tools/mention';
+import { createMentionTrigger } from '../../editor/mention-trigger';
 import { createInlineMathKeys } from '../../editor/tools/inline-math';
 import {
   FOOTNOTE_SELECTOR,
@@ -761,6 +762,21 @@ const EditorFieldBody = ({
     [post, t, toggleNotification]
   );
 
+  // 2.4: pasted videos, audio, WebVTT tracks and posters. No notification per file:
+  // the paste handler reports the files that could not be copied in one notice.
+  const uploadMediaByUrl = useCallback(
+    async (url, kind) => {
+      try {
+        const { data } =
+          kind === 'poster' ? await post(API.imageByUrl, { url }) : await post(API.mediaByUrl, { url, kind });
+        return data;
+      } catch {
+        return { success: 0 };
+      }
+    },
+    [post]
+  );
+
   const openMediaLibrary = useCallback((request) => setMediaRequest(request || {}), []);
   const onAiRequest = useCallback((request) => {
     const editor = editorRef.current;
@@ -799,6 +815,7 @@ const EditorFieldBody = ({
     let mentionKeys = null;
     let mathKeys = null;
     let footnoteKeys = null;
+    let mentionTrigger = null;
     // Registered before Editor.js renders, so violations of the first render are seen.
     const cspGuard = createCspGuard(holderRef.current, {
       t,
@@ -882,6 +899,7 @@ const EditorFieldBody = ({
           canUpload: Boolean(permissions.upload),
           uploadImageByUrl,
           uploadImageFile: (file) => upload(API.imageByFile, 'image', file),
+          uploadMediaByUrl,
           notify: ({ type, message }) => toggleNotification({ type, message }),
           onInserted: markTouched,
           hasTool: (name) => toolNames.has(name),
@@ -908,6 +926,15 @@ const EditorFieldBody = ({
           enabled: () => inlineAllowed('footnote'),
           readOnly: () => Boolean(editor.readOnly && editor.readOnly.isEnabled),
         });
+        // 2.4: `@` opens entry suggestions wherever the mention tool is offered (preset, link targets).
+        if (Object.values(tools).some((tool) => tool && tool.class === MentionTool))
+          mentionTrigger = createMentionTrigger({
+            holder: holderRef.current,
+            editor,
+            fetchClient: { get, post },
+            getLocale: () => contentLocaleRef.current,
+            t,
+          });
         setReady(true);
         // Edits made while Editor.js was starting are stored right away.
         if (userTouchedRef.current) scheduleSave(0);
@@ -927,6 +954,7 @@ const EditorFieldBody = ({
       if (mentionKeys) mentionKeys.destroy();
       if (mathKeys) mathKeys.destroy();
       if (footnoteKeys) footnoteKeys.destroy();
+      if (mentionTrigger) mentionTrigger.destroy();
       editorRef.current = null;
       editor.isReady.then(() => editor.destroy()).catch(() => {});
     };

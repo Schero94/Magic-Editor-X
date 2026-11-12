@@ -243,15 +243,36 @@ const listLines = (items, style, start, options, indent, depth) => {
  * @param {string} [language] - Info string.
  * @returns {string} Fenced block.
  */
-const fence = (code, language) => {
+const fence = (code, language, filename) => {
+  const valid = language && /^[a-z0-9+#-]{1,32}$/i.test(language);
+  if (filename) return titledFence(code, valid ? language : 'plaintext', filename);
   const longest = Math.max(2, ...(code.match(/`{3,}/g) || []).map((run) => run.length));
   const marks = '`'.repeat(longest + 1);
-  const info = language && /^[a-z0-9+#-]{1,32}$/i.test(language) && language !== 'plaintext' ? language : '';
+  const info = valid && language !== 'plaintext' ? language : '';
   return `${marks}${info}\n${code.replace(/\n$/, '')}\n${marks}`;
 };
 
 /** GFM alignment row markers. */
 const ALIGN_RULES = Object.freeze({ left: ':---', center: ':---:', right: '---:' });
+
+/**
+ * Fenced code with a file name in the info string (2.4): ```` ```js title="app.js" ````.
+ * The language is always written (`plaintext` when there is none), so the
+ * title is never read as the language. `"` and `\` are backslash-escaped;
+ * a name with a backtick uses a tilde fence, because CommonMark does not
+ * allow backticks in the info string of a backtick fence.
+ * @param {string} code - Code.
+ * @param {string} language - Valid language id.
+ * @param {string} filename - Clean file name label.
+ * @returns {string} Markdown.
+ */
+const titledFence = (code, language, filename) => {
+  const char = filename.includes('`') ? '~' : '`';
+  const runs = code.match(char === '`' ? /`{3,}/g : /~{3,}/g) || [];
+  const marks = char.repeat(Math.max(2, ...runs.map((run) => run.length)) + 1);
+  const title = filename.replace(/[\\"]/g, (ch) => `\\${ch}`);
+  return `${marks}${language} title="${title}"\n${code.replace(/\n$/, '')}\n${marks}`;
+};
 
 /** GFM table cell. */
 const cell = (html, options) => oneLine(md(html, options)) || ' ';
@@ -296,7 +317,8 @@ const RENDERERS = {
       .filter(Boolean)
       .join('\n\n'),
   code: (b) => (b.data.code ? fence(b.data.code) : ''),
-  codeFlask: (b) => (b.data.code ? fence(b.data.code, b.data.language) : ''),
+  codeFlask: (b) =>
+    b.data.code || b.data.filename ? fence(b.data.code, b.data.language, b.data.filename || '') : '',
   raw: (b, o) => {
     if (o.rawHtml !== 'allow' || typeof o.sanitizeRaw !== 'function') return '';
     const html = o.sanitizeRaw(String(b.raw.html || ''));
