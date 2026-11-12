@@ -1,20 +1,21 @@
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { useFetchClient } from '@strapi/strapi/admin';
-import { API } from '../utils/api';
+import { API, readApiError } from '../utils/api';
 import { SYNCED_REF_PATTERN } from '../../../shared/synced.mjs';
 
 /**
  * Synced block sources in the admin (2.3): one cache for every editor on the
  * page, so several references to one source share a request. A source is
  * loaded with `GET /templates/:id` (needs `access`; disabled synced sources
- * are still returned). Entries refresh when they are older than `MAX_AGE_MS`
- * and a component asks again (window focus, the polling interval of the
- * synced block view, "Edit source" coming back), so edits made in Settings
- * show up in every open field without reloading the page.
+ * are still returned), so edits made in Settings show up in every open field
+ * without reloading the page.
  *
  * Entry states: `loading`, `ready` (with `template`), `missing` (404: the
  * source was deleted) and `error` (network or server error; the last loaded
  * template, if any, stays visible).
+ *
+ * Mounting a view reuses an entry younger than `MAX_AGE_MS`; window focus,
+ * the page becoming visible and the poll always reload.
  */
 
 export const MAX_AGE_MS = 15000;
@@ -85,8 +86,8 @@ export const loadSynced = (get, ref, options = {}) => {
           : { status: 'missing', template: null, loadedAt: Date.now() };
       },
       (error) => {
-        const status = error && error.response ? error.response.status : 0;
-        if (status === 404) return { status: 'missing', template: null, loadedAt: Date.now() };
+        if (readApiError(error).status === 404)
+          return { status: 'missing', template: null, loadedAt: Date.now() };
         const previous = entries.get(ref);
         return {
           status: 'error',
@@ -149,9 +150,10 @@ export const useSyncedSources = (refs, options = {}) => {
   useEffect(() => {
     if (!list.length) return undefined;
     refresh(false);
-    const onFocus = () => refresh(false);
+    // Coming back to the tab (e.g. from "Edit source" in Settings) always reloads.
+    const onFocus = () => refresh(true);
     const onVisible = () => {
-      if (document.visibilityState === 'visible') refresh(false);
+      if (document.visibilityState === 'visible') refresh(true);
     };
     window.addEventListener('focus', onFocus);
     document.addEventListener('visibilitychange', onVisible);
