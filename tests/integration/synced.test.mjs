@@ -148,7 +148,12 @@ test('editors are offered the source in full fields only and store just the refe
   assert.equal((await list('body')).length, 1);
   assert.equal((await list('summary')).length, 0);
 
-  const reference = { id: 'ref1', type: 'synced', data: { ref: state.source, blocks: [p('x', 'copied')] } };
+  // Marked as the editor's synced tool writes it, with copied content that must not be stored.
+  const reference = {
+    id: 'ref1',
+    type: 'synced',
+    data: { ref: state.source, _mex: 1, blocks: [p('x', 'copied')] },
+  };
   const a = await createArticle(editor, {
     title: `Synced A ${RUN}`,
     slug: `synced-a-${RUN}`,
@@ -161,8 +166,9 @@ test('editors are offered the source in full fields only and store just the refe
   });
   state.a = a.documentId;
   state.b = b.documentId;
-  // Stored: the reference only, extra keys dropped.
-  assert.deepEqual(a.body.blocks[1].data, { ref: state.source });
+  // Stored: the reference only (and the marker), extra keys dropped; an unmarked `{ ref }` gets the marker.
+  assert.deepEqual(a.body.blocks[1].data, { ref: state.source, _mex: 1 });
+  assert.deepEqual(b.body.blocks[0].data, { ref: state.source, _mex: 1 });
 
   // A basic field does not allow synced blocks: the save is refused.
   const refused = await call('POST', `/content-manager/collection-types/${ARTICLE}`, {
@@ -196,7 +202,7 @@ test('?mex= expands the reference in both entries; without it the stored referen
   assert.deepEqual(plain.body.data.body.blocks[1], {
     id: 'ref1',
     type: 'synced',
-    data: { ref: state.source },
+    data: { ref: state.source, _mex: 1 },
   });
 
   const text = await output(state.b, 'text', token);

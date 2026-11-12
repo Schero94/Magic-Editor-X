@@ -145,6 +145,11 @@ export interface GalleryData {
   /** Columns of the grid layout (1 to 6, hint). */
   columns: number;
   caption: InlineHtml;
+  /**
+   * Built-in block marker (2.3 writes 1). Tells the built-in block apart from a
+   * custom block created before 2.3 under the same name, whose data is kept as is.
+   */
+  _mex: number;
 }
 /** Media Library file of a video, audio or text track. */
 export interface MediaFile {
@@ -180,6 +185,11 @@ export interface VideoData {
   muted: boolean;
   /** At most 8 tracks. */
   tracks: MediaTrack[];
+  /**
+   * Built-in block marker (2.3 writes 1). Tells the built-in block apart from a
+   * custom block created before 2.3 under the same name, whose data is kept as is.
+   */
+  _mex: number;
 }
 export interface AudioData {
   /** Media Library audio (`audio/*`). */
@@ -189,6 +199,11 @@ export interface AudioData {
   loop: boolean;
   /** At most 8 tracks. */
   tracks: MediaTrack[];
+  /**
+   * Built-in block marker (2.3 writes 1). Tells the built-in block apart from a
+   * custom block created before 2.3 under the same name, whose data is kept as is.
+   */
+  _mex: number;
 }
 export interface LinkToolData {
   link: Url;
@@ -228,6 +243,11 @@ export interface TocData {
   /** Highest heading level listed (1 to 6). */
   maxLevel: number;
   style: 'ordered' | 'unordered';
+  /**
+   * Built-in block marker (2.3 writes 1). Tells the built-in block apart from a
+   * custom block created before 2.3 under the same name, whose data is kept as is.
+   */
+  _mex: number;
 }
 
 /**
@@ -238,6 +258,11 @@ export interface TocData {
 export interface SyncedData {
   /** documentId of the source ('' when invalid). */
   ref: string;
+  /**
+   * Built-in block marker (2.3 writes 1). Tells the built-in block apart from a
+   * custom block created before 2.3 under the same name, whose data is kept as is.
+   */
+  _mex: number;
 }
 
 /** Data per built-in block type. */

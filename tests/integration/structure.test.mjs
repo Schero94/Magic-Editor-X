@@ -110,7 +110,7 @@ test('save round trip: toc, mentions and code are stored sanitised', async () =>
   assert.deepEqual(stored.blocks[0], {
     id: 'toc1',
     type: 'toc',
-    data: { title: 'On this page', minLevel: 2, maxLevel: 3, style: 'ordered' },
+    data: { title: 'On this page', minLevel: 2, maxLevel: 3, style: 'ordered', _mex: 1 },
   });
   const text = stored.blocks[2].data.text;
   assert.match(

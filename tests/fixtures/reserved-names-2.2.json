@@ -1,0 +1,112 @@
+{
+  "generatedBy": "magic-editor-x v2.2.0 (cleanEditorValue, renderHtml, renderText, renderMarkdown)",
+  "stored": {
+    "time": 1700000000000,
+    "blocks": [
+      {
+        "id": "lghead",
+        "type": "header",
+        "data": {
+          "text": "Heading",
+          "level": 2
+        }
+      },
+      {
+        "id": "lgtoc1",
+        "type": "toc",
+        "data": {
+          "content": "Inhalt mit <b>fett</b> &amp; <a href=\"https://www.example.test/a?b=1&amp;c=2\">Link</a>",
+          "title": "Contents &amp; more",
+          "minLevel": "2",
+          "maxLevel": 9,
+          "style": "fancy",
+          "blockType": "simple",
+          "blockName": "toc"
+        }
+      },
+      {
+        "id": "lgtoc2",
+        "type": "toc",
+        "data": {
+          "entry": {
+            "id": 7,
+            "documentId": "abc123def456",
+            "title": "Linked article"
+          },
+          "contentType": "api::article.article",
+          "displayMode": "card"
+        }
+      },
+      {
+        "id": "lggal1",
+        "type": "gallery",
+        "data": {
+          "content": "<i>Holiday</i>",
+          "images": "Hero image",
+          "layout": "masonry",
+          "columns": "4",
+          "caption": "Caption &amp; credit",
+          "blockType": "simple",
+          "blockName": "gallery"
+        }
+      },
+      {
+        "id": "lgvid1",
+        "type": "video",
+        "data": {
+          "content": "",
+          "file": "https://cdn.example.test/v.mp4",
+          "title": "Clip",
+          "loop": true,
+          "blockType": "simple",
+          "blockName": "video"
+        }
+      },
+      {
+        "id": "lgvid2",
+        "type": "video",
+        "data": {
+          "entry": {
+            "id": 9,
+            "documentId": "zyx987wvu654",
+            "title": "Video page"
+          },
+          "contentType": "api::article.article",
+          "displayMode": "inline"
+        }
+      },
+      {
+        "id": "lgaud1",
+        "type": "audio",
+        "data": {
+          "content": "Listen",
+          "file": "https://cdn.example.test/a.mp3",
+          "tracks": "none",
+          "blockType": "simple",
+          "blockName": "audio"
+        }
+      },
+      {
+        "id": "lgsyn1",
+        "type": "synced",
+        "data": {
+          "content": "Shared note",
+          "ref": "Any text",
+          "blockType": "simple",
+          "blockName": "synced"
+        }
+      },
+      {
+        "id": "lgpara",
+        "type": "paragraph",
+        "data": {
+          "text": "After"
+        }
+      }
+    ],
+    "version": "2.31.7"
+  },
+  "html": "<h2 class=\"mex-header\">Heading</h2>\n<div class=\"mex-block mex-toc\" data-mex-block=\"toc\"><div class=\"mex-field\" data-mex-field=\"content\">Inhalt mit fett &amp; Link</div><div class=\"mex-field\" data-mex-field=\"title\">Contents &amp; more</div><div class=\"mex-field\" data-mex-field=\"minLevel\">2</div><div class=\"mex-field\" data-mex-field=\"maxLevel\">9</div><div class=\"mex-field\" data-mex-field=\"style\">fancy</div><div class=\"mex-field\" data-mex-field=\"blockType\">simple</div><div class=\"mex-field\" data-mex-field=\"blockName\">toc</div></div>\n<div class=\"mex-block mex-toc\" data-mex-block=\"toc\"><div class=\"mex-field\" data-mex-field=\"contentType\">api::article.article</div><div class=\"mex-field\" data-mex-field=\"displayMode\">card</div></div>\n<div class=\"mex-block mex-gallery\" data-mex-block=\"gallery\"><div class=\"mex-field\" data-mex-field=\"content\">Holiday</div><div class=\"mex-field\" data-mex-field=\"images\">Hero image</div><div class=\"mex-field\" data-mex-field=\"layout\">masonry</div><div class=\"mex-field\" data-mex-field=\"columns\">4</div><div class=\"mex-field\" data-mex-field=\"caption\">Caption &amp; credit</div><div class=\"mex-field\" data-mex-field=\"blockType\">simple</div><div class=\"mex-field\" data-mex-field=\"blockName\">gallery</div></div>\n<div class=\"mex-block mex-video\" data-mex-block=\"video\"><div class=\"mex-field\" data-mex-field=\"content\"></div><div class=\"mex-field\" data-mex-field=\"file\">https://cdn.example.test/v.mp4</div><div class=\"mex-field\" data-mex-field=\"title\">Clip</div><div class=\"mex-field\" data-mex-field=\"loop\">true</div><div class=\"mex-field\" data-mex-field=\"blockType\">simple</div><div class=\"mex-field\" data-mex-field=\"blockName\">video</div></div>\n<div class=\"mex-block mex-video\" data-mex-block=\"video\"><div class=\"mex-field\" data-mex-field=\"contentType\">api::article.article</div><div class=\"mex-field\" data-mex-field=\"displayMode\">inline</div></div>\n<div class=\"mex-block mex-audio\" data-mex-block=\"audio\"><div class=\"mex-field\" data-mex-field=\"content\">Listen</div><div class=\"mex-field\" data-mex-field=\"file\">https://cdn.example.test/a.mp3</div><div class=\"mex-field\" data-mex-field=\"tracks\">none</div><div class=\"mex-field\" data-mex-field=\"blockType\">simple</div><div class=\"mex-field\" data-mex-field=\"blockName\">audio</div></div>\n<div class=\"mex-block mex-synced\" data-mex-block=\"synced\"><div class=\"mex-field\" data-mex-field=\"content\">Shared note</div><div class=\"mex-field\" data-mex-field=\"ref\">Any text</div><div class=\"mex-field\" data-mex-field=\"blockType\">simple</div><div class=\"mex-field\" data-mex-field=\"blockName\">synced</div></div>\n<p class=\"mex-paragraph\">After</p>",
+  "text": "Heading\n\nInhalt mit fett & Link\nContents & more\n2\n9\nfancy\nsimple\ntoc\n\napi::article.article\ncard\n\nHoliday\nHero image\nmasonry\n4\nCaption & credit\nsimple\ngallery\n\nhttps://cdn.example.test/v.mp4\nClip\ntrue\nsimple\nvideo\n\napi::article.article\ninline\n\nListen\nhttps://cdn.example.test/a.mp3\nnone\nsimple\naudio\n\nShared note\nAny text\nsimple\nsynced\n\nAfter",
+  "markdown": "## Heading\n\nInhalt mit **fett** \\& [Link](https://www.example.test/a?b=1&c=2)\n\nContents \\& more\n\n2\n\n9\n\nfancy\n\nsimple\n\ntoc\n\napi::article.article\n\ncard\n\n_Holiday_\n\nHero image\n\nmasonry\n\n4\n\nCaption \\& credit\n\nsimple\n\ngallery\n\nhttps://cdn.example.test/v.mp4\n\nClip\n\ntrue\n\nsimple\n\nvideo\n\napi::article.article\n\ninline\n\nListen\n\nhttps://cdn.example.test/a.mp3\n\nnone\n\nsimple\n\naudio\n\nShared note\n\nAny text\n\nsimple\n\nsynced\n\nAfter"
+}

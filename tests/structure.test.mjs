@@ -48,18 +48,20 @@ const mention = (uid, id, text, locale = 'en', href = `/x/${id}`) =>
 
 test('toc policy clamps levels, orders the range and keeps a plain title', () => {
   const clean = (data) => BLOCK_POLICIES.toc(data, (s) => s, { rawHtml: 'sanitize' });
-  assert.deepEqual(clean({}), { title: '', minLevel: 2, maxLevel: 4, style: 'unordered' });
+  assert.deepEqual(clean({}), { title: '', minLevel: 2, maxLevel: 4, style: 'unordered', _mex: 1 });
   assert.deepEqual(clean({ title: 'x'.repeat(300), minLevel: 5, maxLevel: 3, style: 'ordered', extra: 1 }), {
     title: 'x'.repeat(200),
     minLevel: 3,
     maxLevel: 5,
     style: 'ordered',
+    _mex: 1,
   });
   assert.deepEqual(clean({ minLevel: 0, maxLevel: 9, style: 'checklist', title: 7 }), {
     title: '',
     minLevel: 2,
     maxLevel: 4,
     style: 'unordered',
+    _mex: 1,
   });
   // Stored through the server sanitiser: the title stays text, the block keeps its shape.
   const stored = cleanEditorValue(
@@ -70,6 +72,7 @@ test('toc policy clamps levels, orders the range and keeps a plain title', () =>
     minLevel: 2,
     maxLevel: 3,
     style: 'unordered',
+    _mex: 1,
   });
   assert.equal(tocRange({ minLevel: 6, maxLevel: 1 }).minLevel, 1);
 });

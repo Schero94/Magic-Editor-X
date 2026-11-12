@@ -37,6 +37,7 @@ Magic Editor X 2.3 connects the editor to the rest of your stack: React and Vue 
 - Heading ids `mex-h-<blockId>` are written when the document has a table of contents (or with `headingIds: true`). Without a `toc` block and without the new options, `renderHtml` output is the same as in 2.2.
 - Code blocks keep a valid language that is not in the editor's list instead of resetting it to `plaintext`; one language list (`shared/code-languages.mjs`) serves the editor, the highlighting and the renderers.
 - The image caption in the editor follows in normal flow instead of overlapping the controls below the image.
+- The 2.3 built-in block names (`toc`, `gallery`, `video`, `audio`, `synced`) and the `mention` tool never change the stored data of an existing custom block with the same name: it keeps its own editor tool, sanitising, rendering and API output, byte for byte as in 2.2. Built-in blocks of these types store the marker `_mex: 1` in their data to tell them apart; new custom blocks cannot use these names.
 
 ### Fixed
 
@@ -57,7 +58,7 @@ Magic Editor X 2.3 connects the editor to the rest of your stack: React and Vue 
 - No action needed. Rebuild the admin (`npm run build`) after updating.
 - Grant the new permissions to roles that should comment (`comments.read`, `comments.write`, `comments.moderate`), manage templates, patterns and synced blocks (`templates.manage`) or use the grammar check (`grammar.use`).
 - Features that send content to a provider stay off until the owner turns them on in Settings (`ai.allowImages`, `ai.allowFieldActions`, LanguageTool). The scheduled link check needs `qualityChecks.externalLinks.enabled` and `qualityChecks.externalLinks.schedule.enabled` in `config/plugins`.
-- Before 2.3 a custom block could be named `gallery`, `video`, `audio` or `synced`. Such stored blocks keep their custom-block behaviour; new custom blocks cannot use these names.
+- Custom blocks created before 2.3 under the names `toc`, `gallery`, `video`, `audio`, `synced` or `mention` need nothing: their stored data is never rewritten and they stay editable under their name. New custom blocks cannot use these names.
 - Editor.js stays at 2.31.7: 2.32.0 is still a release candidate on npm (`next` tag 2.32.0-rc.3, no final release).
 
 # [2.2.0](https://github.com/Schero94/Magic-Editor-X/compare/v2.1.0...v2.2.0) (2026-11-12)

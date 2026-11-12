@@ -18,7 +18,7 @@
 
 import { normalizeEditorDataSafe } from './editor-data.mjs';
 import { inlineToText } from './render/inline.mjs';
-import { registeredBlockOf } from './sanitize-policy.mjs';
+import { registeredBlockOf, isBuiltInBlock, BUILT_IN_MARKER } from './sanitize-policy.mjs';
 
 /** Largest number of blocks compared per side. */
 export const MAX_DIFF_BLOCKS = 5000;
@@ -88,16 +88,18 @@ const flatten = (value, prefix, out, depth = 0) => {
 
 /**
  * How a leaf is compared.
- * @param {string} type - Block type.
+ * @param {{ type: string, data?: unknown }} block - Block the leaf belongs to.
  * @param {string} path - Leaf path inside `data`.
  * @param {unknown} value - Leaf value (one side).
  * @returns {'inline'|'plain'|'value'} Kind.
  */
-const leafKind = (type, path, value) => {
+const leafKind = (block, path, value) => {
   if (typeof value !== 'string') return 'value';
   // Code-registered blocks (custom block SDK): the kind comes from their schema.
-  const definition = registeredBlockOf({ type, data: {} });
+  const definition = registeredBlockOf(block);
   if (definition) return definition.kindOf(path);
+  // Custom block data under a name 2.3 gave to a built-in block: no built-in rules.
+  const type = isBuiltInBlock(block) ? block.type : '';
   const key =
     path
       .split('.')
@@ -301,7 +303,9 @@ const diffFields = (before, after) => {
     const a = left.get(path);
     const b = right.get(path);
     if (canonicalEqual(a, b)) continue;
-    const kind = leafKind(after.type, path, b === undefined ? a : b);
+    // The built-in marker is not content (added when a 2.3 block is saved again).
+    if (path === BUILT_IN_MARKER && before.type === after.type && isBuiltInBlock(after)) continue;
+    const kind = leafKind(after, path, b === undefined ? a : b);
     if (
       kind === 'value' ||
       (typeof a !== 'string' && a !== undefined) ||
@@ -331,7 +335,7 @@ export const blockText = (block) => {
   const parts = [];
   for (const [path, value] of flatten(block.data || {}, '', new Map())) {
     if (typeof value !== 'string') continue;
-    const kind = leafKind(block.type, path, value);
+    const kind = leafKind(block, path, value);
     if (kind !== 'value') parts.push(textOf(value, kind));
   }
   return parts.join(' ').replace(/\s+/g, ' ').trim();

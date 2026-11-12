@@ -18,12 +18,14 @@ const { uidSchema, issueDetails } = require('../utils/validation');
 const UID = 'plugin::magic-editor-x.custom-block';
 
 /**
- * Names that became built-in blocks in 2.3. New custom blocks cannot use
- * them; a block created earlier under one of them keeps working (its stored
- * data lacks the built-in marker key, see `MEDIA_BLOCK_MARKERS`) and can still
- * be edited under its name.
+ * Names that became built-in tools in 2.3 (blocks `toc`, `gallery`, `video`,
+ * `audio`, `synced`; inline tool `mention`). New custom blocks cannot use
+ * them; a block created earlier under one of them keeps working and can still
+ * be edited under its name: its stored data has neither the built-in marker
+ * nor the built-in shape (`isBuiltInBlock`), so it is never rewritten, and its
+ * own editor tool keeps the name.
  */
-const MEDIA_BLOCK_NAMES = new Set(['gallery', 'video', 'audio', 'synced']);
+const LEGACY_BUILT_IN_NAMES = new Set(['toc', 'gallery', 'video', 'audio', 'synced', 'mention']);
 
 /** Built-in tool names a custom block must not shadow. */
 const RESERVED_NAMES = new Set(
@@ -37,7 +39,6 @@ const RESERVED_NAMES = new Set(
     'code',
     'codeFlask',
     'delimiter',
-    'toc',
     'table',
     'embed',
     'raw',
@@ -58,7 +59,6 @@ const RESERVED_NAMES = new Set(
     'strikethrough',
     'tooltip',
     'hyperlink',
-    'mention',
     'aiAssistant',
     'textVariant',
     'alignmentTune',
@@ -367,8 +367,8 @@ module.exports = ({ strapi }) => {
    * @param {string} name - Requested name.
    * @param {string|null} [current] - Stored name of the block being updated.
    */
-  const assertNotMediaName = (name, current = null) => {
-    if (MEDIA_BLOCK_NAMES.has(name.toLowerCase()) && name !== current) {
+  const assertNotLegacyName = (name, current = null) => {
+    if (LEGACY_BUILT_IN_NAMES.has(name.toLowerCase()) && name !== current) {
       throw new errors.ValidationError('Validation failed', {
         formErrors: [],
         fieldErrors: { name: ['This name is used by a built-in tool'] },
@@ -411,7 +411,7 @@ module.exports = ({ strapi }) => {
     async create(input, user) {
       const parsed = blockSchema.safeParse(input);
       if (!parsed.success) fail(parsed.error);
-      assertNotMediaName(parsed.data.name);
+      assertNotLegacyName(parsed.data.name);
       await assertNameFree(parsed.data.name);
       const data = toRow(parsed.data);
       if (input.sortOrder === undefined) data.sortOrder = await nextSortOrder();
@@ -429,7 +429,7 @@ module.exports = ({ strapi }) => {
       const existing = await findByDocumentId(documentId);
       const parsed = blockSchema.safeParse(input);
       if (!parsed.success) fail(parsed.error);
-      assertNotMediaName(parsed.data.name, existing.name);
+      assertNotLegacyName(parsed.data.name, existing.name);
       await assertNameFree(parsed.data.name, existing.documentId);
       const row = await query().update({ where: { id: existing.id }, data: toRow(parsed.data) });
       return toDto(row);
@@ -534,7 +534,7 @@ module.exports = ({ strapi }) => {
         const { id: _id, updatedAt: _u, createdAt: _c, documentId: _d, ...definition } = entry;
         const result = blockSchema.safeParse(definition);
         const name = typeof entry.name === 'string' ? entry.name.slice(0, 50) : '';
-        if (!result.success || MEDIA_BLOCK_NAMES.has(result.data.name.toLowerCase()))
+        if (!result.success || LEGACY_BUILT_IN_NAMES.has(result.data.name.toLowerCase()))
           skipped.push({ name, reason: 'invalid' });
         else if (
           taken.has(result.data.name.toLowerCase()) ||
@@ -561,6 +561,6 @@ module.exports = ({ strapi }) => {
 
 module.exports.blockSchema = blockSchema;
 module.exports.RESERVED_NAMES = RESERVED_NAMES;
-module.exports.MEDIA_BLOCK_NAMES = MEDIA_BLOCK_NAMES;
+module.exports.LEGACY_BUILT_IN_NAMES = LEGACY_BUILT_IN_NAMES;
 module.exports.SVG_OPTIONS = SVG_OPTIONS;
 module.exports.TEMPLATE_OPTIONS = TEMPLATE_OPTIONS;

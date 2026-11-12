@@ -535,7 +535,31 @@
                 "const": "gallery"
               },
               "data": {
-                "required": ["images"]
+                "type": "object",
+                "anyOf": [
+                  {
+                    "required": ["_mex"],
+                    "properties": {
+                      "_mex": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Built-in block marker (2.3: 1). Tells the built-in block apart from a custom block created before 2.3 under the same name."
+                      }
+                    }
+                  },
+                  {
+                    "properties": {
+                      "images": {
+                        "type": "array"
+                      },
+                      "layout": {},
+                      "columns": {},
+                      "caption": {}
+                    },
+                    "additionalProperties": false,
+                    "required": ["images"]
+                  }
+                ]
               }
             },
             "required": ["type", "data"]
@@ -555,7 +579,34 @@
                 "const": "video"
               },
               "data": {
-                "required": ["file"]
+                "type": "object",
+                "anyOf": [
+                  {
+                    "required": ["_mex"],
+                    "properties": {
+                      "_mex": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Built-in block marker (2.3: 1). Tells the built-in block apart from a custom block created before 2.3 under the same name."
+                      }
+                    }
+                  },
+                  {
+                    "properties": {
+                      "file": {
+                        "type": "object"
+                      },
+                      "poster": {},
+                      "title": {},
+                      "caption": {},
+                      "loop": {},
+                      "muted": {},
+                      "tracks": {}
+                    },
+                    "additionalProperties": false,
+                    "required": ["file"]
+                  }
+                ]
               }
             },
             "required": ["type", "data"]
@@ -575,7 +626,32 @@
                 "const": "audio"
               },
               "data": {
-                "required": ["file"]
+                "type": "object",
+                "anyOf": [
+                  {
+                    "required": ["_mex"],
+                    "properties": {
+                      "_mex": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Built-in block marker (2.3: 1). Tells the built-in block apart from a custom block created before 2.3 under the same name."
+                      }
+                    }
+                  },
+                  {
+                    "properties": {
+                      "file": {
+                        "type": "object"
+                      },
+                      "title": {},
+                      "caption": {},
+                      "loop": {},
+                      "tracks": {}
+                    },
+                    "additionalProperties": false,
+                    "required": ["file"]
+                  }
+                ]
               }
             },
             "required": ["type", "data"]
@@ -695,9 +771,33 @@
             "properties": {
               "type": {
                 "const": "toc"
+              },
+              "data": {
+                "type": "object",
+                "anyOf": [
+                  {
+                    "required": ["_mex"],
+                    "properties": {
+                      "_mex": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Built-in block marker (2.3: 1). Tells the built-in block apart from a custom block created before 2.3 under the same name."
+                      }
+                    }
+                  },
+                  {
+                    "properties": {
+                      "title": {},
+                      "minLevel": {},
+                      "maxLevel": {},
+                      "style": {}
+                    },
+                    "additionalProperties": false
+                  }
+                ]
               }
             },
-            "required": ["type"]
+            "required": ["type", "data"]
           },
           "then": {
             "properties": {
@@ -714,7 +814,28 @@
                 "const": "synced"
               },
               "data": {
-                "required": ["ref"]
+                "type": "object",
+                "anyOf": [
+                  {
+                    "required": ["_mex"],
+                    "properties": {
+                      "_mex": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Built-in block marker (2.3: 1). Tells the built-in block apart from a custom block created before 2.3 under the same name."
+                      }
+                    }
+                  },
+                  {
+                    "properties": {
+                      "ref": {
+                        "type": "string"
+                      }
+                    },
+                    "additionalProperties": false,
+                    "required": ["ref"]
+                  }
+                ]
               }
             },
             "required": ["type", "data"]
@@ -1097,9 +1218,14 @@
         },
         "caption": {
           "$ref": "#/$defs/inlineHtml"
+        },
+        "_mex": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Built-in block marker (2.3: 1). Tells the built-in block apart from a custom block created before 2.3 under the same name."
         }
       },
-      "required": ["images", "layout", "columns", "caption"],
+      "required": ["images", "layout", "columns", "caption", "_mex"],
       "additionalProperties": false
     },
     "data_video": {
@@ -1130,9 +1256,14 @@
           "items": {
             "$ref": "#/$defs/mediaTrack"
           }
+        },
+        "_mex": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Built-in block marker (2.3: 1). Tells the built-in block apart from a custom block created before 2.3 under the same name."
         }
       },
-      "required": ["file", "title", "caption", "loop", "muted", "tracks"],
+      "required": ["file", "title", "caption", "loop", "muted", "tracks", "_mex"],
       "additionalProperties": false
     },
     "data_audio": {
@@ -1157,9 +1288,14 @@
           "items": {
             "$ref": "#/$defs/mediaTrack"
           }
+        },
+        "_mex": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Built-in block marker (2.3: 1). Tells the built-in block apart from a custom block created before 2.3 under the same name."
         }
       },
-      "required": ["file", "title", "caption", "loop", "tracks"],
+      "required": ["file", "title", "caption", "loop", "tracks", "_mex"],
       "additionalProperties": false
     },
     "data_linkTool": {
@@ -1338,9 +1474,14 @@
         "style": {
           "type": "string",
           "enum": ["ordered", "unordered"]
+        },
+        "_mex": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Built-in block marker (2.3: 1). Tells the built-in block apart from a custom block created before 2.3 under the same name."
         }
       },
-      "required": ["title", "minLevel", "maxLevel", "style"],
+      "required": ["title", "minLevel", "maxLevel", "style", "_mex"],
       "additionalProperties": false
     },
     "data_synced": {
@@ -1351,9 +1492,14 @@
           "type": "string",
           "pattern": "^([a-z0-9]{1,64})?$",
           "description": "documentId of the synced block source (Settings > Templates). Only the reference is stored; `?mex=` output and the renderers (`options.synced`) expand it. Empty when invalid."
+        },
+        "_mex": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Built-in block marker (2.3: 1). Tells the built-in block apart from a custom block created before 2.3 under the same name."
         }
       },
-      "required": ["ref"],
+      "required": ["ref", "_mex"],
       "additionalProperties": false
     }
   }

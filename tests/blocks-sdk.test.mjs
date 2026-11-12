@@ -42,7 +42,7 @@ import { calloutCard } from './fixtures/callout-card.mjs';
 
 const require = createRequire(import.meta.url);
 const { cleanEditorValue } = require('../server/src/utils/sanitizer.js');
-const { RESERVED_NAMES } = require('../server/src/services/custom-blocks.js');
+const { RESERVED_NAMES, LEGACY_BUILT_IN_NAMES } = require('../server/src/services/custom-blocks.js');
 const blocksService = require('../server/src/services/blocks.js');
 
 const doc = (...blocks) => ({ time: 1, version: '2.31.7', blocks });
@@ -114,7 +114,12 @@ test('defineBlock validates the definition with clear messages', () => {
 
 test('reserved names cover every built-in block, tool and tune name', () => {
   const reserved = new Set(RESERVED_BLOCK_NAMES.map((name) => name.toLowerCase()));
-  for (const name of [...Object.keys(BLOCK_POLICIES), ...BUILTIN_BLOCKS, ...RESERVED_NAMES])
+  for (const name of [
+    ...Object.keys(BLOCK_POLICIES),
+    ...BUILTIN_BLOCKS,
+    ...RESERVED_NAMES,
+    ...LEGACY_BUILT_IN_NAMES,
+  ])
     assert.ok(reserved.has(name.toLowerCase()), name);
   for (const name of ['gallery', 'VIDEO', 'audio', 'mediaLib'])
     assert.throws(() => defineBlock({ name, schema: { a: { type: 'text' } } }), { code: 'RESERVED_NAME' });

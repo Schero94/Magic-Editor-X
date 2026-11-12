@@ -63,7 +63,7 @@ export const BLOCK_PRESETS = Object.freeze(['article', 'basic', 'minimal']);
 /**
  * Names a code-registered block cannot use: every built-in block, inline tool
  * and tune name, the Media Library placeholder, the embedded entry tool, and
- * the 2.3 media block names (compared ignoring case).
+ * the names 2.3 gave to built-in tools (compared ignoring case).
  */
 export const RESERVED_BLOCK_NAMES = Object.freeze([
   'paragraph',

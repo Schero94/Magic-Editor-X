@@ -7,7 +7,7 @@
  * `schema/magic-editor-x.schema.json` from `buildEditorSchema()`.
  */
 
-import { MEDIA_BLOCK_MARKERS } from './sanitize-policy.mjs';
+import { BUILT_IN_MARKER, MARKED_BLOCKS } from './sanitize-policy.mjs';
 
 export const SCHEMA_ID = 'https://schero94.github.io/Magic-Editor-X/schema/magic-editor-x.schema.json';
 
@@ -19,6 +19,40 @@ const int = (minimum, maximum) => ({ type: 'integer', minimum, maximum });
 const enumOf = (...values) => ({ type: 'string', enum: values });
 const COUNTER_TYPES = ['numeric', 'lower-roman', 'upper-roman', 'lower-alpha', 'upper-alpha'];
 const focalPoint = { $ref: '#/$defs/focalPoint' };
+const marker = {
+  type: 'integer',
+  minimum: 1,
+  description:
+    'Built-in block marker (2.3: 1). Tells the built-in block apart from a custom block created before 2.3 under the same name.',
+};
+const JSON_TYPES = { array: 'array', object: 'object', string: 'string' };
+
+/**
+ * `if` condition of a `MARKED_BLOCKS` type: the marker, or exactly the built-in
+ * shape (only its keys, the anchor key with its type). Mirrors `isBuiltInBlock`.
+ * @param {string} type - Block type.
+ * @returns {object} Schema of the block.
+ */
+const markedCondition = (type) => {
+  const { keys, anchor } = MARKED_BLOCKS[type];
+  const shape = {
+    properties: Object.fromEntries(
+      keys.map((key) => [key, anchor && anchor[0] === key ? { type: JSON_TYPES[anchor[1]] } : {}])
+    ),
+    additionalProperties: false,
+    ...(anchor ? { required: [anchor[0]] } : {}),
+  };
+  return {
+    properties: {
+      type: { const: type },
+      data: {
+        type: 'object',
+        anyOf: [{ required: [BUILT_IN_MARKER], properties: { [BUILT_IN_MARKER]: marker } }, shape],
+      },
+    },
+    required: ['type', 'data'],
+  };
+};
 
 /**
  * Closed object schema.
@@ -177,8 +211,9 @@ export const BLOCK_DATA_SCHEMAS = Object.freeze({
       layout: { ...enumOf('grid', 'carousel'), description: 'Layout hint for frontends.' },
       columns: { ...int(1, 6), description: 'Columns of the grid layout (hint).' },
       caption: html,
+      _mex: marker,
     },
-    ['images', 'layout', 'columns', 'caption']
+    ['images', 'layout', 'columns', 'caption', '_mex']
   ),
   video: obj(
     {
@@ -189,8 +224,9 @@ export const BLOCK_DATA_SCHEMAS = Object.freeze({
       loop: bool,
       muted: bool,
       tracks: { type: 'array', maxItems: 8, items: { $ref: '#/$defs/mediaTrack' } },
+      _mex: marker,
     },
-    ['file', 'title', 'caption', 'loop', 'muted', 'tracks']
+    ['file', 'title', 'caption', 'loop', 'muted', 'tracks', '_mex']
   ),
   audio: obj(
     {
@@ -199,8 +235,9 @@ export const BLOCK_DATA_SCHEMAS = Object.freeze({
       caption: html,
       loop: bool,
       tracks: { type: 'array', maxItems: 8, items: { $ref: '#/$defs/mediaTrack' } },
+      _mex: marker,
     },
-    ['file', 'title', 'caption', 'loop', 'tracks']
+    ['file', 'title', 'caption', 'loop', 'tracks', '_mex']
   ),
   linkTool: obj(
     {
@@ -254,8 +291,9 @@ export const BLOCK_DATA_SCHEMAS = Object.freeze({
       minLevel: { ...int(1, 6), description: 'Lowest heading level listed (at most maxLevel).' },
       maxLevel: { ...int(1, 6), description: 'Highest heading level listed.' },
       style: enumOf('ordered', 'unordered'),
+      _mex: marker,
     },
-    ['title', 'minLevel', 'maxLevel', 'style'],
+    ['title', 'minLevel', 'maxLevel', 'style', '_mex'],
     'Table of contents. The entries are built from the headings when the content is rendered.'
   ),
   synced: obj(
@@ -266,8 +304,9 @@ export const BLOCK_DATA_SCHEMAS = Object.freeze({
         description:
           'documentId of the synced block source (Settings > Templates). Only the reference is stored; `?mex=` output and the renderers (`options.synced`) expand it. Empty when invalid.',
       },
+      _mex: marker,
     },
-    ['ref'],
+    ['ref', '_mex'],
     'Synced block: a reference to shared content that is edited in one place.'
   ),
 });
@@ -395,12 +434,9 @@ export const buildEditorSchema = () => ({
       required: ['id', 'type', 'data'],
       additionalProperties: false,
       allOf: Object.keys(BLOCK_DATA_SCHEMAS).map((type) => ({
-        // 2.3 media types: data without their marker key is custom block data written before 2.3.
-        if: MEDIA_BLOCK_MARKERS[type]
-          ? {
-              properties: { type: { const: type }, data: { required: [MEDIA_BLOCK_MARKERS[type]] } },
-              required: ['type', 'data'],
-            }
+        // 2.3 types (`MARKED_BLOCKS`): data without the marker or the exact shape is custom block data written before 2.3.
+        if: MARKED_BLOCKS[type]
+          ? markedCondition(type)
           : { properties: { type: { const: type } }, required: ['type'] },
         then: { properties: { data: { $ref: `#/$defs/data_${type}` } } },
       })),
