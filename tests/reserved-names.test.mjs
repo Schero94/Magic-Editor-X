@@ -31,10 +31,10 @@ const customBlocks = require('../server/src/services/custom-blocks.js');
 
 /** Output of magic-editor-x 2.2.0 for `legacyDocument()` (see `generatedBy`). */
 const V22 = JSON.parse(readFileSync(new URL('./fixtures/reserved-names-2.2.json', import.meta.url), 'utf8'));
-const NEW_NAMES = ['toc', 'gallery', 'video', 'audio', 'synced'];
+const NEW_NAMES = ['toc', 'gallery', 'video', 'audio', 'synced', 'math'];
 const doc = (...blocks) => ({ time: 1, version: '2.31.7', blocks });
 
-test('every 2.3 block name that a custom block could have is a marked block type', () => {
+test('every 2.3/2.4 block name that a custom block could have is a marked block type', () => {
   assert.deepEqual(Object.keys(MARKED_BLOCKS).sort(), [...NEW_NAMES].sort());
   for (const type of NEW_NAMES) {
     // The shape keys are the schema keys without the marker, and the policy always writes the marker.
@@ -199,6 +199,7 @@ test('custom blocks: new blocks cannot take a 2.3 name, an existing one keeps it
   assert.deepEqual([...customBlocks.LEGACY_BUILT_IN_NAMES].sort(), [
     'audio',
     'gallery',
+    'math',
     'mention',
     'synced',
     'toc',

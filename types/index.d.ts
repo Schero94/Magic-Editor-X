@@ -265,6 +265,22 @@ export interface SyncedData {
   _mex: number;
 }
 
+/**
+ * Math block (2.4): only the TeX source is stored. Renderers output MathML with
+ * the `math` render option (for example `renderMath` from `magic-editor-x/math`),
+ * else the source between `\\[ \\]` delimiters. Inline math is stored in inline
+ * HTML as `<span data-mex-math="true">TeX</span>`; footnotes as
+ * `<sup data-mex-footnote="id" data-mex-note="note HTML">n</sup>`.
+ */
+export interface MathData {
+  /** TeX source (at most 10000 characters). */
+  tex: string;
+  /** Display style (default true); false renders the formula in text style. */
+  display: boolean;
+  /** Built-in block marker (2.4 writes 1); a custom block named `math` from before 2.4 has none. */
+  _mex: number;
+}
+
 /** Data per built-in block type. */
 export interface BlockDataMap {
   paragraph: ParagraphData;
@@ -292,6 +308,7 @@ export interface BlockDataMap {
   delimiter: DelimiterData;
   toc: TocData;
   synced: SyncedData;
+  math: MathData;
 }
 
 export type BuiltInBlockType = keyof BlockDataMap;

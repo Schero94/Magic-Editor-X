@@ -17,8 +17,8 @@ export const FIELD_TYPES = Object.freeze([
 export const TUNES = Object.freeze(['alignmentTune', 'textVariant', 'indentTune']);
 export const BLOCK_TYPES = Object.freeze(['simple', 'embedded-entry']);
 
-/** Names that became built-in tools in 2.3; an existing custom block keeps its name (same list as the server). */
-export const LEGACY_NAMES = Object.freeze(['toc', 'gallery', 'video', 'audio', 'synced', 'mention']);
+/** Names that became built-in tools in 2.3 and 2.4; an existing custom block keeps its name (same list as the server). */
+export const LEGACY_NAMES = Object.freeze(['toc', 'gallery', 'video', 'audio', 'synced', 'mention', 'math']);
 
 /** Built-in tool names (lower case), same list as the server. */
 export const RESERVED_NAMES = Object.freeze(
@@ -42,6 +42,7 @@ export const RESERVED_NAMES = Object.freeze(
     'video',
     'audio',
     'synced',
+    'math',
     'linkTool',
     'attaches',
     'personality',

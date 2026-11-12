@@ -26,7 +26,7 @@
   "$defs": {
     "inlineHtml": {
       "type": "string",
-      "description": "Inline HTML limited to b, strong, i, em, u, s, mark, code, a, br, span, sub, sup with the attributes of the sanitising policy. Internal links carry data-mex-uid, data-mex-document-id and data-mex-locale; mentions (inline entry references) also data-mex-mention=\"true\"."
+      "description": "Inline HTML limited to b, strong, i, em, u, s, mark, code, a, br, span, sub, sup with the attributes of the sanitising policy. Internal links carry data-mex-uid, data-mex-document-id and data-mex-locale; mentions (inline entry references) also data-mex-mention=\"true\". Inline math (2.4): <span data-mex-math=\"true\">TeX source</span> (text only). Footnote markers (2.4): <sup data-mex-footnote=\"id\" data-mex-note=\"inline HTML of the note\">n</sup> (the note follows the same rules without footnotes and entry references; the marker text is a placeholder)."
     },
     "url": {
       "type": "string",
@@ -811,6 +811,48 @@
           "if": {
             "properties": {
               "type": {
+                "const": "math"
+              },
+              "data": {
+                "type": "object",
+                "anyOf": [
+                  {
+                    "required": ["_mex"],
+                    "properties": {
+                      "_mex": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Built-in block marker (2.3: 1). Tells the built-in block apart from a custom block created before 2.3 under the same name."
+                      }
+                    }
+                  },
+                  {
+                    "properties": {
+                      "tex": {
+                        "type": "string"
+                      },
+                      "display": {}
+                    },
+                    "additionalProperties": false,
+                    "required": ["tex"]
+                  }
+                ]
+              }
+            },
+            "required": ["type", "data"]
+          },
+          "then": {
+            "properties": {
+              "data": {
+                "$ref": "#/$defs/data_math"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
                 "const": "synced"
               },
               "data": {
@@ -1482,6 +1524,28 @@
         }
       },
       "required": ["title", "minLevel", "maxLevel", "style", "_mex"],
+      "additionalProperties": false
+    },
+    "data_math": {
+      "type": "object",
+      "description": "Math block (2.4).",
+      "properties": {
+        "tex": {
+          "type": "string",
+          "maxLength": 10000,
+          "description": "TeX source of the formula (only the source is stored). Renderers output MathML with `options.math`, else the source between \\[ \\] delimiters."
+        },
+        "display": {
+          "type": "boolean",
+          "description": "Display style (default true); false renders the formula in text style."
+        },
+        "_mex": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Built-in block marker (2.3: 1). Tells the built-in block apart from a custom block created before 2.3 under the same name."
+        }
+      },
+      "required": ["tex", "display", "_mex"],
       "additionalProperties": false
     },
     "data_synced": {

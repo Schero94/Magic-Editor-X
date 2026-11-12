@@ -61,6 +61,12 @@
       "require": "./dist/vue/index.js",
       "default": "./dist/vue/index.js"
     },
+    "./math": {
+      "source": "./shared/math/index.mjs",
+      "import": "./dist/math/index.mjs",
+      "require": "./dist/math/index.js",
+      "default": "./dist/math/index.js"
+    },
     "./blocks": {
       "source": "./shared/blocks/index.mjs",
       "import": "./dist/blocks/index.mjs",
@@ -131,6 +137,7 @@
     "sanitize-html": "^2.18.1",
     "socket.io": "^4.8.4",
     "socket.io-client": "^4.8.4",
+    "temml": "^0.14.0",
     "yjs": "^13.6.33",
     "zod": "^4.6.7"
   },

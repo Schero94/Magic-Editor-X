@@ -8,7 +8,13 @@
  */
 
 import { isPlainObject, normalizeEditorDataSafe } from './editor-data.mjs';
-import { parseInline, nodesToText } from './render/inline.mjs';
+import {
+  parseInline,
+  nodesToText,
+  walkInlineElements,
+  isMathNode,
+  isFootnoteNode,
+} from './render/inline.mjs';
 import { sanitizeUrl, isBuiltInBlock, registeredBlockOf } from './sanitize-policy.mjs';
 import { mediaSlots } from './resolve-references.mjs';
 import { tocRange } from './toc.mjs';
@@ -25,6 +31,8 @@ export const QUALITY_RULES = Object.freeze({
   'low-contrast': 'warning',
   'video-no-captions': 'warning',
   'toc-no-headings': 'warning',
+  'math-invalid': 'warning',
+  'footnote-empty': 'warning',
 });
 
 /** Most links returned by `extractLinks` per kind. */
@@ -269,12 +277,28 @@ const inlineStrings = (block) => {
  * @returns {Array<{ attrs: Record<string, string>, text: string }>} Links.
  */
 const findLinks = (nodes, out = []) => {
-  for (const node of nodes) {
-    if (node.type !== 'element') continue;
+  // Links inside footnote notes (2.4) are links of the content too.
+  walkInlineElements(nodes, (node) => {
     if (node.tag === 'a') out.push({ attrs: node.attrs, text: nodesToText(node.children) });
-    else findLinks(node.children, out);
-  }
+  });
   return out;
+};
+
+/**
+ * Result of the optional TeX check (`options.checkMath`): false when it says the TeX does not parse.
+ * @param {unknown} check - `options.checkMath`.
+ * @param {string} tex - TeX source.
+ * @param {boolean} display - Display style.
+ * @returns {boolean} True when the TeX is valid or cannot be checked.
+ */
+const mathIsValid = (check, tex, display) => {
+  if (typeof check !== 'function' || !tex.trim()) return true;
+  try {
+    const result = check(tex, { display });
+    return !(result === false || (result && typeof result === 'object' && result.ok === false));
+  } catch {
+    return true;
+  }
 };
 
 /**
@@ -324,7 +348,7 @@ const customImages = (value, path, out, depth = 0) => {
 /**
  * Lints a document for accessibility problems.
  * @param {unknown} value - Stored or editor value (normalised internally).
- * @param {{ requireAlt?: boolean, locale?: string }} [options] - `requireAlt` makes missing alt texts errors (field preset).
+ * @param {{ requireAlt?: boolean, locale?: string, checkMath?: (tex: string, options: { display: boolean }) => boolean | { ok: boolean } }} [options] - `requireAlt` makes missing alt texts errors (field preset); `checkMath` (2.4, e.g. `checkMath` of `magic-editor-x/math`) enables `math-invalid`.
  * @returns {{ issues: Array<{ rule: string, severity: 'error'|'warning', blockId: string, blockIndex: number, path?: string, params?: object }>, stats: { errors: number, warnings: number, blocks: number, links: number, images: number } }} Issues in document order.
  */
 export const lintDocument = (value, options = {}) => {
@@ -412,6 +436,14 @@ export const lintDocument = (value, options = {}) => {
 
     if (block.type === 'toc' && isBuiltInBlock(block)) tocs.push({ block, index, range: tocRange(d) });
 
+    if (
+      block.type === 'math' &&
+      isBuiltInBlock(block) &&
+      typeof d.tex === 'string' &&
+      !mathIsValid(options.checkMath, d.tex, d.display !== false)
+    )
+      push('math-invalid', block, index, { path: 'tex' });
+
     if (block.type === 'table') {
       const rows = Array.isArray(d.content) ? d.content : [];
       if (rows.length > 1 && d.withHeadings !== true) push('table-no-header', block, index);
@@ -419,7 +451,20 @@ export const lintDocument = (value, options = {}) => {
 
     for (const { path, html } of inlineStrings(block)) {
       if (!html.includes('<')) continue;
-      for (const link of findLinks(parseInline(html))) {
+      const parsed = parseInline(html);
+      // 2.4: inline math that does not parse, footnotes without text.
+      walkInlineElements(parsed, (node) => {
+        if (isMathNode(node) && !mathIsValid(options.checkMath, nodesToText(node.children), false))
+          push('math-invalid', block, index, { path });
+        else if (
+          isFootnoteNode(node) &&
+          !nodesToText(node.note || [])
+            .replace(/\u00a0/g, ' ')
+            .trim()
+        )
+          push('footnote-empty', block, index, { path });
+      });
+      for (const link of findLinks(parsed)) {
         links += 1;
         const text = link.text.replace(/\u00a0/g, ' ').trim();
         if (!text || !link.attrs.href) push('empty-link', block, index, { path });

@@ -166,7 +166,33 @@ export interface RenderOptions {
    * come expanded.
    */
   synced?: SyncedSources;
+  /**
+   * Math (2.4): renders TeX of math blocks and inline math. Return MathML
+   * (string) or render nodes; the result is parsed through a strict MathML
+   * allow-list (MathML Core elements, no href, style, id or event
+   * attributes). `renderMath` from `magic-editor-x/math` (Temml) fits.
+   * Without it, or when it returns nothing usable, the TeX source is written
+   * between `\\( \\)` / `\\[ \\]` in `<span|div class="mex-math" data-mex-math>`
+   * for client-side auto-render. Text output is the TeX source; Markdown
+   * `$…$` / `$$…$$`.
+   */
+  math?: MathRenderer;
+  /**
+   * Footnotes (2.4): numbered references `<sup class="mex-footnote-ref"><a href="#<prefix>fn-<id>">n</a></sup>`
+   * and a list `<section class="mex-footnotes">` after the content. `label`
+   * names the list (default 'Footnotes'), `backLabel` the back links
+   * (`{n}` = number, default 'Back to reference {n}'), `prefix` starts every id
+   * (default 'mex-'; use one per field when several fields render on a page).
+   * Text output: `[n]` and a list; Markdown: GFM `[^n]` footnotes.
+   */
+  footnotes?: { label?: string; backLabel?: string; prefix?: string };
 }
+
+/** Renders TeX: MathML markup or render nodes; null/undefined for the fallback. */
+export type MathRenderer = (
+  tex: string,
+  options: { display: boolean }
+) => string | RenderNode | ReadonlyArray<RenderNode> | null | undefined;
 
 /** A synced block source: an Editor.js document or its block array. */
 export type SyncedSource = { blocks: ReadonlyArray<unknown> } | ReadonlyArray<unknown>;

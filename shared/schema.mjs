@@ -296,6 +296,22 @@ export const BLOCK_DATA_SCHEMAS = Object.freeze({
     ['title', 'minLevel', 'maxLevel', 'style', '_mex'],
     'Table of contents. The entries are built from the headings when the content is rendered.'
   ),
+  math: obj(
+    {
+      tex: {
+        ...str(10000),
+        description:
+          'TeX source of the formula (only the source is stored). Renderers output MathML with `options.math`, else the source between \\[ \\] delimiters.',
+      },
+      display: {
+        ...bool,
+        description: 'Display style (default true); false renders the formula in text style.',
+      },
+      _mex: marker,
+    },
+    ['tex', 'display', '_mex'],
+    'Math block (2.4).'
+  ),
   synced: obj(
     {
       ref: {
@@ -336,7 +352,7 @@ export const buildEditorSchema = () => ({
     inlineHtml: {
       type: 'string',
       description:
-        'Inline HTML limited to b, strong, i, em, u, s, mark, code, a, br, span, sub, sup with the attributes of the sanitising policy. Internal links carry data-mex-uid, data-mex-document-id and data-mex-locale; mentions (inline entry references) also data-mex-mention="true".',
+        'Inline HTML limited to b, strong, i, em, u, s, mark, code, a, br, span, sub, sup with the attributes of the sanitising policy. Internal links carry data-mex-uid, data-mex-document-id and data-mex-locale; mentions (inline entry references) also data-mex-mention="true". Inline math (2.4): <span data-mex-math="true">TeX source</span> (text only). Footnote markers (2.4): <sup data-mex-footnote="id" data-mex-note="inline HTML of the note">n</sup> (the note follows the same rules without footnotes and entry references; the marker text is a placeholder).',
     },
     url: {
       type: 'string',
@@ -434,7 +450,7 @@ export const buildEditorSchema = () => ({
       required: ['id', 'type', 'data'],
       additionalProperties: false,
       allOf: Object.keys(BLOCK_DATA_SCHEMAS).map((type) => ({
-        // 2.3 types (`MARKED_BLOCKS`): data without the marker or the exact shape is custom block data written before 2.3.
+        // `MARKED_BLOCKS` types (2.3, math 2.4): data without the marker or the exact shape is custom block data.
         if: MARKED_BLOCKS[type]
           ? markedCondition(type)
           : { properties: { type: { const: type } }, required: ['type'] },

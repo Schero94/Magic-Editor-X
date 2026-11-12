@@ -79,6 +79,7 @@ export const RESERVED_BLOCK_NAMES = Object.freeze([
   'delimiter',
   'toc',
   'synced',
+  'math',
   'table',
   'embed',
   'raw',
