@@ -63,7 +63,7 @@ const HTML_FIELDS = {
   audio: ['caption'],
   embed: ['caption'],
 };
-const PLAIN_FIELDS = { code: ['code'], codeFlask: ['code'] };
+const PLAIN_FIELDS = { code: ['code'], codeFlask: ['code'], toc: ['title'] };
 
 /**
  * Lists the searchable fields of a block as `{ path, kind, value }`.
@@ -286,7 +286,7 @@ export const replaceMatches = (data, query, replacement, options = {}, scope = {
           }
         };
         walk(nodes);
-        value = changed ? nodesToHtml(nodes) : field.value;
+        value = changed ? nodesToHtml(nodes, { storage: true }) : field.value;
       }
       if (changed) nextData = setPath(nextData, field.path, value);
     }

@@ -248,6 +248,16 @@ export const BLOCK_DATA_SCHEMAS = Object.freeze({
     ['text', 'link', 'style', 'openInNewTab']
   ),
   delimiter: obj({}),
+  toc: obj(
+    {
+      title: { ...str(200), description: 'Plain-text title; empty for none.' },
+      minLevel: { ...int(1, 6), description: 'Lowest heading level listed (at most maxLevel).' },
+      maxLevel: { ...int(1, 6), description: 'Highest heading level listed.' },
+      style: enumOf('ordered', 'unordered'),
+    },
+    ['title', 'minLevel', 'maxLevel', 'style'],
+    'Table of contents. The entries are built from the headings when the content is rendered.'
+  ),
 });
 
 /** Keys described by the schema that the current policy may not write yet (forward compatible). */
@@ -275,7 +285,7 @@ export const buildEditorSchema = () => ({
     inlineHtml: {
       type: 'string',
       description:
-        'Inline HTML limited to b, strong, i, em, u, s, mark, code, a, br, span, sub, sup with the attributes of the sanitising policy.',
+        'Inline HTML limited to b, strong, i, em, u, s, mark, code, a, br, span, sub, sup with the attributes of the sanitising policy. Internal links carry data-mex-uid, data-mex-document-id and data-mex-locale; mentions (inline entry references) also data-mex-mention="true".',
     },
     url: {
       type: 'string',

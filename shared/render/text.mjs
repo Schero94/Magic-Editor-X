@@ -5,7 +5,21 @@
  */
 
 import { inlineToText } from './inline.mjs';
-import { prepareBlocks, overrideFor, scalarFields } from './common.mjs';
+import { prepareBlocks, overrideFor, scalarFields, annotateHeadings } from './common.mjs';
+import { buildTocTree } from '../toc.mjs';
+
+/**
+ * Plain-text lines of a table of contents (two spaces per level).
+ * @param {Array<{ text: string, children: Array }>} nodes - Toc tree.
+ * @param {boolean} ordered - Numbered entries.
+ * @param {number} depth - Depth.
+ * @returns {string[]} Lines.
+ */
+const tocLines = (nodes, ordered, depth) =>
+  nodes.flatMap((node, index) => [
+    `${'  '.repeat(depth)}${ordered ? `${index + 1}.` : '-'} ${node.text}`,
+    ...tocLines(node.children, ordered, depth + 1),
+  ]);
 
 /**
  * Plain text of list items with bullets and two-space indentation per level.
@@ -86,6 +100,11 @@ const RENDERERS = {
   personality: (b) => [b.data.name, b.data.description, b.data.link].filter(Boolean).join('\n'),
   button: (b) => (b.data.link ? `${b.data.text} (${b.data.link})` : b.data.text),
   delimiter: () => '---',
+  toc: (b) => {
+    const tree = buildTocTree(b.headings || [], b.data);
+    if (!tree.length) return '';
+    return [b.data.title.trim(), ...tocLines(tree, b.data.style === 'ordered', 0)].filter(Boolean).join('\n');
+  },
 };
 
 /**
@@ -122,5 +141,5 @@ export const renderText = (value, options = {}) => {
       .map((text) => String(text).replace(/\u00a0/g, ' '))
       .filter((text) => text.trim() !== '')
       .join('\n\n');
-  return render(prepareBlocks(value, opts));
+  return render(annotateHeadings(prepareBlocks(value, opts), opts));
 };

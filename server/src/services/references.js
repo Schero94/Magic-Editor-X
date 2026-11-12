@@ -160,7 +160,8 @@ module.exports = ({ strapi }) => {
         if (ref.documentId !== row.documentId) continue;
         const key = entryKey(ref.kind, uid, ref.locale, row.documentId);
         if (ref.kind === 'link') {
-          if (href) results.set(key, { href });
+          // The title (sanitised row) is used for mentions; plain links keep their authored text.
+          if (href) results.set(key, { href, title: titleOf(contentType, clean, null) });
           continue;
         }
         const definition = definitions.get(ref.blockType) || { titleField: null, displayFields: [] };

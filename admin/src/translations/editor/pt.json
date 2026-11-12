@@ -139,6 +139,7 @@
   "editor.history.diff.restoreBlockLabel": "Restaurar o bloco {number} da versão {version}",
   "editor.history.diff.blockRestored": "Bloco restaurado. Guarde a entrada para o manter.",
   "editor.history.diff.restoreFailed": "Não foi possível restaurar o bloco.",
+  "editor.quality.rule.tocNoHeadings": "Índice sem títulos entre os níveis {minLevel} e {maxLevel}",
   "editor.history.diff.more": "{count, plural, one {# alteração adicional não é mostrada} other {# alterações adicionais não são mostradas}}.",
   "editor.comments.actionFailed": "Não funcionou. Tente novamente.",
   "editor.comments.announce.added": "Comentário adicionado",

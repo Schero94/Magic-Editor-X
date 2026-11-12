@@ -44,15 +44,20 @@ const loadTypes = (fetchClient) => {
  *   getLocale?: () => string|null,
  *   onPick: (item: { documentId: string, uid: string, locale: string|null, title: string, href: string }) => void,
  *   onClose: () => void,
- * }} options - Options.
- * @returns {{ element: HTMLElement, open: () => Promise<void>, close: () => void, isOpen: () => boolean }} Picker.
+ *   label?: string,
+ * }} options - Options (`label`: accessible name of the picker group).
+ * @returns {{ element: HTMLElement, open: (query?: string) => Promise<void>, close: () => void, isOpen: () => boolean }} Picker.
  */
-export const createLinkPicker = ({ t, fetchClient, getLocale, onPick, onClose }) => {
+export const createLinkPicker = ({ t, fetchClient, getLocale, onPick, onClose, label }) => {
   pickerCount += 1;
   const id = `mex-link-picker-${pickerCount}`;
   const element = el('div', {
     className: 'mex-link-picker',
-    attrs: { id, role: 'group', 'aria-label': t('tools.hyperlink.internal.title', 'Link to an entry') },
+    attrs: {
+      id,
+      role: 'group',
+      'aria-label': label || t('tools.hyperlink.internal.title', 'Link to an entry'),
+    },
   });
   element.hidden = true;
 
@@ -175,7 +180,7 @@ export const createLinkPicker = ({ t, fetchClient, getLocale, onPick, onClose })
     }
   };
 
-  const build = () => {
+  const build = (query) => {
     element.replaceChildren();
     typeSelect = select(
       types.map((type) => ({ value: type.uid, label: type.displayName })),
@@ -190,6 +195,7 @@ export const createLinkPicker = ({ t, fetchClient, getLocale, onPick, onClose })
     search.setAttribute('aria-controls', list.id);
     search.setAttribute('aria-expanded', 'false');
     search.setAttribute('maxlength', '100');
+    search.value = typeof query === 'string' ? query.trim().slice(0, 100) : '';
     search.addEventListener('input', () => {
       window.clearTimeout(timer);
       timer = window.setTimeout(run, 250);
@@ -231,7 +237,11 @@ export const createLinkPicker = ({ t, fetchClient, getLocale, onPick, onClose })
     }
   };
 
-  const open = async () => {
+  /**
+   * Opens the picker and searches.
+   * @param {string} [query] - Initial search text (the selected text when inserting a mention).
+   */
+  const open = async (query) => {
     window.addEventListener('keydown', guard, true);
     element.hidden = false;
     element.replaceChildren(status);
@@ -247,7 +257,7 @@ export const createLinkPicker = ({ t, fetchClient, getLocale, onPick, onClose })
       setStatus(t('tools.hyperlink.internal.noTypes', 'There is no content type you can read'));
       return;
     }
-    build();
+    build(query);
     search.focus();
     run();
   };

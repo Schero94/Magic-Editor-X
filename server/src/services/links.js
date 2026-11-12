@@ -185,7 +185,7 @@ module.exports = ({ strapi }) => {
               changed = true;
             }
           });
-          return changed ? nodesToHtml(nodes) : text;
+          return changed ? nodesToHtml(nodes, { storage: true }) : text;
         }),
       }));
       return { ...data, blocks };

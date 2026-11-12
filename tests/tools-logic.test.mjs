@@ -50,7 +50,11 @@ test('codeflask data keeps code and maps language aliases', () => {
     showlinenumbers: false,
   });
   assert.equal(normalizeCodeFlask({ code: 'x' }).showlinenumbers, true);
-  assert.equal(normalizeLanguage('brainfuck'), 'plaintext');
+  // Valid identifiers outside the list are kept (content from other tools keeps its language).
+  assert.equal(normalizeLanguage('Elixir'), 'elixir');
+  assert.equal(normalizeLanguage('c" onclick="x'), 'plaintext');
+  assert.equal(normalizeLanguage(''), 'plaintext');
+  assert.equal(normalizeLanguage(42), 'plaintext');
   assert.equal(normalizeLanguage('HTML'), 'markup');
 });
 

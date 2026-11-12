@@ -214,6 +214,7 @@ test('picker helpers: arrow keys wrap, references survive only with their href',
     'data-mex-uid': null,
     'data-mex-document-id': null,
     'data-mex-locale': null,
+    'data-mex-mention': null,
   });
   assert.equal(internalLinkAttributes(null, '/a')['data-mex-uid'], null);
 });

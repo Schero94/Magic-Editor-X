@@ -139,6 +139,7 @@
   "editor.history.diff.restoreBlockLabel": "Block {number} aus Version {version} wiederherstellen",
   "editor.history.diff.blockRestored": "Block wiederhergestellt. Speichern Sie den Eintrag, um ihn zu behalten.",
   "editor.history.diff.restoreFailed": "Der Block konnte nicht wiederhergestellt werden.",
+  "editor.quality.rule.tocNoHeadings": "Inhaltsverzeichnis ohne Überschriften zwischen Ebene {minLevel} und {maxLevel}",
   "editor.history.diff.more": "{count, plural, one {# weitere Änderung wird} other {# weitere Änderungen werden}} nicht angezeigt.",
   "editor.comments.actionFailed": "Das hat nicht geklappt. Bitte versuchen Sie es erneut.",
   "editor.comments.announce.added": "Kommentar hinzugefügt",

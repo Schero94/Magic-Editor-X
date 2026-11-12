@@ -715,6 +715,77 @@ export const editorStyles = css`
       margin: ${s(5)} ${s(8)};
     }
 
+    /* Table of contents (settings + live preview of the headings) */
+    .mex-toc {
+      border: 1px solid ${c('neutral200')};
+      border-radius: ${radius};
+      background: ${c('neutral100')};
+      padding: ${s(3)} ${s(4)};
+      margin: ${s(2)} 0;
+
+      .mex-tool__grid {
+        margin-top: 0;
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+      }
+
+      .mex-tool__muted {
+        margin: 0;
+      }
+    }
+
+    .mex-toc__title {
+      margin: 0 0 ${s(2)};
+      font-weight: 600;
+      color: ${c('neutral800')};
+    }
+
+    ul.mex-toc__list {
+      list-style: disc;
+    }
+
+    ol.mex-toc__list {
+      list-style: decimal;
+    }
+
+    .mex-toc__list {
+      margin: 0;
+      padding-inline-start: ${s(5)};
+      color: ${c('neutral800')};
+      overflow-wrap: anywhere;
+
+      .mex-toc__list {
+        margin-top: ${s(1)};
+      }
+    }
+
+    .mex-toc__item + .mex-toc__item {
+      margin-top: ${s(1)};
+    }
+
+    /* Mention chip (inline entry reference, <a data-mex-mention>) */
+    .ce-block a[data-mex-mention] {
+      text-decoration: none;
+      color: ${c('primary700')};
+      background: ${c('primary100')};
+      border: 1px solid ${c('primary200')};
+      border-radius: ${radius};
+      padding: 0 ${s(1)};
+      white-space: normal;
+      overflow-wrap: anywhere;
+      box-decoration-break: clone;
+      -webkit-box-decoration-break: clone;
+
+      &::before {
+        content: '@';
+        color: ${c('primary600')};
+      }
+
+      &:focus-visible {
+        outline: 2px solid ${c('primary600')};
+        outline-offset: 1px;
+      }
+    }
+
     /* Toggle */
     .mex-toggle {
       display: flex;

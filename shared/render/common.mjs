@@ -12,7 +12,8 @@ import {
   isBuiltInBlock,
   cleanMediaFile,
 } from '../sanitize-policy.mjs';
-import { inlineToHtml } from './inline.mjs';
+import { inlineToHtml, inlineToText } from './inline.mjs';
+import { createAnchorAllocator, createSlugAllocator } from '../toc.mjs';
 
 /**
  * @typedef {object} PreparedBlock
@@ -23,10 +24,13 @@ import { inlineToHtml } from './inline.mjs';
  * @property {object|undefined} tunes - Clean tunes.
  * @property {boolean} known - True for built-in block types.
  * @property {PreparedBlock[]} children - Toggle content.
+ * @property {string} [anchor] - Heading anchor (`header` blocks, when heading ids are on; see `annotateHeadings`).
+ * @property {Array<{ id: string|null, slug: string, level: number, text: string }>} [headings] - Document headings (`toc` blocks; `slug` is the GitHub-style slug for Markdown).
+ * @property {boolean} [linkHeadings] - Whether toc entries link to the anchors (`toc` blocks).
  */
 
 /** Policy-pass inline cleaner: keeps the stored attributes (links are resolved later). */
-const keepInline = (html) => inlineToHtml(html);
+const keepInline = (html) => inlineToHtml(html, { storage: true });
 
 /**
  * Normalises any stored value and returns cleaned blocks with toggle children grouped.
@@ -205,4 +209,53 @@ export const formatSize = (bytes) => {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+};
+
+/**
+ * Calls `fn` for every prepared block in document order (toggle content after its toggle).
+ * @param {PreparedBlock[]} blocks - Blocks.
+ * @param {(block: PreparedBlock) => void} fn - Visitor.
+ * @param {number} [depth=0] - Depth.
+ */
+const eachBlock = (blocks, fn, depth = 0) => {
+  if (depth > 16) return;
+  for (const block of blocks) {
+    fn(block);
+    if (block.children.length) eachBlock(block.children, fn, depth + 1);
+  }
+};
+
+/**
+ * Heading ids and table-of-contents data for one render. `options.headingIds`:
+ * `true` adds `id="mex-h-<blockId>"` to every heading, `false` never does
+ * (toc entries are then plain text), anything else adds them only when the
+ * document contains a `toc` block. Sets `anchor` on header blocks and
+ * `headings`/`linkHeadings` on toc blocks.
+ * @param {PreparedBlock[]} blocks - Prepared blocks (from `prepareBlocks`).
+ * @param {{ headingIds?: unknown }} [options] - Render options.
+ * @returns {PreparedBlock[]} The same blocks.
+ */
+export const annotateHeadings = (blocks, options = {}) => {
+  const tocs = [];
+  const headers = [];
+  eachBlock(blocks, (block) => {
+    if (!block.known) return;
+    if (block.type === 'toc') tocs.push(block);
+    else if (block.type === 'header') headers.push(block);
+  });
+  const enabled = options.headingIds === true || (options.headingIds !== false && tocs.length > 0);
+  if (!enabled && !tocs.length) return blocks;
+  const allocate = createAnchorAllocator();
+  const slugOf = createSlugAllocator();
+  const headings = headers.map((block) => {
+    const id = allocate(block.id);
+    const text = inlineToText(block.data.text);
+    if (enabled) block.anchor = id;
+    return { id: enabled ? id : null, slug: slugOf(text.trim()), level: block.data.level, text };
+  });
+  for (const toc of tocs) {
+    toc.headings = headings;
+    toc.linkHeadings = enabled;
+  }
+  return blocks;
 };

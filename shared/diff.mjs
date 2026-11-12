@@ -30,7 +30,7 @@ const MIN_SIMILARITY = 0.5;
 const MAX_DEPTH = 24;
 
 /** Block types whose strings are plain text, not inline HTML. */
-const PLAIN_TYPES = new Set(['code', 'codeFlask', 'raw']);
+const PLAIN_TYPES = new Set(['code', 'codeFlask', 'raw', 'toc']);
 /** Keys holding plain text in otherwise inline blocks. */
 const PLAIN_KEYS = new Set([
   'name',

@@ -26,7 +26,7 @@
   "$defs": {
     "inlineHtml": {
       "type": "string",
-      "description": "Inline HTML limited to b, strong, i, em, u, s, mark, code, a, br, span, sub, sup with the attributes of the sanitising policy."
+      "description": "Inline HTML limited to b, strong, i, em, u, s, mark, code, a, br, span, sub, sup with the attributes of the sanitising policy. Internal links carry data-mex-uid, data-mex-document-id and data-mex-locale; mentions (inline entry references) also data-mex-mention=\"true\"."
     },
     "url": {
       "type": "string",
@@ -689,6 +689,23 @@
               }
             }
           }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "toc"
+              }
+            },
+            "required": ["type"]
+          },
+          "then": {
+            "properties": {
+              "data": {
+                "$ref": "#/$defs/data_toc"
+              }
+            }
+          }
         }
       ]
     },
@@ -1275,6 +1292,35 @@
     "data_delimiter": {
       "type": "object",
       "properties": {},
+      "additionalProperties": false
+    },
+    "data_toc": {
+      "type": "object",
+      "description": "Table of contents. The entries are built from the headings when the content is rendered.",
+      "properties": {
+        "title": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "Plain-text title; empty for none."
+        },
+        "minLevel": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 6,
+          "description": "Lowest heading level listed (at most maxLevel)."
+        },
+        "maxLevel": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 6,
+          "description": "Highest heading level listed."
+        },
+        "style": {
+          "type": "string",
+          "enum": ["ordered", "unordered"]
+        }
+      },
+      "required": ["title", "minLevel", "maxLevel", "style"],
       "additionalProperties": false
     }
   }

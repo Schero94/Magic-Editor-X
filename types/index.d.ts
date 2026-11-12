@@ -219,6 +219,16 @@ export interface ButtonData {
   openInNewTab: boolean;
 }
 export type DelimiterData = Record<string, never>;
+/** Table of contents: entries are built from the headings when the content is rendered. */
+export interface TocData {
+  /** Plain-text title ('' for none). */
+  title: string;
+  /** Lowest heading level listed (1 to 6, at most `maxLevel`). */
+  minLevel: number;
+  /** Highest heading level listed (1 to 6). */
+  maxLevel: number;
+  style: 'ordered' | 'unordered';
+}
 
 /** Data per built-in block type. */
 export interface BlockDataMap {
@@ -245,6 +255,7 @@ export interface BlockDataMap {
   personality: PersonalityData;
   button: ButtonData;
   delimiter: DelimiterData;
+  toc: TocData;
 }
 
 export type BuiltInBlockType = keyof BlockDataMap;

@@ -150,6 +150,7 @@ const KITCHEN_SINK = {
   },
   button: { text: 'b', link: '/x', style: 'outline', openInNewTab: true },
   delimiter: {},
+  toc: { title: 'Contents', minLevel: 2, maxLevel: 3, style: 'ordered' },
 };
 
 test('policy output for every type has exactly the keys the schema describes', () => {

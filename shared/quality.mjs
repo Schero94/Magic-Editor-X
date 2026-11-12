@@ -11,6 +11,7 @@ import { isPlainObject, normalizeEditorDataSafe } from './editor-data.mjs';
 import { parseInline, nodesToText } from './render/inline.mjs';
 import { sanitizeUrl, isBuiltInBlock } from './sanitize-policy.mjs';
 import { mediaSlots } from './resolve-references.mjs';
+import { tocRange } from './toc.mjs';
 
 /** Rule ids and their default severity. */
 export const QUALITY_RULES = Object.freeze({
@@ -23,6 +24,7 @@ export const QUALITY_RULES = Object.freeze({
   'table-no-header': 'warning',
   'low-contrast': 'warning',
   'video-no-captions': 'warning',
+  'toc-no-headings': 'warning',
 });
 
 /** Most links returned by `extractLinks` per kind. */
@@ -326,6 +328,8 @@ export const lintDocument = (value, options = {}) => {
   let images = 0;
   let previousLevel = 0;
   let h1Count = 0;
+  const headingLevels = [];
+  const tocs = [];
   const altSeverity = options.requireAlt === true ? 'error' : 'warning';
   const push = (rule, block, blockIndex, extra = {}) =>
     issues.push({
@@ -343,6 +347,7 @@ export const lintDocument = (value, options = {}) => {
     if (block.type === 'header') {
       const level = Number.isInteger(d.level) && d.level >= 1 && d.level <= 6 ? d.level : 2;
       if (!textOf(d.text)) push('empty-heading', block, index, { params: { level } });
+      else headingLevels.push(level);
       if (level === 1) {
         h1Count += 1;
         if (h1Count === 2) push('multiple-h1', block, index);
@@ -398,6 +403,8 @@ export const lintDocument = (value, options = {}) => {
       }
     }
 
+    if (block.type === 'toc') tocs.push({ block, index, range: tocRange(d) });
+
     if (block.type === 'table') {
       const rows = Array.isArray(d.content) ? d.content : [];
       if (rows.length > 1 && d.withHeadings !== true) push('table-no-header', block, index);
@@ -417,6 +424,13 @@ export const lintDocument = (value, options = {}) => {
       }
     }
   });
+
+  // A table of contents lists the headings of the whole document, so it is checked after the walk.
+  for (const { block, index, range } of tocs) {
+    if (!headingLevels.some((level) => level >= range.minLevel && level <= range.maxLevel))
+      push('toc-no-headings', block, index, { params: range });
+  }
+  if (tocs.length) issues.sort((a, b) => a.blockIndex - b.blockIndex);
 
   const errors = issues.filter((issue) => issue.severity === 'error').length;
   return {

@@ -57,6 +57,9 @@ export const XSS = [
   '<template><script>alert(1)</script></template>',
   '<noscript><p title="</noscript><img src=x onerror=alert(1)>"></noscript>',
   '<a href="https://ok.example.test" data-mex-uid="api::a.a" data-mex-document-id="x" onclick=alert(1)>x</a>',
+  '<a href="/x" data-mex-uid="api::a.a" data-mex-document-id="x" data-mex-mention="true" class="evil" onclick=alert(1)><img src=x onerror=alert(1)>m</a>',
+  '<a href="javascript:alert(1)" data-mex-uid="api::a.a" data-mex-document-id="x" data-mex-mention>m</a>',
+  '<span data-mex-mention="true" data-mex-uid="api::a.a" data-mex-document-id="x">not a link</span>',
   '&lt;script&gt;alert(1)&lt;/script&gt;',
   '<a href="&#0000106&#0000097&#0000118&#0000097&#0000115&#0000099&#0000114&#0000105&#0000112&#0000116&#0000058alert(1)">x</a>',
   '<a href="https://ok.example.test" target="javascript:alert(1)">x</a>',
@@ -96,6 +99,7 @@ export const ALLOWED_OUTPUT_TAGS = new Set([
   'video',
   'audio',
   'track',
+  'nav',
 ]);
 
 export const assertSafeHtml = (html, label) => {
@@ -260,5 +264,7 @@ export const xssDocument = (payload) =>
     },
     { type: 'personality', data: { name: payload, description: payload, link: payload, photo: payload } },
     { type: 'button', data: { text: payload, link: payload, style: payload } },
+    { type: 'toc', data: { title: payload, minLevel: payload, maxLevel: 6, style: payload } },
+    { type: 'toc', data: { title: '', minLevel: 1, maxLevel: 6, style: 'ordered' } },
     { type: 'custom-x', data: { title: payload, url: payload, nested: { a: payload } } }
   );

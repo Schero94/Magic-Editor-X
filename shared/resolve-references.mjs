@@ -2,7 +2,8 @@
  * Reference handling for API output (Content API `?mex=` and GraphQL fields).
  *
  * A stored Magic Editor X value can reference other data:
- * - internal links: `<a href data-mex-uid data-mex-document-id data-mex-locale>` in inline HTML,
+ * - internal links: `<a href data-mex-uid data-mex-document-id data-mex-locale>` in inline HTML
+ *   (mentions are internal links with `data-mex-mention="true"`),
  * - embedded entries: custom blocks of type `embedded-entry` (`{ entry: { documentId, ... }, contentType }`),
  * - Media Library files with `id` or `documentId`: `image` blocks, gallery
  *   images, video and audio files, video posters and text tracks.
@@ -14,7 +15,8 @@
  */
 
 import { normalizeEditorDataSafe, isPlainObject } from './editor-data.mjs';
-import { isBuiltInBlock } from './sanitize-policy.mjs';
+import { isBuiltInBlock, isMentionLink } from './sanitize-policy.mjs';
+import { parseInline, nodesToHtml } from './render/inline.mjs';
 import {
   renderHtml,
   renderText,
@@ -164,6 +166,42 @@ const mapStrings = (value, fn, depth = 0) => {
 const visitLinks = (text, resolver) => {
   let found = false;
   const html = inlineToHtml(text, {
+    storage: true,
+    links: (ref) => {
+      found = true;
+      return resolver(ref);
+    },
+  });
+  return { html, found };
+};
+
+/**
+ * Replaces the text of resolved mentions with the entry's current title,
+ * then resolves the links like `visitLinks`. Unresolved mentions keep their
+ * stored text (the link itself is removed by the resolver).
+ * @param {string} text - Inline HTML.
+ * @param {(ref: object) => string|false|undefined} resolver - Link resolver.
+ * @param {(attrs: Record<string, string>) => string|null} titleOf - Current title of a mention, or null.
+ * @returns {{ html: string, found: boolean }} Re-serialised HTML and whether a link was seen.
+ */
+const visitMentions = (text, resolver, titleOf) => {
+  const nodes = parseInline(text);
+  const walk = (list, depth) => {
+    if (depth > 64) return;
+    for (const node of list) {
+      if (node.type !== 'element') continue;
+      if (node.tag === 'a' && isMentionLink(node.attrs)) {
+        const title = titleOf(node.attrs);
+        if (title) node.children = [{ type: 'text', value: title }];
+        continue;
+      }
+      walk(node.children, depth + 1);
+    }
+  };
+  walk(nodes, 0);
+  let found = false;
+  const html = nodesToHtml(nodes, {
+    storage: true,
     links: (ref) => {
       found = true;
       return resolver(ref);
@@ -223,13 +261,15 @@ const OTHER_FILE_KEYS = ['url', 'name', 'mime', 'ext', 'hash', 'width', 'height'
  *
  * - Internal links: the href becomes the resolved href; a link without a
  *   resolution (missing, draft-only, or not readable by the caller) is removed
- *   and only its text stays.
+ *   and only its text stays. Mentions (`data-mex-mention`) also take the
+ *   resolved entry's current `title` as their text; unresolved mentions keep
+ *   the text stored when they were inserted.
  * - Embedded entries: `data.entry` becomes the resolved summary
  *   (`{ id, documentId, title, href, ...displayFields }`) or `null`.
  * - Images: `data.file` takes the current url, size and formats of a
  *   resolved file (and its alternative text when the block has none); without a resolution the stored file is kept unchanged.
  * @param {object|null} data - Normalised value (from `collectReferences`).
- * @param {Map<string, object>} resolved - Results by reference key: `{ href }` for links, `{ entry }` for entries, `{ file }` for media.
+ * @param {Map<string, object>} resolved - Results by reference key: `{ href, title? }` for links, `{ entry }` for entries, `{ file }` for media.
  * @param {{ locale?: string|null }} [options] - Same options as `collectReferences`.
  * @returns {object|null} A new value (the input is not changed).
  */
@@ -240,6 +280,18 @@ export const applyReferences = (data, resolved, options = {}) => {
     const locale = cleanLocale(ref.locale) || fallbackLocale;
     const hit = resolved.get(entryKey('link', ref.uid, locale, ref.documentId));
     return hit && typeof hit.href === 'string' && hit.href ? hit.href : false;
+  };
+  // A mention shows the current title only when its link resolves (readable, published as requested).
+  const mentionTitle = (attrs) => {
+    const locale = cleanLocale(attrs['data-mex-locale']) || fallbackLocale;
+    const hit = resolved.get(entryKey('link', attrs['data-mex-uid'], locale, attrs['data-mex-document-id']));
+    return hit &&
+      typeof hit.href === 'string' &&
+      hit.href &&
+      typeof hit.title === 'string' &&
+      hit.title.trim()
+      ? hit.title.trim().slice(0, 200)
+      : null;
   };
   const blocks = data.blocks.map((block) => {
     if (isEmbeddedEntryBlock(block)) {
@@ -264,7 +316,9 @@ export const applyReferences = (data, resolved, options = {}) => {
     }
     next = mapStrings(next, (text) => {
       if (!text.includes('data-mex-uid')) return text;
-      const { html, found } = visitLinks(text, linkResolver);
+      const { html, found } = text.includes('data-mex-mention')
+        ? visitMentions(text, linkResolver, mentionTitle)
+        : visitLinks(text, linkResolver);
       return found ? html : text;
     });
     return next === block.data ? block : { ...block, data: next };

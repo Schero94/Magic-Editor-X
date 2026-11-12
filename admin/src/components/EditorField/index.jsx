@@ -42,6 +42,7 @@ import { CommentMarkers } from './CommentMarkers';
 import { blockExcerpt, openThreadsByBlock } from '../../../../shared/comments.mjs';
 import { createPasteHandler } from '../../editor/paste';
 import { createMarkdownShortcuts } from '../../editor/markdown-shortcuts';
+import { createMentionKeys } from '../../editor/tools/mention';
 import { restoreBlockInEditor } from '../../editor/restore-block.mjs';
 import { highlightMatch, clearHighlight } from '../../editor/find-highlight';
 import {
@@ -105,6 +106,7 @@ const SHORTCUT_LABELS = {
   strikethrough: ['tools.names.strikethrough', 'Strikethrough'],
   inlineCode: ['tools.names.inlineCode', 'Inline code'],
   hyperlink: ['tools.names.link', 'Link'],
+  mention: ['tools.names.mention', 'Mention'],
   aiAssistant: ['tools.names.ai', 'AI assistant'],
 };
 
@@ -617,6 +619,7 @@ const EditorField = ({
     let dragDrop = null;
     let paste = null;
     let shortcuts = null;
+    let mentionKeys = null;
     // Registered before Editor.js renders, so violations of the first render are seen.
     const cspGuard = createCspGuard(holderRef.current, {
       t,
@@ -695,6 +698,7 @@ const EditorField = ({
           hasTool: (name) => toolNames.has(name) || name === 'bold' || name === 'italic',
           onConverted: markTouched,
         });
+        mentionKeys = createMentionKeys({ holder: holderRef.current });
         setReady(true);
       },
     });
@@ -708,6 +712,7 @@ const EditorField = ({
       if (dragDrop) dragDrop.destroy();
       if (paste) paste.destroy();
       if (shortcuts) shortcuts.destroy();
+      if (mentionKeys) mentionKeys.destroy();
       editorRef.current = null;
       editor.isReady.then(() => editor.destroy()).catch(() => {});
     };

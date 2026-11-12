@@ -19,6 +19,7 @@ import {
   sanitizeUrl,
   sanitizeTarget,
   cleanInternalLinkAttributes,
+  isMentionLink,
 } from '../sanitize-policy.mjs';
 import { escapeHtml, serializeNodes } from './nodes.mjs';
 
@@ -291,7 +292,7 @@ export const parseInline = (input) => {
 /**
  * Applies the internal-link resolver to one link element.
  * @param {Record<string, string>} attrs - Clean link attributes.
- * @param {((ref: { uid: string, documentId: string, locale: string|null, href: string|null }) => unknown) | undefined} resolver - `options.links`.
+ * @param {((ref: { uid: string, documentId: string, locale: string|null, href: string|null, mention?: true }) => unknown) | undefined} resolver - `options.links`.
  * @returns {Record<string, string> | null} Attributes, or null to render the link text only.
  */
 export const resolveLinkAttributes = (attrs, resolver) => {
@@ -304,6 +305,7 @@ export const resolveLinkAttributes = (attrs, resolver) => {
       documentId: attrs['data-mex-document-id'],
       locale: attrs['data-mex-locale'] || null,
       href: attrs.href || null,
+      ...(isMentionLink(attrs) ? { mention: true } : {}),
     });
   } catch {
     result = undefined;
@@ -326,15 +328,21 @@ const ATTRIBUTE_ORDER = [
   'data-mex-uid',
   'data-mex-document-id',
   'data-mex-locale',
+  'data-mex-mention',
 ];
+
+/** Class the renderers add to mentions (`<a data-mex-mention>`); never stored. */
+export const MENTION_CLASS = 'mex-mention';
 
 /**
  * Builds render nodes from a parsed inline tree: attributes in a fixed order,
  * links resolved with `options.links`, `rel="noopener noreferrer"` added to
  * `target="_blank"` links, links without a valid href reduced to their
- * content. The result contains only allowed tags and validated attributes.
+ * content. Mentions get the class `mex-mention` unless `storage` is set
+ * (re-serialising stored values keeps them as stored). The result contains
+ * only allowed tags and validated attributes.
  * @param {InlineNode[]} nodes - Parsed nodes (from `parseInline`).
- * @param {{ links?: Function }} [options] - Render options (`links` resolver).
+ * @param {{ links?: Function, storage?: boolean }} [options] - Render options (`links` resolver; `storage`: internal, no render-only classes).
  * @returns {import('./nodes.mjs').RenderNode[]} Render nodes.
  */
 export const inlineNodesToRender = (nodes, options = {}) => {
@@ -366,6 +374,7 @@ export const inlineNodesToRender = (nodes, options = {}) => {
         rel.add('noreferrer');
         attrs = { ...attrs, rel: Array.from(rel).sort().join(' ') };
       }
+      if (!options.storage && isMentionLink(attrs)) attrs = { ...attrs, class: MENTION_CLASS };
     }
     /** @type {Record<string, string>} */
     const ordered = {};
