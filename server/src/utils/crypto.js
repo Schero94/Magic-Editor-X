@@ -40,14 +40,18 @@ const getEncryptionKey = (strapi) => {
   return typeof key === 'string' && key.length >= MIN_KEY_LENGTH ? key : null;
 };
 
+/** Default purpose of stored secrets (the AI provider key; 2.2 values use it). */
+const AI_CREDENTIALS = 'magic-editor-x:ai-credentials';
+
 /**
  * Encrypts a secret.
  * @param {string} plaintext - Secret value.
  * @param {string} master - Master key.
+ * @param {string} [purpose] - Subkey purpose (one per kind of secret).
  * @returns {string} Versioned ciphertext.
  */
-const encryptSecret = (plaintext, master) => {
-  const key = deriveKey(master, 'magic-editor-x:ai-credentials');
+const encryptSecret = (plaintext, master, purpose = AI_CREDENTIALS) => {
+  const key = deriveKey(master, purpose);
   const iv = crypto.randomBytes(12);
   const cipher = crypto.createCipheriv('aes-256-gcm', key, iv, { authTagLength: 16 });
   const ciphertext = Buffer.concat([cipher.update(String(plaintext), 'utf8'), cipher.final()]);
@@ -61,13 +65,14 @@ const encryptSecret = (plaintext, master) => {
  * Decrypts a secret produced by `encryptSecret`.
  * @param {string} stored - Versioned ciphertext.
  * @param {string} master - Master key.
+ * @param {string} [purpose] - Subkey purpose used for encryption.
  * @returns {string|null} Plaintext, or null when the key does not match or the value is corrupt.
  */
-const decryptSecret = (stored, master) => {
+const decryptSecret = (stored, master, purpose = AI_CREDENTIALS) => {
   try {
     const [version, iv, tag, ciphertext] = String(stored).split(':');
     if (version !== 'v1' || !iv || !tag || !ciphertext) return null;
-    const key = deriveKey(master, 'magic-editor-x:ai-credentials');
+    const key = deriveKey(master, purpose);
     const decipher = crypto.createDecipheriv('aes-256-gcm', key, Buffer.from(iv, 'base64url'), {
       authTagLength: 16,
     });

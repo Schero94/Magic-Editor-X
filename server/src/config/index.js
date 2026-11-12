@@ -45,6 +45,13 @@ const defaults = {
     requestsPerMinute: 20,
     timeoutMs: 60000,
   },
+  languageTool: {
+    /** Allow LanguageTool base URLs on private or loopback hosts (self-hosted server in the LAN). Owner opt-in only. */
+    allowPrivateBaseUrl: false,
+    /** Grammar checks per editor and minute (shared by every process). */
+    requestsPerMinute: 30,
+    timeoutMs: 20000,
+  },
   collaboration: {
     enabled: true,
     /** Socket.IO path on the Strapi HTTP server. */
@@ -176,6 +183,11 @@ const configSchema = z.looseObject({
     apiKey: z.string().min(1).max(500).optional(),
     requestsPerMinute: positiveInt(1000),
     timeoutMs: z.number().int().min(1000).max(300000),
+  }),
+  languageTool: z.looseObject({
+    allowPrivateBaseUrl: z.boolean(),
+    requestsPerMinute: positiveInt(1000),
+    timeoutMs: z.number().int().min(1000).max(120000),
   }),
   collaboration: z.looseObject({
     enabled: z.boolean(),

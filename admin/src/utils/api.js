@@ -24,6 +24,9 @@ export const API = {
   history: '/magic-editor-x/history',
   historyItem: (id) => `/magic-editor-x/history/${encodeURIComponent(id)}`,
   ai: (action) => `/magic-editor-x/ai/${encodeURIComponent(action)}`,
+  aiAltText: '/magic-editor-x/ai/image/alt-text',
+  aiField: (action) => `/magic-editor-x/ai/field/${encodeURIComponent(action)}`,
+  grammarCheck: '/magic-editor-x/grammar/check',
   comments: '/magic-editor-x/comments',
   comment: (id) => `/magic-editor-x/comments/${encodeURIComponent(id)}`,
   commentReplies: (id) => `/magic-editor-x/comments/${encodeURIComponent(id)}/replies`,
@@ -31,6 +34,7 @@ export const API = {
   commentReopen: (id) => `/magic-editor-x/comments/${encodeURIComponent(id)}/reopen`,
   settings: '/magic-editor-x/settings',
   settingsAiTest: '/magic-editor-x/settings/ai/test',
+  settingsLanguageToolTest: '/magic-editor-x/settings/language-tool/test',
 };
 
 /**

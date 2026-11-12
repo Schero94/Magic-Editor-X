@@ -2,6 +2,7 @@
 
 const { service } = require('./helpers');
 const { sendProviderError } = require('./ai');
+const { sendGrammarError } = require('./grammar');
 
 module.exports = ({ strapi }) => ({
   /**
@@ -35,6 +36,20 @@ module.exports = ({ strapi }) => ({
       ctx.body = { data: await service(strapi, 'ai').test(input) };
     } catch (error) {
       if (!sendProviderError(ctx, error)) throw error;
+    }
+  },
+
+  /**
+   * @route POST /magic-editor-x/settings/language-tool/test { languageTool }
+   * @auth admin; settings.read + settings.update
+   * @sideeffect One check of a fixed sample sentence with the submitted LanguageTool settings.
+   */
+  async testLanguageTool(ctx) {
+    const input = service(strapi, 'settings').parseLanguageToolInput((ctx.request.body || {}).languageTool);
+    try {
+      ctx.body = { data: await service(strapi, 'grammar').test(input) };
+    } catch (error) {
+      if (!sendGrammarError(ctx, error)) throw error;
     }
   },
 });

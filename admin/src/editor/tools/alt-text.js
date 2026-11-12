@@ -1,6 +1,7 @@
 import ImageTool from '@editorjs/image';
 import { el, field, input } from './dom';
 import { createFocalControl } from './focal-point';
+import { createAltSuggestion, mediaFileId } from '../ai-alt-text';
 
 /**
  * Alternative text for image blocks: a labelled input plus a "decorative
@@ -22,8 +23,8 @@ const OWN_KEYS = new Set([
 
 /**
  * Creates the alternative text controls.
- * @param {{ t: Function, alt?: string, decorative?: boolean, required?: boolean, readOnly?: boolean, onChange: (value: { alt: string, decorative: boolean }) => void }} options - Options.
- * @returns {{ element: HTMLElement, setAlt: (alt: string) => void, read: () => { alt: string, decorative: boolean } }} Control.
+ * @param {{ t: Function, alt?: string, decorative?: boolean, required?: boolean, readOnly?: boolean, onChange: (value: { alt: string, decorative: boolean }) => void, suggest?: Function, getFileId?: () => number|null }} options - Options (`suggest` from `createAltTextSuggester` adds the AI suggestion, 2.3).
+ * @returns {{ element: HTMLElement, setAlt: (alt: string) => void, read: () => { alt: string, decorative: boolean }, refresh: () => void }} Control.
  */
 export const createAltControl = ({
   t,
@@ -32,6 +33,8 @@ export const createAltControl = ({
   required = false,
   readOnly = false,
   onChange,
+  suggest,
+  getFileId,
 }) => {
   const label = required
     ? t('tools.image.altRequired', 'Alternative text (required)')
@@ -56,6 +59,7 @@ export const createAltControl = ({
   });
   const row = field(label, text);
   const wrapper = el('div', { className: 'mex-alt', children: [row, check, error] });
+  let suggestion = null;
 
   const read = () => ({ alt: box.checked ? '' : text.value.trim().slice(0, 500), decorative: box.checked });
   const validate = () => {
@@ -85,9 +89,24 @@ export const createAltControl = ({
     sync();
     onChange(read());
   });
+  if (typeof suggest === 'function' && typeof getFileId === 'function' && !readOnly) {
+    suggestion = createAltSuggestion({
+      t,
+      getFileId,
+      suggest,
+      onUse: (value) => {
+        box.checked = false;
+        text.value = value.slice(0, 500);
+        sync();
+        onChange(read());
+      },
+    });
+    wrapper.insertBefore(suggestion.element, check);
+  }
   sync();
   return {
     element: wrapper,
+    refresh: () => suggestion && suggestion.refresh(),
     read,
     setAlt: (value) => {
       if (text.value.trim() || box.checked) return;
@@ -117,6 +136,8 @@ export class MexImageTool extends ImageTool {
       decorative: data.decorative === true,
       required: config.requireAlt === true,
       readOnly: Boolean(options && options.readOnly),
+      suggest: typeof config.suggestAltText === 'function' ? config.suggestAltText : undefined,
+      getFileId: () => mediaFileId(this.data && this.data.file),
       onChange: () => {
         if (options && options.block && typeof options.block.dispatchChange === 'function')
           options.block.dispatchChange();
@@ -143,6 +164,7 @@ export class MexImageTool extends ImageTool {
         const file = this.data && this.data.file;
         if (file && typeof file.alt === 'string') this.mexAlt.setAlt(file.alt);
         this.mexFocal.setUrl(typeof url === 'string' ? url : '');
+        this.mexAlt.refresh();
       };
     }
   }

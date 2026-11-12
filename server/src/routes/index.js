@@ -71,10 +71,19 @@ const adminRoutes = [
   ['DELETE', '/comments/:id', 'comments.remove', [ACTIONS.access, ACTIONS.commentsRead]],
 
   ['POST', '/ai/:action', 'ai.run', [ACTIONS.access, ACTIONS.ai]],
+  ['POST', '/ai/image/alt-text', 'ai.altText', [ACTIONS.access, ACTIONS.ai]],
+  ['POST', '/ai/field/:action', 'ai.field', [ACTIONS.access, ACTIONS.ai]],
+  ['POST', '/grammar/check', 'grammar.check', [ACTIONS.access, ACTIONS.grammar]],
 
   ['GET', '/settings', 'settings.get', [ACTIONS.settingsRead]],
   ['PUT', '/settings', 'settings.update', [ACTIONS.settingsRead, ACTIONS.settingsUpdate]],
   ['POST', '/settings/ai/test', 'settings.testAi', [ACTIONS.settingsRead, ACTIONS.settingsUpdate]],
+  [
+    'POST',
+    '/settings/language-tool/test',
+    'settings.testLanguageTool',
+    [ACTIONS.settingsRead, ACTIONS.settingsUpdate],
+  ],
 ].map(([method, path, handler, actions]) => ({
   method,
   path,

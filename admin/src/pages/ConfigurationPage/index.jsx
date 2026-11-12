@@ -7,6 +7,7 @@ import { useConfigurationForm } from './useConfigurationForm';
 import { AiSection } from './AiSection';
 import { EnvironmentSection } from './EnvironmentSection';
 import { CspSection } from './CspSection';
+import { LanguageToolSection } from './LanguageToolSection';
 
 const RBAC = [...PERMISSIONS.settingsRead, ...PERMISSIONS.settingsUpdate];
 
@@ -32,6 +33,37 @@ const testErrorText = (t, code) => {
       return t('settings.test.refused', 'The provider answered but declined the test request.');
     default:
       return t('settings.test.failed', 'Connection failed. Check the provider, base URL, model and key.');
+  }
+};
+
+/**
+ * Error messages for LanguageTool test codes (server/src/controllers/grammar.js).
+ * @param {Function} t - Translate.
+ * @param {string|null} code - Error code.
+ * @returns {string} Message.
+ */
+const languageToolErrorText = (t, code) => {
+  switch (code) {
+    case 'AUTH_FAILED':
+      return t(
+        'settings.languageTool.test.auth',
+        'Connection failed: LanguageTool rejected the user name or key.'
+      );
+    case 'PROVIDER_RATE_LIMIT':
+      return t(
+        'settings.languageTool.test.rateLimit',
+        'Connection failed: LanguageTool is busy or rate limited.'
+      );
+    case 'TIMEOUT':
+      return t(
+        'settings.languageTool.test.timeout',
+        'Connection failed: LanguageTool did not answer in time.'
+      );
+    default:
+      return t(
+        'settings.languageTool.test.failed',
+        'Connection failed. Check the base URL and, for hosted accounts, the user name and key.'
+      );
   }
 };
 
@@ -127,6 +159,23 @@ const ConfigurationPage = () => {
     }
   };
 
+  const onTestLanguageTool = async () => {
+    const result = await form.testLanguageTool();
+    if (result.ok) {
+      toggleNotification({
+        type: 'success',
+        message: t('settings.languageTool.test.success', 'Connection works. LanguageTool answered.'),
+      });
+    } else if (result.invalid) {
+      toggleNotification({
+        type: 'warning',
+        message: t('settings.test.invalid', 'Fix the highlighted fields before testing.'),
+      });
+    } else {
+      toggleNotification({ type: 'danger', message: languageToolErrorText(t, result.code) });
+    }
+  };
+
   return (
     <PageShell
       title={title}
@@ -185,6 +234,7 @@ const ConfigurationPage = () => {
         </Alert>
       ) : null}
       <AiSection form={form} readOnly={readOnly} onTest={onTest} />
+      <LanguageToolSection form={form} readOnly={readOnly} onTest={onTestLanguageTool} />
       <EnvironmentSection environment={form.dto.environment} />
       <CspSection csp={form.dto.environment && form.dto.environment.csp} />
       <Form method="PUT" initialValues={form.saved}>

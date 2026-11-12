@@ -52,6 +52,16 @@ export const errorText = (t, error, field) => {
       return t('settings.validation.cannotStore', 'Set MAGIC_EDITOR_X_ENCRYPTION_KEY to store an API key.');
     case 'tooLong':
       return t('settings.validation.keyTooLong', 'The API key is too long.');
+    case 'httpsLanguageTool':
+      return t(
+        'settings.languageTool.validation.https',
+        'Use an https URL. Private or http hosts need languageTool.allowPrivateBaseUrl in config/plugins.js.'
+      );
+    case 'reenterLanguageTool':
+      return t(
+        'settings.languageTool.validation.reenterKey',
+        'Enter the API key again when you change the base URL or user name.'
+      );
     default:
       return t('settings.validation.invalid', 'Check this value.');
   }
@@ -75,6 +85,34 @@ const providerName = (t, draft) => {
   })();
   return host || t('settings.ai.provider.compatible.name', 'the server at the base URL');
 };
+
+/**
+ * One labelled switch with its disclosure text (2.3 owner switches).
+ * @param {{ id: string, label: string, hint: string, checked: boolean, disabled: boolean, onChange: (checked: boolean) => void, t: Function }} props - Props.
+ * @returns {JSX.Element} Row.
+ */
+export const SwitchRow = ({ id, label, hint, checked, disabled, onChange, t }) => (
+  <Flex gap={4} alignItems="flex-start" justifyContent="space-between" minWidth={0}>
+    <Flex direction="column" alignItems="flex-start" gap={1} minWidth={0} flex="1 1 auto">
+      <Typography variant="omega" fontWeight="bold" textColor="neutral800" id={`${id}-label`}>
+        {label}
+      </Typography>
+      <Typography variant="pi" textColor="neutral600" id={`${id}-hint`}>
+        {hint}
+      </Typography>
+    </Flex>
+    <Switch
+      checked={checked}
+      onCheckedChange={(next) => onChange(next === true)}
+      disabled={disabled}
+      aria-labelledby={`${id}-label`}
+      aria-describedby={`${id}-hint`}
+      onLabel={t('settings.switch.on', 'On')}
+      offLabel={t('settings.switch.off', 'Off')}
+      visibleLabels
+    />
+  </Flex>
+);
 
 /**
  * Status of the stored provider key.
@@ -170,6 +208,37 @@ export const AiSection = ({ form, readOnly, onTest }) => {
           visibleLabels
         />
       </Flex>
+
+      {typeof draft.allowImages === 'boolean' ? (
+        <SwitchRow
+          id="mex-ai-images"
+          t={t}
+          label={t('settings.ai.images.label', 'Send images to the AI provider')}
+          hint={t(
+            'settings.ai.images.privacy',
+            'Lets editors ask for an alternative text suggestion. The image (a stored size of at most 1568 pixels) and the content language are sent to {provider}. Off by default.',
+            { provider: providerName(t, draft) }
+          )}
+          checked={draft.allowImages}
+          disabled={readOnly}
+          onChange={(checked) => setField('allowImages', checked)}
+        />
+      ) : null}
+      {typeof draft.allowFieldActions === 'boolean' ? (
+        <SwitchRow
+          id="mex-ai-field"
+          t={t}
+          label={t('settings.ai.fieldActions.label', 'Allow whole-field AI actions')}
+          hint={t(
+            'settings.ai.fieldActions.privacy',
+            'Lets editors translate or summarize a whole field. The text of every block in the field, with its inline formatting and links, is sent to {provider}. Off by default.',
+            { provider: providerName(t, draft) }
+          )}
+          checked={draft.allowFieldActions}
+          disabled={readOnly}
+          onChange={(checked) => setField('allowFieldActions', checked)}
+        />
+      ) : null}
 
       <Grid.Root gap={{ initial: 4, medium: 5 }}>
         <Grid.Item col={6} xs={12} s={12} m={12} direction="column" alignItems="stretch" minWidth={0}>

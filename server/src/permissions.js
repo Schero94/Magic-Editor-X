@@ -20,6 +20,7 @@ const ACTIONS = Object.freeze({
   commentsRead: `plugin::${PLUGIN}.comments.read`,
   commentsWrite: `plugin::${PLUGIN}.comments.write`,
   commentsModerate: `plugin::${PLUGIN}.comments.moderate`,
+  grammar: `plugin::${PLUGIN}.grammar.use`,
 });
 
 const ACTION_DEFINITIONS = [
@@ -35,6 +36,7 @@ const ACTION_DEFINITIONS = [
     displayName: 'Write block comments (comment, reply, resolve, edit and delete own)',
   },
   { uid: 'comments.moderate', displayName: "Moderate block comments (delete anyone's)" },
+  { uid: 'grammar.use', displayName: 'Use the grammar check (LanguageTool)' },
 ];
 
 /**

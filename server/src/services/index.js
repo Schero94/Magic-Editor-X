@@ -10,6 +10,7 @@ module.exports = {
   editor: require('./editor'),
   settings: require('./settings'),
   ai: require('./ai'),
+  grammar: require('./grammar'),
   'custom-blocks': require('./custom-blocks'),
   history: require('./history'),
   comments: require('./comments'),

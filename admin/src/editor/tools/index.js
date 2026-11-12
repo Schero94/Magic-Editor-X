@@ -208,6 +208,8 @@ export function buildTools(ctx) {
         buttonContent: t('tools.image.select', 'Select an image'),
         t,
         requireAlt: Boolean(preset && preset.requireAlt),
+        // 2.3: AI alternative text suggestion (only when the owner and the field allow it).
+        suggestAltText: ctx.suggestAltText,
       },
     },
     simpleImage: {
