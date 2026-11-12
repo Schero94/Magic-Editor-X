@@ -62,6 +62,7 @@ module.exports = ({ strapi }) => ({
           commentsRead: can(ACTIONS.commentsRead),
           commentsWrite: can(ACTIONS.commentsWrite),
           commentsModerate: can(ACTIONS.commentsModerate),
+          templatesManage: can(ACTIONS.templatesManage),
         },
       },
     };

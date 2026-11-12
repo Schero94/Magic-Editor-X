@@ -13,6 +13,7 @@ module.exports = {
   'custom-blocks': require('./custom-blocks'),
   history: require('./history'),
   comments: require('./comments'),
+  templates: require('./templates'),
   collaboration: require('./collaboration'),
   migrations: require('./migrations'),
   migrate: require('./migrate'),

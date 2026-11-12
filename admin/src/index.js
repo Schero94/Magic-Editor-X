@@ -288,6 +288,13 @@ export default {
           permissions: PERMISSIONS.customBlocksManage,
           Component: () => import('./pages/CustomBlocksPage'),
         },
+        {
+          id: `${PLUGIN_ID}-templates`,
+          intlLabel: { id: getTranslation('settings.link.templates'), defaultMessage: 'Templates' },
+          to: `${PLUGIN_ID}/templates`,
+          permissions: PERMISSIONS.templatesManage,
+          Component: () => import('./pages/TemplatesPage'),
+        },
       ]
     );
   },

@@ -29,6 +29,11 @@ export const API = {
   commentReplies: (id) => `/magic-editor-x/comments/${encodeURIComponent(id)}/replies`,
   commentResolve: (id) => `/magic-editor-x/comments/${encodeURIComponent(id)}/resolve`,
   commentReopen: (id) => `/magic-editor-x/comments/${encodeURIComponent(id)}/reopen`,
+  templates: '/magic-editor-x/templates',
+  templateTargets: '/magic-editor-x/templates/targets',
+  templatesOrder: '/magic-editor-x/templates/order',
+  template: (id) => `/magic-editor-x/templates/${encodeURIComponent(id)}`,
+  templateDuplicate: (id) => `/magic-editor-x/templates/${encodeURIComponent(id)}/duplicate`,
   settings: '/magic-editor-x/settings',
   settingsAiTest: '/magic-editor-x/settings/ai/test',
 };

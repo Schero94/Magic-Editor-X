@@ -40,6 +40,10 @@ import { useComments } from './useComments';
 import { CommentsPanel } from './CommentsPanel';
 import { CommentMarkers } from './CommentMarkers';
 import { blockExcerpt, openThreadsByBlock } from '../../../../shared/comments.mjs';
+import { FieldPreview } from './FieldPreview';
+import { TemplateDialog } from './TemplateDialog';
+import { SaveTemplateDialog } from './SaveTemplateDialog';
+import { insertBlocksAt, isEmptyDocument, prepareInsertion } from '../../../../shared/templates.mjs';
 import { createPasteHandler } from '../../editor/paste';
 import { createMarkdownShortcuts } from '../../editor/markdown-shortcuts';
 import { restoreBlockInEditor } from '../../editor/restore-block.mjs';
@@ -145,6 +149,10 @@ const EditorArea = styled.div`
   position: relative;
   min-width: 0;
   ${({ $fullscreen }) => ($fullscreen ? 'flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0;' : '')}
+  /* Hidden (still mounted) while the rendered preview is shown. */
+  &[hidden] {
+    display: none;
+  }
 `;
 
 const Holder = styled.div`
@@ -195,7 +203,16 @@ const contentKey = (data) => stableStringify(data && Array.isArray(data.blocks) 
  */
 const renderedKey = (value) => contentKey(prepareEditorValue(value).data);
 
-const EditorField = ({
+/**
+ * Editor body. `target` identifies the document field (the Content Manager
+ * wrapper below reads it from the edit view; the template editor in the
+ * settings passes an empty target, which turns collaboration, history,
+ * comments and template insertion off).
+ * @param {object} props - Custom field props plus `target`.
+ * @returns {JSX.Element} Field.
+ */
+const EditorFieldBody = ({
+  target,
   name,
   value,
   onChange,
@@ -212,7 +229,6 @@ const EditorField = ({
   const { toggleNotification } = useNotification();
   const MediaLibraryDialog = useStrapiApp('MagicEditorX', (state) => state.components['media-library']);
   const { config, customBlocks, error: configError, loading: configLoading, retry } = useEditorConfig();
-  const target = useFieldTarget(name);
   const navigate = useNavigate();
   const settingsHref = useHref(SETTINGS_PATH);
   // The editor is not rebuilt on a locale switch; the link picker reads the current locale through this ref.
@@ -267,6 +283,14 @@ const EditorField = ({
   const [commentFocusThread, setCommentFocusThread] = useState(null);
   const [currentBlockId, setCurrentBlockId] = useState(null);
   const commentsButtonRef = useRef(null);
+  // Templates, block patterns and the in-field preview (2.3).
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [templatesOpen, setTemplatesOpen] = useState(false);
+  const [saveTemplate, setSaveTemplate] = useState(null);
+  const previewRef = useRef(null);
+  const previewButtonRef = useRef(null);
+  const templatesButtonRef = useRef(null);
+  const lastBlockIdRef = useRef(null);
 
   useEffect(() => {
     onChangeRef.current = onChange;
@@ -1090,6 +1114,178 @@ const EditorField = ({
     [comments.threads]
   );
 
+  // Templates (2.3): the block the user worked on last is where a pattern goes.
+  useEffect(() => {
+    const holder = holderRef.current;
+    if (!holder || !ready) return undefined;
+    const remember = (event) => {
+      const block = event.target && event.target.closest ? event.target.closest('.ce-block[data-id]') : null;
+      if (block && holder.contains(block)) lastBlockIdRef.current = block.getAttribute('data-id');
+    };
+    holder.addEventListener('focusin', remember);
+    holder.addEventListener('pointerdown', remember);
+    return () => {
+      holder.removeEventListener('focusin', remember);
+      holder.removeEventListener('pointerdown', remember);
+    };
+  }, [ready]);
+
+  const canManageTemplates = Boolean(permissions.templatesManage);
+  const allowRawPreview = Boolean(config && config.rawHtml !== 'disable' && isBlockAllowed(preset, 'raw'));
+
+  /** Current content for the template dialog (is the field empty?). */
+  const readTemplateContent = useCallback(async () => {
+    const editor = editorRef.current;
+    const saved = editor ? await editor.save().catch(() => null) : null;
+    return saved ? { blocks: saved.blocks, empty: isEmptyDocument(saved) } : null;
+  }, []);
+
+  /**
+   * Applies a template (replaces the content) or inserts a pattern after the
+   * last used block, through the same path as other whole-document changes
+   * (Editor.js block API, shared document, undo). Blocks the field does not
+   * allow are left out; every inserted block gets a fresh id.
+   */
+  const insertTemplate = useCallback(
+    async (template) => {
+      const editor = editorRef.current;
+      if (!editor || readOnly) return false;
+      const saved = (await editor.save().catch(() => null)) || { blocks: [] };
+      const source = prepareEditorValue(template.blocks).data;
+      if (!source) return false;
+      const replacing = template.kind === 'template' || isEmptyDocument(saved);
+      const base = replacing ? [] : saved.blocks;
+      const plan = prepareInsertion(source.blocks, preset.restricted ? preset : null, {
+        existingCount: base.length,
+        existingIds: saved.blocks.map((block) => block.id),
+      });
+      if (!plan.blocks.length) {
+        toggleNotification({
+          type: 'warning',
+          message: t('editor.templates.nothing', 'No block of {name} fits this field.', {
+            name: template.name,
+          }),
+        });
+        return false;
+      }
+      const anchor = lastBlockIdRef.current
+        ? base.findIndex((block) => block.id === lastBlockIdRef.current)
+        : -1;
+      const next = replacing
+        ? { time: Date.now(), version: saved.version || '2.31.7', blocks: plan.blocks }
+        : insertBlocksAt(saved, plan.blocks, anchor >= 0 ? anchor : base.length - 1);
+      await replaceContent(next);
+      lastBlockIdRef.current = plan.blocks[plan.blocks.length - 1].id;
+      selectBlock(plan.blocks[0].id);
+      toggleNotification({
+        type: 'success',
+        message:
+          template.kind === 'template'
+            ? t('editor.templates.applied', 'Template {name} applied.', { name: template.name })
+            : t(
+                'editor.templates.inserted',
+                '{count, plural, one {# block} other {# blocks}} from {name} inserted.',
+                { count: plan.blocks.length, name: template.name }
+              ),
+      });
+      const omitted = plan.omitted.reduce((sum, entry) => sum + entry.count, 0);
+      const notes = [
+        omitted
+          ? t(
+              'editor.templates.omitted',
+              '{count, plural, one {# block was left out} other {# blocks were left out}} because this field does not allow {count, plural, one {its type} other {their types}}.',
+              { count: omitted }
+            )
+          : null,
+        plan.truncated
+          ? t(
+              'editor.templates.truncated',
+              '{count, plural, one {# block was left out} other {# blocks were left out}} because of the block limit of this field.',
+              { count: plan.truncated }
+            )
+          : null,
+        plan.adjusted
+          ? t(
+              'editor.templates.adjusted',
+              '{count, plural, one {# block was adjusted} other {# blocks were adjusted}} to the settings of this field.',
+              { count: plan.adjusted }
+            )
+          : null,
+      ].filter(Boolean);
+      if (notes.length) toggleNotification({ type: 'warning', message: notes.join(' ') });
+      return true;
+    },
+    [preset, readOnly, replaceContent, selectBlock, t, toggleNotification]
+  );
+
+  /** "Save as pattern" from the block selection bar (template managers). */
+  const saveSelection = useCallback(async (ids) => {
+    const editor = editorRef.current;
+    const saved = editor ? await editor.save().catch(() => null) : null;
+    if (!saved) return;
+    const wanted = new Set(ids);
+    const blocks = saved.blocks.filter((block) => wanted.has(block.id));
+    if (blocks.length) setSaveTemplate({ blocks, kind: 'pattern' });
+  }, []);
+
+  /** "Save content as template" from the insert dialog (template managers). */
+  const saveWholeContent = useCallback(async () => {
+    const editor = editorRef.current;
+    const saved = editor ? await editor.save().catch(() => null) : null;
+    setTemplatesOpen(false);
+    if (saved && !isEmptyDocument(saved)) setSaveTemplate({ blocks: saved.blocks, kind: 'template' });
+    else
+      toggleNotification({
+        type: 'warning',
+        message: t('editor.saveTemplate.empty', 'This field is empty. Write something first.'),
+      });
+  }, [t, toggleNotification]);
+
+  const closeTemplates = useCallback(() => {
+    setTemplatesOpen(false);
+    window.requestAnimationFrame(() => templatesButtonRef.current && templatesButtonRef.current.focus());
+  }, []);
+
+  /** Preview on: focus the rendered region. Off: back to the editor (shortcut) or the toggle (button). */
+  const togglePreview = useCallback(
+    (fromShortcut = false) => {
+      const next = !previewOpen;
+      setPreviewOpen(next);
+      window.requestAnimationFrame(() => {
+        if (next) {
+          if (previewRef.current) previewRef.current.focus();
+          return;
+        }
+        if (fromShortcut === true && editorRef.current) {
+          try {
+            editorRef.current.focus();
+            return;
+          } catch {
+            // fall back to the toggle
+          }
+        }
+        if (previewButtonRef.current) previewButtonRef.current.focus();
+      });
+    },
+    [previewOpen]
+  );
+
+  // Ctrl/Cmd+Alt+P toggles the preview while focus is in the field (key code: Alt changes the character on macOS).
+  useEffect(() => {
+    if (!ready) return undefined;
+    const onKey = (event) => {
+      const frame = frameRef.current;
+      if (!frame || !frame.contains(document.activeElement)) return;
+      if (!(event.metaKey || event.ctrlKey) || !event.altKey || event.shiftKey || event.code !== 'KeyP')
+        return;
+      event.preventDefault();
+      event.stopPropagation();
+      togglePreview(true);
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [ready, togglePreview]);
+
   const fieldHint = valueError
     ? t('editor.value.invalid', 'The stored content could not be read. It is kept until you edit this field.')
     : hint;
@@ -1146,6 +1342,12 @@ const EditorField = ({
             onToggleComments={() => (commentsOpen ? closeComments() : setCommentsOpen(true))}
             commentsCount={comments.counts.open}
             commentsButtonRef={commentsButtonRef}
+            onOpenTemplates={target.uid ? () => setTemplatesOpen(true) : undefined}
+            templatesButtonRef={templatesButtonRef}
+            previewOpen={previewOpen}
+            onTogglePreview={() => togglePreview(false)}
+            previewButtonRef={previewButtonRef}
+            previewId={`${name}-mex-preview`}
           />
           {findOpen && ready ? (
             <PanelSlot padding={2} $fullscreen={fullscreen}>
@@ -1207,7 +1409,20 @@ const EditorField = ({
               <Loader small>{t('editor.loading', 'Loading the editor')}</Loader>
             </Flex>
           ) : null}
-          <EditorArea ref={areaRef} $fullscreen={fullscreen}>
+          {previewOpen ? (
+            <FieldPreview
+              ref={previewRef}
+              id={`${name}-mex-preview`}
+              t={t}
+              data={currentData}
+              allowRaw={allowRawPreview}
+              minHeight={minHeight}
+              fullscreen={fullscreen}
+              lang={target.locale || undefined}
+              dir={direction}
+            />
+          ) : null}
+          <EditorArea ref={areaRef} $fullscreen={fullscreen} hidden={previewOpen}>
             <BlockSelectionBar
               t={t}
               holderRef={holderRef}
@@ -1220,6 +1435,7 @@ const EditorField = ({
                 scheduleSave(40);
               }}
               notify={(message) => toggleNotification({ type: 'success', message })}
+              onSaveSelection={canManageTemplates ? saveSelection : undefined}
             />
             <Holder
               ref={holderRef}
@@ -1234,7 +1450,7 @@ const EditorField = ({
               aria-busy={!ready}
               aria-describedby={`${name}-mex-keyboard`}
             />
-            {commentsEnabled && ready ? (
+            {commentsEnabled && ready && !previewOpen ? (
               <CommentMarkers
                 containerRef={areaRef}
                 holderRef={holderRef}
@@ -1245,7 +1461,7 @@ const EditorField = ({
                 t={t}
               />
             ) : null}
-            {collaboration.active && collaboration.peers.length > 0 ? (
+            {collaboration.active && collaboration.peers.length > 0 && !previewOpen ? (
               <RemoteCarets
                 containerRef={areaRef}
                 holderRef={holderRef}
@@ -1317,6 +1533,34 @@ const EditorField = ({
           onClose={() => setShortcutsOpen(false)}
         />
       ) : null}
+      {templatesOpen ? (
+        <TemplateDialog
+          t={t}
+          target={target}
+          preset={preset}
+          readContent={readTemplateContent}
+          onApply={insertTemplate}
+          onSaveCurrent={canManageTemplates ? saveWholeContent : null}
+          onClose={closeTemplates}
+          allowRaw={allowRawPreview}
+        />
+      ) : null}
+      {saveTemplate ? (
+        <SaveTemplateDialog
+          t={t}
+          request={saveTemplate}
+          target={target}
+          fieldLabel={typeof label === 'string' && label ? label : target.field}
+          onSaved={(templateName) => {
+            setSaveTemplate(null);
+            toggleNotification({
+              type: 'success',
+              message: t('editor.saveTemplate.saved', 'Template {name} saved.', { name: templateName }),
+            });
+          }}
+          onClose={() => setSaveTemplate(null)}
+        />
+      ) : null}
       {mediaRequest && MediaLibraryDialog ? (
         // eslint-disable-next-line react-hooks/static-components -- the dialog is a stable component registered by the upload plugin, not created here
         <MediaLibraryDialog
@@ -1330,5 +1574,16 @@ const EditorField = ({
   );
 };
 
-export { EditorField };
+/**
+ * Content Manager custom field input: the editor body for the document
+ * field of the current edit view.
+ * @param {object} props - Custom field props.
+ * @returns {JSX.Element} Field.
+ */
+const EditorField = (props) => {
+  const target = useFieldTarget(props.name);
+  return <EditorFieldBody {...props} target={target} />;
+};
+
+export { EditorField, EditorFieldBody };
 export default EditorField;

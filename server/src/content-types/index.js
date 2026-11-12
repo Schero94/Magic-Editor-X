@@ -101,6 +101,37 @@ module.exports = {
     },
   },
 
+  /**
+   * Templates and block patterns (2.3). `blocks` is an Editor.js document,
+   * normalised and sanitised on every write (services/templates.js); `scope`
+   * is `{ all, presets, fields: [{ uid, field }] }`. The creator is a name
+   * snapshot only (no admin id is stored).
+   */
+  template: {
+    schema: {
+      kind: 'collectionType',
+      collectionName: 'magic_editor_templates',
+      info: {
+        singularName: 'template',
+        pluralName: 'templates',
+        displayName: 'Editor template',
+        description: 'Templates and block patterns of Magic Editor X',
+      },
+      options: { draftAndPublish: false },
+      pluginOptions: hidden,
+      attributes: {
+        name: { type: 'string', required: true, maxLength: 100 },
+        description: { type: 'text' },
+        kind: { type: 'enumeration', enum: ['template', 'pattern'], required: true, default: 'pattern' },
+        blocks: { type: 'json', required: true },
+        scope: { type: 'json' },
+        enabled: { type: 'boolean', default: true },
+        sortOrder: { type: 'integer', default: 0 },
+        createdByName: { type: 'string', maxLength: 200 },
+      },
+    },
+  },
+
   'custom-block': {
     schema: {
       kind: 'collectionType',
