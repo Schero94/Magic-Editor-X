@@ -1,0 +1,202 @@
+/**
+ * XSS payloads shared by the HTML renderer tests and the React/Vue parity
+ * tests, plus the tags the renderers may output.
+ */
+
+import assert from 'node:assert/strict';
+import { INLINE_TAGS } from '../../shared/sanitize-policy.mjs';
+
+export const XSS = [
+  '<script>alert(1)</script>',
+  '<SCRIPT SRC=//x.example.test/x.js></SCRIPT>',
+  '<scr<script>ipt>alert(1)</script>',
+  '<img src=x onerror=alert(1)>',
+  '<b onmouseover="alert(1)">x</b>',
+  '<b/onmouseover=alert(1)>x</b>',
+  '<a href="javascript:alert(1)">x</a>',
+  '<a href="JaVaScRiPt:alert(1)">x</a>',
+  '<a href="java&#x09;script:alert(1)">x</a>',
+  '<a href="java&#9;script:alert(1)">x</a>',
+  '<a href="&#106;&#97;&#118;&#97;&#115;&#99;&#114;&#105;&#112;&#116;&#58;alert(1)">x</a>',
+  '<a href="&#x6A;avascript&colon;alert(1)">x</a>',
+  '<a href=" javascript:alert(1)">x</a>',
+  '<a href="\u0001javascript:alert(1)">x</a>',
+  '<a href="java\nscript:alert(1)">x</a>',
+  '<a href="data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg==">x</a>',
+  '<a href="vbscript:msgbox(1)">x</a>',
+  '<a href="//evil.example.test">x</a>',
+  '<a href="https://ok.example.test" onclick="alert(1)">x</a>',
+  '<a href="https://ok.example.test"" onclick="alert(1)">x</a>',
+  `<a href='https://ok.example.test' title='a" onmouseover="alert(1)'>x</a>`,
+  '<a href=https://ok.example.test/ onfocus=alert(1) autofocus>x</a>',
+  '<svg><script>alert(1)</script></svg>',
+  '<svg onload=alert(1)>',
+  '<math><mi xlink:href="javascript:alert(1)">x</mi></math>',
+  '<iframe src="javascript:alert(1)"></iframe>',
+  '<iframe srcdoc="<script>alert(1)</script>"></iframe>',
+  '<style>*{background:url(javascript:alert(1))}</style>',
+  '<object data="javascript:alert(1)"></object>',
+  '<embed src="javascript:alert(1)">',
+  '<textarea></textarea><script>alert(1)</script>',
+  '</textarea><script>alert(1)</script>',
+  '<!--<script>alert(1)</script>-->',
+  '<!-- --!><script>alert(1)</script> -->',
+  '<![CDATA[<script>alert(1)</script>]]>',
+  '<?xml version="1.0"?><script>alert(1)</script>',
+  '<b>unclosed <i>tags <a href="https://ok.example.test">',
+  '<b',
+  '<a href="https://ok.example.test',
+  '"><script>alert(1)</script>',
+  "'><img src=x onerror=alert(1)>",
+  '<span style="background:url(javascript:alert(1))" class="cdx-tooltip evil">x</span>',
+  '<code class="inline-code" onmouseover=alert(1)>x</code>',
+  '<form action="javascript:alert(1)"><button>x</button></form>',
+  '<details open ontoggle=alert(1)>',
+  '<base href="javascript:alert(1)//">',
+  '<meta http-equiv="refresh" content="0;url=javascript:alert(1)">',
+  '<template><script>alert(1)</script></template>',
+  '<noscript><p title="</noscript><img src=x onerror=alert(1)>"></noscript>',
+  '<a href="https://ok.example.test" data-mex-uid="api::a.a" data-mex-document-id="x" onclick=alert(1)>x</a>',
+  '&lt;script&gt;alert(1)&lt;/script&gt;',
+  '<a href="&#0000106&#0000097&#0000118&#0000097&#0000115&#0000099&#0000114&#0000105&#0000112&#0000116&#0000058alert(1)">x</a>',
+  '<a href="https://ok.example.test" target="javascript:alert(1)">x</a>',
+];
+
+export const ALLOWED_OUTPUT_TAGS = new Set([
+  ...INLINE_TAGS,
+  'p',
+  'h1',
+  'h2',
+  'h3',
+  'h4',
+  'h5',
+  'h6',
+  'figure',
+  'figcaption',
+  'blockquote',
+  'ul',
+  'ol',
+  'li',
+  'input',
+  'aside',
+  'div',
+  'details',
+  'summary',
+  'pre',
+  'table',
+  'thead',
+  'tbody',
+  'tr',
+  'th',
+  'td',
+  'img',
+  'hr',
+  'iframe',
+  'button',
+]);
+
+export const assertSafeHtml = (html, label) => {
+  assert.doesNotMatch(html, /<script/i, label);
+  for (const frame of html.matchAll(/<iframe\b[^>]*>/gi))
+    assert.match(frame[0], /^<iframe src="https:\/\/www\.youtube\.com\/embed\/1" /, label);
+  assert.doesNotMatch(
+    html,
+    /<(svg|math|style|object|embed|form|base|meta|textarea|template|noscript)\b/i,
+    label
+  );
+  assert.doesNotMatch(html, /(href|src|srcset)="\s*(javascript|data|vbscript):/i, label);
+  assert.doesNotMatch(html, /(href|src)="\/\//i, label);
+  for (const match of html.matchAll(/<\/?([a-zA-Z][a-zA-Z0-9-]*)/g))
+    assert.ok(ALLOWED_OUTPUT_TAGS.has(match[1].toLowerCase()), `${label}: tag ${match[1]}`);
+  // Every attribute value is quoted and the quotes are balanced.
+  for (const tag of html.matchAll(/<[a-z][^>]*>/gi)) {
+    const withoutValues = tag[0].replace(/="[^"]*"/g, '');
+    assert.doesNotMatch(withoutValues, /["'=]/, `${label}: ${tag[0]}`);
+    assert.doesNotMatch(withoutValues, /\son[a-z]+/i, `${label}: ${tag[0]}`);
+  }
+};
+
+const doc = (...blocks) => ({ blocks: blocks.map((b, i) => ({ id: `b${i}`, ...b })) });
+
+/**
+ * A document that puts one payload into every text-bearing field of every block type.
+ * @param {string} payload - XSS payload.
+ * @returns {object} Editor data.
+ */
+export const xssDocument = (payload) =>
+  doc(
+    { type: 'paragraph', data: { text: payload } },
+    { type: 'header', data: { text: payload, level: 2 } },
+    { type: 'quote', data: { text: payload, caption: payload } },
+    {
+      type: 'list',
+      data: {
+        style: 'unordered',
+        items: [payload, { content: payload, items: [{ content: payload, items: [] }] }],
+      },
+    },
+    { type: 'checklist', data: { items: [{ text: payload, checked: true }] } },
+    { type: 'warning', data: { title: payload, message: payload } },
+    { type: 'alert', data: { type: payload, align: payload, message: payload } },
+    { type: 'toggle', data: { text: payload, items: 0 } },
+    { type: 'code', data: { code: payload } },
+    { type: 'codeFlask', data: { code: payload, language: payload } },
+    { type: 'raw', data: { html: payload } },
+    {
+      type: 'table',
+      data: {
+        withHeadings: true,
+        content: [
+          [payload, payload],
+          [payload, payload],
+        ],
+      },
+    },
+    {
+      type: 'image',
+      data: {
+        file: {
+          url: 'https://ok.example.test/i.png',
+          alt: payload,
+          formats: { small: { url: payload, width: 3 } },
+        },
+        caption: payload,
+      },
+    },
+    { type: 'image', data: { file: { url: payload, alt: payload }, caption: payload } },
+    { type: 'simpleImage', data: { url: payload, caption: payload } },
+    {
+      type: 'linkTool',
+      data: {
+        link: payload,
+        meta: { title: payload, description: payload, site_name: payload, image: { url: payload } },
+      },
+    },
+    {
+      type: 'linkTool',
+      data: {
+        link: 'https://ok.example.test',
+        meta: { title: payload, description: payload, site_name: payload },
+      },
+    },
+    {
+      type: 'attaches',
+      data: {
+        file: { url: 'https://ok.example.test/f.pdf', name: payload, extension: payload },
+        title: payload,
+      },
+    },
+    { type: 'embed', data: { service: payload, source: payload, embed: payload, caption: payload } },
+    {
+      type: 'embed',
+      data: {
+        service: 'youtube',
+        source: 'https://www.youtube.com/watch?v=1',
+        embed: 'https://www.youtube.com/embed/1',
+        caption: payload,
+      },
+    },
+    { type: 'personality', data: { name: payload, description: payload, link: payload, photo: payload } },
+    { type: 'button', data: { text: payload, link: payload, style: payload } },
+    { type: 'custom-x', data: { title: payload, url: payload, nested: { a: payload } } }
+  );

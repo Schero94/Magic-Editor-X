@@ -49,6 +49,18 @@
       "require": "./dist/render/index.js",
       "default": "./dist/render/index.js"
     },
+    "./react": {
+      "source": "./shared/frameworks/react.mjs",
+      "import": "./dist/react/index.mjs",
+      "require": "./dist/react/index.js",
+      "default": "./dist/react/index.js"
+    },
+    "./vue": {
+      "source": "./shared/frameworks/vue.mjs",
+      "import": "./dist/vue/index.mjs",
+      "require": "./dist/vue/index.js",
+      "default": "./dist/vue/index.js"
+    },
     "./schema": "./schema/magic-editor-x.schema.json",
     "./types": "./types/index.d.ts"
   },
@@ -141,18 +153,20 @@
     "react-intl": "^6.8.9",
     "react-router-dom": "^6.30.6",
     "semantic-release": "^25.0.9",
-    "styled-components": "^6.6.0"
+    "styled-components": "^6.6.0",
+    "vue": "^3.5.45"
   },
   "peerDependencies": {
     "@strapi/design-system": "^2.2.0",
     "@strapi/icons": "^2.2.0",
     "@strapi/strapi": "^5.38.0",
     "@strapi/utils": "^5.38.0",
-    "react": "^18.0.0",
-    "react-dom": "^18.0.0",
+    "react": "^18.0.0 || ^19.0.0",
+    "react-dom": "^18.0.0 || ^19.0.0",
     "react-intl": "^6.6.2",
     "react-router-dom": "^6.30.0",
-    "styled-components": "^6.0.0"
+    "styled-components": "^6.0.0",
+    "vue": "^3.5.0"
   },
   "peerDependenciesMeta": {
     "@strapi/design-system": {
@@ -162,6 +176,9 @@
       "optional": true
     },
     "react-intl": {
+      "optional": true
+    },
+    "vue": {
       "optional": true
     }
   },

@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
@@ -59,3 +60,64 @@ for (const [format, render] of [
 }
 
 console.log('Magic Editor X CJS and ESM render bundles load and render');
+
+// Framework components: both formats load with the caller's framework and
+// render the same HTML as renderHtml (Vue fragment markers removed).
+const frameworkSmoke = {
+  blocks: [
+    ...smoke.blocks,
+    { id: 'c', type: 'code', data: { code: 'a\nb' } },
+    { id: 'd', type: 'raw', data: { html: '<i>raw</i><script>alert(1)</script>' } },
+  ],
+};
+const frameworkOptions = {
+  code: { lineNumbers: true, copyButton: true },
+  rawHtml: 'allow',
+  sanitizeRaw: (html) => cjsRender.inlineToHtml(html),
+};
+const expectedHtml = cjsRender.renderHtml(frameworkSmoke, frameworkOptions);
+if (/<script/i.test(expectedHtml) || !expectedHtml.includes('mex-code-copy'))
+  throw new Error('render bundle produced unexpected framework smoke HTML');
+
+const React = require('react');
+const { renderToStaticMarkup } = require('react-dom/server');
+const cjsReact = require('../dist/react/index.js');
+const esmReact = await import('../dist/react/index.mjs');
+for (const [format, mod] of [
+  ['CJS', cjsReact],
+  ['ESM', esmReact],
+]) {
+  if (typeof mod.MagicEditorXContent !== 'function' || mod.default !== mod.MagicEditorXContent)
+    throw new Error(`${format} react bundle must export MagicEditorXContent`);
+  const html = renderToStaticMarkup(
+    React.createElement(mod.MagicEditorXContent, { value: frameworkSmoke, options: frameworkOptions })
+  );
+  if (html !== expectedHtml) throw new Error(`${format} react bundle rendered different HTML`);
+}
+
+const { createSSRApp, h } = require('vue');
+const { renderToString } = require('vue/server-renderer');
+const cjsVue = require('../dist/vue/index.js');
+const esmVue = await import('../dist/vue/index.mjs');
+for (const [format, mod] of [
+  ['CJS', cjsVue],
+  ['ESM', esmVue],
+]) {
+  if (!mod.MagicEditorXContent || mod.default !== mod.MagicEditorXContent)
+    throw new Error(`${format} vue bundle must export MagicEditorXContent`);
+  const html = await renderToString(
+    createSSRApp({
+      render: () => h(mod.MagicEditorXContent, { value: frameworkSmoke, options: frameworkOptions }),
+    })
+  );
+  if (html.replace(/<!--[[\]]-->/g, '') !== cjsRender.renderHtml(frameworkSmoke, frameworkOptions))
+    throw new Error(`${format} vue bundle rendered different HTML`);
+}
+
+for (const file of ['../dist/render/index.mjs', '../dist/render/index.js']) {
+  const source = await readFile(new URL(file, import.meta.url), 'utf8');
+  if (/\b(require\(|from )["'](react|react-dom|vue)["']/.test(source))
+    throw new Error(`${file} must not import a framework`);
+}
+
+console.log('Magic Editor X CJS and ESM React and Vue bundles load and render like renderHtml');
