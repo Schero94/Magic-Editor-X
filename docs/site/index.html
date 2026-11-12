@@ -67,9 +67,10 @@
             <span class="eyebrow">Strapi 5 plugin</span>
             <h1 id="page-title">Blocks, history and live editing in the Content Manager.</h1>
             <p>
-              Magic Editor X adds an Editor.js field to Strapi 5. Write with headings, lists, tables, code, images
-              from the Media Library, embeds and your own custom blocks, keep versions of every field and edit
-              together in real time. Free under the MIT license, with nothing to activate and no limits.
+              Magic Editor X adds an Editor.js field to Strapi 5. Write with headings, lists, tables, formulas,
+              footnotes, code, images from the Media Library, embeds and your own custom blocks, discuss and
+              suggest changes, keep versions of every field and edit together in real time. Free under the MIT
+              license, with nothing to activate and no limits.
             </p>
             <div class="hero-actions">
               <a class="button primary" href="#install">Install</a>
@@ -97,7 +98,7 @@
 
     <main class="layout" id="main-content">
       <nav class="side-nav" aria-label="Documentation sections">
-        <a href="#whats-new">New in 2.3</a>
+        <a href="#whats-new">New in 2.4</a>
         <a href="#features">Features</a>
         <a href="#screens">Screens</a>
         <a href="#install">Install</a>
@@ -113,22 +114,29 @@
 
       <div class="content">
         <section class="section" id="whats-new" aria-labelledby="whats-new-title">
-          <h2 id="whats-new-title">What's new in 2.3</h2>
+          <h2 id="whats-new-title">What's new in 2.4</h2>
           <p class="section-lead">
-            No migration is needed: stored content keeps the same Editor.js JSON and every new output is opt-in.
-            The full list is in the
+            No breaking changes: stored content keeps working and Editor.js stays at 2.31.7. The full list, with
+            notes on existing data, is in the
             <a href="https://github.com/Schero94/Magic-Editor-X/blob/main/CHANGELOG.md">CHANGELOG</a>.
           </p>
           <ul class="check-list">
-            <li>React and Vue components (<code>magic-editor-x/react</code>, <code>magic-editor-x/vue</code>) and guides for React, Vue/Nuxt and Astro.</li>
-            <li>Rendered and resolved output: <code>?mex=html|text|markdown|json</code> on the Content API and <code>&lt;field&gt;Rendered</code> / <code>&lt;field&gt;Resolved</code> in GraphQL, with the caller's permissions.</li>
-            <li>Gallery, video and audio blocks from the Media Library, and a focal point for images.</li>
-            <li>Templates, block patterns and synced blocks, and a rendered preview of the field (Ctrl/Cmd+Alt+P).</li>
-            <li>Block comments with replies, resolve and reopen, for editors and read-only reviewers.</li>
-            <li>Table of contents block, mentions of entries, one list of 27 code languages.</li>
-            <li>Block SDK: define a block once in code with <code>defineBlock</code> and use it on the server, in the admin and in your frontend.</li>
-            <li>Scheduled external link check, AI alternative text and whole-field translate or summarize, and a LanguageTool grammar check. All off until the owner turns them on.</li>
+            <li>A short field toolbar: undo, redo, a <strong>More tools</strong> menu (Review, Write, View) and full screen. Tools appear only where they can work.</li>
+            <li>Tables with a header row and header column, alignment per column, merged cells and a caption; spreadsheet and Word paste keep them.</li>
+            <li>Formulas in TeX as a block or inside text, rendered as MathML, and footnotes numbered in reading order.</li>
+            <li>Comments on selected text that stay on the passage while people edit, @mentions of colleagues, and a Mentions and replies widget on the admin home page, with optional e-mails.</li>
+            <li>Block suggestions: reviewers propose changes in a separate copy, editors accept or reject each block.</li>
+            <li>AI for chosen blocks: rewrite, shorten, translate or change the tone of just those blocks, with a word diff before applying.</li>
+            <li>An audit trail of who changed what and when, without content; versions of synced blocks; Run now and a time zone for the scheduled link check.</li>
+            <li>Fields in repeatable components and dynamic zones have history, comments and live editing again (stable <code>fieldKey</code>).</li>
+            <li><code>@</code> in text inserts a mention, code blocks get a file name, pasted videos and audio are copied into the Media Library.</li>
+            <li>Strapi AI translations send only text and keep the field structure; Releases show entries the publishing guard refuses as not ready.</li>
           </ul>
+          <p>
+            Also fixed: a collaboration bug that could delete blocks an editor had not rendered yet when it typed
+            right after joining a room. Why the plugin stays on Editor.js:
+            <a href="https://github.com/Schero94/Magic-Editor-X/blob/main/docs/engine-decision.md">engine decision</a>.
+          </p>
         </section>
 
         <section class="section" id="features" aria-labelledby="features-title">
@@ -142,9 +150,10 @@
             <article class="card">
               <h3>Editor.js blocks</h3>
               <p>
-                Paragraph, heading, nested list, checklist, quote, warning, alert, toggle, delimiter, table, code,
-                code with syntax highlighting, raw HTML, embeds, link previews, person cards, buttons and a table
-                of contents with stable heading anchors. Block names and data stay the same as in 1.x.
+                Paragraph, heading, nested list, checklist, quote, warning, alert, toggle, delimiter, tables with
+                merged cells, math, code with syntax highlighting and file names, raw HTML, embeds, link previews,
+                person cards, buttons, footnotes and a table of contents with stable heading anchors. Block names
+                and data stay the same as in 1.x.
               </p>
             </article>
             <article class="card">
@@ -191,14 +200,16 @@
               <h3>Write faster</h3>
               <p>
                 Markdown shortcuts, find and replace, keyboard shortcut help, focus mode, actions for several
-                selected blocks, reading time, mentions of entries and a rendered preview of the field.
+                selected blocks, reading time, mentions of entries (also with <code>@</code>) and a rendered
+                preview of the field, behind a short toolbar with one More tools menu.
               </p>
             </article>
             <article class="card">
               <h3>Version history</h3>
               <p>
                 Named versions, a word-level comparison with the current content and restore of the whole field
-                or a single block. Automatic versions are created while people edit live.
+                or a single block, also for fields in repeatable components and dynamic zones. Automatic versions
+                are created while people edit live; synced blocks keep versions too.
               </p>
             </article>
             <article class="card">
@@ -221,8 +232,8 @@
               <h3>AI assistant</h3>
               <p>
                 Improve, correct, shorten, expand, summarize, simplify, translate or change the tone of selected
-                text with Anthropic, OpenAI or an OpenAI-compatible server and your own key. Optional: alternative
-                text suggestions for images and translate or summarize a whole field.
+                text or chosen blocks with Anthropic, OpenAI or an OpenAI-compatible server and your own key.
+                Optional: alternative text suggestions for images and translate or summarize a whole field.
               </p>
             </article>
             <article class="card">
@@ -233,10 +244,25 @@
               </p>
             </article>
             <article class="card">
-              <h3>Block comments</h3>
+              <h3>Comments and mentions</h3>
               <p>
-                Threads on single blocks with replies, resolve and reopen. Reviewers can comment without update
-                rights; comments are never part of the content or the API output.
+                Threads on single blocks or on selected text, with replies, resolve and reopen and @mentions of
+                colleagues who can read the field. Reviewers can comment without update rights; comments are never
+                part of the content or the API output.
+              </p>
+            </article>
+            <article class="card">
+              <h3>Suggestions</h3>
+              <p>
+                Reviewers propose block changes in a separate copy of the field; editors accept or reject each
+                one. Nothing reaches the entry before it is accepted and saved.
+              </p>
+            </article>
+            <article class="card">
+              <h3>Audit trail</h3>
+              <p>
+                Who changed which field, version, comment, template or setting, and when, with counts and block
+                ids but never the content. Kept 180 days by default.
               </p>
             </article>
             <article class="card">
@@ -261,6 +287,166 @@
           <h2 id="screens-title">Screens</h2>
           <p class="section-lead">All screenshots use synthetic data (acceptance host: Strapi 5.61.1).</p>
           <div class="gallery">
+            <figure class="shot">
+              <img
+                src="./img/toolbar-after-1440.png"
+                alt="The field toolbar with undo, redo, the More tools menu and full screen"
+                width="742"
+                height="320"
+                loading="lazy"
+              />
+              <figcaption>Short field toolbar (2.4)</figcaption>
+            </figure>
+            <figure class="shot">
+              <img
+                src="./img/toolbar-more-menu-1440.png"
+                alt="The More tools menu grouped into Review, Write and View"
+                width="742"
+                height="566"
+                loading="lazy"
+              />
+              <figcaption>More tools menu (2.4)</figcaption>
+            </figure>
+            <figure class="shot">
+              <img
+                src="./img/table-v2-1440.png"
+                alt="Table with a header row and a header column, right-aligned numbers, a merged cell, a caption and the table toolbar"
+                width="716"
+                height="252"
+                loading="lazy"
+              />
+              <figcaption>Tables with merged cells (2.4)</figcaption>
+            </figure>
+            <figure class="shot">
+              <img
+                src="./img/math-1440.png"
+                alt="A math block with its TeX source, style select and rendered formula, and two inline formulas"
+                width="1440"
+                height="900"
+                loading="lazy"
+              />
+              <figcaption>Math (2.4)</figcaption>
+            </figure>
+            <figure class="shot">
+              <img
+                src="./img/footnotes-1440.png"
+                alt="Three numbered footnote markers in the text and the footnote list under the field"
+                width="1440"
+                height="900"
+                loading="lazy"
+              />
+              <figcaption>Footnotes (2.4)</figcaption>
+            </figure>
+            <figure class="shot">
+              <img
+                src="./img/range-comments-1440.png"
+                alt="Comments panel with a thread on selected text, a mention of a colleague and the highlighted passages"
+                width="1440"
+                height="1250"
+                loading="lazy"
+              />
+              <figcaption>Comments on selected text (2.4)</figcaption>
+            </figure>
+            <figure class="shot">
+              <img
+                src="./img/mentions-notifications-1440.png"
+                alt="Mentions and replies widget on the admin home page with one unread mention"
+                width="674"
+                height="397"
+                loading="lazy"
+              />
+              <figcaption>Mentions and replies (2.4)</figcaption>
+            </figure>
+            <figure class="shot">
+              <img
+                src="./img/suggestions-1440.png"
+                alt="Suggestions panel with a changed, an outdated, a new and a removed block, each with Accept and Reject"
+                width="758"
+                height="1273"
+                loading="lazy"
+              />
+              <figcaption>Suggestions (2.4)</figcaption>
+            </figure>
+            <figure class="shot">
+              <img
+                src="./img/suggest-mode-1440.png"
+                alt="Suggest mode: the field is a separate copy with Stop suggesting and Send 1 suggestion"
+                width="758"
+                height="379"
+                loading="lazy"
+              />
+              <figcaption>Suggest mode (2.4)</figcaption>
+            </figure>
+            <figure class="shot">
+              <img
+                src="./img/ai-blocks-1440.png"
+                alt="AI for the chosen blocks: translation into German with a word diff and Apply to blocks"
+                width="1440"
+                height="900"
+                loading="lazy"
+              />
+              <figcaption>AI for chosen blocks (2.4)</figcaption>
+            </figure>
+            <figure class="shot">
+              <img
+                src="./img/audit-1440.png"
+                alt="Settings, Audit trail: filters and a list of events with who changed what and how many blocks"
+                width="1440"
+                height="900"
+                loading="lazy"
+              />
+              <figcaption>Audit trail (2.4)</figcaption>
+            </figure>
+            <figure class="shot">
+              <img
+                src="./img/synced-versions-1440.png"
+                alt="Versions of a synced block source with a comparison against the current content and Restore"
+                width="1440"
+                height="900"
+                loading="lazy"
+              />
+              <figcaption>Synced block versions (2.4)</figcaption>
+            </figure>
+            <figure class="shot">
+              <img
+                src="./img/link-run-now-1440.png"
+                alt="Settings, Configuration: the scheduled link check with its time zone, next run and the Run now button"
+                width="1440"
+                height="900"
+                loading="lazy"
+              />
+              <figcaption>Link check: Run now (2.4)</figcaption>
+            </figure>
+            <figure class="shot">
+              <img
+                src="./img/mention-trigger-1440.png"
+                alt="Typing @ in a paragraph opens entry suggestions at the caret"
+                width="924"
+                height="470"
+                loading="lazy"
+              />
+              <figcaption>@ mentions while typing (2.4)</figcaption>
+            </figure>
+            <figure class="shot">
+              <img
+                src="./img/code-filename-1440.png"
+                alt="Code block with the file name config/plugins.js above the code"
+                width="656"
+                height="233"
+                loading="lazy"
+              />
+              <figcaption>Code file name (2.4)</figcaption>
+            </figure>
+            <figure class="shot phone">
+              <img
+                src="./img/table-v2-dark-390.png"
+                alt="A table with merged cells in dark mode on a 390 pixel wide screen"
+                width="390"
+                height="308"
+                loading="lazy"
+              />
+              <figcaption>Table on a phone, dark mode (2.4)</figcaption>
+            </figure>
             <figure class="shot">
               <img
                 src="./img/editor-dark-1440.png"
@@ -674,6 +860,8 @@
                 <tr><td><code>rawHtml</code></td><td><code>'sanitize'</code></td><td>Raw HTML block on save: sanitize, allow or disable.</td></tr>
                 <tr><td><code>uploads.maxImageBytes</code></td><td>10 MiB</td><td>Largest image by file or URL.</td></tr>
                 <tr><td><code>uploads.maxFileBytes</code></td><td>20 MiB</td><td>Largest attachment.</td></tr>
+                <tr><td><code>uploads.maxMediaBytes</code></td><td>50 MiB</td><td>Largest video or audio file copied from a pasted URL.</td></tr>
+                <tr><td><code>uploads.allowPrivateOrigins</code></td><td><code>[]</code></td><td>Exact private origins that images and media by URL may fetch.</td></tr>
                 <tr><td><code>linkPreview.enabled</code></td><td><code>true</code></td><td>Link preview cards.</td></tr>
                 <tr><td><code>collaboration.enabled</code></td><td><code>true</code></td><td>Live collaboration.</td></tr>
                 <tr><td><code>collaboration.path</code></td><td><code>/magic-editor-x/realtime</code></td><td>Socket.IO path.</td></tr>
@@ -681,10 +869,14 @@
                 <tr><td><code>collaboration.snapshotIntervalMinutes</code></td><td>10</td><td>Automatic versions during live sessions; 0 turns them off.</td></tr>
                 <tr><td><code>history.maxSnapshotsPerField</code></td><td>50</td><td>Versions kept per field and locale.</td></tr>
                 <tr><td><code>comments.enabled</code></td><td><code>true</code></td><td>Block comments; <code>false</code> hides them and the routes answer 404.</td></tr>
+                <tr><td><code>comments.notifications.email</code></td><td><code>false</code></td><td>Mention e-mails through the Strapi email plugin, without the comment text.</td></tr>
+                <tr><td><code>suggestions.enabled</code></td><td><code>true</code></td><td>Block suggestions, for roles with a suggestion action.</td></tr>
+                <tr><td><code>audit.enabled</code></td><td><code>true</code></td><td>Audit trail without content; <code>audit.retentionDays</code> 180.</td></tr>
                 <tr><td><code>qualityChecks.externalLinks.enabled</code></td><td><code>false</code></td><td>External link check (outgoing requests through the SSRF-protected fetcher).</td></tr>
-                <tr><td><code>qualityChecks.externalLinks.schedule.enabled</code></td><td><code>false</code></td><td>Scheduled check of every external link (rule <code>'0 3 * * *'</code>, server time); needs the link check on.</td></tr>
+                <tr><td><code>qualityChecks.externalLinks.schedule.enabled</code></td><td><code>false</code></td><td>Scheduled check of every external link (rule <code>'0 3 * * *'</code>, in <code>schedule.tz</code> or server time); needs the link check on.</td></tr>
                 <tr><td><code>languageTool.allowPrivateBaseUrl</code></td><td><code>false</code></td><td>Allow a LanguageTool server on a private network.</td></tr>
                 <tr><td><code>ai.allowPrivateBaseUrl</code></td><td><code>false</code></td><td>Allow AI servers on private networks (local models).</td></tr>
+                <tr><td><code>ai.altText.allowPrivateOrigins</code></td><td><code>[]</code></td><td>Exact origins of private image storage for alt text suggestions.</td></tr>
                 <tr><td><code>MAGIC_EDITOR_X_ENCRYPTION_KEY</code></td><td>unset</td><td>Environment variable that encrypts a stored AI key (32+ characters).</td></tr>
               </tbody>
             </table>
@@ -725,8 +917,9 @@
             </table>
           </div>
           <p>
-            The key stays on the server, encrypted at rest. Only the selected text and a fixed instruction are sent.
-            Private base URLs need <code>ai.allowPrivateBaseUrl</code>.
+            The key stays on the server, encrypted at rest. Only the selected text, or the text of the chosen
+            blocks, and a fixed instruction are sent; the editor sees a word diff before anything changes. Private
+            base URLs need <code>ai.allowPrivateBaseUrl</code>.
           </p>
           <p>
             Two more features use the same provider, each behind its own switch in Settings, off by default:
@@ -774,8 +967,9 @@
         <section class="section" id="api" aria-labelledby="api-title">
           <h2 id="api-title">API and permissions</h2>
           <p class="section-lead">
-            All routes are admin routes under <code>/magic-editor-x</code>. Version history, collaboration, comments
-            and the link report also follow the Content Manager permissions of each document, locale and field.
+            All routes are admin routes under <code>/magic-editor-x</code>. Version history, collaboration, comments,
+            suggestions, the audit trail of a field and the link report also follow the Content Manager permissions
+            of each document, locale and field.
           </p>
           <div class="table-wrap">
             <table>
@@ -793,7 +987,10 @@
                 <tr><td><code>plugin::magic-editor-x.comments.write</code></td><td>Commenting, replying, resolving, reopening; editing and deleting your own comments</td></tr>
                 <tr><td><code>plugin::magic-editor-x.comments.moderate</code></td><td>Deleting other people's comments</td></tr>
                 <tr><td><code>plugin::magic-editor-x.grammar.use</code></td><td>Grammar check (LanguageTool)</td></tr>
-                <tr><td><code>plugin::magic-editor-x.templates.manage</code></td><td>Settings &gt; Templates (templates, patterns, synced blocks), saving content as a template</td></tr>
+                <tr><td><code>plugin::magic-editor-x.templates.manage</code></td><td>Settings &gt; Templates (templates, patterns, synced blocks and their versions), saving content as a template</td></tr>
+                <tr><td><code>plugin::magic-editor-x.audit.read</code></td><td>Audit trail: a field's Activity tab (with Content Manager read), Settings &gt; Audit trail (with settings.read)</td></tr>
+                <tr><td><code>plugin::magic-editor-x.suggestions.create</code></td><td>Suggesting block changes (Content Manager read is enough), withdrawing your own</td></tr>
+                <tr><td><code>plugin::magic-editor-x.suggestions.review</code></td><td>Accepting and rejecting suggestions (with Content Manager update)</td></tr>
               </tbody>
             </table>
           </div>
@@ -808,15 +1005,20 @@
           <h2 id="security-title">Security</h2>
           <ul class="check-list">
             <li>Every value is normalised and sanitised on save, from the Content Manager, the Content API or code.</li>
-            <li>Link previews and images by URL only reach public addresses, pinned after DNS resolution, with size, type and time limits.</li>
+            <li>Link previews, images and media by URL only reach public addresses (or exact origins the owner lists), pinned after DNS resolution, with size, type and time limits.</li>
             <li>Uploads are checked by their content and stored through the Media Library.</li>
             <li>Collaboration tokens are signed, short-lived and single-use; every update is checked before it is stored or relayed; remote content is sanitised before it is shown; viewers cannot write.</li>
             <li>The AI and LanguageTool keys are encrypted with AES-256-GCM and never returned; logs contain no content.</li>
             <li>Content API and GraphQL output resolves references with the caller's permissions and never reveals entries the caller cannot read.</li>
             <li>The React and Vue components share one render tree with <code>renderHtml</code>: text is escaped, URLs are validated, raw HTML only through your own sanitiser.</li>
             <li>AI images, whole-field AI, the grammar check and the scheduled link check are off by default and send nothing until the owner turns them on.</li>
-            <li>Comments need their own permissions and Content Manager read on the document; they never appear in the content or the API output.</li>
-            <li>2.3 review: <a href="https://github.com/Schero94/Magic-Editor-X/blob/main/docs/security-audit-2.3.md">security-audit-2.3.md</a>.</li>
+            <li>Comments and suggestions need their own permissions and Content Manager read on the document; they never appear in the content or the API output.</li>
+            <li>Formulas are rendered as MathML through an allow-list (no links, styles, ids or event handlers); pasted videos and audio are fetched only from public addresses and checked by their first bytes.</li>
+            <li>Mentions reach only people who can read the field; notifications hold ids only and mention e-mails never contain the comment text.</li>
+            <li>Suggestions are cleaned and checked against the field's rules; accepting needs update access and each suggestion is decided once.</li>
+            <li>The audit trail keeps ids and counts, never content, e-mail or IP addresses.</li>
+            <li>Strapi AI translations receive only the text of a field; the publishing guard also covers direct published writes and Releases readiness.</li>
+            <li>Reviews: <a href="https://github.com/Schero94/Magic-Editor-X/blob/main/docs/security-audit-2.4.md">security-audit-2.4.md</a> and <a href="https://github.com/Schero94/Magic-Editor-X/blob/main/docs/security-audit-2.3.md">security-audit-2.3.md</a>.</li>
           </ul>
         </section>
 
