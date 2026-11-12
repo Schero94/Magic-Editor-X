@@ -30,6 +30,7 @@ export const EVENT_LABELS = {
   'synced.restore': { key: 'settings.audit.event.syncedRestore', text: 'Synced block version restored' },
   'settings.update': { key: 'settings.audit.event.settingsUpdate', text: 'Settings changed' },
   'linkcheck.run': { key: 'settings.audit.event.linkcheckRun', text: 'Link check run' },
+  'ai.localize': { key: 'settings.audit.event.aiLocalize', text: 'Strapi AI translation checked' },
 };
 
 /**
@@ -97,6 +98,14 @@ export const changeSummary = (t, item) => {
         'settings.audit.counts.linkcheck',
         '{checked, number} links checked, {problems, number} with problems',
         { checked: counts.checked || 0, problems: counts.problems || 0 }
+      )
+    );
+  if (item.event === 'ai.localize')
+    parts.push(
+      t(
+        'settings.audit.counts.aiLocalize',
+        '{translated, number} of {segments, number} texts translated, {kept, number} kept from the source locale',
+        { translated: counts.translated || 0, segments: counts.segments || 0, kept: counts.kept || 0 }
       )
     );
   if ((item.event || '').match(/^(template|synced)\./) && Number.isInteger(counts.blocks))

@@ -472,6 +472,8 @@
   "settings.link.configuration": "Configuration",
   "settings.link.customBlocks": "Blocs personnalisés",
   "settings.retry": "Réessayer",
+  "settings.audit.event.aiLocalize": "Traduction Strapi AI vérifiée",
+  "settings.audit.counts.aiLocalize": "{translated, number} textes traduits sur {segments, number}, {kept, number} repris de la langue source",
   "settings.save": "Enregistrer",
   "settings.save.adjusted": "Paramètres enregistrés. Le serveur a ajusté : {fields}.",
   "settings.save.error": "Les paramètres n’ont pas pu être enregistrés. Vos modifications sont toujours dans le formulaire.",

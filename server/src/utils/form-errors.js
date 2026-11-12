@@ -11,6 +11,7 @@
 const MESSAGES = {
   PRESET_VIOLATION: 'This content does not match the settings of this field',
   QUALITY_GATE: 'Quality checks report errors in this field; fix them before publishing',
+  AI_TRANSLATION_UNSAFE: 'The AI translation of this field could not be checked against the source locale',
   INVALID: 'This field contains invalid content',
 };
 

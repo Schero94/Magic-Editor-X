@@ -472,6 +472,8 @@
   "settings.link.configuration": "Configuração",
   "settings.link.customBlocks": "Blocos personalizados",
   "settings.retry": "Tentar novamente",
+  "settings.audit.event.aiLocalize": "Tradução do Strapi AI verificada",
+  "settings.audit.counts.aiLocalize": "{translated, number} de {segments, number} textos traduzidos, {kept, number} mantidos do idioma de origem",
   "settings.save": "Guardar",
   "settings.save.adjusted": "Definições guardadas. O servidor ajustou: {fields}.",
   "settings.save.error": "Não foi possível guardar as definições. As suas alterações continuam no formulário.",

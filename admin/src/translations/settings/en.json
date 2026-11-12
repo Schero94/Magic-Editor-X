@@ -472,6 +472,8 @@
   "settings.link.configuration": "Configuration",
   "settings.link.customBlocks": "Custom blocks",
   "settings.retry": "Try again",
+  "settings.audit.event.aiLocalize": "Strapi AI translation checked",
+  "settings.audit.counts.aiLocalize": "{translated, number} of {segments, number} texts translated, {kept, number} kept from the source locale",
   "settings.save": "Save",
   "settings.save.adjusted": "Settings saved. The server adjusted: {fields}.",
   "settings.save.error": "The settings could not be saved. Your changes are still in the form.",

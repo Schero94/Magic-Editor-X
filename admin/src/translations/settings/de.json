@@ -472,6 +472,8 @@
   "settings.link.configuration": "Konfiguration",
   "settings.link.customBlocks": "Eigene Blöcke",
   "settings.retry": "Erneut versuchen",
+  "settings.audit.event.aiLocalize": "Strapi-AI-Übersetzung geprüft",
+  "settings.audit.counts.aiLocalize": "{translated, number} von {segments, number} Texten übersetzt, {kept, number} aus der Ausgangssprache übernommen",
   "settings.save": "Speichern",
   "settings.save.adjusted": "Einstellungen gespeichert. Der Server hat angepasst: {fields}.",
   "settings.save.error": "Die Einstellungen konnten nicht gespeichert werden. Ihre Änderungen sind noch im Formular.",
