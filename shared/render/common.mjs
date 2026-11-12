@@ -11,7 +11,9 @@ import {
   sanitizeUrl,
   isBuiltInBlock,
   cleanMediaFile,
+  registeredBlockOf,
 } from '../sanitize-policy.mjs';
+import { compileBlockList } from '../blocks/define.mjs';
 import { inlineToHtml, inlineToText } from './inline.mjs';
 import { createAnchorAllocator, createSlugAllocator } from '../toc.mjs';
 
@@ -23,6 +25,7 @@ import { createAnchorAllocator, createSlugAllocator } from '../toc.mjs';
  * @property {object} raw - Normalised data before cleaning (read only for optional keys such as `decorative`).
  * @property {object|undefined} tunes - Clean tunes.
  * @property {boolean} known - True for built-in block types.
+ * @property {object|null} definition - Compiled code-registered definition (custom block SDK), else null.
  * @property {PreparedBlock[]} children - Toggle content.
  * @property {string} [anchor] - Heading anchor (`header` blocks, when heading ids are on; see `annotateHeadings`).
  * @property {Array<{ id: string|null, slug: string, level: number, text: string }>} [headings] - Document headings (`toc` blocks; `slug` is the GitHub-style slug for Markdown).
@@ -44,10 +47,17 @@ export const prepareBlocks = (value, options = {}) => {
   const rawPolicy =
     options.rawHtml === 'allow' && typeof options.sanitizeRaw === 'function' ? 'allow' : 'disable';
   const ctx = { rawHtml: rawPolicy, rawSanitizer: () => '' };
+  // Definitions passed as `options.blocks` are used instead of the bundle registry (filled on the server).
+  const explicit = Array.isArray(options.blocks) ? compileBlockList(options.blocks) : null;
   const flat = data.blocks.map((block) => {
     const raw = isPlainObject(block.data) ? block.data : {};
     const known = isBuiltInBlock({ type: block.type, data: raw });
-    const clean = known ? BLOCK_POLICIES[block.type](raw, keepInline, ctx) : raw;
+    const definition = known ? null : registeredBlockOf({ type: block.type, data: raw }, explicit);
+    const clean = known
+      ? BLOCK_POLICIES[block.type](raw, keepInline, ctx)
+      : definition
+        ? definition.clean(raw, keepInline)
+        : raw;
     for (const key of Object.keys(clean)) if (clean[key] === undefined) delete clean[key];
     return {
       id: block.id,
@@ -56,6 +66,7 @@ export const prepareBlocks = (value, options = {}) => {
       raw,
       tunes: sanitizeTunes(block.tunes),
       known,
+      definition,
       children: [],
     };
   });

@@ -148,6 +148,14 @@ export interface RenderOptions {
   headingIds?: boolean;
   /** Table of contents: accessible name of a `toc` block without a title (1 to 80 characters, default 'Table of contents'). */
   toc?: { label?: string };
+  /**
+   * Code-registered block definitions (`defineBlock` from `magic-editor-x/blocks`):
+   * blocks of these types are cleaned by their schema and rendered with their
+   * `render`/`text`/`markdown`. Without them such blocks get the neutral
+   * rendering. Pass a stable array (compiled once per array). `overrides`
+   * still win.
+   */
+  blocks?: ReadonlyArray<import('./blocks.js').BlockDefinition<any>>;
 }
 
 /** Renders a stored value to HTML. Empty or invalid input gives ''. */

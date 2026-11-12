@@ -61,6 +61,41 @@ for (const [format, render] of [
 
 console.log('Magic Editor X CJS and ESM render bundles load and render');
 
+// Custom block SDK (`magic-editor-x/blocks`): both formats define a block that
+// the render bundle (a separate bundle) accepts through the `blocks` option.
+const cjsBlocks = require('../dist/blocks/index.js');
+const esmBlocks = await import('../dist/blocks/index.mjs');
+for (const [format, blocks] of [
+  ['CJS', cjsBlocks],
+  ['ESM', esmBlocks],
+]) {
+  for (const name of ['defineBlock', 'blockJsonSchema', 'BlockDefinitionError'])
+    if (typeof blocks[name] !== 'function') throw new Error(`${format} blocks bundle must export ${name}`);
+  const card = blocks.defineBlock({
+    name: 'verifyCard',
+    schema: { title: { type: 'text', max: 20 }, link: { type: 'url' } },
+    render: (block, { h }) =>
+      h('aside', { class: 'card' }, h('a', { href: block.data.link }, block.data.title)),
+  });
+  const value = {
+    blocks: [
+      { id: 'v', type: 'verifyCard', data: { title: '<b>Hi</b>', link: 'javascript:alert(1)', x: 1 } },
+    ],
+  };
+  const html = cjsRender.renderHtml(value, { blocks: [card] });
+  if (html !== '<aside class="card"><a>&lt;b&gt;Hi&lt;/b&gt;</a></aside>')
+    throw new Error(`${format} blocks bundle definition rendered unexpected HTML: ${html}`);
+  if (blocks.blockJsonSchema(card).additionalProperties !== false)
+    throw new Error(`${format} blocks bundle produced an unexpected JSON Schema`);
+}
+for (const file of ['../dist/blocks/index.mjs', '../dist/blocks/index.js']) {
+  const source = await readFile(new URL(file, import.meta.url), 'utf8');
+  if (/\b(require\(|from |import\()["'](node:|react|react-dom|vue|zod)/.test(source))
+    throw new Error(`${file} must not import Node built-ins, a framework or zod`);
+}
+
+console.log('Magic Editor X CJS and ESM blocks bundles load and define blocks the renderers accept');
+
 // Framework components: both formats load with the caller's framework and
 // render the same HTML as renderHtml (Vue fragment markers removed).
 const frameworkSmoke = {

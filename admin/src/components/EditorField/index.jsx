@@ -650,6 +650,7 @@ const EditorField = ({
     });
     const tools = buildTools({
       t,
+      locale: adminLocale,
       fetchClient: { get, post },
       getContentLocale: () => contentLocaleRef.current,
       uploadImage: (file) => upload(API.imageByFile, 'image', file),

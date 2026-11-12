@@ -108,6 +108,29 @@ const RENDERERS = {
 };
 
 /**
+ * Plain text of a code-registered block: its `text(data, helpers)` result,
+ * else the text and inline fields in schema order, one per line.
+ * @param {object} block - Prepared block with `definition`.
+ * @returns {string} Text.
+ */
+const registeredText = (block) => {
+  const { definition } = block;
+  if (definition.text) {
+    try {
+      const out = definition.text(block.data, { text: (html) => inlineToText(html) });
+      if (typeof out === 'string') return out;
+    } catch {
+      // The default text below is used.
+    }
+  }
+  return definition
+    .fields(block.data)
+    .map((field) => (field.kind === 'html' ? inlineToText(field.value) : field.value).trim())
+    .filter(Boolean)
+    .join('\n');
+};
+
+/**
  * Renders Magic Editor X content to plain text.
  * @param {unknown} value - Stored field value.
  * @param {import('../../types/render').RenderOptions} [options] - Options (`overrides` receive `(block, helpers)` and return text).
@@ -133,6 +156,7 @@ export const renderText = (value, options = {}) => {
           if (typeof out === 'string') return out;
         }
         if (block.known) return RENDERERS[block.type](block, opts, render);
+        if (block.definition) return registeredText(block);
         return scalarFields(block.data)
           .map(([, v]) => inlineToText(v).trim())
           .filter(Boolean)

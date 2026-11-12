@@ -11,6 +11,7 @@
 
 import { isPlainObject } from './editor-data.mjs';
 import { parseInline, nodesToHtml } from './render/inline.mjs';
+import { registeredBlockOf } from './sanitize-policy.mjs';
 
 export const MAX_QUERY_LENGTH = 200;
 export const MAX_MATCHES = 5000;
@@ -72,6 +73,9 @@ const PLAIN_FIELDS = { code: ['code'], codeFlask: ['code'], toc: ['title'] };
  */
 export const searchableFields = (block) => {
   const data = isPlainObject(block && block.data) ? block.data : {};
+  // Code-registered blocks (custom block SDK): the text and inline fields of their schema.
+  const definition = registeredBlockOf(block);
+  if (definition) return definition.fields(data);
   const out = [];
   for (const key of HTML_FIELDS[block.type] || [])
     if (typeof data[key] === 'string') out.push({ path: [key], kind: 'html', value: data[key] });

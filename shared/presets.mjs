@@ -16,6 +16,8 @@
 
 import { isPlainObject, computeStats } from './editor-data.mjs';
 import { parseInline } from './render/inline.mjs';
+import { activeBlocks } from './blocks/active.mjs';
+import { registeredBlockOf } from './sanitize-policy.mjs';
 
 /** Built-in block types (stored names). `mediaLib` only inserts `image` blocks. */
 export const BUILTIN_BLOCKS = Object.freeze([
@@ -180,6 +182,11 @@ export const resolveFieldPreset = (options) => {
   const base = PRESETS[name];
   const listed = parseBlockList(source.allowedBlocks);
   let blocks = listed || (base.blocks ? [...base.blocks] : null);
+  // Code-registered blocks (custom block SDK) join the named presets their definition lists.
+  if (!listed && blocks)
+    for (const definition of activeBlocks())
+      if (definition.presets.includes(name) && !blocks.includes(definition.name))
+        blocks.push(definition.name);
   // A paragraph is the default block: it is always allowed.
   if (blocks && !blocks.includes('paragraph')) blocks = ['paragraph', ...blocks];
   let headingLevels = parseHeadingLevels(source.headingLevels) || [...base.headingLevels];
@@ -273,6 +280,9 @@ export const blockLinkKinds = (block) => {
     data.link
   )
     kinds.push('external');
+  // URL fields of a code-registered block are external links.
+  const definition = registeredBlockOf(block);
+  if (definition) for (let i = 0; i < definition.urls(data).length; i += 1) kinds.push('external');
   return kinds;
 };
 

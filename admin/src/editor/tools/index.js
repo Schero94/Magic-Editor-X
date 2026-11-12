@@ -38,6 +38,7 @@ import { MexImageTool } from './alt-text';
 import { GalleryTool, VideoTool, AudioTool } from './media';
 import { MEDIA_BLOCK_MARKERS } from '../../../../shared/sanitize-policy.mjs';
 import { isBlockAllowed } from '../../../../shared/presets.mjs';
+import { buildCodeBlockTools } from '../block-registry';
 
 export { createUndoManager } from './undo';
 export { createDragDrop } from './drag-drop';
@@ -302,6 +303,11 @@ export function buildTools(ctx) {
       tools[name] = tool.inlineToolbar === true ? { ...tool, inlineToolbar: inline } : tool;
     }
   }
+  // 2.3: blocks registered in code by the host app (custom block SDK). Their
+  // names never clash with built-in tools; a Settings block of the same name
+  // cannot exist (the server refuses to start), so the code tool wins.
+  const code = buildCodeBlockTools({ t, locale: ctx.locale, inline, shared });
+  for (const [name, tool] of Object.entries(code)) tools[name] = tool;
   return preset ? applyPreset(tools, preset) : tools;
 }
 

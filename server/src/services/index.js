@@ -12,6 +12,7 @@ module.exports = {
   ai: require('./ai'),
   grammar: require('./grammar'),
   'custom-blocks': require('./custom-blocks'),
+  blocks: require('./blocks'),
   history: require('./history'),
   comments: require('./comments'),
   collaboration: require('./collaboration'),

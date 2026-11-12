@@ -10,6 +10,7 @@ import { mapServerErrors, moveId, toPayload, withEnabled } from './blockForm.mjs
 import { useCustomBlocks } from './useCustomBlocks';
 import { BlockList } from './BlockList';
 import { BlockFormModal } from './BlockFormModal';
+import { CodeBlocksSection } from './CodeBlocksSection';
 
 /**
  * Settings -> Magic Editor X -> Custom blocks.
@@ -378,6 +379,7 @@ const CustomBlocksPage = () => {
           fallbackFocusRef={createRef}
         />
       )}
+      <CodeBlocksSection />
       <BlockFormModal
         key={modal.key}
         open={modal.open}

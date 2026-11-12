@@ -14,6 +14,8 @@
  */
 
 /** Hard limits for one field value. Bigger values are rejected, never truncated. */
+import { activeBlock } from './blocks/active.mjs';
+
 export const EDITOR_DATA_LIMITS = Object.freeze({
   maxBlocks: 5000,
   maxBytes: 5 * 1024 * 1024,
@@ -308,7 +310,12 @@ export const computeStats = (data) => {
       }
     }
   };
-  data.blocks.forEach((block) => collect(block.data));
+  data.blocks.forEach((block) => {
+    // Code-registered blocks (custom block SDK) count their text and inline fields only.
+    const definition = block && activeBlock(block.type);
+    if (definition) definition.fields(block.data).forEach((field) => collect(field.value));
+    else collect(block.data);
+  });
   const normalized = text.replace(/\s+/g, ' ').trim();
   return {
     blocks: data.blocks.length,

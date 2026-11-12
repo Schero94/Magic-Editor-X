@@ -18,6 +18,7 @@
 
 import { normalizeEditorDataSafe } from './editor-data.mjs';
 import { inlineToText } from './render/inline.mjs';
+import { registeredBlockOf } from './sanitize-policy.mjs';
 
 /** Largest number of blocks compared per side. */
 export const MAX_DIFF_BLOCKS = 5000;
@@ -94,6 +95,9 @@ const flatten = (value, prefix, out, depth = 0) => {
  */
 const leafKind = (type, path, value) => {
   if (typeof value !== 'string') return 'value';
+  // Code-registered blocks (custom block SDK): the kind comes from their schema.
+  const definition = registeredBlockOf({ type, data: {} });
+  if (definition) return definition.kindOf(path);
   const key =
     path
       .split('.')

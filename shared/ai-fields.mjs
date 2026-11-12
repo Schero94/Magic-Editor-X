@@ -28,7 +28,9 @@ export const MAX_SEGMENTS = 1000;
 export const MAX_SEGMENT_HTML = 20000;
 /** Block id and path patterns (as stored by Editor.js and listed by `searchableFields`). */
 export const BLOCK_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
-export const SEGMENT_PATH_PATTERN = /^[A-Za-z]{1,20}(\.\d{1,4}|\.[A-Za-z]{1,20}){0,26}$/;
+// Keys of code-registered blocks (custom block SDK) may hold digits and underscores (up to 64 characters).
+export const SEGMENT_PATH_PATTERN =
+  /^[A-Za-z][A-Za-z0-9_]{0,63}(\.\d{1,4}|\.[A-Za-z][A-Za-z0-9_]{0,63}){0,26}$/;
 
 /**
  * @typedef {{ blockId: string, path: string, html: string }} Segment

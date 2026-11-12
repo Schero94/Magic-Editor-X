@@ -337,6 +337,35 @@ function mediaLink(kind, b, o) {
 }
 
 /**
+ * Markdown of a code-registered block: its `markdown(data, helpers)` result
+ * (helpers: `escape`, `inline`, `text`), else the text and inline fields in
+ * schema order as escaped paragraphs.
+ * @param {object} block - Prepared block with `definition`.
+ * @param {object} opts - Render options.
+ * @returns {string} Markdown.
+ */
+const registeredMarkdown = (block, opts) => {
+  const { definition } = block;
+  if (definition.markdown) {
+    try {
+      const out = definition.markdown(block.data, {
+        escape: escapeMarkdown,
+        inline: (html) => md(html, opts),
+        text: (html) => inlineToText(html),
+      });
+      if (typeof out === 'string') return out;
+    } catch {
+      // The default Markdown below is used.
+    }
+  }
+  return definition
+    .fields(block.data)
+    .map((field) => (field.kind === 'html' ? md(field.value, opts) : escapeMarkdown(field.value.trim())))
+    .filter(Boolean)
+    .join('\n\n');
+};
+
+/**
  * Renders Magic Editor X content to Markdown.
  * @param {unknown} value - Stored field value.
  * @param {import('../../types/render').RenderOptions} [options] - Options (`overrides` return Markdown).
@@ -362,6 +391,7 @@ export const renderMarkdown = (value, options = {}) => {
           if (typeof out === 'string') return out;
         }
         if (block.known) return RENDERERS[block.type](block, opts, render);
+        if (block.definition) return registeredMarkdown(block, opts);
         return scalarFields(block.data)
           .map(([, v]) => md(v, opts))
           .filter(Boolean)

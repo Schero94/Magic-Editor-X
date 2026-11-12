@@ -2,6 +2,8 @@ import { PLUGIN_ID } from './pluginId';
 import { PluginIcon } from './components/PluginIcon';
 import { PERMISSIONS } from './permissions';
 import { getTranslation } from './utils/getTranslation';
+import { registerBlock } from './editor/block-registry';
+import { createReactTool } from './editor/react-tool';
 
 /**
  * Translations are split by area (common, editor, tools, settings); each
@@ -77,7 +79,9 @@ export default {
    * @param {object} app - Strapi admin app.
    */
   register(app) {
-    app.registerPlugin({ id: PLUGIN_ID, name: PLUGIN_ID });
+    // `apis` (Strapi admin plugin API): the custom block SDK for the host app's
+    // `src/admin/app.js`: `app.getPlugin('magic-editor-x').apis.registerBlock({ definition, tool })`.
+    app.registerPlugin({ id: PLUGIN_ID, name: PLUGIN_ID, apis: { registerBlock, createReactTool } });
 
     app.customFields.register({
       name: 'richtext',
