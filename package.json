@@ -86,7 +86,8 @@
     "test:integration": "node --test --test-concurrency=1 \"tests/integration/*.test.mjs\"",
     "prepack": "npm run build",
     "docs:llms": "node scripts/build-llms-full.mjs",
-    "schema": "node scripts/build-schema.mjs"
+    "schema": "node scripts/build-schema.mjs",
+    "bench": "node scripts/bench.mjs"
   },
   "dependencies": {
     "@editorjs/attaches": "^1.3.2",

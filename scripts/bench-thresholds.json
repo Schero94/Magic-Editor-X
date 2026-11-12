@@ -1,0 +1,86 @@
+{
+  "$comment": "Thresholds of scripts/bench.mjs (npm run bench, CI job bench). budgetMs5000: max(250, about 10x the slowest of 6 local medians at 5000 blocks, rounded up to 50 ms; Apple M-series, Node 22.23, 2026-11-12). maxScaling: bound of time(5000)/time(500); linear work measured 8.5 to 13.9, quadratic work would be about 100. counters: deterministic results per size. See CONTRIBUTING.md, Performance benchmark.",
+  "operations": {
+    "normalize+sanitize": {
+      "budgetMs5000": 500,
+      "maxScaling": 30,
+      "counters": {
+        "500": 500,
+        "2000": 2000,
+        "5000": 5000
+      }
+    },
+    "renderHtml": {
+      "budgetMs5000": 350,
+      "maxScaling": 30,
+      "counters": {
+        "500": 1,
+        "2000": 1,
+        "5000": 1
+      }
+    },
+    "renderText": {
+      "budgetMs5000": 250,
+      "maxScaling": 30,
+      "counters": {
+        "500": 1,
+        "2000": 1,
+        "5000": 1
+      }
+    },
+    "renderMarkdown": {
+      "budgetMs5000": 250,
+      "maxScaling": 30,
+      "counters": {
+        "500": 1,
+        "2000": 1,
+        "5000": 1
+      }
+    },
+    "diffDocuments": {
+      "budgetMs5000": 250,
+      "maxScaling": 30,
+      "counters": {
+        "500": 501,
+        "2000": 2001,
+        "5000": 5001
+      }
+    },
+    "find+replace": {
+      "budgetMs5000": 250,
+      "maxScaling": 30,
+      "counters": {
+        "500": 68,
+        "2000": 266,
+        "5000": 664
+      }
+    },
+    "ydoc seed+apply": {
+      "budgetMs5000": 800,
+      "maxScaling": 30,
+      "counters": {
+        "500": 500,
+        "2000": 2000,
+        "5000": 5000
+      }
+    },
+    "lint": {
+      "budgetMs5000": 250,
+      "maxScaling": 30,
+      "counters": {
+        "500": 17,
+        "2000": 67,
+        "5000": 167
+      }
+    },
+    "presetCheck": {
+      "budgetMs5000": 250,
+      "maxScaling": 30,
+      "counters": {
+        "500": 16,
+        "2000": 66,
+        "5000": 166
+      }
+    }
+  }
+}
