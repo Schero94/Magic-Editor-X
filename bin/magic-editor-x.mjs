@@ -139,6 +139,11 @@ export const main = async (argv) => {
     );
     return 1;
   }
+  // Strapi logs to stdout. Keep stdout for the report only (machine-readable
+  // with --json): everything Strapi prints goes to stderr.
+  const stdoutWrite = process.stdout.write.bind(process.stdout);
+  process.stdout.write = process.stderr.write.bind(process.stderr);
+  const print = (text) => stdoutWrite(text);
   const appContext = await core.compileStrapi();
   const app = await core.createStrapi(appContext).load();
   let code;
@@ -150,13 +155,14 @@ export const main = async (argv) => {
       });
     const report = await plugin.service('migrate').run(command.options);
     if (command.out) writeFileSync(command.out, `${JSON.stringify(report, null, 2)}\n`);
-    process.stdout.write(`${command.json ? JSON.stringify(report, null, 2) : formatReport(report)}\n`);
+    print(`${command.json ? JSON.stringify(report, null, 2) : formatReport(report)}\n`);
     code = report.failed.length > 0 ? 1 : 0;
   } catch (error) {
     process.stderr.write(`${error && error.message ? error.message : 'Migration failed'}\n`);
     code = 1;
   } finally {
     await app.destroy();
+    process.stdout.write = stdoutWrite;
   }
   return code;
 };

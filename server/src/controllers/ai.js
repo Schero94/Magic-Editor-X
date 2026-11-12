@@ -47,7 +47,7 @@ module.exports = ({ strapi }) => {
      * @auth admin; plugin::magic-editor-x.access + plugin::magic-editor-x.ai.use
      * @returns {{ data: { text: string } }} Suggested replacement (sanitised inline HTML).
      * @throws {errors.NotFoundError} Unknown content type or field (404).
-     * @throws {errors.ForbiddenError} The field's options turn the assistant off (403, `details.code` `AI_DISABLED_FOR_FIELD`).
+     * @throws {errors.ForbiddenError} The field's options turn the assistant off (403).
      * @sideeffect Sends the text to the owner's AI provider. Text is never logged.
      */
     async run(ctx) {
@@ -57,9 +57,7 @@ module.exports = ({ strapi }) => {
       const resolved = contentType ? resolveEditorField(strapi, contentType, target.field) : null;
       if (!resolved) throw new errors.NotFoundError('Not found');
       if (!resolveFieldPreset(resolved.attribute.options).ai)
-        throw new errors.ForbiddenError('The AI assistant is turned off for this field', {
-          code: 'AI_DISABLED_FOR_FIELD',
-        });
+        throw new errors.ForbiddenError('The AI assistant is turned off for this field');
       try {
         ctx.body = { data: await service(strapi, 'ai').run({ action, ...body }, ctx.state.user) };
       } catch (error) {
