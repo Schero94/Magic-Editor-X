@@ -43,6 +43,10 @@ export const EnvironmentSection = ({ environment }) => {
     }[environment.rawHtml] || environment.rawHtml;
   const collaboration = environment.collaboration || {};
   const linkSchedule = environment.linkSchedule || null;
+  // 2.4: config-only private image storage origins (read-only here).
+  const privateImages = Array.isArray(environment.altTextPrivateOrigins)
+    ? environment.altTextPrivateOrigins
+    : [];
   const lastRun = linkSchedule && linkSchedule.lastRun;
   let linkScheduleHint;
   if (linkSchedule && linkSchedule.enabled) {
@@ -124,6 +128,31 @@ export const EnvironmentSection = ({ environment }) => {
             label: t('settings.environment.linkSchedule', 'Scheduled link check'),
             value: on(Boolean(linkSchedule && linkSchedule.enabled)),
             hint: linkScheduleHint,
+          },
+          {
+            key: 'privateImages',
+            label: t('settings.environment.privateImages', 'Private image storage for alt text'),
+            value: privateImages.length ? (
+              <Badge backgroundColor="warning100" textColor="warning700">
+                {t(
+                  'settings.environment.privateImagesCount',
+                  '{count, plural, =0 {Off} one {# origin} other {# origins}}',
+                  { count: privateImages.length }
+                )}
+              </Badge>
+            ) : (
+              on(false)
+            ),
+            hint: privateImages.length
+              ? t(
+                  'settings.environment.privateImagesHint',
+                  'Alt text suggestions may read images from {origins} (ai.altText.allowPrivateOrigins). Redirects are not followed.',
+                  { origins: privateImages.join(', ') }
+                )
+              : t(
+                  'settings.environment.privateImagesNone',
+                  'Alt text suggestions read images from public addresses only. Self-hosted storage on a private network needs ai.altText.allowPrivateOrigins.'
+                ),
           },
           {
             key: 'privateAi',

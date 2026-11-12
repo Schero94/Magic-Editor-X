@@ -7,7 +7,7 @@ import {
   Typography,
   VisuallyHidden,
 } from '@strapi/design-system';
-import { ArrowDown, ArrowUp, Duplicate, Trash, Code, Layout } from '@strapi/icons';
+import { ArrowDown, ArrowUp, Duplicate, Trash, Code, Layout, Sparkle } from '@strapi/icons';
 import styled from 'styled-components';
 import { renderMarkdown } from '../../../../shared/render/index.mjs';
 
@@ -56,6 +56,7 @@ const selectedIds = (holder) =>
  * @param {() => void} props.onChanged - Called after an action changed the content.
  * @param {(message: string) => void} props.notify - Success message.
  * @param {(ids: string[]) => void} [props.onSaveSelection] - "Save as pattern" for template managers (2.3).
+ * @param {(ids: string[]) => void} [props.onAi] - Block AI actions (2.4); absent when AI is not allowed here.
  * @returns {JSX.Element|null} Bar.
  */
 export const BlockSelectionBar = ({
@@ -68,6 +69,7 @@ export const BlockSelectionBar = ({
   onChanged,
   notify,
   onSaveSelection,
+  onAi,
 }) => {
   const [ids, setIds] = useState([]);
   const actingRef = useRef(false);
@@ -228,6 +230,21 @@ export const BlockSelectionBar = ({
       >
         <Code />
       </IconButton>
+      {onAi ? (
+        <IconButton
+          label={t('editor.aiBlocks.open', 'AI for the chosen blocks')}
+          variant="ghost"
+          onClick={() => {
+            const selection = [...ids];
+            actingRef.current = false;
+            setIds([]);
+            onAi(selection);
+          }}
+          data-testid="mex-selection-ai"
+        >
+          <Sparkle />
+        </IconButton>
+      ) : null}
       {onSaveSelection ? (
         <IconButton
           label={t('editor.selection.saveTemplate', 'Save as pattern')}

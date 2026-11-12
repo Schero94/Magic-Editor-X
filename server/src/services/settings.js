@@ -227,6 +227,11 @@ module.exports = ({ strapi }) => {
       environment: {
         allowPrivateBaseUrl: config('ai.allowPrivateBaseUrl', false) === true,
         requestsPerMinute: config('ai.requestsPerMinute', 20),
+        // 2.4: private image storage origins for alt text (config only, shown read-only).
+        altTextPrivateOrigins: (() => {
+          const list = config('ai.altText.allowPrivateOrigins', []);
+          return Array.isArray(list) ? list.filter((item) => typeof item === 'string').slice(0, 20) : [];
+        })(),
         languageTool: {
           allowPrivateBaseUrl: config('languageTool.allowPrivateBaseUrl', false) === true,
           requestsPerMinute: config('languageTool.requestsPerMinute', 30),

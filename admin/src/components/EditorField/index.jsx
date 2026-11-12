@@ -62,8 +62,10 @@ import { markInputReady, trackUserInput } from '../../editor/input-tracking.mjs'
 import { createStyleOwners } from '../../editor/style-owners.mjs';
 import { highlightMatch, clearHighlight } from '../../editor/find-highlight';
 import { createAltTextSuggester } from '../../editor/ai-alt-text';
+import { insertSuggestion } from '../../editor/ai-selection';
 import { GrammarPanel } from './GrammarPanel';
 import { FieldAiDialog } from './FieldAiDialog';
+import { BlockAiDialog } from './BlockAiDialog';
 import { applySegments } from '../../../../shared/ai-fields.mjs';
 import { isPositionalFieldPath } from '../../editor/field-path.mjs';
 import { escapeHtml } from '../../../../shared/render/inline.mjs';
@@ -317,6 +319,8 @@ const EditorFieldBody = ({
   const [fullscreen, setFullscreen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [aiRequest, setAiRequest] = useState(null);
+  // 2.4: block AI actions for the chosen block ids.
+  const [blockAiRequest, setBlockAiRequest] = useState(null);
   const [mediaRequest, setMediaRequest] = useState(null);
   const [undoState, setUndoState] = useState({ canUndo: false, canRedo: false });
   const [valueError, setValueError] = useState(null);
@@ -699,6 +703,11 @@ const EditorFieldBody = ({
     if (editor && editor.tooltip && typeof editor.tooltip.hide === 'function') editor.tooltip.hide();
     setAiRequest(request);
   }, []);
+  const onBlockAiRequest = useCallback((ids) => {
+    const editor = editorRef.current;
+    if (editor && editor.toolbar && typeof editor.toolbar.close === 'function') editor.toolbar.close();
+    if (Array.isArray(ids) && ids.length) setBlockAiRequest({ ids: [...ids] });
+  }, []);
 
   // Create the editor once the configuration is known; recreate it only when
   // the tool set changes (configuration, custom blocks, permissions).
@@ -743,6 +752,7 @@ const EditorFieldBody = ({
       uploadFile: (file) => upload(API.fileUpload, 'file', file),
       openMediaLibrary,
       onAiRequest,
+      onBlockAi: target.uid ? onBlockAiRequest : undefined,
       aiEnabled: Boolean(config.ai.enabled && permissions.ai && preset.ai),
       suggestAltText: altTextAllowed
         ? createAltTextSuggester({
@@ -1025,13 +1035,19 @@ const EditorFieldBody = ({
         Array.from(parsed.childNodes).forEach((node) =>
           fragment.appendChild(document.importNode(node, true))
         );
-        range.deleteContents();
-        range.insertNode(fragment);
-        range.collapse(false);
+        const start = range.commonAncestorContainer;
+        const editable = (start.nodeType === Node.ELEMENT_NODE ? start : start.parentElement)?.closest(
+          '[contenteditable="true"]'
+        );
+        if (editable) insertSuggestion(range, fragment, editable);
+        else {
+          range.deleteContents();
+          range.insertNode(fragment);
+          range.collapse(false);
+        }
         const selection = window.getSelection();
         selection.removeAllRanges();
         selection.addRange(range);
-        const editable = range.commonAncestorContainer.parentElement?.closest('[contenteditable="true"]');
         if (editable) editable.dispatchEvent(new Event('input', { bubbles: true }));
       } else if (editorRef.current) {
         const editor = editorRef.current;
@@ -1738,6 +1754,7 @@ const EditorFieldBody = ({
               }}
               notify={(message) => toggleNotification({ type: 'success', message })}
               onSaveSelection={canManageTemplates ? saveSelection : undefined}
+              onAi={aiAllowed && target.uid ? onBlockAiRequest : undefined}
             />
             <Holder
               ref={holderRef}
@@ -1825,6 +1842,29 @@ const EditorFieldBody = ({
             setAiRequest(null);
           }}
           onClose={() => setAiRequest(null)}
+        />
+      ) : null}
+      {blockAiRequest && aiAllowed && target.uid && !readOnly ? (
+        <BlockAiDialog
+          t={t}
+          config={config.ai}
+          target={{ uid: target.uid, field: target.field }}
+          blockIds={blockAiRequest.ids}
+          preset={preset}
+          getData={readForFind}
+          onApply={async (data, count) => {
+            await replaceContent(data);
+            toggleNotification({
+              type: 'success',
+              message: t(
+                'editor.aiBlocks.applied',
+                '{count, plural, one {# block updated} other {# blocks updated}}',
+                { count }
+              ),
+            });
+          }}
+          onClose={() => setBlockAiRequest(null)}
+          returnFocus={() => selectBlock(blockAiRequest.ids[0])}
         />
       ) : null}
       {fieldAiOpen && fieldAiAllowed ? (

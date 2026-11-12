@@ -2,7 +2,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
-const { fetchBounded } = require('./url-security');
+const { fetchBounded, privateOriginOptions } = require('./url-security');
 
 /**
  * Reads a Media Library image for the alternative text suggestion (2.3).
@@ -16,6 +16,11 @@ const { fetchBounded } = require('./url-security');
  *   symlinks out of it).
  * - Remote provider URLs are fetched through the SSRF-safe `fetchBounded`
  *   (public addresses only, pinned DNS, size and time caps, image MIME types).
+ * - 2.4: URLs whose exact origin the owner listed in
+ *   `ai.altText.allowPrivateOrigins` (self-hosted S3/MinIO on a private
+ *   network) may resolve to private or loopback addresses; they never follow
+ *   redirects and never reach link-local or metadata addresses
+ *   (`privateOriginOptions`). Every cap above still applies.
  * - The bytes must start with the signature of a supported format; the media
  *   type sent to the provider comes from the bytes, not from the database.
  *
@@ -136,10 +141,19 @@ const readLocal = async (publicDir, url) => {
  * @param {string} options.publicDir - Strapi public folder.
  * @param {number} [options.timeoutMs] - Time limit for remote files.
  * @param {Function} [options.fetch] - Bounded fetcher (tests).
+ * @param {string[]} [options.allowPrivateOrigins] - Owner-listed private storage origins (2.4).
+ * @param {Function} [options.resolve] - DNS lookup for listed origins (tests).
  * @returns {Promise<{ mediaType: string, data: string, bytes: number }>} Base64 image.
  * @throws {Error} With `code` IMAGE_UNSUPPORTED (415), IMAGE_TOO_LARGE (413) or IMAGE_UNREADABLE (404/502).
  */
-const loadImage = async ({ file, publicDir, timeoutMs = 15000, fetch = fetchBounded }) => {
+const loadImage = async ({
+  file,
+  publicDir,
+  timeoutMs = 15000,
+  fetch = fetchBounded,
+  allowPrivateOrigins = [],
+  resolve,
+}) => {
   const variant = pickVariant(file);
   if (!variant) {
     const anySupported = variantsOf(file).some((item) => SUPPORTED_TYPES.includes(item.mime));
@@ -150,11 +164,13 @@ const loadImage = async ({ file, publicDir, timeoutMs = 15000, fetch = fetchBoun
     buffer = await readLocal(publicDir, variant.url);
   } else {
     try {
+      const privateOrigin = privateOriginOptions(variant.url, allowPrivateOrigins, { resolve });
       const response = await fetch(variant.url, {
         maxBytes: MAX_IMAGE_BYTES,
         allowedMimeTypes: SUPPORTED_TYPES,
         maxRedirects: 2,
         timeoutMs,
+        ...(privateOrigin || {}),
       });
       buffer = response.body;
     } catch (error) {

@@ -127,3 +127,34 @@ export class TextVariantTune {
     return this.data;
   }
 }
+
+/**
+ * "AI assistant" entry in the block menu (2.4): opens the block AI dialog for
+ * this block. It stores nothing (no `save()`), so content keeps its shape.
+ */
+export class AiBlockTune {
+  static get isTune() {
+    return true;
+  }
+
+  constructor({ config, block }) {
+    this.config = config || {};
+    this.block = block;
+  }
+
+  render() {
+    const title =
+      typeof this.config.t === 'function'
+        ? this.config.t('editor.aiBlocks.menu', 'AI assistant')
+        : 'AI assistant';
+    return {
+      icon: ICONS.sparkle,
+      title,
+      name: 'mex-ai-block',
+      closeOnActivate: true,
+      onActivate: () => {
+        if (this.block && typeof this.config.onBlockAi === 'function') this.config.onBlockAi([this.block.id]);
+      },
+    };
+  }
+}

@@ -27,7 +27,7 @@ export const PropertyList = ({ items }) => (
             </Typography>
             {item.hint ? (
               <Box paddingTop={1}>
-                <Typography variant="pi" textColor="neutral600">
+                <Typography variant="pi" textColor="neutral600" style={{ overflowWrap: 'anywhere' }}>
                   {item.hint}
                 </Typography>
               </Box>

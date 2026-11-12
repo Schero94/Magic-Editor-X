@@ -152,4 +152,4 @@ const cleanEditorValue = (value, options = {}) => {
   });
 };
 
-module.exports = { sanitizeInlineHtml, sanitizeRawHtml, cleanEditorValue };
+module.exports = { sanitizeInlineHtml, sanitizeRawHtml, cleanEditorValue, inlineSanitizerFor };
