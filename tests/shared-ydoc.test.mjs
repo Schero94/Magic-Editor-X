@@ -154,3 +154,23 @@ test('local typing is mapped through concurrent remote typing in the same text',
   assert.equal(docToEditorData(a).blocks[0].data.text, 'Hello big world!');
   assert.deepEqual(docToEditorData(a), docToEditorData(b));
 });
+
+test('seeding a large document keeps the order, drops duplicate ids and stays linear', () => {
+  const blocks = Array.from({ length: 4000 }, (_, i) => p(`s${i}`, `Text ${i}`));
+  blocks.splice(10, 0, p('s3', 'duplicate id'));
+  const started = performance.now();
+  const target = new Y.Doc();
+  Y.applyUpdate(target, createSeedUpdate(doc(blocks), 'epoch-1'));
+  const elapsed = performance.now() - started;
+  const read = docToEditorData(target);
+  assert.equal(read.blocks.length, 4000);
+  assert.deepEqual(
+    read.blocks.slice(0, 5).map((block) => block.id),
+    ['s0', 's1', 's2', 's3', 's4']
+  );
+  assert.equal(read.blocks[3].data.text, 'Text 3');
+  assert.equal(read.blocks[3999].id, 's3999');
+  // One bulk insert: the order array holds one item run, not one per block.
+  assert.equal(target.getArray('order').length, 4000);
+  assert.ok(elapsed < 5000, `seeding took ${elapsed} ms`);
+});
