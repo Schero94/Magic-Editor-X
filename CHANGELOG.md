@@ -1,6 +1,12 @@
 # Changelog
 
-## [Unreleased]
+# [2.3.0](https://github.com/Schero94/Magic-Editor-X/compare/v2.2.0...v2.3.0) (2026-11-12)
+
+
+### Features
+
+* framework renderers, API output, block SDK, media, templates, synced blocks and comments (2.3.0) ([#6](https://github.com/Schero94/Magic-Editor-X/issues/6)) ([2256161](https://github.com/Schero94/Magic-Editor-X/commit/2256161ef99b1eee504d7a012df00808d60f4fb7))
+
 
 Magic Editor X 2.3 connects the editor to the rest of your stack: React and Vue components, rendered and resolved Content API and GraphQL output, a block SDK, media blocks, templates, patterns and synced blocks, block comments, mentions and a table of contents, plus optional AI and grammar assistants. No migration is needed; stored content keeps the same Editor.js JSON and every new output is opt-in.
 
