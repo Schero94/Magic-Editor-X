@@ -599,3 +599,127 @@ test('admin: saved keys come from the loaded form values; targets carry the key'
   assert.deepEqual(identityTarget(target, null), target);
   assert.deepEqual(identityTarget({ ...target, field: 'body' }, KEY_A), { ...target, field: 'body' });
 });
+
+/* ------------------------------------------------------------ controllers */
+
+test('controllers: keyless positional fields refuse writes, unmapped rows are read-only', async () => {
+  const historyController = require('../server/src/controllers/history.js');
+  const commentsController = require('../server/src/controllers/comments.js');
+  const db = fakeDb();
+  const services = {};
+  const strapi = {
+    db: { query: () => db },
+    config: { get: () => undefined },
+    plugin: () => ({ service: (name) => services[name] }),
+  };
+  services.store = { acquire: async () => true, release: async () => true, hit: async () => ({ count: 1 }) };
+  services.history = historyService({ strapi });
+  services.comments = commentsService({ strapi });
+  const checked = [];
+  services.access = {
+    checkField: async (input) => {
+      checked.push(input);
+      const positional =
+        /\.\d+\.|#/.test(input.field) || Boolean(input.fieldKey) || input.field === 'sections.body';
+      const keyed = Boolean(input.fieldKey);
+      return {
+        canRead: true,
+        canUpdate: true,
+        locale: 'en',
+        positional,
+        basePath: 'sections.body',
+        fieldName: positional ? (keyed ? `sections.body#${input.fieldKey}` : null) : input.field,
+        fieldKey: input.fieldKey || null,
+        entries: [{ path: 'sections.0.body', fieldKey: null, blockIds: new Set(['proven0001']) }],
+      };
+    },
+  };
+  const ctx = (extra) => ({
+    query: {},
+    params: {},
+    request: { body: {} },
+    state: { userAbility: { can: () => true }, user: { id: 1, firstname: 'Anna' } },
+    status: 200,
+    body: undefined,
+    conflict(message, details) {
+      this.status = 409;
+      this.body = { error: { message, details } };
+    },
+    forbidden() {
+      this.status = 403;
+    },
+    ...extra,
+  });
+  const base = { uid: 'api::article.article', documentId: 'doc1', locale: 'en' };
+
+  const create = ctx({ request: { body: { ...base, field: 'sections.0.body', content: doc(['x']) } } });
+  await historyController({ strapi }).create(create);
+  assert.equal(create.status, 409);
+  assert.equal(create.body.error.details.code, 'FIELD_KEY_REQUIRED');
+  const comment = ctx({
+    request: { body: { ...base, field: 'sections.0.body', blockId: 'proven0001', body: 'x' } },
+  });
+  await commentsController({ strapi }).create(comment);
+  assert.equal(comment.status, 409);
+
+  // A keyless entry lists only proven rows and cannot create anything.
+  await db.create({
+    data: {
+      roomId: 'r',
+      contentType: base.uid,
+      entryId: 'doc1',
+      entryLocale: 'en',
+      fieldName: 'sections.3.body',
+      version: 1,
+      trigger: 'manual',
+      jsonContent: doc(['proven0001']),
+    },
+  });
+  await db.create({
+    data: {
+      roomId: 'r',
+      contentType: base.uid,
+      entryId: 'doc1',
+      entryLocale: 'en',
+      fieldName: 'sections.2.body',
+      version: 1,
+      trigger: 'manual',
+      jsonContent: doc(['unknown001']),
+    },
+  });
+  const list = ctx({ query: { ...base, field: 'sections.0.body' } });
+  await historyController({ strapi }).list(list);
+  assert.equal(list.body.data.length, 1);
+  assert.equal(list.body.meta.canCreate, false);
+  assert.equal(list.body.meta.positionalVersions, undefined, 'no unmapped group without a key');
+
+  // Rename of an unmapped legacy version: 409.
+  const legacyId = db.rows.find((row) => row.fieldName === 'sections.2.body').documentId;
+  const rename = ctx({ params: { id: legacyId }, request: { body: { label: 'x' } } });
+  await historyController({ strapi }).rename(rename);
+  assert.equal(rename.status, 409);
+  assert.equal(rename.body.error.details.code, 'POSITIONAL_READ_ONLY');
+  assert.deepEqual(checked.at(-1), {
+    ...base,
+    field: 'sections.2.body',
+    userAbility: rename.state.userAbility,
+  });
+
+  // Replies to an unmapped legacy thread: 409; nothing is written.
+  const thread = await db.create({
+    data: {
+      contentType: base.uid,
+      entryId: 'doc1',
+      entryLocale: 'en',
+      fieldName: 'sections.4.body',
+      blockId: 'unknown002',
+      body: 'Old',
+      resolved: false,
+    },
+  });
+  const before = db.rows.length;
+  const reply = ctx({ params: { id: thread.documentId }, request: { body: { body: 'New' } } });
+  await commentsController({ strapi }).reply(reply);
+  assert.equal(reply.status, 409);
+  assert.equal(db.rows.length, before);
+});
