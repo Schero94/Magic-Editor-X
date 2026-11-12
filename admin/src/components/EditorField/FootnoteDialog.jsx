@@ -79,9 +79,19 @@ const unwrapElement = (element) => {
  * @param {string[]|null} props.allowedTags - Inline tags of the field preset (null = all).
  * @param {(html: string) => void} props.onSave - Writes the cleaned note.
  * @param {() => void} props.onClose - Closes the dialog (a new footnote without text is removed by the caller).
+ * @param {HTMLElement|null} [props.returnFocusTo] - Element that had focus when the dialog opened.
  * @returns {JSX.Element} Dialog.
  */
-export const FootnoteDialog = ({ t, number, html, readOnly, allowedTags, onSave, onClose }) => {
+export const FootnoteDialog = ({
+  t,
+  number,
+  html,
+  readOnly,
+  allowedTags,
+  onSave,
+  onClose,
+  returnFocusTo = null,
+}) => {
   const areaRef = useRef(null);
   const rangeRef = useRef(null);
   const labelId = useId();
@@ -101,25 +111,31 @@ export const FootnoteDialog = ({ t, number, html, readOnly, allowedTags, onSave,
         rangeRef.current = selection.getRangeAt(0).cloneRange();
     };
     document.addEventListener('selectionchange', remember);
-    const timer = window.setTimeout(() => {
-      if (readOnly) return;
-      area.focus();
-      const selection = window.getSelection();
-      if (selection) {
-        const range = document.createRange();
-        range.selectNodeContents(area);
-        range.collapse(false);
-        selection.removeAllRanges();
-        selection.addRange(range);
-      }
-    }, 0);
-    return () => {
-      document.removeEventListener('selectionchange', remember);
-      window.clearTimeout(timer);
-    };
+    return () => document.removeEventListener('selectionchange', remember);
     // The note is loaded once per dialog; later prop changes would discard typing.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally only on mount
   }, []);
+
+  /**
+   * Focus goes to the note (end of its text) when the dialog opens, not to
+   * the close button; read-only dialogs keep the default focus.
+   * @param {Event} event - Radix open auto-focus event.
+   */
+  const focusNote = (event) => {
+    const area = areaRef.current;
+    if (readOnly || !area) return;
+    event.preventDefault();
+    requestAnimationFrame(() => {
+      area.focus();
+      const selection = window.getSelection();
+      if (!selection) return;
+      const range = document.createRange();
+      range.selectNodeContents(area);
+      range.collapse(false);
+      selection.removeAllRanges();
+      selection.addRange(range);
+    });
+  };
 
   /** Restores the remembered selection inside the area. */
   const restoreRange = () => {
@@ -135,26 +151,51 @@ export const FootnoteDialog = ({ t, number, html, readOnly, allowedTags, onSave,
   };
 
   /**
-   * Toggles bold or italic on the selection.
+   * Toggles bold or italic. With a selection: wraps it, or unwraps the
+   * formatting it is in. With a caret: starts a formatted run at the caret
+   * (an empty element holding a zero-width space), or leaves the run it is in.
    * @param {'b'|'i'} tag - Tag.
+   * @param {boolean} [fromKeyboard=false] - Use the live selection (shortcut) instead of the remembered one (button).
    */
-  const toggle = (tag) => {
+  const toggle = (tag, fromKeyboard = false) => {
     const area = areaRef.current;
-    const range = restoreRange();
-    if (!area || !range) return;
+    const selection = window.getSelection();
+    const range =
+      fromKeyboard && selection && selection.rangeCount ? selection.getRangeAt(0) : restoreRange();
+    if (!area || !range || !area.contains(range.commonAncestorContainer)) return;
     const aliases = tag === 'b' ? ['b', 'strong'] : ['i', 'em'];
     const existing = closestTag(range.commonAncestorContainer, aliases, area);
-    if (existing) unwrapElement(existing);
-    else if (!range.collapsed) {
-      const wrapper = document.createElement(tag);
-      wrapper.appendChild(range.extractContents());
-      range.insertNode(wrapper);
-      const selection = window.getSelection();
+    const place = (setter) => {
       const next = document.createRange();
-      next.selectNodeContents(wrapper);
+      setter(next);
       selection.removeAllRanges();
       selection.addRange(next);
+    };
+    if (range.collapsed) {
+      if (existing) {
+        if (!(existing.textContent || '').replace(/\u200b/g, '')) {
+          const parent = existing.parentNode;
+          const index = Array.prototype.indexOf.call(parent.childNodes, existing);
+          existing.remove();
+          place((next) => next.setStart(parent, index));
+        } else place((next) => next.setStartAfter(existing));
+        return;
+      }
+      const wrapper = document.createElement(tag);
+      const text = document.createTextNode('\u200b');
+      wrapper.appendChild(text);
+      range.insertNode(wrapper);
+      place((next) => next.setStart(text, 1));
+      return;
     }
+    if (existing) {
+      unwrapElement(existing);
+      return;
+    }
+    const wrapper = document.createElement(tag);
+    wrapper.appendChild(range.extractContents());
+    range.insertNode(wrapper);
+    place((next) => next.selectNodeContents(wrapper));
   };
 
   const applyLink = () => {
@@ -208,6 +249,9 @@ export const FootnoteDialog = ({ t, number, html, readOnly, allowedTags, onSave,
   const onKeyDown = (event) => {
     if (readOnly) return;
     const mod = event.ctrlKey || event.metaKey;
+    // Enter must not reach the Content Manager form (React events bubble through the portal;
+    // Ctrl/Cmd+Enter there saves the entry with the field's previous value).
+    if (event.key === 'Enter') event.stopPropagation();
     if (event.key === 'Enter' && mod) {
       event.preventDefault();
       save();
@@ -229,10 +273,10 @@ export const FootnoteDialog = ({ t, number, html, readOnly, allowedTags, onSave,
     }
     if (mod && !event.altKey && (event.key === 'b' || event.key === 'B') && allows('b')) {
       event.preventDefault();
-      toggle('b');
+      toggle('b', true);
     } else if (mod && !event.altKey && (event.key === 'i' || event.key === 'I') && allows('i')) {
       event.preventDefault();
-      toggle('i');
+      toggle('i', true);
     }
   };
 
@@ -246,7 +290,16 @@ export const FootnoteDialog = ({ t, number, html, readOnly, allowedTags, onSave,
         if (!next) onClose();
       }}
     >
-      <Modal.Content>
+      <Modal.Content
+        onOpenAutoFocus={focusNote}
+        onCloseAutoFocus={(event) => {
+          // The dialog has no trigger: focus returns to where it was opened from.
+          if (returnFocusTo && returnFocusTo.isConnected) {
+            event.preventDefault();
+            returnFocusTo.focus();
+          }
+        }}
+      >
         <Modal.Header closeLabel={t('editor.footnotes.close', 'Close')}>
           <Modal.Title>{t('editor.footnotes.dialogTitle', 'Footnote {number}', { number })}</Modal.Title>
         </Modal.Header>

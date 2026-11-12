@@ -378,12 +378,13 @@ module.exports = ({ strapi }) => {
    * starts with the same block.
    * @param {object|null} data - Resolved value.
    * @param {string|null} locale - Locale.
+   * @param {string} format - Output format (the prefix is used for HTML ids only; Markdown keeps `[^n]`).
    * @returns {{ math: Function, footnotes?: { prefix: string } }} Options.
    */
-  const renderExtras = (data, locale) => {
+  const renderExtras = (data, locale, format) => {
     const extra = { math: renderMath };
     const blocks = data && Array.isArray(data.blocks) ? data.blocks : [];
-    if (blocks.length && JSON.stringify(blocks).includes('data-mex-footnote')) {
+    if (format === 'html' && blocks.length && JSON.stringify(blocks).includes('data-mex-footnote')) {
       const hash = createHash('sha256')
         .update(`${locale || '-'}|${blocks[0].id}`)
         .digest('hex')
@@ -415,7 +416,7 @@ module.exports = ({ strapi }) => {
         applied.blocks = applied.blocks.map((block) =>
           origins.has(block.id) ? { ...block, syncedFrom: origins.get(block.id) } : block
         );
-      return renderResolved(applied, outputFormat, renderExtras(applied, locale));
+      return renderResolved(applied, outputFormat, renderExtras(applied, locale, outputFormat));
     });
   };
 

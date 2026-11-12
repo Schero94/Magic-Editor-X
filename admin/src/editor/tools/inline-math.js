@@ -13,6 +13,8 @@ import { MAX_INLINE_TEX } from '../../../../shared/sanitize-policy.mjs';
  *   into plain text.
  * - Ctrl/Cmd+Shift+E (`createInlineMathKeys`): the same with a selection,
  *   or inserts an empty formula at the caret.
+ * - Escape, or ArrowRight at the end of a formula, leaves it (typing goes on
+ *   after the formula).
  */
 
 /** Selector of inline math in the editor. */
@@ -78,6 +80,22 @@ export const insertInlineMath = (range) => {
   } else placeCaret(span.firstChild);
   notifyInput(span);
   return span;
+};
+
+/**
+ * Puts the caret right after a formula. A space follows the formula when no
+ * text does (a caret cannot be placed after an element at the end of a
+ * paragraph otherwise).
+ * @param {HTMLElement} span - Formula element.
+ */
+export const leaveInlineMath = (span) => {
+  let next = span.nextSibling;
+  if (!(next && next.nodeType === Node.TEXT_NODE && next.data.length)) {
+    next = document.createTextNode('\u00a0');
+    span.after(next);
+    notifyInput(span);
+  }
+  placeCaret(next, /^[\s\u00a0]/.test(next.data) ? 1 : 0);
 };
 
 /**
@@ -227,10 +245,30 @@ export const createInlineMathKeys = ({ holder, t, enabled }) => {
 
   const onKeyDown = (event) => {
     if (event.defaultPrevented || event.isComposing) return;
-    if (event.key === 'Escape' && current) {
-      dismissed = current;
-      hide();
-      return;
+    // Escape, or ArrowRight at the end of a formula, leaves it: typing continues after it.
+    if ((event.key === 'Escape' || event.key === 'ArrowRight') && !event.shiftKey) {
+      const selection = window.getSelection();
+      const span =
+        selection && selection.rangeCount && selection.isCollapsed ? mathOf(selection.anchorNode) : null;
+      if (span && holder.contains(span)) {
+        const end = document.createRange();
+        end.selectNodeContents(span);
+        end.collapse(false);
+        const atEnd = selection.getRangeAt(0).compareBoundaryPoints(Range.START_TO_START, end) === 0;
+        if (event.key === 'Escape' || atEnd) {
+          event.preventDefault();
+          event.stopPropagation();
+          dismissed = span;
+          hide();
+          leaveInlineMath(span);
+          return;
+        }
+      }
+      if (event.key === 'Escape' && current) {
+        dismissed = current;
+        hide();
+        return;
+      }
     }
     const mod = event.ctrlKey || event.metaKey;
     if (!mod || !event.shiftKey || event.altKey || (event.key || '').toLowerCase() !== 'e') return;

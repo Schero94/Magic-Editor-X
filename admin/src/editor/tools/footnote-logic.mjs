@@ -36,9 +36,15 @@ export const cleanNoteHtml = (html, tags) => {
       if (node.type !== 'element' || depth > 40) return [node];
       const children = walk(node.children, depth + 1);
       if (allowed && !allowed.has(node.tag)) return children;
+      // Empty formatting (a bold run that never got text) is dropped.
+      if (node.tag !== 'br' && !children.length) return [];
       return [{ ...node, children }];
     });
-  const nodes = walk(parseInline(String(html || '').slice(0, MAX_FOOTNOTE_NOTE), { inNote: true }));
+  // Zero-width spaces are caret helpers of the note editor, not text.
+  const source = String(html || '')
+    .replace(/\u200b/g, '')
+    .slice(0, MAX_FOOTNOTE_NOTE);
+  const nodes = walk(parseInline(source, { inNote: true }));
   if (!nodesToText(nodes).replace(/[\s\u00a0\u200b]/g, '')) return '';
   return nodesToHtml(nodes, { storage: true });
 };

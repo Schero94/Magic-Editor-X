@@ -1,4 +1,4 @@
-import { ICONS, el } from './dom';
+import { ICONS, el, field, select } from './dom';
 import { loadMath, renderMathInto } from '../math-view';
 import { MAX_MATH_TEX } from '../../../../shared/sanitize-policy.mjs';
 
@@ -104,24 +104,24 @@ export class MathTool {
     });
     // Pasted text stays text in the input (no block conversion, no HTML).
     this.nodes.input.addEventListener('paste', (event) => event.stopPropagation());
-    const displayId = `${this.id}-display`;
-    this.nodes.display = el('input', { attrs: { type: 'checkbox', id: displayId } });
-    this.nodes.display.checked = this.data.display;
+    this.nodes.display = select(
+      [
+        { value: 'display', label: this.t('tools.math.styleDisplay', 'Display (own line, centred)') },
+        { value: 'text', label: this.t('tools.math.styleText', 'Text size') },
+      ],
+      this.data.display ? 'display' : 'text'
+    );
     this.nodes.display.addEventListener('change', () => {
-      this.data.display = this.nodes.display.checked;
+      this.data.display = this.nodes.display.value !== 'text';
       this.nodes.preview.classList.toggle('mex-math-tool__preview--display', this.data.display);
       this.refresh();
       this.changed();
     });
+    // Arrow keys and Enter belong to the select, not to Editor.js block navigation.
     this.nodes.display.addEventListener('keydown', (event) => {
-      if (['Enter', 'Tab', 'Backspace'].includes(event.key)) event.stopPropagation();
-      if (event.key === 'Enter') event.preventDefault();
+      if (['Enter', 'ArrowUp', 'ArrowDown', 'Backspace', 'Tab'].includes(event.key)) event.stopPropagation();
     });
-    const toggle = el('label', {
-      className: 'mex-inline-check',
-      attrs: { for: displayId },
-      children: [this.nodes.display, el('span', { text: this.t('tools.math.display', 'Display style') })],
-    });
+    const toggle = field(this.t('tools.math.style', 'Style'), this.nodes.display);
     wrapper.append(
       el('div', { className: 'mex-tool__field', children: [label, this.nodes.input] }),
       toggle,

@@ -1,6 +1,7 @@
 import { ICONS, el } from './dom';
 import { SUP_SANITIZE } from './sanitize-config';
 import { newFootnoteId } from './footnote-logic.mjs';
+import { mathOf } from './inline-math';
 
 /**
  * Footnotes (2.4): a marker `<sup data-mex-footnote="id" data-mex-note="note HTML">n</sup>`
@@ -39,8 +40,11 @@ export const notifyFootnoteInput = (node) => {
 };
 
 /**
- * Makes markers atomic in the editor DOM. `data-mutation-free` keeps
- * Editor.js from treating the attribute change as an edit.
+ * Makes rendered markers atomic in the editor DOM. `data-mutation-free`
+ * keeps Editor.js from treating this attribute change as an edit. Markers
+ * the tool inserts are created with `contenteditable="false"` and without
+ * `data-mutation-free`, so Editor.js sees the insertion; `releaseFootnote`
+ * removes the flag before a marker changes.
  * @param {ParentNode} root - Holder or a node inside it.
  */
 export const lockFootnotes = (root) => {
@@ -56,6 +60,17 @@ export const lockFootnotes = (root) => {
 };
 
 /**
+ * Lets Editor.js see the next change of a marker (its note, its removal):
+ * Editor.js ignores mutations of `data-mutation-free` elements.
+ * @param {HTMLElement} marker - Marker.
+ * @returns {HTMLElement} The marker.
+ */
+export const releaseFootnote = (marker) => {
+  if (marker && marker.hasAttribute('data-mutation-free')) marker.removeAttribute('data-mutation-free');
+  return marker;
+};
+
+/**
  * Inserts a new marker after a range (a selection is kept as text) and
  * returns it. A space follows it so typing continues after the marker.
  * @param {Range} range - Range inside editable text.
@@ -64,12 +79,17 @@ export const lockFootnotes = (root) => {
 export const insertFootnote = (range) => {
   const end = range.cloneRange();
   end.collapse(false);
+  // Never inside inline math (its content is TeX text): after the formula instead.
+  const formula = mathOf(end.startContainer);
+  if (formula) end.setStartAfter(formula);
+  end.collapse(true);
   const marker = document.createElement('sup');
   marker.setAttribute('data-mex-footnote', newFootnoteId());
   // Placeholder text: numbers are shown by CSS and computed by the renderers.
   marker.textContent = '*';
+  // Atomic from the start, without `data-mutation-free`, so Editor.js records the insertion.
+  marker.setAttribute('contenteditable', 'false');
   end.insertNode(marker);
-  lockFootnotes(marker);
   const next = marker.nextSibling;
   if (!(next && next.nodeType === Node.TEXT_NODE && next.data.length))
     marker.after(document.createTextNode('\u00a0'));
@@ -205,7 +225,7 @@ export const createFootnoteKeys = ({ holder, onEdit, enabled, readOnly }) => {
     const caret = document.createRange();
     caret.setStartBefore(marker);
     caret.collapse(true);
-    marker.remove();
+    releaseFootnote(marker).remove();
     selection.removeAllRanges();
     selection.addRange(caret);
     notifyFootnoteInput(parent.firstChild || parent);

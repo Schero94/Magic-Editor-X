@@ -58,7 +58,12 @@ import { createPasteHandler } from '../../editor/paste';
 import { createMarkdownShortcuts } from '../../editor/markdown-shortcuts';
 import { createMentionKeys } from '../../editor/tools/mention';
 import { createInlineMathKeys } from '../../editor/tools/inline-math';
-import { FOOTNOTE_SELECTOR, createFootnoteKeys, notifyFootnoteInput } from '../../editor/tools/footnote';
+import {
+  FOOTNOTE_SELECTOR,
+  createFootnoteKeys,
+  notifyFootnoteInput,
+  releaseFootnote,
+} from '../../editor/tools/footnote';
 import { FootnoteDialog } from './FootnoteDialog';
 import { FootnotesPanel } from './FootnotesPanel';
 import { restoreBlockInEditor } from '../../editor/restore-block.mjs';
@@ -385,6 +390,8 @@ const EditorFieldBody = ({
       index,
       isNew: Boolean(info.isNew),
       html: marker.getAttribute('data-mex-note') || '',
+      // Focus goes back here when the dialog closes (the list button or the editor).
+      returnTo: document.activeElement instanceof HTMLElement ? document.activeElement : null,
     });
   }, []);
   useEffect(() => {
@@ -1192,6 +1199,7 @@ const EditorFieldBody = ({
         return;
       }
       userTouchedRef.current = true;
+      releaseFootnote(marker);
       if (html) marker.setAttribute('data-mex-note', html);
       else marker.removeAttribute('data-mex-note');
       notifyFootnoteInput(marker);
@@ -1211,13 +1219,12 @@ const EditorFieldBody = ({
     if (edit.isNew && !marker.getAttribute('data-mex-note')) {
       const parent = marker.parentNode;
       const next = marker.nextSibling;
-      marker.remove();
+      releaseFootnote(marker).remove();
       if (next && next.nodeType === Node.TEXT_NODE && next.data === '\u00a0') next.remove();
       notifyFootnoteInput(parent);
-      return;
     }
-    requestAnimationFrame(() => caretAfter(marker));
-  }, [footnoteEdit, footnoteMarker, caretAfter]);
+    // Otherwise the dialog returns focus to where it was opened from (editor or list button).
+  }, [footnoteEdit, footnoteMarker]);
 
   /** Removes the n-th footnote (list action, confirmed). */
   const removeFootnote = useCallback(
@@ -1226,7 +1233,7 @@ const EditorFieldBody = ({
       if (!marker) return;
       const parent = marker.parentNode;
       userTouchedRef.current = true;
-      marker.remove();
+      releaseFootnote(marker).remove();
       notifyFootnoteInput(parent);
       scheduleSave(40);
     },
@@ -2033,6 +2040,7 @@ const EditorFieldBody = ({
           allowedTags={allowedInlineTags(preset)}
           onSave={saveFootnote}
           onClose={closeFootnote}
+          returnFocusTo={footnoteEdit.returnTo}
         />
       ) : null}
       {saveTemplate ? (
