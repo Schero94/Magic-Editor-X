@@ -80,6 +80,7 @@ const toText = (html) => segmentPlainText(sanitizeInline(html));
  * @param {(text: string) => void} props.onInsertParagraph - Appends a paragraph.
  * @param {() => void} props.onClose - Closes.
  * @param {boolean} [props.readOnly] - Read-only field (summary only, no replace or insert).
+ * @param {() => void} [props.returnFocus] - Focuses the opener (the menu item that opened the dialog is gone).
  * @returns {JSX.Element} Modal.
  */
 export const FieldAiDialog = ({
@@ -91,6 +92,7 @@ export const FieldAiDialog = ({
   onInsertParagraph,
   onClose,
   readOnly,
+  returnFocus,
 }) => {
   const { post } = useFetchClient();
   const languages = (config && config.languages) || ['English'];
@@ -198,7 +200,13 @@ export const FieldAiDialog = ({
   const result = state.result;
   return (
     <Modal.Root open onOpenChange={(open) => !open && onClose()}>
-      <Modal.Content>
+      <Modal.Content
+        onCloseAutoFocus={(event) => {
+          if (!returnFocus) return;
+          event.preventDefault();
+          returnFocus();
+        }}
+      >
         <Modal.Header closeLabel={t('editor.ai.close', 'Close')}>
           <Modal.Title>{t('editor.aiField.title', 'AI for the whole field')}</Modal.Title>
         </Modal.Header>

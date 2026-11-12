@@ -139,6 +139,7 @@ export const EditorToolbar = ({
   onToggleGrammar,
   grammarButtonRef,
   onOpenFieldAi,
+  moreButtonRef,
 }) => {
   const status = STATUS[collaboration.status];
   const peers = collaboration.peers || [];
@@ -274,6 +275,7 @@ export const EditorToolbar = ({
           </IconButton>
         ) : null}
         <SimpleMenu
+          ref={moreButtonRef}
           tag={IconButton}
           icon={<More />}
           label={t('editor.toolbar.more', 'More editor actions')}

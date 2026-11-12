@@ -347,6 +347,22 @@ export const editorStyles = css`
       margin-bottom: ${s(2)};
     }
 
+    /* The official tool places the caption absolutely inside a fixed 50 px bottom padding;
+       taller content below the image (alternative text, AI suggestion) then ran under it.
+       The caption follows in normal flow instead. */
+    .image-tool--caption {
+      padding-bottom: 0;
+    }
+
+    .image-tool .image-tool__caption {
+      position: static;
+      margin-bottom: 0;
+    }
+
+    .image-tool:not(.image-tool--caption) .image-tool__caption {
+      display: none;
+    }
+
     /* 2.3: AI alternative text suggestion (editor/ai-alt-text.js) */
     .mex-alt-ai {
       display: flex;

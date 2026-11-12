@@ -276,6 +276,7 @@ const EditorField = ({
   const [grammarOpen, setGrammarOpen] = useState(false);
   const [fieldAiOpen, setFieldAiOpen] = useState(false);
   const grammarButtonRef = useRef(null);
+  const moreButtonRef = useRef(null);
   const targetRef = useRef(target);
   useEffect(() => {
     targetRef.current = target;
@@ -1225,6 +1226,7 @@ const EditorField = ({
             }
             grammarButtonRef={grammarButtonRef}
             onOpenFieldAi={fieldAiAllowed ? () => setFieldAiOpen(true) : undefined}
+            moreButtonRef={moreButtonRef}
           />
           {grammarOpen && grammarAllowed && ready ? (
             <PanelSlot padding={2} $fullscreen={fullscreen}>
@@ -1412,6 +1414,7 @@ const EditorField = ({
           onInsertParagraph={insertParagraph}
           onClose={() => setFieldAiOpen(false)}
           readOnly={readOnly}
+          returnFocus={() => moreButtonRef.current && moreButtonRef.current.focus()}
         />
       ) : null}
       {shortcutsOpen ? (
