@@ -47,6 +47,9 @@ module.exports = async ({ strapi }) => {
     logger.error('the admin Content Security Policy could not be inspected', error);
   }
 
+  // Opt-in output transform (`?mex=`); registered first so it runs after the 1.x string parser below.
+  strapi.server.use(plugin.middleware('render-output')({}, { strapi }));
+
   if (strapi.config.get('plugin::magic-editor-x.api.autoParseJSON') !== false) {
     strapi.server.use(plugin.middleware('parse-editor-fields')({}, { strapi }));
   }
