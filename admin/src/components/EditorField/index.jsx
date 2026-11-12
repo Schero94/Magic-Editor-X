@@ -362,7 +362,7 @@ const EditorFieldBody = ({
   const altTextAllowed = Boolean(aiAllowed && config.ai.altText && permissions.mediaLibrary);
   const fieldAiAllowed = Boolean(aiAllowed && config.ai.fieldActions && target.uid);
   const grammarAllowed = Boolean(
-    config && config.grammar && config.grammar.enabled && permissions.grammar && target.uid
+    config && config.grammar && config.grammar.enabled && permissions.grammar && preset.grammar && target.uid
   );
   const collaborationTarget =
     config &&

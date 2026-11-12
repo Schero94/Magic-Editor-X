@@ -809,6 +809,54 @@ test('settings form: switches and LanguageTool draft, payload and validation', (
   );
 });
 
+test('grammar route: disableGrammar 403 and unknown field 404 before anything is sent', async () => {
+  const grammarController = require('../server/src/controllers/grammar.js');
+  const field = (options) => ({ type: 'json', customField: 'plugin::magic-editor-x.richtext', options });
+  let sent = 0;
+  const strapi = {
+    components: {},
+    contentType: (uid) =>
+      uid === 'api::article.article'
+        ? {
+            attributes: {
+              body: field({ preset: 'full', disableAi: true }),
+              summary: field({ preset: 'basic', disableAi: true, disableGrammar: true }),
+              title: { type: 'string' },
+            },
+          }
+        : undefined,
+    plugin: () => ({
+      service: () => ({
+        check: async () => {
+          sent += 1;
+          return { language: 'en-US', matches: [], truncated: false };
+        },
+      }),
+    }),
+  };
+  const controller = grammarController({ strapi });
+  const call = async (target) => {
+    const ctx = {
+      request: { body: { target, segments: [{ blockId: 'b1', path: 'text', html: 'Teh text' }] } },
+      state: { user: { id: 1 } },
+    };
+    await controller.check(ctx);
+    return ctx;
+  };
+  await assert.rejects(call({ uid: 'api::article.article', field: 'summary' }), (error) => {
+    assert.equal(error.name, 'ForbiddenError');
+    assert.equal(error.message, 'The grammar check is turned off for this field');
+    return true;
+  });
+  await assert.rejects(call({ uid: 'api::article.article', field: 'title' }), { name: 'NotFoundError' });
+  await assert.rejects(call({ uid: 'api::nope.nope', field: 'body' }), { name: 'NotFoundError' });
+  assert.equal(sent, 0);
+  // disableAi alone does not turn the grammar check off.
+  const ok = await call({ uid: 'api::article.article', field: 'body' });
+  assert.equal(ok.body.data.language, 'en-US');
+  assert.equal(sent, 1);
+});
+
 test('2.3 routes are admin routes with their actions; grammar.use is registered', () => {
   const byPath = new Map(routes.admin.routes.map((route) => [`${route.method} ${route.path}`, route]));
   const expect = {

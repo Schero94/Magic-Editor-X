@@ -33,6 +33,7 @@ test('options resolve to presets; invalid values fall back to the defaults', () 
   assert.equal(full.restricted, false);
   assert.deepEqual(full.headingLevels, [1, 2, 3, 4, 5, 6]);
   assert.equal(full.ai, true);
+  assert.equal(full.grammar, true);
   assert.equal(full.collaboration, true);
 
   const typo = resolveFieldPreset({ preset: 'nope', linkTargets: 'evil', maxBlocks: -3, headingLevels: 'x' });
@@ -52,7 +53,17 @@ test('options resolve to presets; invalid values fall back to the defaults', () 
   assert.equal(basic.maxCharacters, 500);
   assert.equal(basic.requireAlt, true);
   assert.equal(basic.ai, false);
+  // The grammar check is independent of disableAi.
+  assert.equal(basic.grammar, true);
   assert.equal(basic.restricted, true);
+
+  // disableGrammar turns only the grammar check off; it is not a content rule.
+  const noGrammar = resolveFieldPreset({ disableGrammar: true });
+  assert.equal(noGrammar.grammar, false);
+  assert.equal(noGrammar.ai, true);
+  assert.equal(noGrammar.restricted, false);
+  // Only boolean true counts (a typo or string never turns it off).
+  assert.equal(resolveFieldPreset({ disableGrammar: 'true' }).grammar, true);
 
   const custom = resolveFieldPreset({ allowedBlocks: 'header, image ,myHero', headingLevels: '2-3,5' });
   assert.deepEqual(custom.blocks, ['paragraph', 'header', 'image', 'myHero']);

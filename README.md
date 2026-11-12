@@ -343,7 +343,7 @@ Two more AI features use the same provider, key and rate limit. Each has its own
 
 ## Grammar check (LanguageTool)
 
-Editors with `grammar.use` can check the spelling and grammar of a whole field with "Check grammar" in the editor toolbar. Issues are highlighted in the text; a suggested replacement is applied only when the flagged text is still there and lies in one piece of text (not across formatting or a line break). The check is not AI: `disableAi` does not affect it.
+Editors with `grammar.use` can check the spelling and grammar of a whole field with "Check grammar" in the editor toolbar. Issues are highlighted in the text; a suggested replacement is applied only when the flagged text is still there and lies in one piece of text (not across formatting or a line break). The check is not AI: `disableAi` does not affect it. To keep a field's text away from LanguageTool, turn on `disableGrammar` in its field settings: the field shows no "Check grammar" button and `POST /magic-editor-x/grammar/check` answers 403 for it, so nothing from it is sent.
 
 It is off until an owner configures it in Settings > Magic Editor X > Configuration > **Grammar check (LanguageTool)**:
 
@@ -372,6 +372,7 @@ Each Magic Editor X field can have its own rules, set in the Content-Type Builde
 | `maxBlocks`            | Advanced                    | number, empty or 0 = no limit                                                     | Block limit, shown in the toolbar (`12 / 20 blocks`).                                                                                                                 |
 | `maxCharacters`        | Advanced                    | number, empty or 0 = no limit                                                     | Visible characters, counted like the toolbar (`380 / 400 characters`).                                                                                                |
 | `disableAi`            | Advanced                    | checkbox                                                                          | No AI button in this field; the AI route answers 403 for requests from it.                                                                                            |
+| `disableGrammar`       | Advanced                    | checkbox                                                                          | No "Check grammar" button in this field; the grammar route answers 403, so its text is never sent to LanguageTool.                                                    |
 | `disableCollaboration` | Advanced                    | checkbox                                                                          | No live editing in this field (the session route answers 403).                                                                                                        |
 | `publishGuard`         | Advanced                    | checkbox                                                                          | Publishing is refused while the [quality checks](#quality-checks) report errors in this field.                                                                        |
 

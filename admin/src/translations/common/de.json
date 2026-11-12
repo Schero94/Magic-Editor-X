@@ -24,6 +24,8 @@
   "field.options.maxCharacters.description": "Sichtbarer Text, gezählt wie in der Editor-Werkzeugleiste. Leer oder 0 bedeutet keine Grenze.",
   "field.options.features": "Funktionen",
   "field.options.disableAi.label": "KI-Assistent für dieses Feld ausschalten",
+  "field.options.disableGrammar.label": "Grammatikprüfung für dieses Feld ausschalten",
+  "field.options.disableGrammar.description": "Aus diesem Feld wird kein Text an LanguageTool gesendet",
   "field.options.disableCollaboration.label": "Live-Zusammenarbeit für dieses Feld ausschalten",
   "field.options.publishGuard.label": "Veröffentlichen blockieren, solange die Qualitätsprüfung Fehler meldet",
   "field.options.publishGuard.description": "Fehler sind fehlende Alternativtexte (wenn verlangt) und leere Links",

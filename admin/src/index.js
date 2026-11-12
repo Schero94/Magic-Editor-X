@@ -231,6 +231,18 @@ export default {
               },
               {
                 intlLabel: {
+                  id: getTranslation('field.options.disableGrammar.label'),
+                  defaultMessage: 'Turn off the grammar check for this field',
+                },
+                description: {
+                  id: getTranslation('field.options.disableGrammar.description'),
+                  defaultMessage: 'No text from this field is sent to LanguageTool',
+                },
+                name: 'options.disableGrammar',
+                type: 'checkbox',
+              },
+              {
+                intlLabel: {
                   id: getTranslation('field.options.disableCollaboration.label'),
                   defaultMessage: 'Turn off live collaboration for this field',
                 },

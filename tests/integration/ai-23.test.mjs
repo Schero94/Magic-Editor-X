@@ -1,6 +1,6 @@
 /**
  * 2.3 AI extras and grammar check against a running host: owner switches
- * (nothing is sent while off), per-field `disableAi`, RBAC, alt text with a
+ * (nothing is sent while off), per-field `disableAi` and `disableGrammar`, RBAC, alt text with a
  * fake vision provider in the Anthropic and OpenAI shapes, whole-field
  * translation (structure kept, hostile output sanitised), summary, the
  * LanguageTool fake server and the private base URL policy.
@@ -18,6 +18,8 @@ import { collectSegments } from '../../shared/ai-fields.mjs';
 const LT_PRIVATE = process.env.MEX_LT_PRIVATE !== 'false';
 const BODY = { uid: 'api::article.article', field: 'body' };
 const AI_OFF_FIELD = { uid: 'api::article.article', field: 'summary' };
+/** The host's `summary` field also has `disableGrammar: true` (CONTRIBUTING.md). */
+const GRAMMAR_OFF_FIELD = AI_OFF_FIELD;
 const AI_BASE = {
   enabled: true,
   provider: 'anthropic',
@@ -339,6 +341,18 @@ test('2.3 grammar check: LanguageTool fake server, switch, RBAC, encrypted key, 
       assert.equal((await check(await tokenFor(who), { target: BODY, segments })).status, 403, who);
     }
     assert.equal((await check(editor, { target: { ...BODY, field: 'nope' }, segments })).status, 404);
+    // disableGrammar: 403 with exactly the AI routes' disableAi body (Strapi's authorize
+    // middleware answers every ForbiddenError of a controller with ctx.forbidden()),
+    // and nothing reaches LanguageTool.
+    const off = await check(editor, { target: GRAMMAR_OFF_FIELD, segments, locale: 'de' });
+    assert.equal(off.status, 403, JSON.stringify(off.body));
+    const aiOff = await call('POST', '/magic-editor-x/ai/improve', {
+      token: editor,
+      body: { text: 'x', target: AI_OFF_FIELD },
+    });
+    assert.equal(aiOff.status, 403);
+    assert.deepEqual(off.body, aiOff.body);
+    assert.equal(off.body.error.name, 'ForbiddenError');
     assert.equal(languageTool.requests.length, 1);
 
     r = await check(editor, { target: BODY, segments, locale: 'de' });
