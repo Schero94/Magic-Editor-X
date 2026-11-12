@@ -1,4 +1,5 @@
 import { stableStringify } from '../../../shared/ydoc.mjs';
+import { meaningfulTunes } from '../../../shared/default-tunes.mjs';
 
 /**
  * Applies a target document (from collaboration, history restore or a form
@@ -12,30 +13,6 @@ import { stableStringify } from '../../../shared/ydoc.mjs';
 
 /** Fingerprints by block object (blocks are treated as immutable). */
 const keys = new WeakMap();
-
-/** Tune values Editor.js writes for every block that has the tune; they equal "no tune". */
-const DEFAULT_TUNES = {
-  alignmentTune: stableStringify({ alignment: 'left' }),
-  textVariant: stableStringify(''),
-  indentTune: stableStringify({ indentLevel: 0 }),
-};
-
-/**
- * Tunes without default values, so stored content (no tunes) and the editor's
- * own output (default tunes on every block) have the same fingerprint.
- * @param {object|undefined} tunes - Block tunes.
- * @returns {object} Tunes that differ from the defaults.
- */
-const meaningfulTunes = (tunes) => {
-  const out = {};
-  if (!tunes || typeof tunes !== 'object') return out;
-  for (const [name, value] of Object.entries(tunes)) {
-    if (value === undefined || value === null) continue;
-    if (DEFAULT_TUNES[name] !== undefined && DEFAULT_TUNES[name] === stableStringify(value)) continue;
-    out[name] = value;
-  }
-  return out;
-};
 
 /**
  * Fingerprint of a block for change detection.

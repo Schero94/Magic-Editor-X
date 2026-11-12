@@ -6,6 +6,7 @@ const { cleanEditorValue } = require('../utils/sanitizer');
 const { sha256 } = require('../utils/crypto');
 const { recordAudit } = require('../utils/audit-record');
 const { stableStringify } = require('../../../shared/ydoc.mjs');
+const { comparableBlocks } = require('../../../shared/default-tunes.mjs');
 const { computeStats } = require('../../../shared/editor-data.mjs');
 const {
   parseFieldIdentity,
@@ -44,11 +45,13 @@ const PROCESS_ID = randomUUID();
 const fieldKey = ({ uid, documentId, locale, field }) => `${uid}|${documentId}|${locale || '-'}|${field}`;
 
 /**
- * Hash of normalised content (key order independent).
+ * Hash of normalised content (key order independent; default tune values
+ * count as "no tune", 2.4, so the editor's own output and stored content
+ * without tunes hash the same).
  * @param {object|null} content - Editor data.
  * @returns {string} Hex hash.
  */
-const contentHash = (content) => sha256(stableStringify(content ? content.blocks : []));
+const contentHash = (content) => sha256(stableStringify(comparableBlocks(content ? content.blocks : [])));
 
 /** Longest version name. */
 const MAX_LABEL_LENGTH = 120;
@@ -203,7 +206,11 @@ module.exports = ({ strapi }) => {
           populate: { createdBy: { select: ['firstname', 'lastname', 'username'] } },
         });
         const label = normalizeLabel(options.label);
-        if (latest && latest.contentHash === hash) {
+        // Versions stored before 2.4 carry a hash with default tunes: compare their content again.
+        const same =
+          latest &&
+          (latest.contentHash === hash || (latest.jsonContent && contentHash(latest.jsonContent) === hash));
+        if (same) {
           if (!label) return { created: false, snapshot: toDto(latest) };
           const named = await query().update({
             where: { id: latest.id },

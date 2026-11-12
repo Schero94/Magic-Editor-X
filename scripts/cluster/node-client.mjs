@@ -41,10 +41,31 @@ export const loadCollabClient = async () => {
  * @param {() => Promise<object>} options.requestSession - Session request.
  * @param {string} options.url - Socket base URL.
  * @param {(socket: object) => void} [options.onSocket] - Receives the socket (for network faults).
+ * @param {number} [options.renderDelayMs=0] - Extra time the editor needs to render remote data (a slow
+ *   browser under load); the editor keeps showing (and editing) the old content meanwhile.
  * @returns {object} Simulated editor.
  */
-export const simulatedEditor = ({ name, createCollabClient, requestSession, url, onSocket = () => {} }) => {
-  const sim = { name, editor: { blocks: [] }, state: { status: 'connecting' }, renders: 0 };
+export const simulatedEditor = ({
+  name,
+  createCollabClient,
+  requestSession,
+  url,
+  onSocket = () => {},
+  renderDelayMs = 0,
+}) => {
+  const sim = {
+    name,
+    editor: { blocks: [] },
+    state: { status: 'connecting' },
+    renders: 0,
+    editsBeforeFirstRender: 0,
+  };
+  const render = () => {
+    const { data, catchUp } = client.snapshot();
+    sim.editor = JSON.parse(JSON.stringify(data));
+    client.markShown(catchUp, JSON.parse(JSON.stringify(data)));
+    sim.renders += 1;
+  };
   let client = null;
   client = createCollabClient({
     url,
@@ -60,16 +81,24 @@ export const simulatedEditor = ({ name, createCollabClient, requestSession, url,
       if (state.status === 'live') sim.everLive = true;
     },
     onRemoteData: () => {
-      const { data, catchUp } = client.snapshot();
-      sim.editor = JSON.parse(JSON.stringify(data));
-      client.markShown(catchUp, JSON.parse(JSON.stringify(data)));
-      sim.renders += 1;
+      if (renderDelayMs > 0)
+        setTimeout(() => {
+          try {
+            render();
+          } catch {
+            // the client was destroyed while the render was pending
+          }
+        }, renderDelayMs);
+      else render();
     },
+    // What the editor shows before it rendered the room (the base of early edits).
+    getInitialView: () => JSON.parse(JSON.stringify(sim.editor)),
   });
   sim.client = client;
   /** Applies an edit to what the user sees and pushes it. */
   sim.edit = (fn) => {
     if (!sim.everLive || sim.state.status === 'denied' || !sim.state.canEdit) return false;
+    if (sim.renders === 0) sim.editsBeforeFirstRender += 1;
     const next = JSON.parse(JSON.stringify(sim.editor));
     fn(next);
     sim.editor = next;

@@ -24,6 +24,14 @@ import { docToEditorData } from '../../../shared/ydoc.mjs';
  * visibility events trigger an immediate reconnect and resync. A new room
  * generation (epoch) or a refused update makes the client start over from
  * the server state instead of merging, so content is never duplicated.
+ *
+ * What the editor shows is the base of every local diff. Until the editor has
+ * rendered the room, that is NOT the room state: it is the content the editor
+ * was created with (`getInitialView`), or what it showed before the client
+ * started over. Edits made before a sync are kept and applied on top of the
+ * room state when it arrives (three-way, by block and field), so typing
+ * before the first `mx:sync` or between a sync and the first render never
+ * drops the edit and never reverts content the editor has not shown yet.
  */
 
 export const PROTOCOL = 3;
@@ -57,6 +65,7 @@ export const backoffDelay = (attempt, random = Math.random) => {
  * @param {(seeded: boolean) => Promise<void>|void} [options.onFirstSync] - Called once after the first sync.
  * @param {(state: object) => void} options.onState - Called with `{ status, canEdit, peers, error, presenceId, color, pending }`.
  * @param {(state: { canUndo: boolean, canRedo: boolean }) => void} [options.onUndoState] - Undo availability.
+ * @param {() => object|null} [options.getInitialView] - What the editor shows before it rendered the room (read once, on the first edit or sync); defaults to an empty editor.
  * @param {Function} [options.socketFactory] - Replaces socket.io-client (tests).
  * @param {Window|null} [options.win] - Window for online/visibility events (tests).
  * @returns {object} Client API.
@@ -68,6 +77,7 @@ export const createCollabClient = ({
   onFirstSync,
   onState,
   onUndoState = () => {},
+  getInitialView = () => null,
   socketFactory = io,
   win = typeof window !== 'undefined' ? window : null,
 }) => {
@@ -100,14 +110,19 @@ export const createCollabClient = ({
   // generation, so only the unsent edits are re-applied, never remote ones.
   let serverState = null;
   let serverLog = [];
+  // What the editor shows while the replica is not synced (the base of edits
+  // made before the sync), and the latest editor content pushed in that time.
   let restoreView = null;
+  let unsynced = null;
   let rescue = null;
   let lastActivity = Date.now();
   let lastCursor = null;
   let idle = false;
 
   const setState = (patch) => {
-    state = { ...state, ...patch, pending: Boolean(pending) || inFlight };
+    // Without access the field saves through the form only: nothing is waiting for the room.
+    if (patch.status === 'denied' || patch.status === 'error') unsynced = null;
+    state = { ...state, ...patch, pending: Boolean(pending) || inFlight || Boolean(unsynced) };
     onState({ ...state });
   };
 
@@ -124,6 +139,15 @@ export const createCollabClient = ({
   };
 
   let startOver = () => {};
+
+  /** What the editor shows while not synced (read from the field once). */
+  const viewBeforeSync = () => {
+    if (!restoreView) {
+      const initial = getInitialView();
+      restoreView = initial && Array.isArray(initial.blocks) ? initial : { blocks: [] };
+    }
+    return restoreView;
+  };
 
   const flush = () => {
     if (!socket || !socket.connected || !pending || inFlight || !state.canEdit || !synced) return;
@@ -210,7 +234,7 @@ export const createCollabClient = ({
     const base = unsent ? serverContent() : null;
     // What the editor shows: the next local diff starts from it, so content the
     // editor has not rendered yet (the new state) is never taken for a deletion.
-    const view = synced && replica ? replica.view() : null;
+    const view = synced && replica ? replica.view() : viewBeforeSync();
     createDocs();
     epoch = null;
     rescue = unsent ? { base, local: unsent } : null;
@@ -340,8 +364,18 @@ export const createCollabClient = ({
         rescue = null;
         if (state.canEdit) replica.rebase(base, local);
       }
-      if (first && restoreView) replica.setView(restoreView);
-      if (first) restoreView = null;
+      if (first) {
+        // The editor still shows what it showed before the sync, not the room:
+        // edits made since are applied on top of the room state, and the next
+        // local diff starts from the editor content, so content the editor has
+        // not rendered yet is never taken for a deletion.
+        const view = viewBeforeSync();
+        const local = unsynced;
+        unsynced = null;
+        restoreView = null;
+        if (local && state.canEdit) replica.rebase(view, local);
+        replica.setView(local || view);
+      }
       setState({ status: 'live' });
       // Later syncs render only when they changed something (the replica
       // reports that through onShouldRender).
@@ -410,12 +444,20 @@ export const createCollabClient = ({
      * @param {object} data - Editor content now.
      */
     pushLocal(data) {
-      if (destroyed || !synced || !state.canEdit) return;
+      if (destroyed || !data || !Array.isArray(data.blocks)) return;
       lastActivity = Date.now();
       if (idle) {
         idle = false;
         sendPresence();
       }
+      if (!synced) {
+        // Kept until the room state arrives, then applied on top of it.
+        viewBeforeSync();
+        unsynced = data;
+        setState({});
+        return;
+      }
+      if (!state.canEdit) return;
       replica.pushLocal(data);
     },
     /**
