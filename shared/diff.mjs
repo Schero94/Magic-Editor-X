@@ -86,6 +86,44 @@ const flatten = (value, prefix, out, depth = 0) => {
   return out;
 };
 
+/** Spreadsheet name of a column (0 = A, 26 = AA). */
+const columnName = (col) => {
+  let name = '';
+  for (let n = col + 1; n > 0; n = Math.floor((n - 1) / 26))
+    name = String.fromCharCode(65 + ((n - 1) % 26)) + name;
+  return name;
+};
+
+/** Spreadsheet name of a cell (row and column from 0), `?` for invalid values. */
+const cellName = (row, col) =>
+  Number.isInteger(row) && Number.isInteger(col) && row >= 0 && col >= 0 && col < 1000
+    ? `${columnName(col)}${row + 1}`
+    : '?';
+
+/**
+ * Data of a block as it is compared. Table merges and column alignments
+ * (2.4) are one readable value each (`A1:B2, C3:C4`; `left, -, center`),
+ * not a field per number.
+ * @param {{ type: string, data?: unknown }} block - Block.
+ * @returns {object} Data.
+ */
+const comparableData = (block) => {
+  const data = block.data && typeof block.data === 'object' ? block.data : {};
+  if (block.type !== 'table' || Array.isArray(data)) return data;
+  const out = { ...data };
+  if (Array.isArray(data.merges))
+    out.merges = data.merges
+      .map((merge) =>
+        merge && typeof merge === 'object'
+          ? `${cellName(merge.row, merge.col)}:${cellName(merge.row + merge.rowspan - 1, merge.col + merge.colspan - 1)}`
+          : '?'
+      )
+      .join(', ');
+  if (Array.isArray(data.align))
+    out.align = data.align.map((value) => (typeof value === 'string' ? value : '-')).join(', ');
+  return out;
+};
+
 /**
  * How a leaf is compared.
  * @param {{ type: string, data?: unknown }} block - Block the leaf belongs to.
@@ -109,6 +147,8 @@ const leafKind = (block, path, value) => {
   // Synced block (2.3): the reference is an id; the diff view shows the source name.
   if (type === 'synced' && key === 'ref') return 'value';
   if (MEDIA_TYPES.has(type) && MEDIA_VALUE_KEY.test(key)) return 'value';
+  // Table (2.4): merged cells and column alignments are compared as values.
+  if (type === 'table' && (path === 'merges' || path === 'align')) return 'value';
   if (PLAIN_TYPES.has(type) || PLAIN_KEYS.has(key)) return 'plain';
   return 'inline';
 };
@@ -296,8 +336,8 @@ const diffFields = (before, after) => {
   if (before.type !== after.type) {
     fields.push({ path: 'type', kind: 'value', before: before.type, after: after.type });
   }
-  const left = flatten(before.data || {}, '', new Map());
-  const right = flatten(after.data || {}, '', new Map());
+  const left = flatten(comparableData(before), '', new Map());
+  const right = flatten(comparableData(after), '', new Map());
   const paths = [...new Set([...left.keys(), ...right.keys()])];
   for (const path of paths) {
     const a = left.get(path);
@@ -333,7 +373,7 @@ const diffFields = (before, after) => {
 export const blockText = (block) => {
   if (!block) return '';
   const parts = [];
-  for (const [path, value] of flatten(block.data || {}, '', new Map())) {
+  for (const [path, value] of flatten(comparableData(block), '', new Map())) {
     if (typeof value !== 'string') continue;
     const kind = leafKind(block, path, value);
     if (kind !== 'value') parts.push(textOf(value, kind));

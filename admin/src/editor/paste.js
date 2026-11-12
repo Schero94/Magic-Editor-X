@@ -83,7 +83,11 @@ export function createPasteHandler(options) {
   /** Code, raw HTML, table cells and form inputs keep the default paste. */
   const isProtected = (target, block) => {
     const element = target && target.nodeType === 1 ? target : target && target.parentElement;
-    if (element && element.closest && element.closest('input, textarea, select, .tc-table, .tc-wrap'))
+    if (
+      element &&
+      element.closest &&
+      element.closest('input, textarea, select, .tc-table, .tc-wrap, .mex-table-tool')
+    )
       return true;
     return Boolean(block && PROTECTED_TOOLS.includes(block.name));
   };

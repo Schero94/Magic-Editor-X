@@ -119,7 +119,6 @@
     "@editorjs/paragraph": "^2.11.7",
     "@editorjs/quote": "^2.7.6",
     "@editorjs/raw": "^2.5.1",
-    "@editorjs/table": "^2.4.6",
     "@editorjs/warning": "^1.4.1",
     "dompurify": "^3.4.17",
     "editorjs-indent-tune": "^1.4.4",

@@ -73,6 +73,8 @@ export const ShortcutsDialog = ({ t, tools, hasBlock, onClose }) => {
     ['CMD+ALT+P', t('editor.shortcuts.preview', 'Show or hide the rendered preview')],
     ['Tab', t('editor.shortcuts.toolbox', 'Choose a block type (in an empty block)')],
     ['Escape+Tab', t('editor.shortcuts.leave', 'Leave the editor')],
+    ['Tab', t('editor.shortcuts.tableCell', 'Next table cell (Shift+Tab: previous cell)')],
+    ['ALT+F10', t('editor.shortcuts.tableTools', 'Table tools (in a table cell)')],
     ['CMD+SHIFT+V', t('editor.shortcuts.plainPaste', 'Paste as plain text')],
   ];
   const markdown = [

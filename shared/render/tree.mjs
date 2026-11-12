@@ -36,6 +36,7 @@ import {
   annotateHeadings,
 } from './common.mjs';
 import { buildTocTree } from '../toc.mjs';
+import { tableLayout } from '../table.mjs';
 
 /**
  * @typedef {import('./nodes.mjs').RenderNode} RenderNode
@@ -430,21 +431,30 @@ const RENDERERS = {
       ? el('div', { class: classes(['mex-raw'], b.tunes) }, { type: 'raw', html })
       : null;
   },
+  // Header row: <thead> with <th scope="col">; header column (2.4): <th scope="row">;
+  // merged cells: colspan/rowspan (covered cells are left out); alignment: a class.
   table: (b, o) => {
-    const rows = b.data.content;
+    const rows = tableLayout(b.data);
     if (!rows.length) return null;
-    const cells = (row, tag) =>
+    const cell = (item) =>
       el(
-        'tr',
-        {},
-        row.map((cell) => el(tag, tag === 'th' ? { scope: 'col' } : {}, inlineToNodes(cell, o)))
+        item.header ? 'th' : 'td',
+        {
+          ...(item.header ? { scope: item.header } : {}),
+          ...(item.colspan > 1 ? { colspan: String(item.colspan) } : {}),
+          ...(item.rowspan > 1 ? { rowspan: String(item.rowspan) } : {}),
+          ...(item.align ? { class: `mex-align-${item.align}` } : {}),
+        },
+        inlineToNodes(item.html, o)
       );
-    const head = b.data.withHeadings ? el('thead', {}, cells(rows[0], 'th')) : null;
-    const body = (b.data.withHeadings ? rows.slice(1) : rows).map((row) => cells(row, 'td'));
+    const tr = (row) => el('tr', {}, row.map(cell));
+    const head = b.data.withHeadings ? el('thead', {}, tr(rows[0])) : null;
+    const body = (b.data.withHeadings ? rows.slice(1) : rows).map(tr);
+    const caption = b.data.caption ? el('caption', {}, inlineToNodes(b.data.caption, o)) : null;
     return el(
       'table',
       { class: classes(['mex-table', ...(b.data.stretched ? ['mex-stretched'] : [])], b.tunes) },
-      [head, body.length ? el('tbody', {}, body) : null]
+      [caption, head, body.length ? el('tbody', {}, body) : null]
     );
   },
   image: (b, o) => {

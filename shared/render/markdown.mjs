@@ -178,6 +178,9 @@ const fence = (code, language) => {
   return `${marks}${info}\n${code.replace(/\n$/, '')}\n${marks}`;
 };
 
+/** GFM alignment row markers. */
+const ALIGN_RULES = Object.freeze({ left: ':---', center: ':---:', right: '---:' });
+
 /** GFM table cell. */
 const cell = (html, options) => oneLine(md(html, options)) || ' ';
 
@@ -234,11 +237,16 @@ const RENDERERS = {
     const line = (row) => `| ${Array.from({ length: width }, (_, i) => cell(row[i] || '', o)).join(' | ')} |`;
     const head = b.data.withHeadings ? rows[0] : [];
     const body = b.data.withHeadings ? rows.slice(1) : rows;
-    return [
+    // 2.4: GFM alignment row. Merged cells cannot be expressed: the text stays in
+    // the first cell and the covered cells are empty. The caption is a paragraph before the table.
+    const align = Array.isArray(b.data.align) ? b.data.align : [];
+    const table = [
       line(head),
-      `| ${Array.from({ length: width }, () => '---').join(' | ')} |`,
+      `| ${Array.from({ length: width }, (_, i) => ALIGN_RULES[align[i]] || '---').join(' | ')} |`,
       ...body.map(line),
     ].join('\n');
+    const caption = b.data.caption ? oneLine(md(b.data.caption, o)) : '';
+    return caption ? `${caption}\n\n${table}` : table;
   },
   image: (b, o) => {
     const file = resolveMedia(b.data.file, b, o);

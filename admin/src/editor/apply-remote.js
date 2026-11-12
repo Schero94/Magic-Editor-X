@@ -113,6 +113,32 @@ const plainText = (data) => {
 };
 
 /**
+ * Remote block data with the keys it no longer has set to `undefined`.
+ * `editor.blocks.update` merges the new data into the current data, so a key
+ * removed by another person (a table caption or merge list cleared, an image
+ * no longer decorative) would otherwise stay in this editor.
+ * @param {object} api - Block API of the current block.
+ * @param {object} data - Remote block data.
+ * @returns {Promise<object>} Data to pass to `blocks.update`.
+ */
+const withRemovedKeys = async (api, data) => {
+  if (!api || typeof api.save !== 'function' || !data || typeof data !== 'object') return data;
+  let saved;
+  try {
+    saved = await api.save();
+  } catch {
+    return data;
+  }
+  const current = saved && saved.data && typeof saved.data === 'object' ? saved.data : null;
+  if (!current) return data;
+  const removed = Object.keys(current).filter((name) => !Object.prototype.hasOwnProperty.call(data, name));
+  if (!removed.length) return data;
+  const out = { ...data };
+  for (const name of removed) out[name] = undefined;
+  return out;
+};
+
+/**
  * Applies `target` to the editor.
  * @param {object} editor - Editor.js instance (ready).
  * @param {{ blocks: Array<{ id: string, type: string, data: object, tunes?: object }> }} target - Desired document.
@@ -155,22 +181,30 @@ export const applyToEditor = async (editor, target, known) => {
       if (known.get(block.id) === key) continue;
       const api = editor.blocks.getBlockByIndex(index);
       const holder = api && api.holder;
-      const editable = holder && holder.querySelector('[contenteditable="true"]');
-      const offset = editable ? caretOffset(editable) : null;
+      // The caret may be in any input of the block (table cells, captions): remember which one.
+      const editables = holder ? Array.from(holder.querySelectorAll('[contenteditable="true"]')) : [];
+      let slot = -1;
+      let offset = null;
+      for (let i = 0; i < editables.length && slot < 0; i += 1) {
+        offset = caretOffset(editables[i]);
+        if (offset !== null) slot = i;
+      }
       let mapped = offset;
-      if (offset !== null) {
-        const before = editable.textContent || '';
+      if (offset !== null && slot === 0) {
+        const before = editables[0].textContent || '';
         const after = plainText(block.data);
         let prefix = 0;
         while (prefix < before.length && prefix < after.length && before[prefix] === after[prefix])
           prefix += 1;
         if (prefix < offset) mapped = Math.max(0, offset + (after.length - before.length));
       }
-      await editor.blocks.update(block.id, block.data, block.tunes);
+      await editor.blocks.update(block.id, await withRemovedKeys(api, block.data), block.tunes);
       known.set(block.id, key);
       if (mapped !== null) {
         const updated = editor.blocks.getBlockByIndex(index);
-        const target2 = updated && updated.holder && updated.holder.querySelector('[contenteditable="true"]');
+        const inputs =
+          updated && updated.holder ? updated.holder.querySelectorAll('[contenteditable="true"]') : [];
+        const target2 = inputs[slot] || inputs[0];
         if (target2) placeCaret(target2, Math.min(mapped, (target2.textContent || '').length));
       }
     }

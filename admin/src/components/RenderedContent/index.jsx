@@ -129,6 +129,26 @@ const Prose = styled.div`
     background: ${({ theme }) => theme.colors.neutral100};
     font-weight: ${({ theme }) => theme.fontWeights.bold};
   }
+  /* 2.4: column alignment and caption (shown below the table like in the editor). */
+  & th.mex-align-left,
+  & td.mex-align-left {
+    text-align: left;
+  }
+  & th.mex-align-center,
+  & td.mex-align-center {
+    text-align: center;
+  }
+  & th.mex-align-right,
+  & td.mex-align-right {
+    text-align: right;
+  }
+  & caption {
+    caption-side: bottom;
+    color: ${({ theme }) => theme.colors.neutral600};
+    font-size: ${({ theme }) => theme.fontSizes[1]};
+    padding-top: ${({ theme }) => theme.spaces[1]};
+    text-align: start;
+  }
   & pre {
     background: ${({ theme }) => theme.colors.neutral100};
     border: 1px solid ${({ theme }) => theme.colors.neutral200};

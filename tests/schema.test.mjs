@@ -44,7 +44,19 @@ const KITCHEN_SINK = {
   code: { code: 'x' },
   codeFlask: { code: 'x', language: 'js', showlinenumbers: true },
   raw: { html: '<b>x</b>' },
-  table: { withHeadings: true, stretched: true, content: [['a']] },
+  table: {
+    withHeadings: true,
+    stretched: true,
+    content: [
+      ['a', 'b'],
+      ['c', 'd'],
+      ['e', 'f'],
+    ],
+    headerColumn: true,
+    align: ['center', 'right'],
+    merges: [{ row: 1, col: 0, rowspan: 2, colspan: 2 }],
+    caption: 'Caption',
+  },
   image: {
     file: {
       url: 'https://cdn.example.test/a.png',

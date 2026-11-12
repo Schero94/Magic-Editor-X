@@ -19,6 +19,7 @@ import * as Y from 'yjs';
 import { EDITOR_DATA_LIMITS, normalizeEditorData } from './editor-data.mjs';
 import { readBlock } from './ydoc.mjs';
 import { BUILT_IN_MARKER, isBuiltInMarker, isMarkedBuiltIn } from './built-in-marker.mjs';
+import { isTableDataShapeValid } from './table.mjs';
 
 const ROOTS = new Set(['meta', 'order', 'blocks']);
 const FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
@@ -244,6 +245,9 @@ export const validateTouched = (doc, touched, options = {}) => {
       if (!normalized || normalized.blocks.length !== 1) return 'INVALID_BLOCK';
       // Synced block (2.3): a reference only (`{ ref }`), never copied content.
       if (!validSyncedData(normalized.blocks[0])) return 'INVALID_BLOCK';
+      // Table (2.4): types and bounds of the cells, header column, alignment, merges and caption.
+      if (normalized.blocks[0].type === 'table' && !isTableDataShapeValid(normalized.blocks[0].data))
+        return 'INVALID_BLOCK';
       if (typeof options.checkBlock === 'function' && touched.structural && touched.structural.has(id)) {
         const code = options.checkBlock(normalized.blocks[0]);
         if (code) return code;

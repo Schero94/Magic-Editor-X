@@ -9,6 +9,7 @@
 
 import { BUILT_IN_MARKER, MARKED_BLOCKS } from './sanitize-policy.mjs';
 import { FIELD_KEY_PATTERN } from './field-identity.mjs';
+import { TABLE_ALIGNS, TABLE_LIMITS } from './table.mjs';
 
 export const SCHEMA_ID = 'https://schero94.github.io/Magic-Editor-X/schema/magic-editor-x.schema.json';
 
@@ -135,9 +136,41 @@ export const BLOCK_DATA_SCHEMAS = Object.freeze({
   ),
   table: obj(
     {
-      withHeadings: bool,
+      withHeadings: { ...bool, description: 'The first row is a header row.' },
       stretched: bool,
-      content: { type: 'array', maxItems: 500, items: { type: 'array', maxItems: 100, items: html } },
+      content: {
+        type: 'array',
+        maxItems: TABLE_LIMITS.rows,
+        items: { type: 'array', maxItems: TABLE_LIMITS.cols, items: html },
+        description:
+          'Rows of cells. With `merges` the grid is rectangular and the cells a merge covers are empty strings.',
+      },
+      headerColumn: {
+        ...bool,
+        description: '2.4: the first column is a header column (only written when true).',
+      },
+      align: {
+        type: 'array',
+        maxItems: TABLE_LIMITS.cols,
+        items: { enum: [...TABLE_ALIGNS, null] },
+        description: '2.4: alignment per column (null = not set); trailing nulls are removed.',
+      },
+      merges: {
+        type: 'array',
+        maxItems: TABLE_LIMITS.merges,
+        description:
+          '2.4: merged cells, sorted by row and column. Inside the grid, never overlapping, at least two cells, never from the header row into the body.',
+        items: obj(
+          {
+            row: int(0, TABLE_LIMITS.rows - 1),
+            col: int(0, TABLE_LIMITS.cols - 1),
+            rowspan: int(1, TABLE_LIMITS.rows),
+            colspan: int(1, TABLE_LIMITS.cols),
+          },
+          ['row', 'col', 'rowspan', 'colspan']
+        ),
+      },
+      caption: { ...html, description: '2.4: table caption (inline HTML, only written when not empty).' },
     },
     ['withHeadings', 'stretched', 'content']
   ),

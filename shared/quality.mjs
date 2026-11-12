@@ -12,6 +12,7 @@ import { parseInline, nodesToText } from './render/inline.mjs';
 import { sanitizeUrl, isBuiltInBlock, registeredBlockOf } from './sanitize-policy.mjs';
 import { mediaSlots } from './resolve-references.mjs';
 import { tocRange } from './toc.mjs';
+import { normalizeMerges, tableLayout } from './table.mjs';
 
 /** Rule ids and their default severity. */
 export const QUALITY_RULES = Object.freeze({
@@ -22,10 +23,37 @@ export const QUALITY_RULES = Object.freeze({
   'empty-link': 'error',
   'ambiguous-link-text': 'warning',
   'table-no-header': 'warning',
+  'table-empty-header': 'warning',
   'low-contrast': 'warning',
   'video-no-captions': 'warning',
   'toc-no-headings': 'warning',
 });
+
+/**
+ * Header cells without text in a table (2.4). Covered cells of a merge are
+ * not counted; a table with only one row (or only one column with a header
+ * column) is a layout, not checked, and the corner cell of a table with both
+ * header kinds may stay empty.
+ * @param {object} d - Table data.
+ * @returns {number} Count.
+ */
+const emptyHeaderCells = (d) => {
+  if (!Array.isArray(d.content) || !d.content.every(Array.isArray)) return 0;
+  if (d.withHeadings !== true && d.headerColumn !== true) return 0;
+  const rows = d.content.length;
+  const cols = d.content.reduce((width, row) => Math.max(width, row.length), 0);
+  const merges = normalizeMerges(d.merges, rows, cols, { headerRow: d.withHeadings === true });
+  let count = 0;
+  for (const row of tableLayout({ ...d, merges }))
+    for (const cell of row) {
+      if (!cell.header) continue;
+      if (cell.header === 'col' ? rows < 2 : cols < 2) continue;
+      // The corner cell of a table with both header kinds is often empty on purpose.
+      if (cell.row === 0 && cell.col === 0 && d.withHeadings === true && d.headerColumn === true) continue;
+      if (!textOf(typeof cell.html === 'string' ? cell.html : '')) count += 1;
+    }
+  return count;
+};
 
 /** Most links returned by `extractLinks` per kind. */
 export const MAX_EXTRACTED_LINKS = 200;
@@ -414,7 +442,11 @@ export const lintDocument = (value, options = {}) => {
 
     if (block.type === 'table') {
       const rows = Array.isArray(d.content) ? d.content : [];
-      if (rows.length > 1 && d.withHeadings !== true) push('table-no-header', block, index);
+      // 2.4: a header row or a header column labels the data cells.
+      if (rows.length > 1 && d.withHeadings !== true && d.headerColumn !== true)
+        push('table-no-header', block, index);
+      const empty = emptyHeaderCells(d);
+      if (empty) push('table-empty-header', block, index, { params: { count: empty } });
     }
 
     for (const { path, html } of inlineStrings(block)) {
