@@ -210,7 +210,11 @@ export const QualityPanel = ({
             ? t('editor.quality.errors', 'Errors')
             : t('editor.quality.warnings', 'Warnings')}
         </Typography>
-        <Badge variant={severity === 'error' ? 'danger' : 'warning'} size="S">
+        <Badge
+          size="S"
+          backgroundColor={severity === 'error' ? 'danger100' : 'warning100'}
+          textColor={severity === 'error' ? 'danger700' : 'neutral800'}
+        >
           {items.length}
         </Badge>
       </Flex>
@@ -317,7 +321,7 @@ export const QualityPanel = ({
                 <Typography variant="sigma" tag="h4" textColor="neutral600">
                   {t('editor.preset.title', 'Field settings')}
                 </Typography>
-                <Badge variant="danger" size="S">
+                <Badge size="S" backgroundColor="danger100" textColor="danger700">
                   {violations.length}
                 </Badge>
               </Flex>
