@@ -39,7 +39,11 @@ module.exports = ({ strapi }) => ({
           languages: ai.LANGUAGES,
           tones: ai.TONES,
           maxInputChars: settings.ai.maxInputChars,
+          // 2.3 owner switches (the server checks them again on every request).
+          altText: settings.ai.allowImages === true,
+          fieldActions: settings.ai.allowFieldActions === true,
         },
+        grammar: { enabled: Boolean(settings.languageTool.enabled && settings.languageTool.baseUrl) },
         uploads: {
           maxImageBytes: conf('uploads.maxImageBytes', 10 * 1024 * 1024),
           maxFileBytes: conf('uploads.maxFileBytes', 20 * 1024 * 1024),
@@ -62,6 +66,7 @@ module.exports = ({ strapi }) => ({
           commentsRead: can(ACTIONS.commentsRead),
           commentsWrite: can(ACTIONS.commentsWrite),
           commentsModerate: can(ACTIONS.commentsModerate),
+          grammar: can(ACTIONS.grammar),
         },
       },
     };

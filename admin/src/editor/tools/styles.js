@@ -347,6 +347,59 @@ export const editorStyles = css`
       margin-bottom: ${s(2)};
     }
 
+    /* 2.3: AI alternative text suggestion (editor/ai-alt-text.js) */
+    .mex-alt-ai {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: ${s(2)};
+      min-width: 0;
+
+      .mex-alt-ai__status {
+        color: ${c('neutral600')};
+        font-size: ${f(1)};
+        margin: 0;
+
+        &:empty {
+          display: none;
+        }
+      }
+
+      .mex-alt-ai__result {
+        align-self: stretch;
+        border: 1px solid ${c('primary200')};
+        background: ${c('primary100')};
+        border-radius: ${radius};
+        padding: ${s(2)} ${s(3)};
+        min-width: 0;
+      }
+
+      .mex-alt-ai__label {
+        color: ${c('primary700')};
+        font-size: ${f(1)};
+        font-weight: 600;
+        margin: 0 0 ${s(1)};
+      }
+
+      .mex-alt-ai__text {
+        color: ${c('neutral800')};
+        margin: 0 0 ${s(2)};
+        overflow-wrap: anywhere;
+      }
+
+      .mex-alt-ai__actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: ${s(2)};
+      }
+    }
+
+    ::highlight(mex-grammar) {
+      text-decoration: underline wavy ${c('danger600')};
+      background-color: ${c('danger100')};
+      color: ${c('neutral800')};
+    }
+
     ::highlight(mex-find) {
       background-color: ${c('warning200')};
       color: ${c('neutral800')};

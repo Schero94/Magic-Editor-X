@@ -20,9 +20,11 @@ import {
   Expand,
   Eye,
   EyeStriked,
+  Feather,
   More,
   SealCheck,
   Search,
+  Sparkle,
 } from '@strapi/icons';
 import styled from 'styled-components';
 import { peerFamily } from './RemoteCarets';
@@ -133,6 +135,10 @@ export const EditorToolbar = ({
   onToggleComments,
   commentsCount = 0,
   commentsButtonRef,
+  grammarOpen = false,
+  onToggleGrammar,
+  grammarButtonRef,
+  onOpenFieldAi,
 }) => {
   const status = STATUS[collaboration.status];
   const peers = collaboration.peers || [];
@@ -254,6 +260,19 @@ export const EditorToolbar = ({
             ) : null}
           </CountBadge>
         ) : null}
+        {onToggleGrammar ? (
+          <IconButton
+            ref={grammarButtonRef}
+            label={t('editor.toolbar.grammar', 'Check grammar')}
+            variant="ghost"
+            onClick={onToggleGrammar}
+            aria-pressed={grammarOpen}
+            disabled={!ready}
+            data-testid="mex-grammar-toggle"
+          >
+            <Feather />
+          </IconButton>
+        ) : null}
         <SimpleMenu
           tag={IconButton}
           icon={<More />}
@@ -266,6 +285,11 @@ export const EditorToolbar = ({
               {focusMode
                 ? t('editor.toolbar.focusOff', 'Leave focus mode')
                 : t('editor.toolbar.focusOn', 'Focus mode')}
+            </MenuItem>
+          ) : null}
+          {onOpenFieldAi ? (
+            <MenuItem onSelect={onOpenFieldAi} startIcon={<Sparkle />}>
+              {t('editor.toolbar.fieldAi', 'AI for the whole field')}
             </MenuItem>
           ) : null}
           {onOpenShortcuts ? (

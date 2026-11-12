@@ -19,9 +19,12 @@ const textNodes = (root) => {
   return nodes;
 };
 
-/** Removes the highlight. */
-export const clearHighlight = () => {
-  if (typeof CSS !== 'undefined' && CSS.highlights) CSS.highlights.delete(NAME);
+/**
+ * Removes the highlight.
+ * @param {string} [name] - Highlight name (`mex-find`, or `mex-grammar` for the grammar check).
+ */
+export const clearHighlight = (name = NAME) => {
+  if (typeof CSS !== 'undefined' && CSS.highlights) CSS.highlights.delete(name);
 };
 
 /**
@@ -30,11 +33,12 @@ export const clearHighlight = () => {
  * text inside the block is used (n counted among matches of the same block).
  * @param {HTMLElement} blockElement - `.ce-block` element.
  * @param {{ text: string, occurrence?: number }} match - Match (see shared/find-replace.mjs) with its occurrence index in the block.
- * @param {{ matchCase?: boolean }} [options] - Find options.
+ * @param {{ matchCase?: boolean, name?: string }} [options] - Find options and highlight name.
  */
 export const highlightMatch = (blockElement, match, options = {}) => {
   blockElement.scrollIntoView({ block: 'nearest' });
   if (typeof CSS === 'undefined' || !CSS.highlights || typeof Highlight === 'undefined') return;
+  const name = options.name || NAME;
   const needle = options.matchCase ? match.text : match.text.toLowerCase();
   let seen = 0;
   const wanted = match.occurrence || 0;
@@ -47,12 +51,12 @@ export const highlightMatch = (blockElement, match, options = {}) => {
         const range = document.createRange();
         range.setStart(node, index);
         range.setEnd(node, index + needle.length);
-        CSS.highlights.set(NAME, new Highlight(range));
+        CSS.highlights.set(name, new Highlight(range));
         return;
       }
       seen += 1;
       from = index + Math.max(1, needle.length);
     }
   }
-  clearHighlight();
+  clearHighlight(name);
 };

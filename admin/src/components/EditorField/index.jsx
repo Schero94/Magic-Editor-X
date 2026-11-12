@@ -44,6 +44,11 @@ import { createPasteHandler } from '../../editor/paste';
 import { createMarkdownShortcuts } from '../../editor/markdown-shortcuts';
 import { restoreBlockInEditor } from '../../editor/restore-block.mjs';
 import { highlightMatch, clearHighlight } from '../../editor/find-highlight';
+import { createAltTextSuggester } from '../../editor/ai-alt-text';
+import { GrammarPanel } from './GrammarPanel';
+import { FieldAiDialog } from './FieldAiDialog';
+import { applySegments } from '../../../../shared/ai-fields.mjs';
+import { escapeHtml } from '../../../../shared/render/inline.mjs';
 import {
   resolveFieldPreset,
   checkPreset,
@@ -267,6 +272,14 @@ const EditorField = ({
   const [commentFocusThread, setCommentFocusThread] = useState(null);
   const [currentBlockId, setCurrentBlockId] = useState(null);
   const commentsButtonRef = useRef(null);
+  // 2.3: grammar check panel and whole-field AI actions.
+  const [grammarOpen, setGrammarOpen] = useState(false);
+  const [fieldAiOpen, setFieldAiOpen] = useState(false);
+  const grammarButtonRef = useRef(null);
+  const targetRef = useRef(target);
+  useEffect(() => {
+    targetRef.current = target;
+  }, [target]);
 
   useEffect(() => {
     onChangeRef.current = onChange;
@@ -285,6 +298,13 @@ const EditorField = ({
     presetRef.current = preset;
   }, [preset]);
   const direction = directionOf(target.locale);
+  // 2.3 AI features: owner switches (config), RBAC and the field preset; the server checks all three again.
+  const aiAllowed = Boolean(config && config.ai.enabled && permissions.ai && preset.ai);
+  const altTextAllowed = Boolean(aiAllowed && config.ai.altText && permissions.mediaLibrary);
+  const fieldAiAllowed = Boolean(aiAllowed && config.ai.fieldActions && target.uid);
+  const grammarAllowed = Boolean(
+    config && config.grammar && config.grammar.enabled && permissions.grammar && target.uid
+  );
   const collaborationTarget =
     config &&
     config.collaboration.enabled &&
@@ -598,6 +618,7 @@ const EditorField = ({
     ? stableStringify({
         p: config.permissions,
         ai: config.ai.enabled,
+        altText: altTextAllowed,
         blocks: customBlocks.map((block) => block.id + block.updatedAt),
         preset: presetKey,
         direction,
@@ -633,6 +654,13 @@ const EditorField = ({
       openMediaLibrary,
       onAiRequest,
       aiEnabled: Boolean(config.ai.enabled && permissions.ai && preset.ai),
+      suggestAltText: altTextAllowed
+        ? createAltTextSuggester({
+            post,
+            getTarget: () => targetRef.current,
+            getLocale: () => contentLocaleRef.current || adminLocale || null,
+          })
+        : undefined,
       preset: preset.restricted ? preset : null,
       canUpload: Boolean(permissions.upload),
       linkPreview: config.linkPreview,
@@ -1019,6 +1047,51 @@ const EditorField = ({
     clearHighlight();
     window.requestAnimationFrame(() => findButtonRef.current && findButtonRef.current.focus());
   }, []);
+  /** Grammar check: writes one corrected string back into its block. */
+  const applyGrammar = useCallback(
+    async (blockId, path, html) => {
+      const editor = editorRef.current;
+      if (!editor || readOnly) return false;
+      const saved = prepareEditorValue(await editor.save().catch(() => null)).data;
+      const block = saved && saved.blocks.find((item) => item.id === blockId);
+      if (!block || !editor.blocks.getById(blockId)) return false;
+      const { data, changed } = applySegments({ blocks: [block] }, [{ blockId, path, html }]);
+      if (!changed) return false;
+      userTouchedRef.current = true;
+      await editor.blocks.update(blockId, data.blocks[0].data);
+      scheduleSave(0);
+      return true;
+    },
+    [readOnly, scheduleSave]
+  );
+  const showGrammarMatch = useCallback((match, occurrence) => {
+    const holder = holderRef.current;
+    if (!holder || !match) {
+      clearHighlight('mex-grammar');
+      return;
+    }
+    const element = holder.querySelector(`.ce-block[data-id="${CSS.escape(match.blockId)}"]`);
+    if (element)
+      highlightMatch(element, { text: match.text, occurrence }, { matchCase: true, name: 'mex-grammar' });
+  }, []);
+  const closeGrammar = useCallback(() => {
+    setGrammarOpen(false);
+    clearHighlight('mex-grammar');
+    window.requestAnimationFrame(() => grammarButtonRef.current && grammarButtonRef.current.focus());
+  }, []);
+  /** Whole-field AI: appends a summary as a paragraph (plain text, escaped). */
+  const insertParagraph = useCallback(
+    (text) => {
+      const editor = editorRef.current;
+      if (!editor || readOnly) return;
+      userTouchedRef.current = true;
+      const html = escapeHtml(String(text)).replace(/\n/g, '<br>');
+      editor.blocks.insert('paragraph', { text: html }, undefined, editor.blocks.getBlocksCount(), true);
+      scheduleSave(0);
+    },
+    [readOnly, scheduleSave]
+  );
+
   const closeQuality = useCallback(() => {
     setQualityOpen(false);
     window.requestAnimationFrame(() => qualityButtonRef.current && qualityButtonRef.current.focus());
@@ -1146,7 +1219,27 @@ const EditorField = ({
             onToggleComments={() => (commentsOpen ? closeComments() : setCommentsOpen(true))}
             commentsCount={comments.counts.open}
             commentsButtonRef={commentsButtonRef}
+            grammarOpen={grammarOpen}
+            onToggleGrammar={
+              grammarAllowed ? () => (grammarOpen ? closeGrammar() : setGrammarOpen(true)) : undefined
+            }
+            grammarButtonRef={grammarButtonRef}
+            onOpenFieldAi={fieldAiAllowed ? () => setFieldAiOpen(true) : undefined}
           />
+          {grammarOpen && grammarAllowed && ready ? (
+            <PanelSlot padding={2} $fullscreen={fullscreen}>
+              <GrammarPanel
+                t={t}
+                fetchClient={qualityFetch}
+                target={target}
+                getData={readForFind}
+                onApply={applyGrammar}
+                onSelect={showGrammarMatch}
+                onClose={closeGrammar}
+                readOnly={readOnly}
+              />
+            </PanelSlot>
+          ) : null}
           {findOpen && ready ? (
             <PanelSlot padding={2} $fullscreen={fullscreen}>
               <FindReplacePanel
@@ -1307,6 +1400,18 @@ const EditorField = ({
             setAiRequest(null);
           }}
           onClose={() => setAiRequest(null)}
+        />
+      ) : null}
+      {fieldAiOpen && fieldAiAllowed ? (
+        <FieldAiDialog
+          t={t}
+          config={config.ai}
+          target={{ uid: target.uid, field: target.field }}
+          getData={readForFind}
+          onReplace={replaceContent}
+          onInsertParagraph={insertParagraph}
+          onClose={() => setFieldAiOpen(false)}
+          readOnly={readOnly}
         />
       ) : null}
       {shortcutsOpen ? (
