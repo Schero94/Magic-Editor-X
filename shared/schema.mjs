@@ -8,6 +8,7 @@
  */
 
 import { BUILT_IN_MARKER, MARKED_BLOCKS } from './sanitize-policy.mjs';
+import { FIELD_KEY_PATTERN } from './field-identity.mjs';
 
 export const SCHEMA_ID = 'https://schero94.github.io/Magic-Editor-X/schema/magic-editor-x.schema.json';
 
@@ -329,6 +330,12 @@ export const buildEditorSchema = () => ({
     time: { type: 'integer', minimum: 0 },
     blocks: { type: 'array', maxItems: 5000, items: { $ref: '#/$defs/block' } },
     version: str(32),
+    fieldKey: {
+      type: 'string',
+      pattern: FIELD_KEY_PATTERN.source,
+      description:
+        'Since 2.4: stable identity of a value inside a repeatable component or dynamic zone (random, URL-safe). Set by the server on save; renderers ignore it. Absent on top-level fields.',
+    },
   },
   required: ['time', 'blocks', 'version'],
   additionalProperties: false,

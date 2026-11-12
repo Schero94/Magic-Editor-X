@@ -2,6 +2,8 @@
 
 const { errors } = require('@strapi/utils');
 const { resolveEditorField } = require('../utils/editor-fields');
+const { readPositionalEntries } = require('../utils/field-identity');
+const { fieldIdentity, isValidFieldKey } = require('../../../shared/field-identity.mjs');
 
 /**
  * Entry-level access checks for collaboration and version history.
@@ -43,17 +45,30 @@ module.exports = ({ strapi }) => {
 
   return {
     /**
-     * Checks access to one editor field of one document.
-     * @param {{ userAbility: object, uid: string, documentId: string, locale?: string|null, field: string }} target - What is accessed.
-     * @returns {Promise<{ canRead: true, canUpdate: boolean, locale: string|null, topLevelField: string }>} Access.
-     * @throws {errors.NotFoundError} When the type, field or document does not exist or cannot be read.
+     * Checks access to one editor field of one document and resolves the
+     * field's storage identity (2.4): everything keyed by field (versions,
+     * comments, rooms, link reports) uses `fieldName`.
+     *
+     * - Top-level fields and fields in single components: `fieldName` is the path.
+     * - Fields in a repeatable component or dynamic zone (positional): with `fieldKey`, the stored
+     *   draft of this document and locale must have a value with that key at the same attribute
+     *   (any index), else 404; `allowUnsavedKey` (live sessions only) accepts a key that is not
+     *   saved yet when the caller can update the document (`unsaved: true`). Without `fieldKey`,
+     *   the key is read from the stored value at the path's index; a stored value without a key
+     *   (or no entry there) gives `fieldName: null`.
+     * @param {{ userAbility: object, uid: string, documentId: string, locale?: string|null, field: string, fieldKey?: string|null, allowUnsavedKey?: boolean }} target - What is accessed.
+     * @returns {Promise<{ canRead: true, canUpdate: boolean, locale: string|null, topLevelField: string, fieldName: string|null, fieldKey: string|null, positional: boolean, basePath: string, unsaved: boolean, entries: Array<object>|null }>}
+     *   Access and identity; `entries` lists the stored entries of a positional field (path, key, block ids).
+     * @throws {errors.NotFoundError} When the type, field, document or keyed entry does not exist or cannot be read.
      */
-    async checkField({ userAbility, uid, documentId, locale, field }) {
+    async checkField({ userAbility, uid, documentId, locale, field, fieldKey, allowUnsavedKey = false }) {
       if (!userAbility) throw notFound();
       const contentType = strapi.contentType(uid);
       if (!contentType || !uid.startsWith('api::')) throw notFound();
       const resolved = resolveEditorField(strapi, contentType, field);
       if (!resolved) throw notFound();
+      if (fieldKey !== undefined && fieldKey !== null && (!resolved.positional || !isValidFieldKey(fieldKey)))
+        throw notFound();
       const localized = Boolean(contentType.pluginOptions?.i18n?.localized);
       let effectiveLocale = null;
       if (localized) {
@@ -71,7 +86,44 @@ module.exports = ({ strapi }) => {
       if (!pc.cannot.update() && !pc.cannot.update(null, permissionField)) {
         canUpdate = Boolean(await findAllowed(pc, 'update', uid, documentId, effectiveLocale || undefined));
       }
-      return { canRead: true, canUpdate, locale: effectiveLocale, topLevelField: resolved.topLevel };
+      const base = {
+        canRead: true,
+        canUpdate,
+        locale: effectiveLocale,
+        topLevelField: resolved.topLevel,
+        positional: resolved.positional,
+        basePath: resolved.basePath,
+      };
+      if (!resolved.positional)
+        return { ...base, fieldName: field, fieldKey: null, unsaved: false, entries: null };
+      const entries = await readPositionalEntries(strapi, {
+        uid,
+        documentId,
+        locale: effectiveLocale,
+        basePath: resolved.basePath,
+      });
+      if (fieldKey) {
+        const saved = entries.some((entry) => entry.fieldKey === fieldKey);
+        // A key that is not stored yet is accepted only for a live session of someone who can edit:
+        // the room is private to whoever generated the key until the entry is saved.
+        if (!saved && !(allowUnsavedKey && canUpdate)) throw notFound();
+        return {
+          ...base,
+          fieldName: fieldIdentity(resolved.basePath, fieldKey, true),
+          fieldKey,
+          unsaved: !saved,
+          entries,
+        };
+      }
+      const entry = entries.find((candidate) => candidate.path === field);
+      const key = entry ? entry.fieldKey : null;
+      return {
+        ...base,
+        fieldName: key ? fieldIdentity(resolved.basePath, key, true) : null,
+        fieldKey: key,
+        unsaved: false,
+        entries,
+      };
     },
 
     /**

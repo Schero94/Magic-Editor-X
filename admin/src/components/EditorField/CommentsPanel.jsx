@@ -86,6 +86,7 @@ export const CommentsPanel = ({
   const pendingFocusRef = useRef(null);
   const { threads, canWrite, canModerate, actions, loaded, error, counts, newFromOthers, clearNew } =
     comments;
+  const positionalThreads = Array.isArray(comments.positionalThreads) ? comments.positionalThreads : [];
 
   const blockIds = useMemo(() => blocks.map((block) => block.id), [blocks]);
   const excerpts = useMemo(() => new Map(blocks.map((block) => [block.id, block.excerpt])), [blocks]);
@@ -381,6 +382,32 @@ export const CommentsPanel = ({
         ) : null}
 
         {content}
+
+        {positionalThreads.length > 0 ? (
+          <Flex direction="column" alignItems="stretch" gap={2} data-testid="mex-comments-positional">
+            <Typography variant="sigma" tag="h4" textColor="neutral600">
+              {t('editor.comments.positional.title', 'Older comments saved by position')}
+            </Typography>
+            <List aria-label={t('editor.comments.positional.title', 'Older comments saved by position')}>
+              {positionalThreads.map((thread) => (
+                <li key={thread.id}>
+                  <CommentThread
+                    thread={thread}
+                    blockExcerpt={null}
+                    t={t}
+                    canWrite={false}
+                    canModerate={false}
+                    actions={actions}
+                    onSelectBlock={onSelectBlock}
+                    announce={announce}
+                    fail={fail}
+                    fallbackFocusRef={headingRef}
+                  />
+                </li>
+              ))}
+            </List>
+          </Flex>
+        ) : null}
       </Flex>
       <VisuallyHidden aria-live="polite" aria-atomic="true" data-testid="mex-comments-live">
         {announcement}

@@ -121,7 +121,7 @@ const createInstance = (knex, config = {}) => {
   services.store = createStore({ strapi });
   services.access = {
     abilityForUser: async () => ({}),
-    checkField: async () => ({ canUpdate: true, locale: 'en' }),
+    checkField: async ({ field }) => ({ canUpdate: true, locale: 'en', fieldName: field }),
   };
   services.history = {
     fieldKey: ({ uid, documentId, locale, field }) => `${uid}|${documentId}|${locale || '-'}|${field}`,

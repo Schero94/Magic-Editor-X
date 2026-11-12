@@ -65,7 +65,12 @@ import { createAltTextSuggester } from '../../editor/ai-alt-text';
 import { GrammarPanel } from './GrammarPanel';
 import { FieldAiDialog } from './FieldAiDialog';
 import { applySegments } from '../../../../shared/ai-fields.mjs';
-import { isPositionalFieldPath } from '../../editor/field-path.mjs';
+import {
+  isPositionalFieldPath,
+  isValidFieldKey,
+  createFieldKey,
+  identityTarget,
+} from '../../editor/field-path.mjs';
 import { escapeHtml } from '../../../../shared/render/inline.mjs';
 import {
   resolveFieldPreset,
@@ -342,6 +347,28 @@ const EditorFieldBody = ({
   useEffect(() => {
     targetRef.current = target;
   }, [target]);
+  // 2.4 field identity: a value inside a repeatable component or dynamic zone carries a `fieldKey`.
+  // A keyless value gets one when the user edits it; history, comments and the live room use the key
+  // once the Content Manager has loaded it back from the saved entry (shared/field-identity.mjs).
+  const positional = isPositionalFieldPath(target.field);
+  const valueKey = positional && value && isValidFieldKey(value.fieldKey) ? value.fieldKey : null;
+  const [localKey, setLocalKey] = useState(null);
+  const fieldKey = valueKey || localKey;
+  const fieldKeyRef = useRef(fieldKey);
+  useEffect(() => {
+    fieldKeyRef.current = fieldKey;
+  }, [fieldKey]);
+  const savedKey =
+    positional && fieldKey && target.savedFieldKeys && target.savedFieldKeys.has(fieldKey) ? fieldKey : null;
+  const identityReady = !positional || Boolean(savedKey);
+  const fieldTarget = useMemo(
+    () =>
+      identityTarget(
+        { uid: target.uid, documentId: target.documentId, locale: target.locale, field: target.field },
+        savedKey
+      ),
+    [target.uid, target.documentId, target.locale, target.field, savedKey]
+  );
   // Templates, block patterns and the in-field preview (2.3).
   const [previewOpen, setPreviewOpen] = useState(false);
   const [templatesOpen, setTemplatesOpen] = useState(false);
@@ -397,10 +424,10 @@ const EditorFieldBody = ({
     preset.collaboration &&
     target.uid &&
     target.documentId &&
-    // Positional paths (`sections.0.body`) can point to another entry after entries are removed or
-    // reordered before saving; their room would show the other entry's content (editor/field-path.mjs).
-    !isPositionalFieldPath(target.field)
-      ? target
+    // Positional paths (`sections.0.body`) name another entry after entries are removed or reordered:
+    // the room is keyed by the entry's saved key instead (editor/field-path.mjs).
+    identityReady
+      ? fieldTarget
       : null;
 
   /** Emits editor content to the Content Manager form when it changed. */
@@ -423,7 +450,19 @@ const EditorFieldBody = ({
       // Editor.js reuses the tune objects of a block between saves, and the
       // Content Manager form freezes what it stores. Hand over a copy so the
       // editor can keep writing to its own objects.
-      onChangeRef.current(name, next ? JSON.parse(JSON.stringify(next)) : null);
+      const copy = next ? JSON.parse(JSON.stringify(next)) : null;
+      // 2.4: an edited value inside a repeatable component or dynamic zone keeps (or gets) its key.
+      // An empty field stays null, so required-field checks are unchanged.
+      if (copy && isPositionalFieldPath(name)) {
+        let key = fieldKeyRef.current;
+        if (!key) {
+          key = createFieldKey();
+          fieldKeyRef.current = key;
+          setLocalKey(key);
+        }
+        copy.fieldKey = key;
+      }
+      onChangeRef.current(name, copy);
     },
     [name]
   );
@@ -637,12 +676,11 @@ const EditorFieldBody = ({
     permissions.commentsRead &&
     target.uid &&
     target.documentId &&
-    // Comments and versions are keyed by the field path; a positional path (`sections.0.body`)
-    // can name another entry after entries are removed or moved (editor/field-path.mjs).
-    !isPositionalFieldPath(target.field)
+    // Inside a repeatable component or dynamic zone, comments follow the entry's saved key (2.4).
+    identityReady
   );
   const comments = useComments({
-    target,
+    target: fieldTarget,
     enabled: commentsEnabled,
     panelOpen: commentsOpen,
     elementRef: frameRef,
@@ -1588,9 +1626,15 @@ const EditorFieldBody = ({
             canRedo={collabUndo ? collaboration.canRedo : undoState.canRedo}
             onUndo={() => undoRef.current && undoRef.current.undo()}
             onRedo={() => undoRef.current && undoRef.current.redo()}
-            historyAvailable={Boolean(
-              target.uid && target.documentId && !isPositionalFieldPath(target.field)
-            )}
+            historyAvailable={Boolean(target.uid && target.documentId && identityReady)}
+            identityHint={
+              target.uid && target.documentId && !identityReady
+                ? t(
+                    'editor.identity.saveHint',
+                    'Save the entry once to turn on history and comments for this section.'
+                  )
+                : null
+            }
             onOpenHistory={() => setHistoryOpen(true)}
             historyButtonRef={historyButtonRef}
             collaboration={collaboration}
@@ -1666,7 +1710,7 @@ const EditorFieldBody = ({
                 fetchClient={qualityFetch}
                 externalEnabled={Boolean(config && config.quality && config.quality.externalLinks)}
                 scheduledEnabled={Boolean(config && config.quality && config.quality.scheduledLinks)}
-                target={target}
+                target={fieldTarget}
                 onSelectBlock={selectBlock}
                 onClose={closeQuality}
                 violations={violations}
@@ -1803,7 +1847,7 @@ const EditorFieldBody = ({
       {historyOpen ? (
         <HistoryModal
           t={t}
-          target={target}
+          target={fieldTarget}
           readContent={readContent}
           onRestore={restoreSnapshot}
           onRestoreBlock={readOnly ? undefined : restoreBlock}

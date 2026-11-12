@@ -117,6 +117,7 @@ export const EditorToolbar = ({
   onUndo,
   onRedo,
   historyAvailable,
+  identityHint = null,
   onOpenHistory,
   historyButtonRef,
   collaboration,
@@ -194,6 +195,13 @@ export const EditorToolbar = ({
           >
             <ClockCounterClockwise />
           </IconButton>
+        ) : null}
+        {identityHint ? (
+          <Flex alignItems="center" paddingLeft={1} paddingRight={1} minHeight="3.2rem">
+            <Typography variant="pi" textColor="neutral600" data-testid="mex-identity-hint">
+              {identityHint}
+            </Typography>
+          </Flex>
         ) : null}
         {onToggleFind ? (
           <IconButton

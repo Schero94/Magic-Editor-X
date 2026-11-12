@@ -18,6 +18,8 @@ const {
 const { applyCheckedUpdate } = require('../../../shared/ydoc-guard.mjs');
 const { resolveFieldPreset, checkBlockStructure } = require('../../../shared/presets.mjs');
 const { resolveEditorField } = require('../utils/editor-fields');
+const { readPositionalEntries } = require('../utils/field-identity');
+const { parseFieldIdentity, basePathOf } = require('../../../shared/field-identity.mjs');
 
 /**
  * Live collaboration for Magic Editor X fields (Socket.IO + Yjs, protocol 3).
@@ -141,15 +143,33 @@ const touchesRetiredClients = (update, retired) => {
 };
 
 /**
- * Parses a room key back into its field target.
- * @param {string} room - `<uid>|<documentId>|<locale or ->|<field>`.
- * @returns {{ uid: string, documentId: string, locale: string|null, field: string } | null} Target.
+ * Parses a room key back into its field target. The last part is the field
+ * identity (2.4): the path, or `<path without indices>#<fieldKey>` for a field
+ * inside a repeatable component or dynamic zone.
+ * @param {string} room - `<uid>|<documentId>|<locale or ->|<field identity>`.
+ * @returns {{ uid: string, documentId: string, locale: string|null, field: string, fieldKey?: string, fieldName: string } | null} Target.
  */
 const targetOfRoom = (room) => {
   const parts = String(room).split('|');
   if (parts.length !== 4) return null;
-  return { uid: parts[0], documentId: parts[1], locale: parts[2] === '-' ? null : parts[2], field: parts[3] };
+  const parsed = parseFieldIdentity(parts[3]);
+  if (!parsed) return null;
+  return {
+    uid: parts[0],
+    documentId: parts[1],
+    locale: parts[2] === '-' ? null : parts[2],
+    field: parsed.field,
+    ...(parsed.fieldKey ? { fieldKey: parsed.fieldKey } : {}),
+    fieldName: parts[3],
+  };
 };
+
+/**
+ * Storage identity of a room target (`fieldName`, or the path of targets made before 2.4).
+ * @param {{ field: string, fieldName?: string }} target - Room target.
+ * @returns {string} Identity.
+ */
+const identityOf = (target) => target.fieldName || target.field;
 
 /**
  * Error for the Socket.IO middleware; the client reads `data.code`.
@@ -346,12 +366,23 @@ module.exports = ({ strapi }) => {
   };
 
   /**
-   * Reads the stored (draft) value of a field, following component and
-   * dynamic-zone paths such as `sections.0.body`.
-   * @param {{ uid: string, documentId: string, locale: string|null, field: string }} target - Field.
+   * Reads the stored (draft) value of a field: by key for a keyed field inside
+   * a repeatable component or dynamic zone (2.4, any index), else along the
+   * path (`body`, `seo.body`, `sections.0.body` for rooms made before 2.4).
+   * @param {{ uid: string, documentId: string, locale: string|null, field: string, fieldKey?: string }} target - Field.
    * @returns {Promise<unknown>} Stored value or undefined.
    */
   const readStoredValue = async (target) => {
+    if (target.fieldKey) {
+      const entries = await readPositionalEntries(strapi, {
+        uid: target.uid,
+        documentId: target.documentId,
+        locale: target.locale,
+        basePath: basePathOf(target.field),
+      });
+      const entry = entries.find((candidate) => candidate.fieldKey === target.fieldKey);
+      return entry ? entry.value : undefined;
+    }
     const parts = target.field.split('.');
     const top = parts[0];
     const contentType = strapi.contentType(target.uid);
@@ -684,7 +715,10 @@ module.exports = ({ strapi }) => {
         }
         if (blocksOf(saved) === blocksOf(clean(content))) return false;
       }
-      const result = await history().create(target, content, { trigger: 'auto', userId: null });
+      const result = await history().create({ ...target, field: identityOf(target) }, content, {
+        trigger: 'auto',
+        userId: null,
+      });
       return result.created;
     } catch (error) {
       await store()
@@ -774,7 +808,16 @@ module.exports = ({ strapi }) => {
             if (!abilities.has(userId)) abilities.set(userId, await access().abilityForUser(userId));
             const ability = abilities.get(userId);
             if (!ability) throw new errors.NotFoundError('gone');
-            const result = await access().checkField({ userAbility: ability, ...socket.data.target });
+            const { uid, documentId, locale, field, fieldKey } = socket.data.target;
+            const result = await access().checkField({
+              userAbility: ability,
+              uid,
+              documentId,
+              locale,
+              field,
+              ...(fieldKey ? { fieldKey } : {}),
+              allowUnsavedKey: true,
+            });
             if (result.canUpdate !== socket.data.canEdit) {
               socket.data.canEdit = result.canUpdate;
               socket.emit('mx:role', { canEdit: result.canUpdate });
@@ -1081,11 +1124,16 @@ module.exports = ({ strapi }) => {
 
     /**
      * Issues a one-time session token for a field after checking access.
-     * @param {{ userAbility: object, user: object, uid: string, documentId: string, locale?: string|null, field: string, initialValue?: unknown }} input - Request.
+     * A field inside a repeatable component or dynamic zone needs its `fieldKey` (2.4): the room is
+     * keyed by the entry's identity. A key that is not saved yet is accepted for callers who can
+     * update the document (the room is private to whoever holds the key until the entry is saved;
+     * it is seeded from `initialValue`).
+     * @param {{ userAbility: object, user: object, uid: string, documentId: string, locale?: string|null, field: string, fieldKey?: string, initialValue?: unknown }} input - Request.
      * @returns {Promise<object>} Token and connection details.
-     * @throws {errors.NotFoundError|errors.ForbiddenError|errors.RateLimitError} Access denied, collaboration off, too many sessions.
+     * @throws {errors.NotFoundError|errors.ForbiddenError|errors.RateLimitError|errors.ApplicationError} Access denied,
+     *   collaboration off, too many sessions, `code: 'FIELD_KEY_REQUIRED'` for a positional field without a key.
      */
-    async createSession({ userAbility, user, uid, documentId, locale, field, initialValue }) {
+    async createSession({ userAbility, user, uid, documentId, locale, field, fieldKey, initialValue }) {
       if (conf('enabled', true) === false || !io)
         throw new errors.ForbiddenError('Live collaboration is disabled');
       const limit = Number((conf('rateLimit', {}) || {}).sessionsPerMinute) || 60;
@@ -1096,11 +1144,35 @@ module.exports = ({ strapi }) => {
         allowed = sessionLimiter.hit(`session:${user.id}`).allowed;
       }
       if (!allowed) throw new errors.RateLimitError('Too many live editing sessions. Try again in a minute.');
-      const result = await access().checkField({ userAbility, uid, documentId, locale, field });
+      const result = await access().checkField({
+        userAbility,
+        uid,
+        documentId,
+        locale,
+        field,
+        ...(fieldKey ? { fieldKey } : {}),
+        allowUnsavedKey: true,
+      });
       if (!presetOf({ uid, field }).collaboration)
         throw new errors.ForbiddenError('Live collaboration is turned off for this field');
-      const target = { uid, documentId, locale: result.locale, field };
-      const room = history().fieldKey(target);
+      // 2.4: rooms of fields inside repeatable components and dynamic zones are keyed by the entry's
+      // identity; a positional path without a key would name another entry after a reorder.
+      if (!result.fieldName) {
+        const error = new errors.ApplicationError('Save the entry once before editing it live', {
+          code: 'FIELD_KEY_REQUIRED',
+        });
+        error.code = 'FIELD_KEY_REQUIRED';
+        throw error;
+      }
+      const target = {
+        uid,
+        documentId,
+        locale: result.locale,
+        field,
+        ...(result.fieldKey ? { fieldKey: result.fieldKey } : {}),
+        fieldName: result.fieldName,
+      };
+      const room = history().fieldKey({ ...target, field: result.fieldName });
       const rawHtml = strapi.config.get('plugin::magic-editor-x.rawHtml') || 'sanitize';
       // New rooms start from the stored draft. The value the browser sends is
       // only used when nothing is stored yet and the caller may edit.
@@ -1265,4 +1337,5 @@ module.exports.toBytes = toBytes;
 module.exports.displayName = displayName;
 module.exports.cleanCursor = cleanCursor;
 module.exports.targetOfRoom = targetOfRoom;
+module.exports.identityOf = identityOf;
 module.exports.PROTOCOL = PROTOCOL;

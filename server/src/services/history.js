@@ -6,6 +6,17 @@ const { cleanEditorValue } = require('../utils/sanitizer');
 const { sha256 } = require('../utils/crypto');
 const { stableStringify } = require('../../../shared/ydoc.mjs');
 const { computeStats } = require('../../../shared/editor-data.mjs');
+const {
+  parseFieldIdentity,
+  basePathOf,
+  blockIdsOf,
+  ownerOfBlocks,
+  fieldIdentity,
+} = require('../../../shared/field-identity.mjs');
+
+/** Legacy rows read per batch / at most per call when mapping positional rows (2.4). */
+const LEGACY_BATCH = 50;
+const LEGACY_MAX = 2000;
 
 /**
  * Version history of Magic Editor X fields.
@@ -72,6 +83,24 @@ module.exports = ({ strapi }) => {
     $or: [{ entryLocale: locale || null }, { entryLocale: null }],
   });
 
+  /**
+   * Access target of a stored row: `field` is the path to check (`sections.body` plus `fieldKey` for
+   * keyed positional rows, the stored path otherwise).
+   * @param {object} row - Snapshot row.
+   * @returns {{ uid: string, documentId: string, locale: string|null, field: string, fieldKey?: string, legacy: boolean }} Target.
+   */
+  const targetOfRow = (row) => {
+    const parsed = parseFieldIdentity(row.fieldName) || { field: String(row.fieldName), fieldKey: null };
+    return {
+      uid: row.contentType,
+      documentId: row.entryId,
+      locale: row.entryLocale || null,
+      field: parsed.field,
+      ...(parsed.fieldKey ? { fieldKey: parsed.fieldKey } : {}),
+      legacy: Boolean(parsed.legacy),
+    };
+  };
+
   const userName = (user) => {
     if (!user) return null;
     const name = [user.firstname, user.lastname].filter(Boolean).join(' ').trim();
@@ -89,6 +118,12 @@ module.exports = ({ strapi }) => {
       stats: computeStats(row.jsonContent),
       restorable: Boolean(row.jsonContent && Array.isArray(row.jsonContent.blocks)),
     };
+    // 2.4: a version saved under a positional path that could not be mapped to one entry is read-only.
+    const parsed = parseFieldIdentity(row.fieldName);
+    if (parsed && parsed.legacy) {
+      dto.positional = true;
+      dto.restorable = false;
+    }
     if (withContent) dto.content = row.jsonContent;
     return dto;
   };
@@ -127,12 +162,7 @@ module.exports = ({ strapi }) => {
       });
       if (!row) throw new errors.NotFoundError('Not found');
       return {
-        target: {
-          uid: row.contentType,
-          documentId: row.entryId,
-          locale: row.entryLocale || null,
-          field: row.fieldName,
-        },
+        target: targetOfRow(row),
         snapshot: toDto(row, true),
       };
     },
@@ -154,6 +184,8 @@ module.exports = ({ strapi }) => {
         throw new errors.ValidationError('The content is not valid editor data');
       }
       if (!clean) clean = { time: Date.now(), blocks: [], version: '2.31.7' };
+      // Versions keep the content only; the field's identity is the row's fieldName (2.4).
+      delete clean.fieldKey;
       const hash = contentHash(clean);
       const key = `snapver:${fieldKey(target)}`.slice(0, 255);
       let acquired = false;
@@ -224,6 +256,73 @@ module.exports = ({ strapi }) => {
     },
 
     /**
+     * Maps versions stored under positional paths before 2.4 (`sections.0.body`)
+     * to the entry they belong to, by block ids: a version whose blocks appear
+     * in exactly one current entry belongs to it. Mapped versions of entries
+     * with a key are moved to the entry's identity (`fieldName`, `roomId`), once.
+     * Versions that match no entry or several stay where they are (read-only,
+     * listed as older versions saved by position). Nothing is deleted.
+     * @param {{ uid: string, documentId: string, locale: string|null, basePath: string }} target - Field without index.
+     * @param {Array<{ path: string, fieldKey: string|null, blockIds: Set<string> }>} entries - Stored entries (access.checkField).
+     * @returns {Promise<{ mapped: number, byPath: Map<string, object[]>, unmapped: object[] }>} Rows proven per entry path
+     *   (only those not moved, i.e. of entries without a key) and the unmapped rows (newest first).
+     * @sideeffect Updates `fieldName` and `roomId` of mapped legacy rows.
+     */
+    async adoptLegacy({ uid, documentId, locale, basePath }, entries) {
+      const top = String(basePath).split('.')[0];
+      const candidates = await query().findMany({
+        where: {
+          contentType: uid,
+          entryId: documentId,
+          fieldName: { $startsWith: `${top}.`, $notContains: '#' },
+          $or: [{ entryLocale: locale || null }, { entryLocale: null }],
+        },
+        select: ['id', 'fieldName'],
+        orderBy: [{ id: 'asc' }],
+        limit: LEGACY_MAX,
+      });
+      const ids = candidates
+        .filter((row) => {
+          const parsed = parseFieldIdentity(row.fieldName);
+          return parsed && parsed.legacy && basePathOf(row.fieldName) === basePath;
+        })
+        .map((row) => row.id);
+      const byPath = new Map();
+      const unmapped = [];
+      let mapped = 0;
+      for (let start = 0; start < ids.length; start += LEGACY_BATCH) {
+        const rows = await query().findMany({
+          where: { id: { $in: ids.slice(start, start + LEGACY_BATCH) } },
+          populate: { createdBy: { select: ['firstname', 'lastname', 'username'] } },
+        });
+        for (const row of rows) {
+          const owner = ownerOfBlocks(blockIdsOf(row.jsonContent), entries);
+          const entry = owner === -1 ? null : entries[owner];
+          if (entry && entry.fieldKey) {
+            const identity = fieldIdentity(basePath, entry.fieldKey, true);
+            // Guarded by the old name: concurrent mappings write the same result once.
+            await query().updateMany({
+              where: { id: row.id, fieldName: row.fieldName },
+              data: { fieldName: identity, roomId: fieldKey({ uid, documentId, locale, field: identity }) },
+            });
+            mapped += 1;
+          } else if (entry) {
+            if (!byPath.has(entry.path)) byPath.set(entry.path, []);
+            byPath.get(entry.path).push(row);
+          } else unmapped.push(row);
+        }
+      }
+      const newest = (a, b) => Number(b.version) - Number(a.version) || Number(b.id) - Number(a.id);
+      for (const rows of byPath.values()) rows.sort(newest);
+      unmapped.sort(newest);
+      return {
+        mapped,
+        byPath: new Map(Array.from(byPath, ([path, rows]) => [path, rows.map((row) => toDto(row))])),
+        unmapped: unmapped.slice(0, maxPerField()).map((row) => toDto(row)),
+      };
+    },
+
+    /**
      * Removes snapshots beyond the configured maximum (oldest first).
      * @param {object} target - Field.
      * @returns {Promise<number>} Removed rows.
@@ -244,6 +343,7 @@ module.exports = ({ strapi }) => {
 };
 
 module.exports.fieldKey = fieldKey;
+module.exports.LEGACY_MAX = LEGACY_MAX;
 module.exports.contentHash = contentHash;
 module.exports.normalizeLabel = normalizeLabel;
 module.exports.MAX_LABEL_LENGTH = MAX_LABEL_LENGTH;

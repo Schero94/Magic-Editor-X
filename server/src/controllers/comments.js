@@ -2,9 +2,9 @@
 
 const { errors } = require('@strapi/utils');
 const { ACTIONS } = require('../permissions');
-const { service } = require('./helpers');
+const { service, identityTarget, positionalReadOnly } = require('./helpers');
 const { z, parseOrThrow, fieldTargetSchema, documentIdSchema } = require('../utils/validation');
-const { BLOCK_ID_PATTERN, MAX_COMMENT_LENGTH } = require('../../../shared/comments.mjs');
+const { BLOCK_ID_PATTERN, MAX_COMMENT_LENGTH, countThreads } = require('../../../shared/comments.mjs');
 
 /** Comment text as typed; normalised (control characters removed) by the service. */
 const bodySchema = z.string().min(1).max(MAX_COMMENT_LENGTH);
@@ -61,49 +61,80 @@ module.exports = ({ strapi }) => {
   const loadReadable = async (ctx) => {
     const { id } = parseOrThrow(idSchema, { id: ctx.params.id });
     const { row, target } = await comments().findTarget(id);
-    await access().checkField({ userAbility: ctx.state.userAbility, ...target });
+    await access().checkField({ userAbility: ctx.state.userAbility, ...identityTarget(target) });
+    // 2.4: threads saved by position before 2.4 that belong to no single entry are read-only.
+    row.positional = target.legacy;
     return row;
   };
 
   return {
     /**
-     * Threads of one field with counts.
-     * @route GET /magic-editor-x/comments?uid&documentId&locale&field
+     * Threads of one field with counts. Fields inside a repeatable component or dynamic zone are
+     * listed by their identity (2.4): threads saved under positional paths before 2.4 are mapped
+     * to their entry once by block id; the ones that cannot be mapped are listed read-only in
+     * `meta.positionalThreads` (only when the entry has a key; not counted).
+     * @route GET /magic-editor-x/comments?uid&documentId&locale&field&fieldKey?
      * @auth admin; plugin::magic-editor-x.access + comments.read; CM read on the document, locale and field
-     * @returns {{ data: Array<object>, meta: { counts: { open, resolved, comments }, canWrite: boolean, canModerate: boolean } }} Threads.
+     * @returns {{ data: Array<object>, meta: { counts: { open, resolved, comments }, canWrite: boolean, canModerate: boolean, fieldKey: string|null, positionalThreads?: Array<object> } }} Threads.
      * @throws 400 invalid query, 404 unknown field or document not readable.
+     * @sideeffect Moves mappable pre-2.4 positional threads to their entry's identity.
      */
     async list(ctx) {
       ensureEnabled();
       const target = parseOrThrow(fieldTargetSchema, { ...ctx.query, locale: ctx.query.locale || null });
       const result = await access().checkField({ userAbility: ctx.state.userAbility, ...target });
-      const { threads, counts } = await comments().list(
-        { ...target, locale: result.locale },
-        ctx.state.user.id
+      const where = { uid: target.uid, documentId: target.documentId, locale: result.locale };
+      const viewer = ctx.state.user.id;
+      if (!result.positional) {
+        const { threads, counts } = await comments().list({ ...where, field: result.fieldName }, viewer);
+        ctx.body = { data: threads, meta: { counts, ...rights(ctx), fieldKey: null } };
+        return;
+      }
+      const legacy = await comments().adoptLegacy(
+        { ...where, basePath: result.basePath },
+        result.entries,
+        viewer
       );
-      ctx.body = { data: threads, meta: { counts, ...rights(ctx) } };
+      if (!result.fieldName) {
+        // No key stored yet: only threads proven to be this entry's, and nothing can be written.
+        const own = result.entries.find((entry) => entry.path === target.field);
+        const threads = own ? legacy.byPath.get(own.path) || [] : [];
+        ctx.body = {
+          data: threads,
+          meta: { counts: countThreads(threads), canWrite: false, canModerate: false, fieldKey: null },
+        };
+        return;
+      }
+      const { threads, counts } = await comments().list({ ...where, field: result.fieldName }, viewer);
+      ctx.body = {
+        data: threads,
+        meta: { counts, ...rights(ctx), fieldKey: result.fieldKey, positionalThreads: legacy.unmapped },
+      };
     },
 
     /**
      * Opens a thread on a block.
-     * @route POST /magic-editor-x/comments { uid, documentId, locale?, field, blockId, body, excerpt? }
+     * @route POST /magic-editor-x/comments { uid, documentId, locale?, field, fieldKey?, blockId, body, excerpt? }
      * @auth admin; access + comments.read + comments.write; CM read on the document (no update right needed)
      * @returns 201 `{ data: thread }`
-     * @throws 400 invalid or empty, 404 not readable, 429 per-admin limit (`comments.perMinute`).
+     * @throws 400 invalid or empty, 404 not readable, 409 `FIELD_KEY_REQUIRED` (positional field without a stored key),
+     *   429 per-admin limit (`comments.perMinute`).
      * @sideeffect Inserts one comment row.
      */
     async create(ctx) {
       ensureEnabled();
       const { blockId, body, excerpt, ...target } = parseOrThrow(createSchema, ctx.request.body || {});
       const result = await access().checkField({ userAbility: ctx.state.userAbility, ...target });
+      if (!result.fieldName) return positionalReadOnly(ctx, 'FIELD_KEY_REQUIRED');
       await comments().checkRate(ctx.state.user.id);
       const thread = await comments().create(
-        { ...target, locale: result.locale },
+        { uid: target.uid, documentId: target.documentId, locale: result.locale, field: result.fieldName },
         { blockId, body, excerpt },
         ctx.state.user
       );
       ctx.status = 201;
       ctx.body = { data: thread };
+      return undefined;
     },
 
     /**
@@ -118,9 +149,11 @@ module.exports = ({ strapi }) => {
       ensureEnabled();
       const { body } = parseOrThrow(textSchema, ctx.request.body || {});
       const row = await loadReadable(ctx);
+      if (row.positional) return positionalReadOnly(ctx, 'POSITIONAL_READ_ONLY');
       await comments().checkRate(ctx.state.user.id);
       ctx.status = 201;
       ctx.body = { data: await comments().reply(row, body, ctx.state.user) };
+      return undefined;
     },
 
     /**
@@ -135,7 +168,9 @@ module.exports = ({ strapi }) => {
       ensureEnabled();
       const { body } = parseOrThrow(textSchema, ctx.request.body || {});
       const row = await loadReadable(ctx);
+      if (row.positional) return positionalReadOnly(ctx, 'POSITIONAL_READ_ONLY');
       ctx.body = { data: await comments().edit(row, body, ctx.state.user) };
+      return undefined;
     },
 
     /**
@@ -148,7 +183,9 @@ module.exports = ({ strapi }) => {
     async resolve(ctx) {
       ensureEnabled();
       const row = await loadReadable(ctx);
+      if (row.positional) return positionalReadOnly(ctx, 'POSITIONAL_READ_ONLY');
       ctx.body = { data: await comments().setResolved(row, true, ctx.state.user) };
+      return undefined;
     },
 
     /**
@@ -161,7 +198,9 @@ module.exports = ({ strapi }) => {
     async reopen(ctx) {
       ensureEnabled();
       const row = await loadReadable(ctx);
+      if (row.positional) return positionalReadOnly(ctx, 'POSITIONAL_READ_ONLY');
       ctx.body = { data: await comments().setResolved(row, false, ctx.state.user) };
+      return undefined;
     },
 
     /**
@@ -176,7 +215,9 @@ module.exports = ({ strapi }) => {
     async remove(ctx) {
       ensureEnabled();
       const row = await loadReadable(ctx);
+      if (row.positional) return positionalReadOnly(ctx, 'POSITIONAL_READ_ONLY');
       ctx.body = { data: await comments().remove(row, ctx.state.user, rights(ctx)) };
+      return undefined;
     },
   };
 };

@@ -2,6 +2,7 @@
 
 const { z } = require('zod');
 const { errors } = require('@strapi/utils');
+const { FIELD_KEY_PATTERN } = require('../../../shared/field-identity.mjs');
 
 /**
  * Request validation helpers. Every route parses its params, query and body with
@@ -47,12 +48,16 @@ const linkSearchSchema = z.strictObject({
   page: z.coerce.number().int().min(1).max(500).optional(),
 });
 
-/** Identifies one editor field of one document version. */
+/** Key of an editor value inside a repeatable component or dynamic zone (2.4, `shared/field-identity.mjs`). */
+const fieldKeySchema = z.string().regex(FIELD_KEY_PATTERN);
+
+/** Identifies one editor field of one document version (`fieldKey` for positional fields, 2.4). */
 const fieldTargetSchema = z.strictObject({
   uid: uidSchema,
   documentId: documentIdSchema,
   locale: localeSchema.nullish(),
   field: fieldPathSchema,
+  fieldKey: fieldKeySchema.optional(),
 });
 
 /** Media Library file reference: numeric id or documentId. */
@@ -118,6 +123,7 @@ module.exports = {
   localeSchema,
   fieldPathSchema,
   fieldTargetSchema,
+  fieldKeySchema,
   apiUidSchema,
   linkSearchSchema,
   qualityLinksSchema,

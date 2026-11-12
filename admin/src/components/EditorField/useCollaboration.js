@@ -20,7 +20,8 @@ const INITIAL = {
  * Session tokens are requested through the admin fetch client, so an
  * expired admin access token is refreshed by Strapi before a reconnect.
  * @param {object} options - Options.
- * @param {{ uid: string, documentId: string, locale: string|null, field: string }|null} options.target - Field, or null when collaboration is off.
+ * @param {{ uid: string, documentId: string, locale: string|null, field: string, fieldKey?: string }|null} options.target - Field, or
+ *   null when collaboration is off (`fieldKey` for fields inside a repeatable component or dynamic zone, 2.4).
  * @param {() => object|null} options.getLocalData - Current field content (seeds a new room).
  * @param {boolean} options.ready - True once the editor is ready.
  * @param {() => void} options.onRemoteData - Shows the shared document in the editor.
@@ -40,12 +41,21 @@ export const useCollaboration = ({ target, getLocalData, ready, onRemoteData, on
     onFirstSyncRef.current = onFirstSync;
   });
 
+  // 2.4: a field inside a repeatable component or dynamic zone is identified by its key, so moving
+  // the entry (its path changes from `sections.0.body` to `sections.1.body`) keeps the same room.
+  const fieldRef = useRef(target ? target.field : null);
+  useEffect(() => {
+    if (target) fieldRef.current = target.field;
+  });
   const key =
-    target && ready ? `${target.uid}|${target.documentId}|${target.locale || ''}|${target.field}` : null;
+    target && ready
+      ? `${target.uid}|${target.documentId}|${target.locale || ''}|${target.fieldKey ? `#${target.fieldKey}` : target.field}`
+      : null;
 
   useEffect(() => {
     if (!key) return undefined;
-    const [uid, documentId, locale, field] = key.split('|');
+    const [uid, documentId, locale, identity] = key.split('|');
+    const fieldKey = identity.startsWith('#') ? identity.slice(1) : null;
     const instance = createCollabClient({
       url: window.strapi.backendURL,
       requestSession: async () => {
@@ -53,7 +63,8 @@ export const useCollaboration = ({ target, getLocalData, ready, onRemoteData, on
           uid,
           documentId,
           locale: locale || null,
-          field,
+          field: fieldKey ? fieldRef.current : identity,
+          ...(fieldKey ? { fieldKey } : {}),
           initialValue: getLocalRef.current(),
         });
         return data.data;
