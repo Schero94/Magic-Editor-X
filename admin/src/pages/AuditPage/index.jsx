@@ -157,7 +157,7 @@ const AuditFilters = ({ t, applied, actors, active, onApply, onReset }) => {
               <Field.Error />
             </Field.Root>
           </Grid.Item>
-          <Grid.Item col={2} s={6} xs={12} direction="column" alignItems="stretch">
+          <Grid.Item col={4} s={6} xs={12} direction="column" alignItems="stretch">
             <Field.Root name="from">
               <Field.Label>{t('settings.audit.filter.from', 'From')}</Field.Label>
               <TextInput
@@ -167,7 +167,7 @@ const AuditFilters = ({ t, applied, actors, active, onApply, onReset }) => {
               />
             </Field.Root>
           </Grid.Item>
-          <Grid.Item col={2} s={6} xs={12} direction="column" alignItems="stretch">
+          <Grid.Item col={4} s={6} xs={12} direction="column" alignItems="stretch">
             <Field.Root
               name="to"
               error={
@@ -185,14 +185,12 @@ const AuditFilters = ({ t, applied, actors, active, onApply, onReset }) => {
               <Field.Error />
             </Field.Root>
           </Grid.Item>
-          <Grid.Item col={4} s={12} xs={12} direction="column" alignItems="stretch" justifyContent="flex-end">
-            <Flex gap={2} wrap="wrap" paddingTop={{ initial: 0, large: 6 }}>
-              <Button type="submit" startIcon={<Filter />} disabled={!canApply}>
-                {t('settings.audit.apply', 'Apply filters')}
-              </Button>
-            </Flex>
-          </Grid.Item>
         </Grid.Root>
+        <Flex gap={2} wrap="wrap" paddingTop={6}>
+          <Button type="submit" startIcon={<Filter />} disabled={!canApply}>
+            {t('settings.audit.apply', 'Apply filters')}
+          </Button>
+        </Flex>
       </Box>
     </SectionCard>
   );
@@ -487,7 +485,10 @@ const AuditPage = () => {
             : undefined
         }
       >
-        {results}
+        {/* aria-busy while a new page or filter loads; the previous rows stay visible meanwhile. */}
+        <Box aria-busy={state.status === 'loading'} data-mex-audit-results minWidth={0}>
+          {results}
+        </Box>
         {state.pagination && state.pagination.total > 0 ? (
           <Pagination.Root
             pageCount={state.pagination.pageCount}

@@ -464,6 +464,7 @@
   "settings.linkRun.ruleValue": "{rule} ({zone})",
   "settings.linkRun.next": "Próxima execução {date}",
   "settings.linkRun.last": "Última execução",
+  "settings.linkRun.lastValue": "{date}: {checked, number} ligações verificadas, {problems, number} com problemas.",
   "settings.link.configuration": "Configuração",
   "settings.link.customBlocks": "Blocos personalizados",
   "settings.retry": "Tentar novamente",

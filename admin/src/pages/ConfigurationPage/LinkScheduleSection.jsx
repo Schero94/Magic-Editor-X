@@ -182,8 +182,8 @@ export const LinkScheduleSection = ({ initial, canRun }) => {
             label: t('settings.linkRun.last', 'Last run'),
             value: lastRun
               ? t(
-                  'settings.environment.linkScheduleLastRun',
-                  'Last run {date}: {checked, number} links checked, {problems, number} with problems.',
+                  'settings.linkRun.lastValue',
+                  '{date}: {checked, number} links checked, {problems, number} with problems.',
                   {
                     date: date(lastRun.finishedAt),
                     checked: lastRun.checked ?? 0,
