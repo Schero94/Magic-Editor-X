@@ -58,6 +58,20 @@ const headerSafe = (value, max) =>
     .trim();
 
 /**
+ * Escapes text for HTML (mention e-mails: providers such as nodemailer send the plain text as the
+ * HTML part when no `html` is given, so an unescaped name would be HTML).
+ * @param {string} value - Text.
+ * @returns {string} Escaped text.
+ */
+const escapeHtml = (value) =>
+  String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
+/**
  * Display name of an admin user, bounded.
  * @param {{ firstname?: string, lastname?: string, username?: string }|null} user - Admin user.
  * @returns {string|null} Name.
@@ -282,17 +296,29 @@ module.exports = ({ strapi }) => {
         const title = headerSafe(await titleFor(ability, target), 120);
         const typeName = headerSafe(link.typeName, 80);
         const where = title ? `"${title}" (${typeName})` : `an entry of ${typeName}`;
+        const sentence = `${actor} mentioned you in a comment on ${where}.`;
+        const footer =
+          'You get this e-mail because e-mail notifications for mentions are turned on in Magic Editor X.';
         const lines = [
-          `${actor} mentioned you in a comment on ${where}.`,
+          sentence,
           '',
           url ? `Open the comment: ${url}` : 'Open the Content Manager to read the comment.',
           '',
-          'You get this e-mail because e-mail notifications for mentions are turned on in Magic Editor X.',
+          footer,
         ];
+        // Own HTML part with every value escaped (names and titles come from admins and content).
+        const html = [
+          `<p>${escapeHtml(sentence)}</p>`,
+          url
+            ? `<p><a href="${escapeHtml(url)}">Open the comment</a></p>`
+            : '<p>Open the Content Manager to read the comment.</p>',
+          `<p>${escapeHtml(footer)}</p>`,
+        ].join('');
         await mailer.send({
           to,
           subject: headerSafe(`${actor} mentioned you in a comment`, 150),
           text: lines.join('\n'),
+          html,
         });
         await query().update({ where: { id: notification.id }, data: { emailedAt: new Date() } });
         sent += 1;
@@ -682,3 +708,4 @@ module.exports.UID = UID;
 module.exports.targetOfRow = targetOfRow;
 module.exports.headerSafe = headerSafe;
 module.exports.EMAIL_PATTERN = EMAIL_PATTERN;
+module.exports.escapeHtml = escapeHtml;

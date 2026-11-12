@@ -347,6 +347,7 @@ const createFixture = ({ email = false, configOverrides = {} } = {}) => {
   };
   return {
     db,
+    users,
     mails,
     services,
     comment: (userId, handler, input) => call(comments, userId, handler, input),
@@ -612,7 +613,7 @@ test('mention e-mails: off by default; when on, safe headers, no comment text, r
     configOverrides: { 'plugin::magic-editor-x.comments.notifications.emailPerHour': 2 },
   });
   // A display name with header characters.
-  on.db.rowsOf('admin::user')[0].firstname = 'Anna\r\nBcc: evil@example.test';
+  on.users[0].firstname = 'Anna\r\nBcc: evil@example.test';
   for (let index = 0; index < 3; index += 1) {
     await on.comment(1, 'create', {
       body: { ...TARGET, blockId: 'b', body: `Secret text ${index} @Ben Muster`, mentions: ['adm2'] },
@@ -623,6 +624,7 @@ test('mention e-mails: off by default; when on, safe headers, no comment text, r
   const [mail] = on.mails;
   assert.equal(mail.to, 'ben@example.test');
   assert.ok(!/[\r\n]/.test(mail.subject), 'subject has no line breaks');
+  assert.match(mail.subject, /^Anna Bcc: evil@example\.test Beispiel mentioned you/);
   assert.ok(!('from' in mail) && !('replyTo' in mail) && !('bcc' in mail));
   assert.ok(!mail.text.includes('Secret text'), 'no comment text');
   assert.match(mail.text, /"Title of doc1" \(Article\)/);
@@ -631,6 +633,16 @@ test('mention e-mails: off by default; when on, safe headers, no comment text, r
     /http:\/\/127\.0\.0\.1:1483\/admin\/content-manager\/collection-types\/api%3A%3Aarticle\.article\/doc1\?plugins%5Bi18n%5D%5Blocale%5D=en&mexThread=/
   );
   assert.ok(on.db.rowsOf(NOTES).some((note) => note.emailedAt));
+  // The HTML part escapes names and titles (providers send the text as HTML when it is missing).
+  assert.ok(mail.html && mail.html.startsWith('<p>'), 'own html part');
+  const evil = createFixture({ email: true });
+  evil.users[0].firstname = '<img src=x onerror=alert(1)>';
+  await evil.comment(1, 'create', {
+    body: { ...TARGET, blockId: 'b', body: '@Ben Muster', mentions: ['adm2'] },
+  });
+  await flush();
+  assert.ok(evil.mails[0].html.includes('&lt;img src=x onerror=alert(1)&gt;'));
+  assert.ok(!evil.mails[0].html.includes('<img'));
   // An address with header characters is never used.
   const bad = createFixture({ email: true });
   bad.db.rowsOf('admin::user')[1].email = 'ben@example.test\r\nBcc: x@example.test';
