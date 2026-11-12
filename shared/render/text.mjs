@@ -76,7 +76,11 @@ const RENDERERS = {
   alert: (b) => t(b.data.message),
   toggle: (b, _o, render) => [t(b.data.text), render(b.children)].filter(Boolean).join('\n\n'),
   code: (b) => b.data.code,
-  codeFlask: (b) => b.data.code,
+  // 2.4: the file name label on its own line before the code.
+  codeFlask: (b) =>
+    typeof b.data.filename === 'string' && b.data.filename
+      ? [b.data.filename, b.data.code].filter(Boolean).join('\n')
+      : b.data.code,
   raw: () => '',
   table: (b) =>
     b.data.content.map((row) => row.map((cell) => t(cell).replace(/\s+/g, ' ')).join('\t')).join('\n'),

@@ -415,6 +415,7 @@
   "editor.find.truncated": "(nur die ersten Treffer werden angezeigt)",
   "editor.find.error.invalid": "Dieser reguläre Ausdruck ist ungültig.",
   "editor.find.error.tooLong": "Suchen Sie nach höchstens {max} Zeichen.",
+  "editor.paste.mediaFailed": "{count, plural, one {# Video- oder Audiodatei konnte} other {# Video- oder Audiodateien konnten}} nicht von {count, plural, one {ihrer Adresse} other {ihren Adressen}} kopiert werden und {count, plural, one {wurde} other {wurden}} ausgelassen. Fügen Sie sie mit dem Video- oder Audio-Block hinzu.",
   "editor.preset.title": "Feldeinstellungen",
   "editor.preset.fix": "Automatisch korrigieren",
   "editor.preset.hint": "Das Speichern schlägt fehl, bis dieser Inhalt den Einstellungen des Feldes entspricht. Die automatische Korrektur ändert Überschriftenebenen, wandelt nicht erlaubte Blöcke in Absätze um und entfernt nicht erlaubte Links.",

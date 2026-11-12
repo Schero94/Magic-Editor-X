@@ -8,7 +8,7 @@
  */
 
 import { escapeHtml, hashString } from '../editor-data.mjs';
-import { sanitizeUrl } from '../sanitize-policy.mjs';
+import { cleanCodeFilename, sanitizeUrl } from '../sanitize-policy.mjs';
 
 /** Highest number of blocks a converter returns (same as the stored-value limit). */
 export const MAX_CONVERTED_BLOCKS = 5000;
@@ -146,11 +146,40 @@ export const CODE_LANGUAGE = /^[a-z0-9+#-]{1,32}$/i;
  * @param {string} [language] - Language name.
  * @returns {{ type: string, data: object }} Block.
  */
-export const codeBlock = (code, language) => {
+export const codeBlock = (code, language, filename) => {
   const text = String(code).replace(/\r\n?/g, '\n').replace(/\n$/, '');
   const lang = typeof language === 'string' ? language.trim().toLowerCase() : '';
-  if (lang && CODE_LANGUAGE.test(lang)) return { type: 'codeFlask', data: { code: text, language: lang } };
+  const name = cleanCodeFilename(filename);
+  const valid = lang && CODE_LANGUAGE.test(lang);
+  // 2.4: a file name needs the highlighted code block (the plain `code` block has no label).
+  if (name)
+    return { type: 'codeFlask', data: { code: text, language: valid ? lang : 'plaintext', filename: name } };
+  if (valid) return { type: 'codeFlask', data: { code: text, language: lang } };
   return { type: 'code', data: { code: text } };
+};
+
+/**
+ * Reads a fenced code block's info string (2.4): the language (first word,
+ * unless it is an attribute) and the file name from `title="..."`,
+ * `title='...'`, `title=name` or `filename=...` (backslash escapes in double
+ * quotes). ```` ```js title="src/app.js" ```` -> `{ language: 'js', filename: 'src/app.js' }`.
+ * @param {unknown} info - Info string.
+ * @returns {{ language: string, filename: string }} Parts ('' when absent).
+ */
+export const parseFenceInfo = (info) => {
+  const text = typeof info === 'string' ? info.trim().slice(0, 1000) : '';
+  if (!text) return { language: '', filename: '' };
+  const first = text.split(/\s+/, 1)[0];
+  const language = first.includes('=') ? '' : first;
+  // Markdown parsers apply backslash escapes to the info string (CommonMark), so a
+  // quoted name runs to the last double quote; raw `\"` and `\\` are unescaped too.
+  const match = /(?:^|\s)(?:title|filename)=(?:"(.*)"|'([^']*)'|(\S+))/i.exec(text);
+  let filename = '';
+  if (match) {
+    if (match[1] !== undefined) filename = match[1].replace(/\\(["\\])/g, '$1');
+    else filename = match[2] !== undefined ? match[2] : match[3];
+  }
+  return { language, filename: cleanCodeFilename(filename) };
 };
 
 /**

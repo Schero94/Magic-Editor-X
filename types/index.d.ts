@@ -69,6 +69,8 @@ export interface CodeFlaskData {
   code: string;
   language: string;
   showlinenumbers?: boolean;
+  /** File name label shown above the code (plain text, max 200 characters; 2.4). */
+  filename?: string;
 }
 export interface RawData {
   /** Raw HTML, sanitised or emptied according to the server's `rawHtml` option. */

@@ -120,6 +120,12 @@ export const BLOCK_DATA_SCHEMAS = Object.freeze({
       code: str(500000),
       language: { type: 'string', pattern: '^[a-zA-Z0-9+#-]{1,32}$' },
       showlinenumbers: bool,
+      filename: {
+        ...str(200),
+        minLength: 1,
+        description:
+          'Optional file name label shown above the code (plain text, no control characters; 2.4). Omitted when empty.',
+      },
     },
     ['code', 'language']
   ),

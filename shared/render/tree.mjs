@@ -303,11 +303,11 @@ const numberedLines = (code) => {
 };
 
 /**
- * Code block (`code` and `codeFlask`) with optional line numbers and copy button.
+ * Code block (`code` and `codeFlask`) with optional line numbers, copy button and (codeFlask, 2.4) file name.
  * @param {object} b - Prepared block.
  * @param {string|undefined} language - Validated language (codeFlask only).
  * @param {object} o - Render options.
- * @returns {RenderNode} `<pre>` or, with a copy button, `<div class="mex-code-block">`.
+ * @returns {RenderNode} `<pre>`, with a copy button `<div class="mex-code-block">`, with a file name `<figure class="mex-code-figure">` around either.
  */
 const codeBlock = (b, language, o) => {
   const { lineNumbers, copy } = codeOptions(o);
@@ -325,8 +325,24 @@ const codeBlock = (b, language, o) => {
     },
     el('code', language ? { class: `language-${language}` } : {}, numbers ? numberedLines(code) : code)
   );
-  if (!copy) return pre;
-  return el('div', { class: 'mex-code-block', 'data-mex-code': 'copy' }, [
+  const block = copy ? copyBlock(pre, copy) : pre;
+  // 2.4: a file name label wraps the block in a figure; without one the output is unchanged.
+  const filename = b.type === 'codeFlask' && typeof b.data.filename === 'string' ? b.data.filename : '';
+  if (!filename) return block;
+  return el('figure', { class: 'mex-code-figure' }, [
+    el('figcaption', { class: 'mex-code-filename' }, filename),
+    block,
+  ]);
+};
+
+/**
+ * Wraps a code `<pre>` with the copy button and its status region.
+ * @param {RenderNode} pre - Code block.
+ * @param {{ label: string, copied: string, failed: string }} copy - Button labels.
+ * @returns {RenderNode} `<div class="mex-code-block">`.
+ */
+const copyBlock = (pre, copy) =>
+  el('div', { class: 'mex-code-block', 'data-mex-code': 'copy' }, [
     pre,
     el(
       'button',
@@ -341,7 +357,6 @@ const codeBlock = (b, language, o) => {
     ),
     el('span', { class: 'mex-code-copy-status', role: 'status', 'aria-live': 'polite' }),
   ]);
-};
 
 /**
  * Default nodes per block type. Each entry returns a node, an array of nodes,

@@ -987,9 +987,32 @@ export const editorStyles = css`
 
     .mex-code__header {
       display: flex;
+      flex-wrap: wrap;
+      align-items: center;
       justify-content: flex-end;
+      gap: ${s(2)};
       padding: ${s(2)};
       border-bottom: 1px solid ${c('neutral200')};
+
+      /* 2.4: file name label (input while editing, text when read-only) on the inline start. */
+      .mex-code__filename {
+        flex: 1 1 16rem;
+        min-width: 0;
+        width: auto;
+        padding-block: ${s(1)};
+        padding-inline: ${s(2)};
+        font-family: 'SFMono-Regular', Menlo, Consolas, monospace;
+        font-size: ${f(1)};
+      }
+
+      .mex-code__filename-text {
+        flex: 1 1 auto;
+        min-width: 0;
+        overflow-wrap: anywhere;
+        font-family: 'SFMono-Regular', Menlo, Consolas, monospace;
+        font-size: ${f(1)};
+        color: ${c('neutral800')};
+      }
 
       /* Compact like the DS SingleSelect size S; the inline end keeps room for the caret. */
       .mex-tool__select {
@@ -1737,6 +1760,156 @@ export const editorStyles = css`
       .ce-block__content {
         padding-inline-start: ${s(10)};
       }
+    }
+  }
+
+  /*
+   * 2.4: suggestions of the \`@\` mention trigger. The popup is a sibling of
+   * the editor holder (outside \`.mex-editor\`), positioned at the caret.
+   */
+  .mex-mention-popup {
+    position: fixed;
+    z-index: ${({ theme }) => theme.zIndices.popover};
+    display: flex;
+    flex-direction: column;
+    gap: ${s(2)};
+    box-sizing: border-box;
+    width: 32rem;
+    max-width: calc(100vw - 16px);
+    max-height: min(36rem, calc(100vh - 16px));
+    padding: ${s(2)};
+    border: 1px solid ${c('neutral150')};
+    border-radius: ${radius};
+    background: ${c('neutral0')};
+    color: ${c('neutral800')};
+    box-shadow: ${({ theme }) => theme.shadows.popupShadow};
+    font-size: ${f(2)};
+    line-height: 1.43;
+
+    &[hidden],
+    [hidden] {
+      display: none;
+    }
+
+    .mex-mention-popup__type {
+      display: flex;
+      align-items: center;
+      gap: ${s(2)};
+      min-width: 0;
+    }
+
+    .mex-mention-popup__label {
+      flex: 0 0 auto;
+      font-size: ${f(1)};
+      font-weight: 600;
+      color: ${c('neutral800')};
+    }
+
+    .mex-mention-popup__select {
+      flex: 1 1 auto;
+      min-width: 0;
+      appearance: none;
+      cursor: pointer;
+      color-scheme: ${({ theme }) => theme.colorScheme};
+      border: 1px solid ${c('neutral200')};
+      border-radius: ${radius};
+      background-color: ${c('neutral0')};
+      color: ${c('neutral800')};
+      font-size: ${f(1)};
+      padding-block: ${s(1)};
+      padding-inline: ${s(2)} calc(${s(3)} + ${SELECT_CARET} * 2 + ${s(2)});
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      overflow: hidden;
+      ${selectCaret}
+
+      &:focus,
+      &:focus-visible {
+        outline: none;
+        border-color: ${c('primary600')};
+        box-shadow: ${c('primary600')} 0 0 0 2px;
+      }
+
+      &:dir(rtl) {
+        background-position:
+          left ${s(3)} center,
+          left calc(${s(3)} + ${SELECT_CARET}) center;
+      }
+
+      option {
+        background: ${c('neutral0')};
+        color: ${c('neutral800')};
+      }
+    }
+
+    .mex-mention-popup__results {
+      position: relative;
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: ${s(1)};
+      min-height: 0;
+      overflow: auto;
+
+      &:empty {
+        display: none;
+      }
+    }
+
+    .mex-mention-popup__option {
+      display: flex;
+      flex-direction: column;
+      gap: ${s(1)};
+      border: 1px solid ${c('neutral150')};
+      border-radius: ${radius};
+      background: ${c('neutral0')};
+      color: ${c('neutral800')};
+      padding: ${s(2)} ${s(3)};
+      cursor: pointer;
+
+      &:hover,
+      &[aria-selected='true'] {
+        background: ${c('primary100')};
+        border-color: ${c('primary600')};
+      }
+
+      &[aria-disabled='true'] {
+        cursor: not-allowed;
+        color: ${c('neutral600')};
+      }
+
+      .mex-link-picker__title {
+        overflow-wrap: anywhere;
+      }
+
+      .mex-link-picker__meta {
+        color: ${c('neutral600')};
+        font-size: ${f(1)};
+      }
+    }
+
+    .mex-mention-popup__status {
+      margin: 0;
+      color: ${c('neutral600')};
+      font-size: ${f(1)};
+
+      &:empty {
+        display: none;
+      }
+    }
+
+    .mex-mention-popup__status--error {
+      color: ${c('danger600')};
+    }
+
+    .mex-mention-popup__hint {
+      margin: 0;
+      padding-top: ${s(1)};
+      border-top: 1px solid ${c('neutral150')};
+      color: ${c('neutral600')};
+      font-size: ${f(1)};
     }
   }
 `;

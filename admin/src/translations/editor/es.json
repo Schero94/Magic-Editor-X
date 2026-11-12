@@ -415,6 +415,7 @@
   "editor.find.truncated": "(solo se muestran las primeras coincidencias)",
   "editor.find.error.invalid": "Esta expresión regular no es válida.",
   "editor.find.error.tooLong": "Busque como máximo {max} caracteres.",
+  "editor.paste.mediaFailed": "{count, plural, one {# archivo de vídeo o audio no se pudo copiar desde su dirección y se omitió} other {# archivos de vídeo o audio no se pudieron copiar desde sus direcciones y se omitieron}}. {count, plural, one {Añádalo} other {Añádalos}} con el bloque de vídeo o audio.",
   "editor.preset.title": "Ajustes del campo",
   "editor.preset.fix": "Corregir automáticamente",
   "editor.preset.hint": "No se podrá guardar hasta que este contenido cumpla los ajustes del campo. La corrección automática cambia los niveles de encabezado, convierte los bloques no permitidos en párrafos y elimina los enlaces no permitidos.",

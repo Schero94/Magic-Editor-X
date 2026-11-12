@@ -42,7 +42,7 @@ const KITCHEN_SINK = {
   alert: { type: 'danger', align: 'center', message: 'm' },
   toggle: { text: 't', status: 'closed', fk: 'k1', items: 1 },
   code: { code: 'x' },
-  codeFlask: { code: 'x', language: 'js', showlinenumbers: true },
+  codeFlask: { code: 'x', language: 'js', showlinenumbers: true, filename: 'src/app.js' },
   raw: { html: '<b>x</b>' },
   table: { withHeadings: true, stretched: true, content: [['a']] },
   image: {

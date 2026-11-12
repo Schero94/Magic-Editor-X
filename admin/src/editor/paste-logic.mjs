@@ -25,6 +25,9 @@ export const MAX_PASTED_IMAGE_BYTES = 5 * 1024 * 1024;
 /** Most remote images uploaded from one paste. */
 export const MAX_REMOTE_IMAGES = 10;
 
+/** Most pasted videos and audio files copied into the Media Library from one paste (2.4). */
+export const MAX_REMOTE_MEDIA = 3;
+
 /** Largest clipboard content that is converted (characters). */
 export const MAX_PASTE_LENGTH = 2 * 1024 * 1024;
 
@@ -38,6 +41,54 @@ const BLOCK_TAG = /<(p|h[1-6]|ul|ol|table|blockquote|pre|hr|figure|img|li|div)\b
  * @returns {boolean} Result.
  */
 export const isOfficeHtml = (html) => typeof html === 'string' && OFFICE.test(html.slice(0, 20000));
+
+/**
+ * True when clipboard HTML contains a `<video>` or `<audio>` element (2.4).
+ * @param {string} html - Clipboard HTML.
+ * @returns {boolean} Result.
+ */
+export const hasMediaTags = (html) => typeof html === 'string' && /<(?:video|audio)\b/i.test(html);
+
+/**
+ * Data of a pasted video or audio block (2.4) from the collected element
+ * (`htmlToBlocks` `report.media` entry) and the Media Library files copied
+ * from its URLs. Tracks whose file could not be copied are left out; at most
+ * one track stays the default. The result still goes through the sanitising
+ * policy (`prepareEditorValue`).
+ * @param {{ kind: 'video'|'audio', title?: string, caption?: string, loop?: boolean, muted?: boolean, tracks?: Array<object> }} entry - Collected element.
+ * @param {{ file: object, poster?: object|null, tracks?: Array<object|null> }} files - Copied files (`tracks` in the order of `entry.tracks`, null for failures).
+ * @returns {object} Block data.
+ */
+export const mediaBlockData = (entry, files) => {
+  let hasDefault = false;
+  const tracks = (entry.tracks || [])
+    .map((track, index) => {
+      const file = files.tracks && files.tracks[index];
+      if (!file) return null;
+      const isDefault = Boolean(track.default) && !hasDefault;
+      if (isDefault) hasDefault = true;
+      return {
+        file,
+        kind: track.kind,
+        srclang: track.srclang || '',
+        label: track.label || '',
+        ...(isDefault ? { default: true } : {}),
+      };
+    })
+    .filter(Boolean);
+  const data = {
+    file: files.file,
+    title: entry.title || '',
+    caption: entry.caption || '',
+    loop: Boolean(entry.loop),
+    tracks,
+  };
+  if (entry.kind === 'video') {
+    data.muted = Boolean(entry.muted);
+    if (files.poster) data.poster = files.poster;
+  }
+  return data;
+};
 
 /**
  * Counts block-level start tags (rough; used only to decide whether to convert).
@@ -55,7 +106,7 @@ export const countBlockTags = (html, stopAt = 2) => {
 
 /**
  * Decides how a paste is handled.
- * @param {{ html?: string, text?: string, plainOnly?: boolean, protectedTarget?: boolean, hasFiles?: boolean }} input - Clipboard content and context.
+ * @param {{ html?: string, text?: string, plainOnly?: boolean, protectedTarget?: boolean, hasFiles?: boolean, media?: boolean }} input - Clipboard content and context (`media`, 2.4: pasted videos and audio can become blocks, so one `<video>`/`<audio>` is enough to convert).
  * @returns {'html'|'markdown'|'plain'|null} `html`/`markdown` convert into blocks, `plain` inserts plain text, null leaves the paste to Editor.js.
  */
 export const decidePaste = ({
@@ -64,10 +115,15 @@ export const decidePaste = ({
   plainOnly = false,
   protectedTarget = false,
   hasFiles = false,
+  media = false,
 }) => {
   if (protectedTarget) return null;
   if (plainOnly) return text ? 'plain' : null;
-  if (html && html.length <= MAX_PASTE_LENGTH && (isOfficeHtml(html) || countBlockTags(html) >= 2))
+  if (
+    html &&
+    html.length <= MAX_PASTE_LENGTH &&
+    (isOfficeHtml(html) || countBlockTags(html) >= 2 || (media && hasMediaTags(html)))
+  )
     return 'html';
   // Files without HTML (a copied image) are handled by the image tool.
   if (!html && !hasFiles && text && text.length <= MAX_PASTE_LENGTH && looksLikeMarkdown(text))

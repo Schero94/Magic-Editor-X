@@ -45,6 +45,43 @@ const notifyInput = (node) => {
   if (editable) editable.dispatchEvent(new Event('input', { bubbles: true }));
 };
 
+/**
+ * Replaces a range with a mention chip for an entry, puts the caret after it
+ * (a non-breaking space follows when needed) and reports the change to
+ * Editor.js. Used by the toolbar tool and the `@` trigger (2.4).
+ * @param {Range} range - Text to replace (a selection, or `@query`).
+ * @param {{ href: string, uid: string, documentId: string, locale: string|null, title?: string }} item - Search result.
+ * @param {{ selected?: string, untitled: string }} labels - Fallback texts for an entry without a title.
+ * @returns {HTMLElement|null} The chip, or null when the item is not a usable entry.
+ */
+export const insertMentionChip = (range, item, { selected = '', untitled }) => {
+  const attrs = mentionAttributes(item);
+  if (!range || !attrs) return null;
+  const chip = document.createElement('a');
+  for (const [name, value] of Object.entries(attrs)) chip.setAttribute(name, value);
+  chip.textContent = mentionText(item, selected, untitled);
+  range.deleteContents();
+  range.insertNode(chip);
+  // A space after the chip so typing continues outside of it.
+  const next = chip.nextSibling;
+  const space =
+    next && next.nodeType === Node.TEXT_NODE && /^[\s\u00a0]/.test(next.data)
+      ? null
+      : document.createTextNode('\u00a0');
+  if (space) chip.after(space);
+  const caret = document.createRange();
+  if (space) caret.setStart(space, 1);
+  else caret.setStart(chip.nextSibling, 1);
+  caret.collapse(true);
+  const selection = window.getSelection();
+  if (selection) {
+    selection.removeAllRanges();
+    selection.addRange(caret);
+  }
+  notifyInput(chip);
+  return chip;
+};
+
 export class MentionTool {
   static get isInline() {
     return true;
@@ -124,37 +161,14 @@ export class MentionTool {
    */
   insert(item) {
     const range = this.range;
-    const attrs = mentionAttributes(item);
-    if (!range || !attrs) return;
-    const chip = document.createElement('a');
-    for (const [name, value] of Object.entries(attrs)) chip.setAttribute(name, value);
-    chip.textContent = mentionText(
-      item,
-      range.toString(),
-      this.t('tools.hyperlink.internal.untitled', 'Untitled entry')
-    );
-    range.deleteContents();
-    range.insertNode(chip);
-    // A space after the chip so typing continues outside of it.
-    const next = chip.nextSibling;
-    const space =
-      next && next.nodeType === Node.TEXT_NODE && /^[\s\u00a0]/.test(next.data)
-        ? null
-        : document.createTextNode('\u00a0');
-    if (space) chip.after(space);
+    if (!range || !mentionAttributes(item)) return;
     this.range = null;
     if (this.picker && this.picker.isOpen()) this.picker.close();
     this.api.inlineToolbar.close();
-    const caret = document.createRange();
-    if (space) caret.setStart(space, 1);
-    else caret.setStart(chip.nextSibling, 1);
-    caret.collapse(true);
-    const selection = window.getSelection();
-    if (selection) {
-      selection.removeAllRanges();
-      selection.addRange(caret);
-    }
-    notifyInput(chip);
+    insertMentionChip(range, item, {
+      selected: range.toString(),
+      untitled: this.t('tools.hyperlink.internal.untitled', 'Untitled entry'),
+    });
   }
 
   checkState() {

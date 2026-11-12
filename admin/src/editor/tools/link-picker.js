@@ -22,7 +22,7 @@ let pickerCount = 0;
  * @param {{ get: Function }} fetchClient - Admin fetch client.
  * @returns {Promise<Array<{ uid: string, kind: string, displayName: string, localized: boolean }>>} Types.
  */
-const loadTypes = (fetchClient) => {
+export const loadTypes = (fetchClient) => {
   if (!typeCache.has(fetchClient)) {
     const promise = fetchClient
       .get(API.linkTypes)

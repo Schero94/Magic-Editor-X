@@ -17,6 +17,7 @@ const adminRoutes = [
   ['POST', '/image/byFile', 'editor.uploadImageFile', [ACTIONS.access, UPLOAD_CREATE]],
   ['POST', '/image/byUrl', 'editor.uploadImageUrl', [ACTIONS.access, UPLOAD_CREATE]],
   ['POST', '/file/upload', 'editor.uploadAttachment', [ACTIONS.access, UPLOAD_CREATE]],
+  ['POST', '/media/byUrl', 'editor.uploadMediaUrl', [ACTIONS.access, UPLOAD_CREATE]],
   ['GET', '/content-types', 'editor.contentTypes', [ACTIONS.access]],
   ['GET', '/links/types', 'links.types', [ACTIONS.access]],
   ['GET', '/links/search', 'links.search', [ACTIONS.access]],

@@ -54,6 +54,82 @@ const ATTACHMENT_TYPES = new Map([
 ]);
 
 /**
+ * Media by URL (2.4, pasted `<video>`/`<audio>`): accepted response types per
+ * kind, the canonical type stored for each and the container its signature
+ * must show. `track` is a WebVTT text track.
+ */
+const MEDIA_TYPES = {
+  video: new Map([
+    ['video/mp4', ['video/mp4', 'mp4', '.mp4']],
+    ['video/quicktime', ['video/quicktime', 'mp4', '.mov']],
+    ['video/webm', ['video/webm', 'webm', '.webm']],
+    ['video/ogg', ['video/ogg', 'ogg', '.ogv']],
+  ]),
+  audio: new Map([
+    ['audio/mpeg', ['audio/mpeg', 'mp3', '.mp3']],
+    ['audio/mp3', ['audio/mpeg', 'mp3', '.mp3']],
+    ['audio/mp4', ['audio/mp4', 'mp4', '.m4a']],
+    ['audio/x-m4a', ['audio/mp4', 'mp4', '.m4a']],
+    ['audio/aac', ['audio/aac', 'aac', '.aac']],
+    ['audio/ogg', ['audio/ogg', 'ogg', '.ogg']],
+    ['audio/wav', ['audio/wav', 'wav', '.wav']],
+    ['audio/x-wav', ['audio/wav', 'wav', '.wav']],
+    ['audio/wave', ['audio/wav', 'wav', '.wav']],
+    ['audio/webm', ['audio/webm', 'webm', '.weba']],
+    ['audio/flac', ['audio/flac', 'flac', '.flac']],
+    ['audio/x-flac', ['audio/flac', 'flac', '.flac']],
+  ]),
+  track: new Map([['text/vtt', ['text/vtt', 'vtt', '.vtt']]]),
+};
+/** Size cap of a WebVTT track fetched by URL. */
+const MAX_TRACK_BYTES = 512 * 1024;
+/** Time limit per hop of a media download. */
+const MEDIA_TIMEOUT_MS = 60000;
+/** Media downloads at once per process (each is buffered in memory up to `uploads.maxMediaBytes`). */
+const MAX_MEDIA_DOWNLOADS = 3;
+
+/**
+ * Container format of an audio or video file (or a WebVTT track) from its first bytes.
+ * @param {Buffer} buffer - File start (at least 12 bytes for most formats).
+ * @returns {'mp4'|'webm'|'ogg'|'mp3'|'wav'|'flac'|'aac'|'vtt'|null} Container or null.
+ */
+function detectMediaContainer(buffer) {
+  if (!Buffer.isBuffer(buffer) || buffer.length < 4) return null;
+  if (buffer.length >= 12 && buffer.toString('ascii', 4, 8) === 'ftyp') return 'mp4';
+  if (buffer.subarray(0, 4).equals(Buffer.from([0x1a, 0x45, 0xdf, 0xa3]))) return 'webm';
+  if (buffer.toString('ascii', 0, 4) === 'OggS') return 'ogg';
+  if (buffer.toString('ascii', 0, 4) === 'fLaC') return 'flac';
+  if (
+    buffer.length >= 12 &&
+    buffer.toString('ascii', 0, 4) === 'RIFF' &&
+    buffer.toString('ascii', 8, 12) === 'WAVE'
+  )
+    return 'wav';
+  if (buffer.toString('ascii', 0, 3) === 'ID3') return 'mp3';
+  // ADTS AAC: sync word 0xFFF, layer 00.
+  if (buffer[0] === 0xff && (buffer[1] & 0xf6) === 0xf0) return 'aac';
+  // MPEG audio frame sync (layer bits not 00).
+  if (buffer[0] === 0xff && (buffer[1] & 0xe0) === 0xe0 && (buffer[1] & 0x06) !== 0) return 'mp3';
+  const text = buffer
+    .subarray(0, 16)
+    .toString('utf8')
+    .replace(/^\ufeff/, '');
+  if (/^WEBVTT(?:[ \t\r\n]|$)/.test(text)) return 'vtt';
+  return null;
+}
+
+/**
+ * True when a buffer is a WebVTT file: UTF-8, no NUL bytes, starts with `WEBVTT`.
+ * @param {Buffer} buffer - Whole file.
+ * @returns {boolean} Result.
+ */
+function isWebVtt(buffer) {
+  return (
+    Buffer.isBuffer(buffer) && isUtf8(buffer) && !buffer.includes(0) && detectMediaContainer(buffer) === 'vtt'
+  );
+}
+
+/**
  * Detects a raster image type from its first bytes.
  * @param {Buffer} buffer - File start.
  * @returns {string|null} MIME type or null.
@@ -166,6 +242,40 @@ module.exports = ({ strapi }, dependencies = {}) => {
   const limit = (key, fallback) => {
     const value = Number(config(key, fallback));
     return Number.isSafeInteger(value) && value > 0 ? Math.min(value, HARD_UPLOAD_LIMIT) : fallback;
+  };
+
+  let mediaDownloads = 0;
+
+  /**
+   * Fetch options for a by-URL upload. An origin the owner listed in
+   * `uploads.allowPrivateOrigins` (exact `URL.origin`) may be private or
+   * loopback (intranet media server, test server); redirects from it are never
+   * followed. Every other URL must be public.
+   * @param {URL} target - Validated URL.
+   * @returns {object} Options for fetchBounded.
+   */
+  const originOptions = (target) => {
+    const allowed = config('uploads.allowPrivateOrigins', []);
+    return Array.isArray(allowed) && allowed.includes(target.origin)
+      ? { allowPrivate: true, maxRedirects: 0 }
+      : { maxRedirects: 2 };
+  };
+
+  /**
+   * Parses an outbound URL; with a listed private origin the private-address check is skipped.
+   * @param {string} input - URL.
+   * @returns {URL} Parsed URL.
+   */
+  const parseTarget = (input) => {
+    let origin = '';
+    try {
+      origin = new URL(input).origin;
+    } catch {
+      // validateHttpUrl rejects it below
+    }
+    const allowed = config('uploads.allowPrivateOrigins', []);
+    const listed = Array.isArray(allowed) && origin !== '' && allowed.includes(origin);
+    return validateHttpUrl(input, { allowPrivate: listed });
   };
 
   const getSingleFile = (files, names) => {
@@ -289,10 +399,11 @@ module.exports = ({ strapi }, dependencies = {}) => {
      * @returns {Promise<object>} Editor.js image tool response.
      */
     async uploadImageUrl(input, user) {
-      const target = validateHttpUrl(input);
+      const target = parseTarget(input);
       const downloaded = await safeFetch(target.href, {
         maxBytes: limit('uploads.maxImageBytes', 10 * 1024 * 1024),
         allowedMimeTypes: [...IMAGE_MIMES],
+        ...originOptions(target),
       });
       const mime = detectImageMime(downloaded.body.subarray(0, 16));
       if (!mime) throw httpError('The URL does not point to a supported image', 400);
@@ -316,6 +427,77 @@ module.exports = ({ strapi }, dependencies = {}) => {
           user
         );
         return imageResponse(uploaded);
+      } finally {
+        await fileSystem.promises.rm(directory, { recursive: true, force: true });
+      }
+    },
+
+    /**
+     * Downloads a public video, audio or WebVTT file and stores it in the
+     * Media Library (2.4, pasted `<video>`/`<audio>`). The response type must
+     * be one of the kind's types and the file signature must match it.
+     * `data:`, `blob:` and `file:` URLs are refused (http(s) only).
+     * @param {string} input - URL.
+     * @param {'video'|'audio'|'track'} kind - What the file must be.
+     * @param {object} user - Admin user.
+     * @returns {Promise<{ success: 1, file: object }>} Media file for the video/audio block.
+     * @throws {Error} 400 rejected URL or content, 413 too large, 415 wrong type, 429 busy, 502/504 remote errors.
+     */
+    async uploadMediaUrl(input, kind, user) {
+      const types = MEDIA_TYPES[kind];
+      if (!types) throw httpError('Unsupported media kind', 400);
+      const target = parseTarget(input);
+      if (mediaDownloads >= MAX_MEDIA_DOWNLOADS)
+        throw httpError('Too many media downloads at once, try again shortly', 429);
+      mediaDownloads += 1;
+      let downloaded;
+      try {
+        downloaded = await safeFetch(target.href, {
+          maxBytes: kind === 'track' ? MAX_TRACK_BYTES : limit('uploads.maxMediaBytes', 50 * 1024 * 1024),
+          allowedMimeTypes: [...types.keys()],
+          timeoutMs: MEDIA_TIMEOUT_MS,
+          ...originOptions(target),
+        });
+      } finally {
+        mediaDownloads -= 1;
+      }
+      const [mime, container, extension] = types.get(downloaded.mimeType);
+      const valid =
+        kind === 'track'
+          ? isWebVtt(downloaded.body)
+          : detectMediaContainer(downloaded.body.subarray(0, 16)) === container ||
+            // AAC is also delivered in an MP4 container.
+            (mime === 'audio/aac' && detectMediaContainer(downloaded.body.subarray(0, 16)) === 'mp4');
+      if (!valid) throw httpError('The file content does not match its type', 415);
+      const requested = safeFilename(path.basename(downloaded.url.pathname), `${kind}${extension}`);
+      const name = path.extname(requested) ? requested : `${requested}${extension}`;
+      const directory = await fileSystem.promises.mkdtemp(path.join(tempRoot, 'magic-editor-x-'));
+      const filepath = path.join(directory, 'upload');
+      try {
+        await fileSystem.promises.writeFile(filepath, downloaded.body, { flag: 'wx', mode: 0o600 });
+        const uploaded = await toMediaLibrary(
+          {
+            filepath,
+            originalFilename: name,
+            mimetype: mime,
+            detectedMimeType: mime,
+            size: downloaded.body.length,
+          },
+          user
+        );
+        return {
+          success: 1,
+          file: {
+            url: uploaded.url,
+            id: uploaded.id,
+            documentId: uploaded.documentId,
+            name: uploaded.name,
+            mime: uploaded.mime || mime,
+            ext: uploaded.ext,
+            hash: uploaded.hash,
+            size: uploaded.size,
+          },
+        };
       } finally {
         await fileSystem.promises.rm(directory, { recursive: true, force: true });
       }
@@ -366,3 +548,6 @@ module.exports = ({ strapi }, dependencies = {}) => {
 module.exports.detectImageMime = detectImageMime;
 module.exports.matchesAttachmentSignature = matchesAttachmentSignature;
 module.exports.safeFilename = safeFilename;
+module.exports.detectMediaContainer = detectMediaContainer;
+module.exports.isWebVtt = isWebVtt;
+module.exports.MEDIA_TYPES = MEDIA_TYPES;

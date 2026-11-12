@@ -415,6 +415,7 @@
   "editor.find.truncated": "(seules les premières occurrences sont affichées)",
   "editor.find.error.invalid": "Cette expression régulière n’est pas valide.",
   "editor.find.error.tooLong": "Recherchez au plus {max} caractères.",
+  "editor.paste.mediaFailed": "{count, plural, one {# fichier vidéo ou audio n’a pas pu être copié depuis son adresse et a été omis} other {# fichiers vidéo ou audio n’ont pas pu être copiés depuis leurs adresses et ont été omis}}. Ajoutez-{count, plural, one {le} other {les}} avec le bloc vidéo ou audio.",
   "editor.preset.title": "Paramètres du champ",
   "editor.preset.fix": "Corriger automatiquement",
   "editor.preset.hint": "L’enregistrement échoue tant que ce contenu ne respecte pas les paramètres du champ. La correction automatique modifie les niveaux de titre, transforme les blocs non autorisés en paragraphes et supprime les liens non autorisés.",

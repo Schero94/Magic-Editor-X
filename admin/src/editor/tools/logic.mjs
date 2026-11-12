@@ -75,7 +75,7 @@ export const normalizeLanguage = (language) => normalizeCodeLanguage(language);
  * `code` block data.
  * @param {unknown} data - Stored data.
  * @param {{ language?: string }} [config] - Defaults.
- * @returns {{ code: string, language: string, showlinenumbers: boolean }} Data.
+ * @returns {{ code: string, language: string, showlinenumbers: boolean, filename: string }} Data.
  */
 export const normalizeCodeFlask = (data, config = {}) => {
   const d = data && typeof data === 'object' ? data : {};
@@ -83,6 +83,7 @@ export const normalizeCodeFlask = (data, config = {}) => {
     code: str(d.code),
     language: d.language ? normalizeLanguage(d.language) : normalizeLanguage(config.language || 'plaintext'),
     showlinenumbers: d.showlinenumbers !== false,
+    filename: typeof d.filename === 'string' ? d.filename : '',
   };
 };
 

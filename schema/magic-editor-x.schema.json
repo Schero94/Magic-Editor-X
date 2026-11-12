@@ -1026,6 +1026,12 @@
         },
         "showlinenumbers": {
           "type": "boolean"
+        },
+        "filename": {
+          "type": "string",
+          "maxLength": 200,
+          "minLength": 1,
+          "description": "Optional file name label shown above the code (plain text, no control characters; 2.4). Omitted when empty."
         }
       },
       "required": ["code", "language"],

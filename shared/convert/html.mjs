@@ -27,6 +27,7 @@ import {
   wrapLink,
   wrapMark,
 } from './common.mjs';
+import { MAX_MEDIA_TRACKS, TRACK_KINDS, sanitizeUrl } from '../sanitize-policy.mjs';
 
 /** Longest HTML input the converter reads (characters). */
 export const MAX_HTML_LENGTH = 5 * 1024 * 1024;
@@ -242,12 +243,13 @@ const inlineOf = (nodes, state, depth = 0) => {
       continue;
     }
     const name = node.name;
-    if (DROP.has(name)) continue;
+    if (DROP.has(name) && name !== 'video' && name !== 'audio') continue;
     if (name === 'br') {
       html += '<br>';
       continue;
     }
-    if (name === 'img') {
+    if (name === 'img' || name === 'video' || name === 'audio') {
+      // Videos and audio only become blocks with `media: 'collect'` (see pushMedia).
       state.images.push(node);
       continue;
     }
@@ -293,6 +295,7 @@ const inlineOf = (nodes, state, depth = 0) => {
 const createContext = (options) => ({
   blocks: [],
   images: [],
+  media: options.media === 'collect' ? [] : null,
   skipped: new Map(),
   dataImages: options.dataImages === 'placeholder' ? 'placeholder' : 'skip',
   full: false,
@@ -345,7 +348,97 @@ const pushImage = (ctx, node, caption = '') => {
   }
 };
 
-const pushImages = (ctx, images) => images.forEach((node) => pushImage(ctx, node));
+const pushImages = (ctx, images) =>
+  images.forEach((node) => {
+    if (node.name === 'video' || node.name === 'audio') {
+      // Without `media: 'collect'` inline videos and audio are left out silently (2.3 behaviour).
+      if (ctx.media) pushMedia(ctx, node);
+    } else pushImage(ctx, node);
+  });
+
+/**
+ * An http(s) URL of a pasted media element, or '' (data:, blob:, file:,
+ * relative and other sources are never fetched).
+ * @param {string} value - Attribute value.
+ * @returns {string} URL.
+ */
+const remoteMediaUrl = (value) => {
+  const text = typeof value === 'string' ? value.trim() : '';
+  return /^https?:/i.test(text)
+    ? sanitizeUrl(text, { schemes: ['http', 'https'], allowRelative: false })
+    : '';
+};
+
+const hasAttr = (node, name) =>
+  Boolean(node.attribs && Object.prototype.hasOwnProperty.call(node.attribs, name));
+
+/**
+ * Collects a pasted `<video>` or `<audio>` (2.4, `media: 'collect'`): the
+ * file URL (`src`, else the first `<source src>` with a matching or no
+ * `type`), the poster, up to 8 `<track>` elements, title, loop and muted.
+ * The block made here is a placeholder; the caller copies the files into the
+ * Media Library and builds the block (`report.media[].index`). A media
+ * element without a usable http(s) URL is reported with `index: -1`.
+ * @param {object} ctx - Context.
+ * @param {object} node - `<video>` or `<audio>`.
+ * @param {string} [caption=''] - Caption HTML (from a figure).
+ */
+const pushMedia = (ctx, node, caption = '') => {
+  const kind = node.name;
+  const children = (node.children || []).filter(isElement);
+  let src = remoteMediaUrl(attr(node, 'src'));
+  if (!src) {
+    const sources = children.filter((child) => child.name === 'source');
+    const typed = sources.find((child) => attr(child, 'type').toLowerCase().startsWith(`${kind}/`));
+    const candidate = typed || sources.find((child) => !attr(child, 'type')) || sources[0];
+    src = candidate ? remoteMediaUrl(attr(candidate, 'src')) : '';
+  }
+  if (!src) {
+    ctx.media.push({ index: -1, kind, src: '' });
+    skip(ctx, 'media', kind);
+    return;
+  }
+  const tracks = children
+    .filter((child) => child.name === 'track')
+    .map((child) => {
+      const trackKind = attr(child, 'kind').toLowerCase() || 'subtitles';
+      return {
+        src: remoteMediaUrl(attr(child, 'src')),
+        kind: TRACK_KINDS.includes(trackKind) ? trackKind : 'subtitles',
+        srclang: attr(child, 'srclang').trim().slice(0, 35),
+        label: attr(child, 'label').trim().slice(0, 100),
+        default: hasAttr(child, 'default'),
+      };
+    })
+    .filter((track) => track.src)
+    .slice(0, MAX_MEDIA_TRACKS);
+  const title = (attr(node, 'title') || attr(node, 'aria-label')).replace(/\s+/g, ' ').trim().slice(0, 200);
+  const entry = {
+    index: ctx.blocks.length,
+    kind,
+    src,
+    title,
+    caption,
+    loop: hasAttr(node, 'loop'),
+    tracks,
+  };
+  if (kind === 'video') {
+    entry.muted = hasAttr(node, 'muted');
+    entry.poster = remoteMediaUrl(attr(node, 'poster'));
+  }
+  ctx.media.push(entry);
+  push(ctx, {
+    type: kind,
+    data: {
+      file: { url: '' },
+      title,
+      caption,
+      loop: entry.loop,
+      ...(kind === 'video' ? { muted: entry.muted } : {}),
+      tracks: [],
+    },
+  });
+};
 
 /**
  * Adds a paragraph (and the images found in it).
@@ -554,16 +647,16 @@ const pushTable = (ctx, node) => {
  * @param {object} ctx - Context.
  * @param {object} node - `<pre>`.
  */
-const pushCode = (ctx, node) => {
+const pushCode = (ctx, node, filename) => {
   const code = visible(node.children).find((child) => isElement(child) && child.name === 'code');
   const className = `${attr(node, 'class')} ${code ? attr(code, 'class') : ''}`;
   const language = (/\b(?:language|lang)-([a-z0-9+#-]{1,32})\b/i.exec(className) || [])[1];
   const text = textOf(node);
-  if (text.trim()) push(ctx, codeBlock(text, language));
+  if (text.trim()) push(ctx, codeBlock(text, language, filename));
 };
 
 /**
- * Converts `<figure>` with an image or a video frame and an optional caption.
+ * Converts `<figure>` with an image, a video frame or code (2.4) and an optional caption.
  * @param {object} ctx - Context.
  * @param {object} node - `<figure>`.
  */
@@ -585,11 +678,23 @@ const pushFigure = (ctx, node) => {
     pushImage(ctx, img, caption);
     return;
   }
+  const media = ctx.media ? find(children, 'video') || find(children, 'audio') : null;
+  if (media) {
+    pushMedia(ctx, media, caption);
+    return;
+  }
   const frame = find(children, 'iframe');
   if (frame) {
     const embed = embedBlock(attr(frame, 'src'), caption);
     if (embed) push(ctx, embed);
     else skip(ctx, 'unsupported-element', 'iframe');
+    return;
+  }
+  // 2.4: code with a file name (`<figure><figcaption>name</figcaption><pre>`, the renderers' output).
+  const body = children.filter((child) => isElement(child) && child.name !== 'figcaption');
+  const pre = body.length === 1 ? (body[0].name === 'pre' ? body[0] : find(body[0].children, 'pre')) : null;
+  if (pre) {
+    pushCode(ctx, pre, captionNode ? textOf(captionNode) : '');
     return;
   }
   walkBlocks(ctx, children, 1);
@@ -616,6 +721,11 @@ const walkBlocks = (ctx, nodes, depth) => {
       continue;
     }
     const name = node.name;
+    if (ctx.media && (name === 'video' || name === 'audio')) {
+      flush();
+      pushMedia(ctx, node);
+      continue;
+    }
     if (DROP.has(name)) {
       if (!/^(head|meta|link|style|title|base|xml)$/.test(name)) skip(ctx, 'unsupported-element', name);
       continue;
@@ -710,7 +820,7 @@ const walkBlocks = (ctx, nodes, depth) => {
 /**
  * Converts HTML into Editor.js blocks.
  * @param {string} html - Untrusted HTML.
- * @param {{ parse: (html: string) => Array<object>, dataImages?: 'skip'|'placeholder' }} options - `parse` turns HTML into the node tree (see the adapters); `dataImages: 'placeholder'` keeps an empty image block for each `data:` image so a caller can upload it.
+ * @param {{ parse: (html: string) => Array<object>, dataImages?: 'skip'|'placeholder', media?: 'skip'|'collect' }} options - `parse` turns HTML into the node tree (see the adapters); `dataImages: 'placeholder'` keeps an empty image block for each `data:` image so a caller can upload it; `media: 'collect'` (2.4) turns `<video>`/`<audio>` with an http(s) source into placeholder `video`/`audio` blocks listed in `report.media` (`[{ index, kind, src, title, caption, loop, muted?, poster?, tracks: [{ src, kind, srclang, label, default }] }]`, `index: -1` and reason `media` when there is no usable URL) so a caller can copy the files into the Media Library; by default they are skipped as before.
  * @returns {{ blocks: Array<{id: string, type: string, data: object}>, report: { skipped: Array<{reason: string, tag?: string, count: number}>, images: Array<{index: number, src: string, kind: 'remote'|'relative'|'data'|'unsupported'}> } }} Blocks and what was left out. `images[].index` is the block index, -1 when no block was made; `src` is '' for local files.
  * @throws {TypeError} When `parse` is missing.
  */
@@ -726,7 +836,11 @@ export const htmlToBlocks = (html, options = {}) => {
   }
   return {
     blocks: withIds(ctx.blocks),
-    report: { skipped: Array.from(ctx.skipped.values()), images: ctx.images },
+    report: {
+      skipped: Array.from(ctx.skipped.values()),
+      images: ctx.images,
+      ...(ctx.media ? { media: ctx.media } : {}),
+    },
   };
 };
 

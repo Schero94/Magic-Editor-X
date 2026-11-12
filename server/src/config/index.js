@@ -28,6 +28,10 @@ const defaults = {
   uploads: {
     maxImageBytes: 10 * MiB,
     maxFileBytes: 20 * MiB,
+    /** 2.4: size cap of a video or audio file copied from a URL (pasted <video>/<audio>; buffered in memory). */
+    maxMediaBytes: 50 * MiB,
+    /** 2.4: exact origins the image and media by-URL routes may fetch although they are private or loopback (no redirects). */
+    allowPrivateOrigins: [],
   },
   linkPreview: {
     enabled: true,
@@ -175,6 +179,8 @@ const configSchema = z.looseObject({
   uploads: z.looseObject({
     maxImageBytes: positiveInt(200 * MiB),
     maxFileBytes: positiveInt(500 * MiB),
+    maxMediaBytes: positiveInt(200 * MiB),
+    allowPrivateOrigins: z.array(z.string().max(300).refine(isOrigin)).max(20),
   }),
   linkPreview: z.looseObject({ enabled: z.boolean(), timeoutMs: z.number().int().min(1000).max(30000) }),
   api: z.looseObject({ autoParseJSON: z.boolean() }),

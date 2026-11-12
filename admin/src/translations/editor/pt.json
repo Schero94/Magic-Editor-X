@@ -415,6 +415,7 @@
   "editor.find.truncated": "(apenas as primeiras ocorrências são mostradas)",
   "editor.find.error.invalid": "Esta expressão regular não é válida.",
   "editor.find.error.tooLong": "Pesquise no máximo {max} caracteres.",
+  "editor.paste.mediaFailed": "{count, plural, one {# ficheiro de vídeo ou áudio não pôde ser copiado do seu endereço e foi omitido} other {# ficheiros de vídeo ou áudio não puderam ser copiados dos seus endereços e foram omitidos}}. {count, plural, one {Adicione-o} other {Adicione-os}} com o bloco de vídeo ou áudio.",
   "editor.preset.title": "Configurações do campo",
   "editor.preset.fix": "Corrigir automaticamente",
   "editor.preset.hint": "Não será possível salvar até que este conteúdo siga as configurações do campo. A correção automática muda os níveis de título, transforma blocos não permitidos em parágrafos e remove links não permitidos.",
