@@ -158,6 +158,7 @@ test('policy: video/audio MIME and WebVTT checks, track bounds and one default',
   assert.equal(wrong[1].data.file.url, '');
   assert.equal(renderHtml(doc(...wrong)), '');
   assert.deepEqual(Object.keys(store(doc(audio())).blocks[0].data).sort(), [
+    '_mex',
     'caption',
     'file',
     'loop',
@@ -454,7 +455,7 @@ test('media logic: focal point by pointer and keyboard, gallery picks, tracks, m
   assert.equal(addTrack(one, { url: '/d.vtt', ext: '.vtt' }, '-')[1].default, undefined);
   assert.deepEqual(moveItem(['a', 'b', 'c'], 0, 2), ['b', 'c', 'a']);
   assert.deepEqual(moveItem(['a', 'b'], 1, -3), ['b', 'a']);
-  assert.deepEqual(normalizeGallery({}), { images: [], layout: 'grid', columns: 3, caption: '' });
+  assert.deepEqual(normalizeGallery({}), { images: [], layout: 'grid', columns: 3, caption: '', _mex: 1 });
   assert.equal(BLOCK_POLICIES.gallery({}, (s) => s, {}).images.length, 0);
 });
 

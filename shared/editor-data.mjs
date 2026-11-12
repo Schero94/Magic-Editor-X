@@ -15,6 +15,7 @@
 
 /** Hard limits for one field value. Bigger values are rejected, never truncated. */
 import { activeBlock } from './blocks/active.mjs';
+import { isMarkedBuiltIn } from './built-in-marker.mjs';
 
 export const EDITOR_DATA_LIMITS = Object.freeze({
   maxBlocks: 5000,
@@ -312,7 +313,7 @@ export const computeStats = (data) => {
   };
   data.blocks.forEach((block) => {
     // A synced block (2.3) stores only a reference; its text belongs to the source.
-    if (block && block.type === 'synced' && isPlainObject(block.data) && 'ref' in block.data) return;
+    if (block && block.type === 'synced' && isMarkedBuiltIn('synced', block.data)) return;
     // Code-registered blocks (custom block SDK) count their text and inline fields only.
     const definition = block && activeBlock(block.type);
     if (definition) definition.fields(block.data).forEach((field) => collect(field.value));

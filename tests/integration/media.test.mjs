@@ -110,6 +110,7 @@ const mediaBlocks = () => [
       columns: 9,
       caption: 'Synthetic squares',
       extra: 'dropped',
+      _mex: 1,
     },
   },
   {
@@ -123,6 +124,7 @@ const mediaBlocks = () => [
       loop: true,
       muted: true,
       autoplay: true,
+      _mex: 1,
       tracks: [
         {
           file: stale(state.files.vtt, '.vtt'),
@@ -150,6 +152,7 @@ const mediaBlocks = () => [
       loop: false,
       muted: true,
       tracks: [],
+      _mex: 1,
     },
   },
   {
@@ -211,7 +214,7 @@ test('saving stores the sanitised media blocks (bounds, MIME checks, focal point
   assert.equal(v.data.tracks.length, 1, 'only WebVTT tracks are kept');
   assert.equal(v.data.caption, 'One second <i>test pattern</i>');
   assert.equal(a.data.muted, undefined);
-  assert.deepEqual(Object.keys(a.data).sort(), ['caption', 'file', 'loop', 'title', 'tracks']);
+  assert.deepEqual(Object.keys(a.data).sort(), ['_mex', 'caption', 'file', 'loop', 'title', 'tracks']);
   assert.equal(i.data.focalPoint, undefined, 'an out-of-range focal point is dropped');
 });
 

@@ -17,7 +17,7 @@
 import { isPlainObject, computeStats } from './editor-data.mjs';
 import { parseInline } from './render/inline.mjs';
 import { activeBlocks } from './blocks/active.mjs';
-import { registeredBlockOf } from './sanitize-policy.mjs';
+import { registeredBlockOf, isBuiltInBlock } from './sanitize-policy.mjs';
 
 /** Built-in block types (stored names). `mediaLib` only inserts `image` blocks. */
 export const BUILTIN_BLOCKS = Object.freeze([
@@ -304,7 +304,7 @@ export const imageHasAlt = (block) => {
     if (data.decorative === true) return true;
     return typeof data.alt === 'string' && data.alt.trim() !== '';
   }
-  if (block.type === 'gallery' && Array.isArray(data.images))
+  if (block.type === 'gallery' && isBuiltInBlock(block) && Array.isArray(data.images))
     return data.images.every(
       (item) =>
         !isPlainObject(item) ||

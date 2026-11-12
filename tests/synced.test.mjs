@@ -60,9 +60,12 @@ const SOURCE = doc(h('s1', 'Shared heading', 1), p('s2', 'Shared <b>text</b>'), 
 
 test('policy: only a valid reference is kept; a pre-2.3 custom block named synced is not a synced block', () => {
   const inline = (html) => html;
-  assert.deepEqual(BLOCK_POLICIES.synced({ ref: 'abc123', extra: '<b>x</b>' }, inline), { ref: 'abc123' });
-  assert.deepEqual(BLOCK_POLICIES.synced({ ref: 'ABC 1' }, inline), { ref: '' });
-  assert.deepEqual(BLOCK_POLICIES.synced({ ref: 7 }, inline), { ref: '' });
+  assert.deepEqual(BLOCK_POLICIES.synced({ ref: 'abc123', extra: '<b>x</b>' }, inline), {
+    ref: 'abc123',
+    _mex: 1,
+  });
+  assert.deepEqual(BLOCK_POLICIES.synced({ ref: 'ABC 1' }, inline), { ref: '', _mex: 1 });
+  assert.deepEqual(BLOCK_POLICIES.synced({ ref: 7 }, inline), { ref: '', _mex: 1 });
   assert.equal(isSyncedBlock(synced('a', 'abc')), true);
   const legacy = { id: 'b', type: 'synced', data: { title: 'Custom block data' } };
   assert.equal(isBuiltInBlock(legacy), false);
@@ -106,12 +109,23 @@ test('Yjs guard: a synced block holds only { ref } with a documentId', () => {
     return Y.encodeStateAsUpdate(client, before);
   };
   assert.equal(applyCheckedUpdate(room(), update(doc(p('p1', 'hi'), synced('s', 'abc123')))).ok, true);
-  const copied = { id: 's', type: 'synced', data: { ref: 'abc123', blocks: [p('x', 'copied')] } };
+  const marked = { id: 's', type: 'synced', data: { ref: 'abc123', _mex: 1 } };
+  assert.equal(applyCheckedUpdate(room(), update(doc(p('p1', 'hi'), marked))).ok, true);
+  const copied = { id: 's', type: 'synced', data: { ref: 'abc123', _mex: 1, blocks: [p('x', 'copied')] } };
   assert.equal(applyCheckedUpdate(room(), update(doc(p('p1', 'hi'), copied))).ok, false);
+  const badMarker = { id: 's', type: 'synced', data: { ref: 'abc123', _mex: 'x' } };
+  assert.equal(applyCheckedUpdate(room(), update(doc(p('p1', 'hi'), badMarker))).ok, true, 'custom data');
   assert.equal(applyCheckedUpdate(room(), update(doc(p('p1', 'hi'), synced('s', '../x')))).ok, false);
-  // A pre-2.3 custom block named synced (no ref) is not affected.
+  // A pre-2.3 custom block named synced is not affected, also with a field named `ref`
+  // (without the marker, extra keys make it custom block data, never a synced block).
   const legacy = { id: 'c', type: 'synced', data: { title: 'x' } };
   assert.equal(applyCheckedUpdate(room(), update(doc(p('p1', 'hi'), legacy))).ok, true);
+  const legacyRef = {
+    id: 'c',
+    type: 'synced',
+    data: { content: '', ref: 'Any text', blockType: 'simple', blockName: 'synced' },
+  };
+  assert.equal(applyCheckedUpdate(room(), update(doc(p('p1', 'hi'), legacyRef))).ok, true);
 });
 
 // --- expansion --------------------------------------------------------------

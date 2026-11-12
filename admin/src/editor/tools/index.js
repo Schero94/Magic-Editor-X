@@ -37,7 +37,8 @@ import { ChecklistTool } from './checklist';
 import { buildCustomBlockTools } from './custom-block';
 import { MexImageTool } from './alt-text';
 import { GalleryTool, VideoTool, AudioTool } from './media';
-import { MEDIA_BLOCK_MARKERS } from '../../../../shared/sanitize-policy.mjs';
+import { MARKED_BLOCKS } from '../../../../shared/sanitize-policy.mjs';
+import { markedTool } from './marked';
 import { isBlockAllowed } from '../../../../shared/presets.mjs';
 import { buildCodeBlockTools } from '../block-registry';
 
@@ -64,6 +65,24 @@ const INLINE = [
   'tooltip',
 ];
 
+/** Names 2.3 gave to built-in tools that a Settings custom block could already have. */
+const LEGACY_CUSTOM_NAMES = new Set([...Object.keys(MARKED_BLOCKS), 'mention']);
+
+/**
+ * Key of the mention inline tool when a custom block owns `mention`. Custom
+ * block names cannot contain `$`, so it never clashes with one.
+ */
+const MENTION_FALLBACK_KEY = 'mention$mex';
+
+/**
+ * True when an enabled custom block has this exact name.
+ * @param {unknown} blocks - Custom block DTOs.
+ * @param {string} name - Tool name.
+ * @returns {boolean} Result.
+ */
+const hasCustomBlock = (blocks, name) =>
+  Array.isArray(blocks) && blocks.some((block) => block && block.name === name && block.enabled !== false);
+
 /**
  * Builds the `tools` object for `new EditorJS({ tools })`.
  * @param {object} ctx - Context from the editor field (see README in the parent component).
@@ -80,8 +99,11 @@ export function buildTools(ctx) {
     presetInline.includes('hyperlink') &&
     (linkTargets === 'all' || linkTargets === 'internal') &&
     Boolean(ctx.fetchClient && typeof ctx.fetchClient.get === 'function');
+  // A custom block named `mention` from before 2.3 keeps the name; the inline tool then uses another key
+  // (inline tools store no name, so this changes nothing in the content).
+  const mentionKey = hasCustomBlock(ctx.customBlocks, 'mention') ? MENTION_FALLBACK_KEY : 'mention';
   const allowedInline = mentions
-    ? presetInline.flatMap((name) => (name === 'hyperlink' ? [name, 'mention'] : [name]))
+    ? presetInline.flatMap((name) => (name === 'hyperlink' ? [name, mentionKey] : [name]))
     : presetInline;
   const inline = ctx.aiEnabled ? [...allowedInline, 'aiAssistant'] : allowedInline;
   const levels = preset && preset.headingLevels.length ? preset.headingLevels : [1, 2, 3, 4, 5, 6];
@@ -168,9 +190,9 @@ export function buildTools(ctx) {
     },
     codeFlask: { class: CodeHighlightTool, config: { ...shared, language: 'javascript' } },
     delimiter: { class: DelimiterTool, shortcut: 'CMD+SHIFT+D', config: shared },
-    toc: { class: TocTool, config: { t, levels } },
+    toc: { class: markedTool(TocTool, 'toc'), config: { t, levels } },
     // Synced block (2.3): inserted from the template dialog; the field renders its view (`ctx.mountSynced`).
-    synced: { class: SyncedTool, config: { mount: ctx.mountSynced } },
+    synced: { class: markedTool(SyncedTool, 'synced'), config: { t, mount: ctx.mountSynced } },
     table: {
       class: Table,
       inlineToolbar: inline,
@@ -222,7 +244,7 @@ export function buildTools(ctx) {
       config: { ...shared, requireAlt: Boolean(preset && preset.requireAlt) },
     },
     gallery: {
-      class: GalleryTool,
+      class: markedTool(GalleryTool, 'gallery'),
       inlineToolbar: inline,
       toolbox: canBrowse ? undefined : false,
       config: {
@@ -233,13 +255,13 @@ export function buildTools(ctx) {
       },
     },
     video: {
-      class: VideoTool,
+      class: markedTool(VideoTool, 'video'),
       inlineToolbar: inline,
       toolbox: canBrowse ? undefined : false,
       config: { ...shared, canBrowse, getLocale: ctx.getContentLocale },
     },
     audio: {
-      class: AudioTool,
+      class: markedTool(AudioTool, 'audio'),
       inlineToolbar: inline,
       toolbox: canBrowse ? undefined : false,
       config: { ...shared, canBrowse, getLocale: ctx.getContentLocale },
@@ -276,7 +298,7 @@ export function buildTools(ctx) {
     },
     ...(mentions
       ? {
-          mention: {
+          [mentionKey]: {
             class: MentionTool,
             shortcut: 'CMD+SHIFT+2',
             config: { t, fetchClient: ctx.fetchClient, getLocale: ctx.getContentLocale },
@@ -305,8 +327,9 @@ export function buildTools(ctx) {
 
   const custom = buildCustomBlockTools(ctx.customBlocks, { ...ctx, t, canUpload }, shared);
   for (const [name, tool] of Object.entries(custom)) {
-    // A custom block created before 2.3 under a name 2.3 gave to a media block keeps its own tool.
-    const legacy = Object.prototype.hasOwnProperty.call(MEDIA_BLOCK_MARKERS, name);
+    // A custom block created before 2.3 under a name 2.3 gave to a built-in tool
+    // (`toc`, `gallery`, `video`, `audio`, `synced`, `mention`) keeps its own tool.
+    const legacy = LEGACY_CUSTOM_NAMES.has(name);
     if (legacy || !Object.prototype.hasOwnProperty.call(tools, name)) {
       tools[name] = tool.inlineToolbar === true ? { ...tool, inlineToolbar: inline } : tool;
     }
@@ -323,6 +346,7 @@ export function buildTools(ctx) {
 const NOT_BLOCKS = new Set([
   ...INLINE,
   'mention',
+  MENTION_FALLBACK_KEY,
   'aiAssistant',
   'alignmentTune',
   'textVariant',

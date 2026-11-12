@@ -525,7 +525,7 @@ Data of each block type as stored after sanitising (`shared/sanitize-policy.mjs`
 | custom embedded-entry block | `{ entry: { id, documentId, title, <display fields> }, contentType, displayMode }`                                                                                                                                                                                                                                                                               |
 | block defined in code (SDK) | the keys of its `schema`, in declaration order (see [Custom blocks in code (SDK)](#custom-blocks-in-code-sdk))                                                                                                                                                                                                                                                   |
 
-Before 2.3 a custom block could be named `gallery`, `video`, `audio` or `synced`. Stored blocks of such a type without the new block's key (`images`, `file`, `file`, `ref`) stay custom block data everywhere; new custom blocks cannot use these names.
+Blocks `toc`, `gallery`, `video`, `audio` and `synced` (2.3) also store `_mex: 1`, the built-in marker. Before 2.3 a custom block could have one of these names; its stored data has neither the marker nor exactly the built-in keys, so it stays custom block data everywhere (sanitising, editor tool, renderers, API output) and is never rewritten. Write the marker (or exactly the keys listed above) when you create these blocks through the API. New custom blocks cannot use these names or `mention`.
 
 Inline HTML may contain `b`, `strong`, `i`, `em`, `u`, `s`, `mark`, `code`, `a` (`href`, `target`, `rel`, `title`, and for internal links `data-mex-uid`, `data-mex-document-id`, `data-mex-locale`, plus `data-mex-mention="true"` for mentions), `br`, `span` (class `cdx-tooltip` with `data-tooltip`), `sub` and `sup`. Links allow `http`, `https`, `mailto`, `tel` and relative URLs. Escape plain-text fields (`code`, `personality`, `button.text`, link card text) when you render them.
 
@@ -910,7 +910,7 @@ Add only the services you use. Instead of `https:` in `img-src` you can list you
 3. Optional: turn on the AI image and whole-field switches and LanguageTool in Settings, and the scheduled link check (`qualityChecks.externalLinks.enabled` and `qualityChecks.externalLinks.schedule.enabled`, plus `cron: { enabled: true }` in `config/server`).
 4. Optional: use `?mex=` or the GraphQL fields, or the React and Vue components, in your frontend.
 
-A custom block named `gallery`, `video`, `audio` or `synced` that you created before 2.3 keeps working as a custom block; new custom blocks cannot use these names.
+A custom block named `toc`, `gallery`, `video`, `audio`, `synced` or `mention` that you created before 2.3 keeps working as a custom block, with its stored data unchanged; new custom blocks cannot use these names.
 
 ## Migrating from 1.x
 

@@ -11,6 +11,15 @@
 
 import { isPlainObject } from './editor-data.mjs';
 import { activeBlock } from './blocks/active.mjs';
+import {
+  BUILT_IN_MARKER,
+  BUILT_IN_MARKER_VERSION,
+  MARKED_BLOCKS,
+  isBuiltInMarker,
+  isMarkedBuiltIn,
+} from './built-in-marker.mjs';
+
+export { BUILT_IN_MARKER, BUILT_IN_MARKER_VERSION, MARKED_BLOCKS, isBuiltInMarker, isMarkedBuiltIn };
 
 /** Inline tags the editor tools produce. Everything else is removed (text is kept). */
 export const INLINE_TAGS = Object.freeze([
@@ -441,6 +450,7 @@ export const BLOCK_POLICIES = {
       layout: oneOf(d.layout, ['grid', 'carousel'], 'grid'),
       columns: int(d.columns, 1, 6, 3),
       caption: inline(d.caption),
+      _mex: BUILT_IN_MARKER_VERSION,
     };
   },
   video: (d, inline) => {
@@ -456,6 +466,7 @@ export const BLOCK_POLICIES = {
       const poster = cleanMediaFile(d.poster, { image: true, mimePrefix: 'image/' });
       if (poster.url) out.poster = poster;
     }
+    out._mex = BUILT_IN_MARKER_VERSION;
     return out;
   },
   audio: (d, inline) => ({
@@ -464,6 +475,7 @@ export const BLOCK_POLICIES = {
     caption: inline(d.caption),
     loop: bool(d.loop),
     tracks: mediaTracks(d.tracks),
+    _mex: BUILT_IN_MARKER_VERSION,
   }),
   linkTool: (d) => {
     const meta = isPlainObject(d.meta) ? d.meta : {};
@@ -506,7 +518,10 @@ export const BLOCK_POLICIES = {
   }),
   delimiter: () => ({}),
   // Synced block (2.3): only the reference to its source is stored; an invalid reference becomes ''.
-  synced: (d) => ({ ref: typeof d.ref === 'string' && /^[a-z0-9]{1,64}$/.test(d.ref) ? d.ref : '' }),
+  synced: (d) => ({
+    ref: typeof d.ref === 'string' && /^[a-z0-9]{1,64}$/.test(d.ref) ? d.ref : '',
+    _mex: BUILT_IN_MARKER_VERSION,
+  }),
   toc: (d) => {
     const minLevel = int(d.minLevel, 1, 6, 2);
     const maxLevel = int(d.maxLevel, 1, 6, 4);
@@ -515,36 +530,24 @@ export const BLOCK_POLICIES = {
       minLevel: Math.min(minLevel, maxLevel),
       maxLevel: Math.max(minLevel, maxLevel),
       style: oneOf(d.style, ['ordered', 'unordered'], 'unordered'),
+      _mex: BUILT_IN_MARKER_VERSION,
     };
   },
 };
 
 /**
- * Block types added in 2.3 and the key their data always has. Before 2.3 a
- * custom block could use one of these names; such stored data lacks the key
- * and keeps being treated as custom block data (generic policy, neutral
- * rendering), so it is never stripped.
- */
-export const MEDIA_BLOCK_MARKERS = Object.freeze({
-  gallery: 'images',
-  video: 'file',
-  audio: 'file',
-  synced: 'ref',
-});
-
-/**
- * True when a block is a built-in block type whose policy applies.
+ * True when a block is a built-in block whose policy, renderer and tool
+ * apply. Types in `MARKED_BLOCKS` are built-in only with the marker or the
+ * exact built-in shape; anything else of such a type is custom block data
+ * written before 2.3.
  * @param {{ type?: unknown, data?: unknown }} block - Block.
  * @returns {boolean} Result.
  */
 export const isBuiltInBlock = (block) => {
   if (!block || typeof block.type !== 'string') return false;
   if (!Object.prototype.hasOwnProperty.call(BLOCK_POLICIES, block.type)) return false;
-  const marker = Object.prototype.hasOwnProperty.call(MEDIA_BLOCK_MARKERS, block.type)
-    ? MEDIA_BLOCK_MARKERS[block.type]
-    : null;
-  if (!marker) return true;
-  return isPlainObject(block.data) && Object.prototype.hasOwnProperty.call(block.data, marker);
+  if (!Object.prototype.hasOwnProperty.call(MARKED_BLOCKS, block.type)) return true;
+  return isMarkedBuiltIn(block.type, block.data);
 };
 
 /**

@@ -410,7 +410,7 @@ export const lintDocument = (value, options = {}) => {
       }
     }
 
-    if (block.type === 'toc') tocs.push({ block, index, range: tocRange(d) });
+    if (block.type === 'toc' && isBuiltInBlock(block)) tocs.push({ block, index, range: tocRange(d) });
 
     if (block.type === 'table') {
       const rows = Array.isArray(d.content) ? d.content : [];
