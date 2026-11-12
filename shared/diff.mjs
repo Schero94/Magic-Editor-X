@@ -198,6 +198,82 @@ export const diffText = (before, after) => {
 };
 
 /**
+ * JSON text of a value with object keys sorted at every level, so two values
+ * that differ only in key order give the same text.
+ * @param {unknown} value - Value.
+ * @param {number} [depth] - Depth (bounded).
+ * @returns {string} Canonical JSON.
+ */
+export const canonicalJson = (value, depth = 0) => {
+  if (depth > MAX_DEPTH) return 'null';
+  if (Array.isArray(value)) return `[${value.map((item) => canonicalJson(item, depth + 1)).join(',')}]`;
+  if (value && typeof value === 'object') {
+    const keys = Object.keys(value)
+      .filter((key) => value[key] !== undefined)
+      .sort();
+    return `{${keys.map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key], depth + 1)}`).join(',')}}`;
+  }
+  return value === undefined ? 'null' : JSON.stringify(value);
+};
+
+/**
+ * Deep equality that ignores object key order.
+ * @param {unknown} a - Value.
+ * @param {unknown} b - Value.
+ * @returns {boolean} Whether both are equal.
+ */
+export const canonicalEqual = (a, b) => canonicalJson(a) === canonicalJson(b);
+
+/** Built-in tunes: how to read their value and the value that means "not set". */
+const KNOWN_TUNES = {
+  alignmentTune: {
+    read: (value) =>
+      value && typeof value === 'object' && typeof value.alignment === 'string' ? value.alignment : 'left',
+    fallback: 'left',
+  },
+  textVariant: { read: (value) => (typeof value === 'string' ? value : ''), fallback: '' },
+  indentTune: {
+    read: (value) =>
+      value && typeof value === 'object' && Number.isFinite(value.indentLevel) ? value.indentLevel : 0,
+    fallback: 0,
+  },
+};
+
+/**
+ * Compares block tunes tune by tune. Key order does not matter and a missing
+ * built-in tune equals its default value (stored content has no tunes, the
+ * editor writes the defaults on every block).
+ * @param {object|undefined} before - Old tunes.
+ * @param {object|undefined} after - New tunes.
+ * @returns {Array<{ tune: string, before: string|number|null, after: string|number|null, known: boolean }>} Changed tunes; built-in values are plain (alignment name, variant name, indent level), others canonical JSON.
+ */
+export const diffTunes = (before, after) => {
+  const left = before && typeof before === 'object' && !Array.isArray(before) ? before : {};
+  const right = after && typeof after === 'object' && !Array.isArray(after) ? after : {};
+  const names = [...new Set([...Object.keys(KNOWN_TUNES), ...Object.keys(left), ...Object.keys(right)])];
+  const changes = [];
+  for (const name of names.sort()) {
+    const known = Object.prototype.hasOwnProperty.call(KNOWN_TUNES, name);
+    if (known) {
+      const a =
+        left[name] === undefined || left[name] === null
+          ? KNOWN_TUNES[name].fallback
+          : KNOWN_TUNES[name].read(left[name]);
+      const b =
+        right[name] === undefined || right[name] === null
+          ? KNOWN_TUNES[name].fallback
+          : KNOWN_TUNES[name].read(right[name]);
+      if (a !== b) changes.push({ tune: name, before: a, after: b, known: true });
+      continue;
+    }
+    const a = left[name] === undefined ? null : canonicalJson(left[name]);
+    const b = right[name] === undefined ? null : canonicalJson(right[name]);
+    if (a !== b) changes.push({ tune: name, before: a, after: b, known: false });
+  }
+  return changes;
+};
+
+/**
  * Compares two blocks leaf by leaf.
  * @param {object} before - Old block.
  * @param {object} after - New block.
@@ -214,7 +290,7 @@ const diffFields = (before, after) => {
   for (const path of paths) {
     const a = left.get(path);
     const b = right.get(path);
-    if (JSON.stringify(a) === JSON.stringify(b)) continue;
+    if (canonicalEqual(a, b)) continue;
     const kind = leafKind(after.type, path, b === undefined ? a : b);
     if (
       kind === 'value' ||
@@ -230,11 +306,8 @@ const diffFields = (before, after) => {
     if (textA === textB) field.formatting = true;
     fields.push(field);
   }
-  const tunesA = JSON.stringify(before.tunes || {});
-  const tunesB = JSON.stringify(after.tunes || {});
-  if (tunesA !== tunesB) {
-    fields.push({ path: 'tunes', kind: 'value', before: before.tunes || null, after: after.tunes || null });
-  }
+  const tuneChanges = diffTunes(before.tunes, after.tunes);
+  if (tuneChanges.length > 0) fields.push({ path: 'tunes', kind: 'tunes', changes: tuneChanges });
   return fields;
 };
 

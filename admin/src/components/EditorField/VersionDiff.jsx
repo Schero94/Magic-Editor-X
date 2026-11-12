@@ -59,6 +59,53 @@ const valueText = (value, empty) => {
   return text.length > MAX_VALUE_CHARS ? `${text.slice(0, MAX_VALUE_CHARS)}…` : text;
 };
 
+/** Labels of the built-in tunes. */
+const TUNE_LABELS = {
+  alignmentTune: { key: 'editor.history.diff.tune.alignmentTune', text: 'Alignment' },
+  textVariant: { key: 'editor.history.diff.tune.textVariant', text: 'Text variant' },
+  indentTune: { key: 'editor.history.diff.tune.indentTune', text: 'Indent' },
+};
+
+/** Labels of built-in tune values (indent levels are shown as numbers). */
+const TUNE_VALUES = {
+  alignmentTune: {
+    left: { key: 'editor.history.diff.tune.value.left', text: 'left' },
+    center: { key: 'editor.history.diff.tune.value.center', text: 'center' },
+    right: { key: 'editor.history.diff.tune.value.right', text: 'right' },
+    justify: { key: 'editor.history.diff.tune.value.justify', text: 'justified' },
+  },
+  textVariant: {
+    '': { key: 'editor.history.diff.tune.value.none', text: 'none' },
+    'call-out': { key: 'editor.history.diff.tune.value.callOut', text: 'call-out' },
+    citation: { key: 'editor.history.diff.tune.value.citation', text: 'citation' },
+    details: { key: 'editor.history.diff.tune.value.details', text: 'details' },
+  },
+};
+
+/**
+ * Human-readable text of one tune value.
+ * @param {{ tune: string, known: boolean }} change - Tune change.
+ * @param {string|number|null} value - Value (plain for built-in tunes, canonical JSON otherwise).
+ * @param {Function} t - Translator.
+ * @param {string} empty - Text for missing values.
+ * @returns {string} Text.
+ */
+export const tuneValueText = (change, value, t, empty) => {
+  if (value === null || value === undefined) return empty;
+  const label = change.known && TUNE_VALUES[change.tune] && TUNE_VALUES[change.tune][value];
+  if (label) return t(label.key, label.text);
+  return valueText(String(value), empty);
+};
+
+/**
+ * Human-readable name of a tune.
+ * @param {string} tune - Tune name.
+ * @param {Function} t - Translator.
+ * @returns {string} Label.
+ */
+export const tuneLabel = (tune, t) =>
+  TUNE_LABELS[tune] ? t(TUNE_LABELS[tune].key, TUNE_LABELS[tune].text) : tune;
+
 /**
  * Finds where a block that no longer exists would go back: after the nearest
  * earlier block that is still in the editor, else before the next one.
@@ -185,12 +232,24 @@ export const VersionDiff = ({ t, version, current, versionNumber, canRestore, on
                 ) : null}
                 {(entry.fields || []).map((field) => (
                   <Box key={field.path} minWidth={0}>
-                    {entry.fields.length > 1 || field.kind === 'value' ? (
+                    {field.kind !== 'tunes' && (entry.fields.length > 1 || field.kind === 'value') ? (
                       <Typography variant="sigma" textColor="neutral600">
                         {field.path}
                       </Typography>
                     ) : null}
-                    {field.kind === 'text' ? (
+                    {field.kind === 'tunes' ? (
+                      <Flex tag="ul" direction="column" alignItems="stretch" gap={1}>
+                        {field.changes.map((change) => (
+                          <Text key={change.tune} tag="li" variant="pi" textColor="neutral800">
+                            {t('editor.history.diff.tune.change', '{tune}: {before} → {after}', {
+                              tune: tuneLabel(change.tune, t),
+                              before: tuneValueText(change, change.before, t, empty),
+                              after: tuneValueText(change, change.after, t, empty),
+                            })}
+                          </Text>
+                        ))}
+                      </Flex>
+                    ) : field.kind === 'text' ? (
                       <TextOps ops={field.ops} t={t} />
                     ) : (
                       <Text tag="p" variant="pi" textColor="neutral800">
