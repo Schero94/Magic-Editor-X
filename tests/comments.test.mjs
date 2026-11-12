@@ -23,6 +23,28 @@ const config = require('../server/src/config/index.js');
 
 /* ------------------------------------------------------------------ pure */
 
+/**
+ * Load-independent ReDoS guard: the fastest of several runs at 16 times the
+ * input must stay far below quadratic growth (about 256 times); linear code
+ * is about 16 times. The minimum ignores pauses caused by a busy machine.
+ * @param {(size: number) => void} run - Runs the code on an input of `size` units.
+ * @param {number} size - Base size.
+ * @returns {number} Growth factor between size and 16 * size.
+ */
+const growth = (run, size) => {
+  const fastest = (n) => {
+    let best = Infinity;
+    for (let i = 0; i < 7; i += 1) {
+      const start = performance.now();
+      run(n);
+      best = Math.min(best, performance.now() - start);
+    }
+    return Math.max(best, 0.05);
+  };
+  fastest(size); // warm-up
+  return fastest(size * 16) / fastest(size);
+};
+
 test('comment bodies are plain text without control or bidi-override characters', () => {
   const nul = String.fromCharCode(0);
   const rlo = String.fromCharCode(0x202e);
@@ -34,9 +56,8 @@ test('comment bodies are plain text without control or bidi-override characters'
   assert.equal(normalizeCommentBody('   '), '');
   assert.equal(normalizeCommentBody(42), '');
   assert.equal(normalizeCommentBody('x'.repeat(MAX_COMMENT_LENGTH + 500)).length, MAX_COMMENT_LENGTH);
-  const start = performance.now();
-  normalizeCommentBody(`${' '.repeat(50000)}\n`.repeat(4));
-  assert.ok(performance.now() - start < 200, 'linear time on adversarial whitespace');
+  const factor = growth((n) => normalizeCommentBody(`${' '.repeat(n)}\n`.repeat(4)), 3125);
+  assert.ok(factor < 64, `linear time on adversarial whitespace (growth ${factor.toFixed(1)} for 16x input)`);
 });
 
 test('block excerpts are one bounded line of text', () => {
@@ -62,9 +83,8 @@ test('block excerpts are one bounded line of text', () => {
     'one two'
   );
   assert.equal(blockExcerpt(null), null);
-  const start = performance.now();
-  blockExcerpt({ type: 'paragraph', data: { text: '<'.repeat(100000) } });
-  assert.ok(performance.now() - start < 200);
+  const factor = growth((n) => blockExcerpt({ type: 'paragraph', data: { text: '<'.repeat(n) } }), 6250);
+  assert.ok(factor < 64, `linear time on unbalanced markup (growth ${factor.toFixed(1)} for 16x input)`);
 });
 
 test('rows are grouped into threads; counts, order and detached threads', () => {

@@ -35,6 +35,8 @@ Magic Editor X 2.3 connects the editor to the rest of your stack: React and Vue 
 
 ### Changed
 
+- Block select controls (gallery layout and columns, caption track kind, table of contents levels and style, code language, custom block selects) look like Strapi Design System selects in light and dark mode.
+- The editor stylesheet is added once per page instead of once per field, which removes multi-second freezes when opening or leaving edit views with several editor fields.
 - Heading ids `mex-h-<blockId>` are written when the document has a table of contents (or with `headingIds: true`). Without a `toc` block and without the new options, `renderHtml` output is the same as in 2.2.
 - Code blocks keep a valid language that is not in the editor's list instead of resetting it to `plaintext`; one language list (`shared/code-languages.mjs`) serves the editor, the highlighting and the renderers.
 - The image caption in the editor follows in normal flow instead of overlapping the controls below the image.
@@ -42,6 +44,8 @@ Magic Editor X 2.3 connects the editor to the rest of your stack: React and Vue 
 
 ### Fixed
 
+- Pressing Enter on a block select (gallery layout, table of contents levels, code language, custom block selects) submitted the Content Manager form.
+- Text typed into an editor field right after saving a new entry (or while the edit view was still loading) reached the editor but not the form, so Save stayed disabled and the edit could be lost. The field now reports edits made while it starts and marks its holder with `data-mex-ready="true"` when typing is safe.
 - Collaboration: edits re-applied after a room compaction or a reconnect could split another person's text typed at the same spot (for example two inserts became interleaved). Re-applied inserts now stay whole (present since 2.1).
 - Version history: blocks whose tunes differed only in key order were reported as changed; tune changes are now shown readably ("Alignment: left → center").
 - Version history, live collaboration and the link report answered 404 for editor fields inside components (MEX-23-12).
