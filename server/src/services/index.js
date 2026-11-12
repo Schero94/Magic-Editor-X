@@ -10,6 +10,7 @@ module.exports = {
   ai: require('./ai'),
   'custom-blocks': require('./custom-blocks'),
   history: require('./history'),
+  comments: require('./comments'),
   collaboration: require('./collaboration'),
   migrations: require('./migrations'),
   migrate: require('./migrate'),

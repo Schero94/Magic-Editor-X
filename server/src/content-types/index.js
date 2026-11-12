@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * Plugin content types. Both are internal (hidden from the Content Manager and
+ * Plugin content types. All are internal (hidden from the Content Manager and
  * the Content-Type Builder) and keep their 1.x table names and columns so
  * existing data survives the upgrade.
  *
@@ -46,6 +46,57 @@ module.exports = {
         /** 1.x Yjs state (base64). Read once by the 2.0 migration, never written again. */
         yjsSnapshot: { type: 'text' },
         createdBy: { type: 'relation', relation: 'oneToOne', target: 'admin::user' },
+      },
+    },
+  },
+
+  /**
+   * Block comments (2.3). One row per comment; a thread is its root row
+   * (`threadId` null) plus the replies that point to the root's documentId.
+   * Keyed like versions by content type, document, locale and field; anchored
+   * to an Editor.js block id. Plain text only. Author data is a snapshot
+   * (admin id + display name) that is cleared when the admin user is deleted.
+   */
+  comment: {
+    schema: {
+      kind: 'collectionType',
+      collectionName: 'magic_editor_comments',
+      info: {
+        singularName: 'comment',
+        pluralName: 'comments',
+        displayName: 'Editor comment',
+        description: 'Block comments of Magic Editor X fields',
+      },
+      options: { draftAndPublish: false },
+      pluginOptions: hidden,
+      // Secondary indexes owned by Strapi's schema sync (`indexes` is kept by
+      // @strapi/core pickSchema and passed to the database model): the list
+      // query per field and the reply lookup per thread.
+      indexes: [
+        { name: 'mex_comments_target_idx', columns: ['entry_id', 'field_name', 'content_type'] },
+        { name: 'mex_comments_thread_idx', columns: ['thread_id'] },
+      ],
+      attributes: {
+        contentType: { type: 'string', required: true },
+        entryId: { type: 'string', required: true },
+        entryLocale: { type: 'string' },
+        fieldName: { type: 'string', required: true },
+        blockId: { type: 'string', required: true, maxLength: 64 },
+        /** documentId of the thread's root comment; null on the root itself. */
+        threadId: { type: 'string' },
+        /** Plain-text excerpt of the block when the thread was opened (root only). */
+        excerpt: { type: 'string', maxLength: 200 },
+        body: { type: 'text', required: true },
+        /** Admin user id of the author (null after the user was deleted). */
+        authorId: { type: 'integer' },
+        /** Display name snapshot (null after the user was deleted). */
+        authorName: { type: 'string', maxLength: 200 },
+        editedAt: { type: 'datetime' },
+        /** Thread state (root only). */
+        resolved: { type: 'boolean', default: false },
+        resolvedAt: { type: 'datetime' },
+        resolvedById: { type: 'integer' },
+        resolvedByName: { type: 'string', maxLength: 200 },
       },
     },
   },

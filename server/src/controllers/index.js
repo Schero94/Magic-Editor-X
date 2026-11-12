@@ -10,4 +10,5 @@ module.exports = {
   settings: require('./settings'),
   links: require('./links'),
   quality: require('./quality'),
+  comments: require('./comments'),
 };

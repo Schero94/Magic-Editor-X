@@ -94,6 +94,12 @@ const defaults = {
     /** Snapshots kept per field and locale; older ones are removed. */
     maxSnapshotsPerField: 50,
   },
+  comments: {
+    /** Block comments in the editor (2.3). Off hides them and the comment routes answer 404. */
+    enabled: true,
+    /** Comments and replies one admin may post per minute, shared by all processes. */
+    perMinute: 30,
+  },
   qualityChecks: {
     externalLinks: {
       /** Let the quality panel check external links (outgoing requests through the SSRF-safe fetcher). Owner opt-in. */
@@ -178,6 +184,7 @@ const configSchema = z.looseObject({
     }),
   }),
   history: z.looseObject({ maxSnapshotsPerField: positiveInt(1000) }),
+  comments: z.looseObject({ enabled: z.boolean(), perMinute: positiveInt(1000) }),
   qualityChecks: z.looseObject({
     externalLinks: z.looseObject({
       enabled: z.boolean(),

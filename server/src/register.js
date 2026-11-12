@@ -6,6 +6,7 @@ const { resolveFieldPreset, allowedInlineTags, checkPreset } = require('../../sh
 const { schemaHasEditorFields, transformEditorFields } = require('./utils/editor-fields');
 const { registerPublishGuard } = require('./utils/publish-guard');
 const { formErrorDetails } = require('./utils/form-errors');
+const { registerCommentRetention } = require('./utils/comment-retention');
 
 /**
  * Registers the custom field and the Document Service middleware that
@@ -72,4 +73,5 @@ module.exports = ({ strapi }) => {
     return next();
   });
   registerPublishGuard(strapi);
+  registerCommentRetention(strapi);
 };
