@@ -113,3 +113,18 @@ test('block selects are styled native selects with the DS caret, not the browser
   const code = styles.slice(styles.indexOf('.mex-code__header {'), styles.indexOf('.mex-code__language {'));
   assert.doesNotMatch(code, /\.mex-tool__select \{[^}]*\bpadding:/);
 });
+
+test('code block colours every Prism token itself, so host themes cannot lower the contrast', () => {
+  const styles = sources.find(([name]) => name === 'editor/tools/styles.js')[1];
+  // Strapi's Blocks field loads prism-solarizedlight globally: `.token.builtin` (and url, entity)
+  // turned cyan #2aa198 in Magic Editor X code blocks, 2.93:1 on the light code background.
+  const base = styles.search(/\.mex-code__pre \.mex-code__code \.token \{\s*color: \$\{c\('neutral800'\)\};/);
+  assert.ok(base > 0, 'a base colour for every token with more specificity than a global Prism theme');
+  assert.ok(
+    base < styles.indexOf('.mex-code__code .token.comment'),
+    'the base rule comes before the token rules'
+  );
+  for (const token of ['builtin', 'url', 'entity', 'namespace']) {
+    assert.match(styles, new RegExp(`\\.mex-code__pre \\.mex-code__code \\.token\\.${token}\\b`), token);
+  }
+});

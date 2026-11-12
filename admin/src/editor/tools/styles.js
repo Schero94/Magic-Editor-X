@@ -1312,6 +1312,25 @@ export const editorStyles = css`
       }
     }
 
+    /* Strapi's Blocks field loads a Prism theme globally (prism-solarizedlight): every token
+       gets a colour here first, so that theme never decides the contrast of a code block. */
+    .mex-code__pre .mex-code__code .token {
+      color: ${c('neutral800')};
+      background: none;
+      opacity: 1;
+    }
+
+    .mex-code__pre .mex-code__code .token.builtin,
+    .mex-code__pre .mex-code__code .token.url {
+      color: ${c('success700')};
+    }
+
+    .mex-code__pre .mex-code__code .token.entity,
+    .mex-code__pre .mex-code__code .token.namespace {
+      color: ${c('neutral800')};
+      cursor: inherit;
+    }
+
     .mex-code__code .token.comment,
     .mex-code__code .token.prolog,
     .mex-code__code .token.doctype,
