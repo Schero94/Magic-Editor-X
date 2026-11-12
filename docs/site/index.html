@@ -6,7 +6,7 @@
     <title>Magic Editor X: free Editor.js block editor for Strapi 5</title>
     <meta
       name="description"
-      content="Magic Editor X is a free Strapi 5 plugin: an Editor.js custom field with Media Library uploads, custom blocks, version history, live collaboration across several servers and an optional AI assistant with your own provider."
+      content="Magic Editor X is a free Strapi 5 plugin: an Editor.js custom field with Media Library uploads, custom blocks, templates, block comments, version history, live collaboration across several servers, rendered Content API and GraphQL output, React and Vue components and optional AI and grammar assistants with your own provider."
     />
     <meta name="color-scheme" content="light dark" />
     <meta name="theme-color" content="#f5f7fb" media="(prefers-color-scheme: light)" />
@@ -97,12 +97,14 @@
 
     <main class="layout" id="main-content">
       <nav class="side-nav" aria-label="Documentation sections">
+        <a href="#whats-new">New in 2.3</a>
         <a href="#features">Features</a>
         <a href="#screens">Screens</a>
         <a href="#install">Install</a>
         <a href="#configuration">Configuration</a>
         <a href="#collaboration">Collaboration</a>
-        <a href="#ai">AI assistant</a>
+        <a href="#ai">AI and grammar</a>
+        <a href="#output">Content API output</a>
         <a href="#api">API and permissions</a>
         <a href="#security">Security</a>
         <a href="#migration">Migration</a>
@@ -110,33 +112,55 @@
       </nav>
 
       <div class="content">
+        <section class="section" id="whats-new" aria-labelledby="whats-new-title">
+          <h2 id="whats-new-title">What's new in 2.3</h2>
+          <p class="section-lead">
+            No migration is needed: stored content keeps the same Editor.js JSON and every new output is opt-in.
+            The full list is in the
+            <a href="https://github.com/Schero94/Magic-Editor-X/blob/main/CHANGELOG.md">CHANGELOG</a>.
+          </p>
+          <ul class="check-list">
+            <li>React and Vue components (<code>magic-editor-x/react</code>, <code>magic-editor-x/vue</code>) and guides for React, Vue/Nuxt and Astro.</li>
+            <li>Rendered and resolved output: <code>?mex=html|text|markdown|json</code> on the Content API and <code>&lt;field&gt;Rendered</code> / <code>&lt;field&gt;Resolved</code> in GraphQL, with the caller's permissions.</li>
+            <li>Gallery, video and audio blocks from the Media Library, and a focal point for images.</li>
+            <li>Templates, block patterns and synced blocks, and a rendered preview of the field (Ctrl/Cmd+Alt+P).</li>
+            <li>Block comments with replies, resolve and reopen, for editors and read-only reviewers.</li>
+            <li>Table of contents block, mentions of entries, one list of 27 code languages.</li>
+            <li>Block SDK: define a block once in code with <code>defineBlock</code> and use it on the server, in the admin and in your frontend.</li>
+            <li>Scheduled external link check, AI alternative text and whole-field translate or summarize, and a LanguageTool grammar check. All off until the owner turns them on.</li>
+          </ul>
+        </section>
+
         <section class="section" id="features" aria-labelledby="features-title">
           <h2 id="features-title">Features</h2>
           <p class="section-lead">
-            Everything is free in every installation. The plugin makes outgoing requests only for link previews,
-            images by URL and the AI provider you configure.
+            Everything is free in every installation, without telemetry. The plugin makes outgoing requests only for
+            link previews, images by URL, the external link check and the AI provider and LanguageTool server the
+            owner configured.
           </p>
           <div class="card-grid">
             <article class="card">
               <h3>Editor.js blocks</h3>
               <p>
                 Paragraph, heading, nested list, checklist, quote, warning, alert, toggle, delimiter, table, code,
-                code with syntax highlighting, raw HTML, embeds, link previews, person cards and buttons. Block
-                names and data stay the same as in 1.x.
+                code with syntax highlighting, raw HTML, embeds, link previews, person cards, buttons and a table
+                of contents with stable heading anchors. Block names and data stay the same as in 1.x.
               </p>
             </article>
             <article class="card">
               <h3>Media library</h3>
               <p>
-                Upload images and attachments into the Strapi Media Library or pick existing images. Files are
-                checked by their content and stored with the admin as creator.
+                Upload images and attachments into the Strapi Media Library or pick existing files. Gallery
+                (grid or carousel), video and audio blocks with captions and WebVTT tracks, alternative texts and a
+                focal point that frontends keep visible when they crop.
               </p>
             </article>
             <article class="card">
               <h3>Custom blocks</h3>
               <p>
                 Define simple blocks with fields and an HTML template, or blocks that embed an entry of another
-                content type. Import and export them as JSON.
+                content type. Import and export them as JSON. Blocks that need code are defined once with the block
+                SDK (<code>magic-editor-x/blocks</code>).
               </p>
             </article>
             <article class="card">
@@ -151,7 +175,9 @@
               <h3>Render anywhere</h3>
               <p>
                 <code>magic-editor-x/render</code> turns stored content into HTML, plain text or Markdown without
-                dependencies and safe against XSS. A JSON Schema and TypeScript types describe the data.
+                dependencies and safe against XSS; <code>magic-editor-x/react</code> and
+                <code>magic-editor-x/vue</code> render it as components (React 18 and 19, Vue 3.5). A JSON Schema
+                and TypeScript types describe the data.
               </p>
             </article>
             <article class="card">
@@ -165,7 +191,7 @@
               <h3>Write faster</h3>
               <p>
                 Markdown shortcuts, find and replace, keyboard shortcut help, focus mode, actions for several
-                selected blocks, reading time and alternative texts for images.
+                selected blocks, reading time, mentions of entries and a rendered preview of the field.
               </p>
             </article>
             <article class="card">
@@ -178,8 +204,9 @@
             <article class="card">
               <h3>Quality checks</h3>
               <p>
-                Accessibility lint (alternative texts, heading order, link texts, table headers, contrast) and a
-                link check, with an optional publishing guard.
+                Accessibility lint (alternative texts, heading order, link texts, table headers, contrast, video
+                captions) and a link check, an optional scheduled check of every external link (one process in a
+                cluster runs it), and an optional publishing guard.
               </p>
             </article>
             <article class="card">
@@ -194,7 +221,37 @@
               <h3>AI assistant</h3>
               <p>
                 Improve, correct, shorten, expand, summarize, simplify, translate or change the tone of selected
-                text with Anthropic, OpenAI or an OpenAI-compatible server and your own key.
+                text with Anthropic, OpenAI or an OpenAI-compatible server and your own key. Optional: alternative
+                text suggestions for images and translate or summarize a whole field.
+              </p>
+            </article>
+            <article class="card">
+              <h3>Templates, patterns and synced blocks</h3>
+              <p>
+                Reusable starting content and groups of blocks per field or preset, inserted from the toolbar.
+                Synced blocks are edited once and every field that uses them shows the change.
+              </p>
+            </article>
+            <article class="card">
+              <h3>Block comments</h3>
+              <p>
+                Threads on single blocks with replies, resolve and reopen. Reviewers can comment without update
+                rights; comments are never part of the content or the API output.
+              </p>
+            </article>
+            <article class="card">
+              <h3>Content API and GraphQL output</h3>
+              <p>
+                <code>?mex=html|text|markdown|json</code> and GraphQL <code>&lt;field&gt;Rendered</code> /
+                <code>&lt;field&gt;Resolved</code> return rendered or resolved content. Links, mentions, embedded
+                entries, media and synced blocks are resolved with the caller's permissions.
+              </p>
+            </article>
+            <article class="card">
+              <h3>Grammar check</h3>
+              <p>
+                Spelling and grammar of a whole field with your own or a hosted LanguageTool server, off until the
+                owner turns it on, with its own permission.
               </p>
             </article>
           </div>
@@ -202,7 +259,7 @@
 
         <section class="section" id="screens" aria-labelledby="screens-title">
           <h2 id="screens-title">Screens</h2>
-          <p class="section-lead">All screenshots use synthetic data.</p>
+          <p class="section-lead">All screenshots use synthetic data (acceptance host: Strapi 5.61.1).</p>
           <div class="gallery">
             <figure class="shot">
               <img
@@ -384,6 +441,166 @@
               />
               <figcaption>Panels in dark mode</figcaption>
             </figure>
+            <figure class="shot">
+              <img
+                src="./img/comments-1440.png"
+                alt="Comments panel with an open thread and its reply, a resolved thread whose block was removed, and a comment marker next to a block"
+                width="1440"
+                height="1500"
+                loading="lazy"
+              />
+              <figcaption>Block comments</figcaption>
+            </figure>
+            <figure class="shot">
+              <img
+                src="./img/comments-dark-1440.png"
+                alt="The Comments panel in dark mode"
+                width="1440"
+                height="1500"
+                loading="lazy"
+              />
+              <figcaption>Comments in dark mode</figcaption>
+            </figure>
+            <figure class="shot">
+              <img
+                src="./img/templates-insert-1440.png"
+                alt="Insert a template or pattern dialog with a search, the pattern Release notes and its rendered preview"
+                width="1440"
+                height="900"
+                loading="lazy"
+              />
+              <figcaption>Insert a template or pattern</figcaption>
+            </figure>
+            <figure class="shot">
+              <img
+                src="./img/templates-settings-1440.png"
+                alt="Settings, Templates: patterns and a template with where they are offered, on/off switches and row actions"
+                width="1440"
+                height="900"
+                loading="lazy"
+              />
+              <figcaption>Settings: templates</figcaption>
+            </figure>
+            <figure class="shot">
+              <img
+                src="./img/preview-1440.png"
+                alt="The field as a rendered preview: heading, list, code with line numbers, table, image and quote"
+                width="1440"
+                height="900"
+                loading="lazy"
+              />
+              <figcaption>Rendered preview</figcaption>
+            </figure>
+            <figure class="shot">
+              <img
+                src="./img/synced-blocks-1440.png"
+                alt="A synced block Opening hours in the editor with the Edit source and Detach buttons"
+                width="1440"
+                height="900"
+                loading="lazy"
+              />
+              <figcaption>Synced block</figcaption>
+            </figure>
+            <figure class="shot">
+              <img
+                src="./img/gallery-1440.png"
+                alt="Gallery block in grid layout with two columns: three images with alternative texts, captions and focal points"
+                width="640"
+                height="1073"
+                loading="lazy"
+              />
+              <figcaption>Gallery block</figcaption>
+            </figure>
+            <figure class="shot">
+              <img
+                src="./img/video-audio-1440.png"
+                alt="Video block with title, poster image and an English captions track, and an audio block"
+                width="640"
+                height="1392"
+                loading="lazy"
+              />
+              <figcaption>Video and audio blocks</figcaption>
+            </figure>
+            <figure class="shot">
+              <img
+                src="./img/focal-point-1440.png"
+                alt="Focal point picker: the point marked on the image, its position in percent and a Reset focal point button"
+                width="640"
+                height="979"
+                loading="lazy"
+              />
+              <figcaption>Focal point</figcaption>
+            </figure>
+            <figure class="shot">
+              <img
+                src="./img/toc-mentions-1440.png"
+                alt="Table of contents block with its settings and the live list of headings, and two mention chips in the text"
+                width="724"
+                height="815"
+                loading="lazy"
+              />
+              <figcaption>Table of contents and mentions</figcaption>
+            </figure>
+            <figure class="shot">
+              <img
+                src="./img/code-block-1440.png"
+                alt="Code block with the language Python and line numbers"
+                width="608"
+                height="301"
+                loading="lazy"
+              />
+              <figcaption>Code block</figcaption>
+            </figure>
+            <figure class="shot">
+              <img
+                src="./img/block-sdk-1440.png"
+                alt="Editor tool of a block defined in code with title, text, link and tone fields"
+                width="700"
+                height="259"
+                loading="lazy"
+              />
+              <figcaption>Block defined in code</figcaption>
+            </figure>
+            <figure class="shot">
+              <img
+                src="./img/link-schedule-1440.png"
+                alt="Quality panel with the last scheduled link check: one broken link with status 404"
+                width="1440"
+                height="900"
+                loading="lazy"
+              />
+              <figcaption>Scheduled link check</figcaption>
+            </figure>
+            <figure class="shot">
+              <img
+                src="./img/ai-alt-text-1440.png"
+                alt="Image block with an AI suggestion for the alternative text and the Use suggestion and Dismiss buttons"
+                width="1440"
+                height="900"
+                loading="lazy"
+              />
+              <figcaption>AI alternative text</figcaption>
+            </figure>
+            <figure class="shot">
+              <img
+                src="./img/ai-field-1440.png"
+                alt="AI for the whole field dialog: translation into German, a note on what is sent and a preview per text"
+                width="1440"
+                height="900"
+                loading="lazy"
+              />
+              <figcaption>AI for the whole field</figcaption>
+            </figure>
+            <figure class="shot">
+              <img
+                src="./img/grammar-1440.png"
+                alt="Grammar check panel with two LanguageTool issues and suggested replacements"
+                width="1440"
+                height="900"
+                loading="lazy"
+              />
+              <figcaption>Grammar check</figcaption>
+            </figure>
             <figure class="shot phone">
               <img
                 src="./img/editor-mobile-390.png"
@@ -393,6 +610,26 @@
                 loading="lazy"
               />
               <figcaption>Editor on a phone</figcaption>
+            </figure>
+            <figure class="shot phone">
+              <img
+                src="./img/comments-390.png"
+                alt="The Comments panel on a 390 pixel wide screen"
+                width="390"
+                height="844"
+                loading="lazy"
+              />
+              <figcaption>Comments on a phone</figcaption>
+            </figure>
+            <figure class="shot phone">
+              <img
+                src="./img/preview-390.png"
+                alt="The rendered preview on a 390 pixel wide screen"
+                width="390"
+                height="844"
+                loading="lazy"
+              />
+              <figcaption>Preview on a phone</figcaption>
             </figure>
           </div>
         </section>
@@ -443,6 +680,10 @@
                 <tr><td><code>collaboration.pollIntervalMs</code></td><td>400</td><td>How often processes read each other's updates.</td></tr>
                 <tr><td><code>collaboration.snapshotIntervalMinutes</code></td><td>10</td><td>Automatic versions during live sessions; 0 turns them off.</td></tr>
                 <tr><td><code>history.maxSnapshotsPerField</code></td><td>50</td><td>Versions kept per field and locale.</td></tr>
+                <tr><td><code>comments.enabled</code></td><td><code>true</code></td><td>Block comments; <code>false</code> hides them and the routes answer 404.</td></tr>
+                <tr><td><code>qualityChecks.externalLinks.enabled</code></td><td><code>false</code></td><td>External link check (outgoing requests through the SSRF-protected fetcher).</td></tr>
+                <tr><td><code>qualityChecks.externalLinks.schedule.enabled</code></td><td><code>false</code></td><td>Scheduled check of every external link (rule <code>'0 3 * * *'</code>, server time); needs the link check on.</td></tr>
+                <tr><td><code>languageTool.allowPrivateBaseUrl</code></td><td><code>false</code></td><td>Allow a LanguageTool server on a private network.</td></tr>
                 <tr><td><code>ai.allowPrivateBaseUrl</code></td><td><code>false</code></td><td>Allow AI servers on private networks (local models).</td></tr>
                 <tr><td><code>MAGIC_EDITOR_X_ENCRYPTION_KEY</code></td><td>unset</td><td>Environment variable that encrypts a stored AI key (32+ characters).</td></tr>
               </tbody>
@@ -467,7 +708,7 @@
         </section>
 
         <section class="section" id="ai" aria-labelledby="ai-title">
-          <h2 id="ai-title">AI assistant</h2>
+          <h2 id="ai-title">AI assistant and grammar check</h2>
           <p class="section-lead">
             Off until an administrator configures a provider in Settings &gt; Magic Editor X &gt; Configuration.
           </p>
@@ -487,13 +728,54 @@
             The key stays on the server, encrypted at rest. Only the selected text and a fixed instruction are sent.
             Private base URLs need <code>ai.allowPrivateBaseUrl</code>.
           </p>
+          <p>
+            Two more features use the same provider, each behind its own switch in Settings, off by default:
+            <strong>Send images to the AI provider</strong> (alternative text suggestions for image blocks and
+            gallery images; one image of at most 1568 px is sent) and <strong>Allow whole-field AI actions</strong>
+            (translate or summarize a field; the inline text of every block is sent). Results are suggestions the
+            editor reviews; fields with <code>disableAi</code> are never sent.
+          </p>
+          <p>
+            The <strong>grammar check</strong> sends the plain text of a field to a LanguageTool server you choose
+            (self-hosted or hosted) when an editor with <code>grammar.use</code> presses Check grammar. It is off
+            until an owner enters the server in Settings; a hosted account's key is encrypted like the AI key.
+          </p>
+        </section>
+
+        <section class="section" id="output" aria-labelledby="output-title">
+          <h2 id="output-title">Content API and GraphQL output</h2>
+          <p class="section-lead">
+            Without extra parameters the Content API returns the stored Editor.js JSON. Add <code>?mex=</code> to a
+            GET request to get each Magic Editor X field rendered or resolved.
+          </p>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th scope="col">Request</th><th scope="col">Field value</th></tr>
+              </thead>
+              <tbody>
+                <tr><td><code>?mex=html</code></td><td>Rendered HTML string</td></tr>
+                <tr><td><code>?mex=text</code></td><td>Plain text</td></tr>
+                <tr><td><code>?mex=markdown</code></td><td>Markdown</td></tr>
+                <tr><td><code>?mex=json</code></td><td>The stored document with resolved references</td></tr>
+                <tr><td>GraphQL <code>bodyRendered(format: HTML)</code></td><td>Rendered string (<code>HTML</code>, <code>TEXT</code>, <code>MARKDOWN</code>), with <code>@strapi/plugin-graphql</code></td></tr>
+                <tr><td>GraphQL <code>bodyResolved</code></td><td>JSON with resolved references</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <ul class="check-list">
+            <li>Internal links, mentions, embedded entries, Media Library files and synced blocks are resolved with the caller's own permissions; targets the caller cannot read are handled like missing ones.</li>
+            <li>Published versions are used unless the request asks for <code>status=draft</code>; every row passes Strapi's output sanitising.</li>
+            <li><code>mex</code> is registered with Strapi's <code>contentAPI.addQueryParams</code>, so it works with strict parameters; admin and plugin routes are never changed.</li>
+            <li>At most 500 references and 5 seconds per response.</li>
+          </ul>
         </section>
 
         <section class="section" id="api" aria-labelledby="api-title">
           <h2 id="api-title">API and permissions</h2>
           <p class="section-lead">
-            All routes are admin routes under <code>/magic-editor-x</code>. Version history and collaboration also
-            follow the Content Manager permissions of each document, locale and field.
+            All routes are admin routes under <code>/magic-editor-x</code>. Version history, collaboration, comments
+            and the link report also follow the Content Manager permissions of each document, locale and field.
           </p>
           <div class="table-wrap">
             <table>
@@ -506,7 +788,12 @@
                 <tr><td><code>plugin::magic-editor-x.ai.use</code></td><td>AI assistant</td></tr>
                 <tr><td><code>plugin::magic-editor-x.custom-blocks.manage</code></td><td>Settings &gt; Custom blocks</td></tr>
                 <tr><td><code>plugin::magic-editor-x.settings.read</code></td><td>Settings &gt; Configuration (read)</td></tr>
-                <tr><td><code>plugin::magic-editor-x.settings.update</code></td><td>Saving settings, testing the AI connection</td></tr>
+                <tr><td><code>plugin::magic-editor-x.settings.update</code></td><td>Saving settings, testing the AI and LanguageTool connections</td></tr>
+                <tr><td><code>plugin::magic-editor-x.comments.read</code></td><td>Reading block comments</td></tr>
+                <tr><td><code>plugin::magic-editor-x.comments.write</code></td><td>Commenting, replying, resolving, reopening; editing and deleting your own comments</td></tr>
+                <tr><td><code>plugin::magic-editor-x.comments.moderate</code></td><td>Deleting other people's comments</td></tr>
+                <tr><td><code>plugin::magic-editor-x.grammar.use</code></td><td>Grammar check (LanguageTool)</td></tr>
+                <tr><td><code>plugin::magic-editor-x.templates.manage</code></td><td>Settings &gt; Templates (templates, patterns, synced blocks), saving content as a template</td></tr>
               </tbody>
             </table>
           </div>
@@ -524,7 +811,12 @@
             <li>Link previews and images by URL only reach public addresses, pinned after DNS resolution, with size, type and time limits.</li>
             <li>Uploads are checked by their content and stored through the Media Library.</li>
             <li>Collaboration tokens are signed, short-lived and single-use; every update is checked before it is stored or relayed; remote content is sanitised before it is shown; viewers cannot write.</li>
-            <li>The AI key is encrypted with AES-256-GCM and never returned; logs contain no content.</li>
+            <li>The AI and LanguageTool keys are encrypted with AES-256-GCM and never returned; logs contain no content.</li>
+            <li>Content API and GraphQL output resolves references with the caller's permissions and never reveals entries the caller cannot read.</li>
+            <li>The React and Vue components share one render tree with <code>renderHtml</code>: text is escaped, URLs are validated, raw HTML only through your own sanitiser.</li>
+            <li>AI images, whole-field AI, the grammar check and the scheduled link check are off by default and send nothing until the owner turns them on.</li>
+            <li>Comments need their own permissions and Content Manager read on the document; they never appear in the content or the API output.</li>
+            <li>2.3 review: <a href="https://github.com/Schero94/Magic-Editor-X/blob/main/docs/security-audit-2.3.md">security-audit-2.3.md</a>.</li>
           </ul>
         </section>
 
