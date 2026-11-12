@@ -65,6 +65,7 @@ import { createAltTextSuggester } from '../../editor/ai-alt-text';
 import { GrammarPanel } from './GrammarPanel';
 import { FieldAiDialog } from './FieldAiDialog';
 import { applySegments } from '../../../../shared/ai-fields.mjs';
+import { isPositionalFieldPath } from '../../editor/field-path.mjs';
 import { escapeHtml } from '../../../../shared/render/inline.mjs';
 import {
   resolveFieldPreset,
@@ -395,7 +396,10 @@ const EditorFieldBody = ({
     permissions.collaborate &&
     preset.collaboration &&
     target.uid &&
-    target.documentId
+    target.documentId &&
+    // Positional paths (`sections.0.body`) can point to another entry after entries are removed or
+    // reordered before saving; their room would show the other entry's content (editor/field-path.mjs).
+    !isPositionalFieldPath(target.field)
       ? target
       : null;
 
@@ -632,7 +636,10 @@ const EditorFieldBody = ({
     config.comments.enabled &&
     permissions.commentsRead &&
     target.uid &&
-    target.documentId
+    target.documentId &&
+    // Comments and versions are keyed by the field path; a positional path (`sections.0.body`)
+    // can name another entry after entries are removed or moved (editor/field-path.mjs).
+    !isPositionalFieldPath(target.field)
   );
   const comments = useComments({
     target,
@@ -1581,7 +1588,9 @@ const EditorFieldBody = ({
             canRedo={collabUndo ? collaboration.canRedo : undoState.canRedo}
             onUndo={() => undoRef.current && undoRef.current.undo()}
             onRedo={() => undoRef.current && undoRef.current.redo()}
-            historyAvailable={Boolean(target.uid && target.documentId)}
+            historyAvailable={Boolean(
+              target.uid && target.documentId && !isPositionalFieldPath(target.field)
+            )}
             onOpenHistory={() => setHistoryOpen(true)}
             historyButtonRef={historyButtonRef}
             collaboration={collaboration}
