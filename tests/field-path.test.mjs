@@ -38,9 +38,15 @@ test('version history, comments and the link report use the field identity', () 
   );
   assert.match(comments, /identityReady/);
   assert.match(source, /useComments\(\{\s*target: fieldTarget,/);
-  const history = source.slice(source.indexOf('historyAvailable='), source.indexOf('onOpenHistory='));
-  assert.match(history, /identityReady/);
-  assert.match(history, /editor\.identity\.saveHint/);
+  // 2.4 toolbar: history is an entry of the field tool registry; the bar shows the save hint instead.
+  const history = source.slice(source.indexOf("id: 'history',"), source.indexOf("id: 'quality',"));
+  assert.match(history, /visible: Boolean\(target\.uid && target\.documentId && identityReady\)/);
+  const hint = source.slice(
+    source.indexOf('identityHint={'),
+    source.indexOf('collaboration={collaboration}')
+  );
+  assert.match(hint, /!identityReady/);
+  assert.match(hint, /editor\.identity\.saveHint/);
   assert.match(source, /<HistoryModal\s+t=\{t\}\s+target=\{fieldTarget\}/);
   assert.match(source, /scheduledLinks\)\}\s+target=\{fieldTarget\}/);
 });

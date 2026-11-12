@@ -17,10 +17,10 @@ const MAX_POLLS = 300;
  * a run is in progress anywhere in the cluster, the section polls
  * `GET /quality/link-schedule` (bounded) and shows the new last run when it
  * finishes. 409 `RUNNING` and 400 `DISABLED` are shown inline.
- * @param {{ initial: object|null, canRun: boolean }} props - `environment.linkSchedule` from GET /settings and the update right.
+ * @param {{ initial: object|null, canRun: boolean, onStatus?: (status: object) => void }} props - `environment.linkSchedule` from GET /settings, the update right, and a callback that receives every newer status (the environment row shows the same last run).
  * @returns {JSX.Element|null} Section, or null when the schedule is not configured.
  */
-export const LinkScheduleSection = ({ initial, canRun }) => {
+export const LinkScheduleSection = ({ initial, canRun, onStatus }) => {
   const t = useT();
   const { formatDate } = useIntl();
   const { get, post } = useFetchClient();
@@ -49,6 +49,10 @@ export const LinkScheduleSection = ({ initial, canRun }) => {
   }, [get, t]);
 
   const running = Boolean(status && status.running);
+
+  useEffect(() => {
+    if (onStatus && status && status !== initial) onStatus(status);
+  }, [status, initial, onStatus]);
 
   useEffect(() => {
     if (!running) {

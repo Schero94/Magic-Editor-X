@@ -1,5 +1,6 @@
 import { Box, Button, Flex, Modal, Typography } from '@strapi/design-system';
 import styled from 'styled-components';
+import { modKeyName } from '../../editor/field-tools.mjs';
 
 /**
  * Keyboard shortcut help (Ctrl/Cmd + /). Lists the editor's own shortcuts,
@@ -35,15 +36,6 @@ const Table = styled.table`
 `;
 
 /**
- * Platform modifier label.
- * @returns {string} "Cmd" on Apple platforms, otherwise "Ctrl".
- */
-const modKey = () =>
-  typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent || '')
-    ? 'Cmd'
-    : 'Ctrl';
-
-/**
  * Renders a key combination such as "CMD+SHIFT+H".
  * @param {{ combo: string }} props - Props.
  * @returns {JSX.Element} Keys.
@@ -51,7 +43,7 @@ const modKey = () =>
 const Combo = ({ combo }) => (
   <Flex gap={1} wrap="wrap" tag="span">
     {combo.split('+').map((key, index) => (
-      <Keys key={`${key}-${index}`}>{key === 'CMD' ? modKey() : key}</Keys>
+      <Keys key={`${key}-${index}`}>{key === 'CMD' ? modKeyName() : key}</Keys>
     ))}
   </Flex>
 );

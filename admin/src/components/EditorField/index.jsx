@@ -13,6 +13,18 @@ import {
   Typography,
   VisuallyHidden,
 } from '@strapi/design-system';
+import {
+  ClockCounterClockwise,
+  Command,
+  Discuss,
+  Eye,
+  Feather,
+  Layout,
+  Monitor,
+  SealCheck,
+  Search,
+  Sparkle,
+} from '@strapi/icons';
 import { useFetchClient, useNotification, useStrapiApp } from '@strapi/strapi/admin';
 import styled, { createGlobalStyle } from 'styled-components';
 import { buildTools, editorI18n, createUndoManager, createDragDrop } from '../../editor/tools';
@@ -210,6 +222,17 @@ const Frame = styled(Box)`
 const EditorArea = styled.div`
   position: relative;
   min-width: 0;
+  /*
+   * Editor.js renders the block menu, the toolbox and their nested popovers
+   * inside .ce-toolbar, which is its own stacking context (will-change:
+   * opacity). Their z-index therefore cannot lift them over positioned
+   * content of the fields that follow (the next field's toolbar and text drew
+   * over the menu). While a popover or the inline toolbar is open, the whole
+   * area is lifted to the DS popover layer.
+   */
+  &:has(.ce-popover--opened, .ce-inline-toolbar--showed) {
+    z-index: ${({ theme }) => theme.zIndices.popover};
+  }
   ${({ $fullscreen }) => ($fullscreen ? 'flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0;' : '')}
   /*
    * Visually hidden while the rendered preview is shown. The editor stays laid
@@ -321,7 +344,6 @@ const EditorFieldBody = ({
   const collabRef = useRef(null);
   const pendingLocalRef = useRef(false);
   const syncedOnceRef = useRef(false);
-  const historyButtonRef = useRef(null);
   const areaRef = useRef(null);
   const remoteCacheRef = useRef(new WeakMap());
   // True once the user interacted with the editor. Before that, changes Editor.js
@@ -345,19 +367,19 @@ const EditorFieldBody = ({
   const [qualityOpen, setQualityOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [focusMode, setFocusMode] = useState(false);
-  const findButtonRef = useRef(null);
   const [toolShortcuts, setToolShortcuts] = useState([]);
-  const qualityButtonRef = useRef(null);
   const frameRef = useRef(null);
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [commentFocusThread, setCommentFocusThread] = useState(null);
   const [currentBlockId, setCurrentBlockId] = useState(null);
-  const commentsButtonRef = useRef(null);
   // 2.3: grammar check panel and whole-field AI actions.
   const [grammarOpen, setGrammarOpen] = useState(false);
   const [fieldAiOpen, setFieldAiOpen] = useState(false);
-  const grammarButtonRef = useRef(null);
   const moreButtonRef = useRef(null);
+  // Secondary tools live in the "More tools" menu (2.4): closing a tool's panel or dialog returns focus there.
+  const focusToolsMenu = useCallback(() => {
+    if (moreButtonRef.current) moreButtonRef.current.focus();
+  }, []);
   const targetRef = useRef(target);
   useEffect(() => {
     targetRef.current = target;
@@ -389,8 +411,6 @@ const EditorFieldBody = ({
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [saveTemplate, setSaveTemplate] = useState(null);
   const previewRef = useRef(null);
-  const previewButtonRef = useRef(null);
-  const templatesButtonRef = useRef(null);
   const lastBlockIdRef = useRef(null);
   // Synced blocks (2.3): the tool hands its element to the field, which renders the view through a portal.
   const [syncedMounts, setSyncedMounts] = useState(() => new Map());
@@ -1373,8 +1393,8 @@ const EditorFieldBody = ({
   const closeFind = useCallback(() => {
     setFindOpen(false);
     clearHighlight();
-    window.requestAnimationFrame(() => findButtonRef.current && findButtonRef.current.focus());
-  }, []);
+    window.requestAnimationFrame(() => focusToolsMenu());
+  }, [focusToolsMenu]);
   /** Grammar check: writes one corrected string back into its block. */
   const applyGrammar = useCallback(
     async (blockId, path, html) => {
@@ -1405,8 +1425,8 @@ const EditorFieldBody = ({
   const closeGrammar = useCallback(() => {
     setGrammarOpen(false);
     clearHighlight('mex-grammar');
-    window.requestAnimationFrame(() => grammarButtonRef.current && grammarButtonRef.current.focus());
-  }, []);
+    window.requestAnimationFrame(() => focusToolsMenu());
+  }, [focusToolsMenu]);
   /** Whole-field AI: appends a summary as a paragraph (plain text, escaped). */
   const insertParagraph = useCallback(
     (text) => {
@@ -1422,8 +1442,8 @@ const EditorFieldBody = ({
 
   const closeQuality = useCallback(() => {
     setQualityOpen(false);
-    window.requestAnimationFrame(() => qualityButtonRef.current && qualityButtonRef.current.focus());
-  }, []);
+    window.requestAnimationFrame(() => focusToolsMenu());
+  }, [focusToolsMenu]);
 
   // 2.4: block AI by keyboard. Ctrl/Cmd+Shift+G without a text selection opens it for the
   // selected blocks or the block with the caret (with selected text the inline AI tool runs).
@@ -1502,8 +1522,8 @@ const EditorFieldBody = ({
 
   const closeComments = useCallback(() => {
     setCommentsOpen(false);
-    window.requestAnimationFrame(() => commentsButtonRef.current && commentsButtonRef.current.focus());
-  }, []);
+    window.requestAnimationFrame(() => focusToolsMenu());
+  }, [focusToolsMenu]);
 
   /** Marker click: open the panel on the block's first open thread. */
   const openBlockComments = useCallback(
@@ -1761,10 +1781,10 @@ const EditorFieldBody = ({
 
   const closeTemplates = useCallback(() => {
     setTemplatesOpen(false);
-    window.requestAnimationFrame(() => templatesButtonRef.current && templatesButtonRef.current.focus());
-  }, []);
+    window.requestAnimationFrame(() => focusToolsMenu());
+  }, [focusToolsMenu]);
 
-  /** Preview on: focus the rendered region. Off: back to the editor (shortcut) or the toggle (button). */
+  /** Preview on: focus the rendered region. Off: back to the editor (shortcut, "Back to editing") or the tools menu. */
   const togglePreview = useCallback(
     (fromShortcut = false) => {
       const next = !previewOpen;
@@ -1782,10 +1802,10 @@ const EditorFieldBody = ({
             // fall back to the toggle
           }
         }
-        if (previewButtonRef.current) previewButtonRef.current.focus();
+        focusToolsMenu();
       });
     },
-    [previewOpen]
+    [previewOpen, focusToolsMenu]
   );
 
   // Ctrl/Cmd+Alt+P toggles the preview while focus is in the field (key code: Alt changes the character on macOS).
@@ -1803,6 +1823,129 @@ const EditorFieldBody = ({
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
   }, [ready, togglePreview]);
+
+  // Field tool registry (2.4, editor/field-tools.mjs): every secondary tool is one entry of the
+  // "More tools" menu. A new tool adds one entry here; `visible` hides it where it cannot work.
+  const fieldTools = [
+    {
+      id: 'comments',
+      group: 'review',
+      label: t('editor.toolbar.comments', 'Comments'),
+      icon: <Discuss />,
+      badge: {
+        count: comments.counts.open,
+        tone: 'primary',
+        label: t(
+          'editor.toolbar.commentsCount',
+          'Comments ({count, plural, one {# open thread} other {# open threads}})',
+          { count: comments.counts.open }
+        ),
+      },
+      pressed: commentsOpen,
+      movesFocus: true,
+      visible: commentsEnabled,
+      onSelect: () => (commentsOpen ? closeComments() : setCommentsOpen(true)),
+    },
+    {
+      id: 'history',
+      group: 'review',
+      label: t('editor.toolbar.history', 'Version history'),
+      icon: <ClockCounterClockwise />,
+      movesFocus: true,
+      visible: Boolean(target.uid && target.documentId && identityReady),
+      onSelect: () => setHistoryOpen(true),
+    },
+    {
+      id: 'quality',
+      group: 'review',
+      label: t('editor.toolbar.quality', 'Quality checks'),
+      icon: <SealCheck />,
+      badge: {
+        count: qualityCount.total,
+        tone: qualityCount.errors ? 'danger' : 'warning',
+        label: t(
+          'editor.toolbar.qualityCount',
+          'Quality checks ({count, plural, one {# problem} other {# problems}})',
+          { count: qualityCount.total }
+        ),
+      },
+      pressed: qualityOpen,
+      movesFocus: true,
+      onSelect: () => (qualityOpen ? closeQuality() : setQualityOpen(true)),
+    },
+    {
+      id: 'fieldAi',
+      group: 'write',
+      label: t('editor.toolbar.fieldAi', 'AI for the whole field'),
+      icon: <Sparkle />,
+      movesFocus: true,
+      visible: fieldAiAllowed,
+      onSelect: () => setFieldAiOpen(true),
+    },
+    {
+      id: 'grammar',
+      group: 'write',
+      label: t('editor.toolbar.grammar', 'Check grammar'),
+      icon: <Feather />,
+      pressed: grammarOpen,
+      movesFocus: true,
+      visible: grammarAllowed,
+      onSelect: () => (grammarOpen ? closeGrammar() : setGrammarOpen(true)),
+    },
+    {
+      id: 'find',
+      group: 'write',
+      label: t('editor.toolbar.find', 'Find and replace'),
+      icon: <Search />,
+      shortcut: 'CMD+SHIFT+F',
+      pressed: findOpen,
+      movesFocus: true,
+      onSelect: () => (findOpen ? closeFind() : setFindOpen(true)),
+    },
+    {
+      id: 'templates',
+      group: 'write',
+      label: t('editor.toolbar.templates', 'Insert template'),
+      icon: <Layout />,
+      movesFocus: true,
+      visible: Boolean(target.uid) && !readOnly,
+      disabled: previewOpen,
+      onSelect: () => setTemplatesOpen(true),
+    },
+    {
+      id: 'preview',
+      group: 'view',
+      label: t('editor.toolbar.preview', 'Preview'),
+      icon: <Monitor />,
+      shortcut: 'CMD+ALT+P',
+      pressed: previewOpen,
+      exitLabel: t('editor.toolbar.previewOff', 'Back to editing'),
+      movesFocus: true,
+      onSelect: () => togglePreview(true),
+    },
+    {
+      id: 'focus',
+      group: 'view',
+      label: t('editor.toolbar.focusOn', 'Focus mode'),
+      icon: <Eye />,
+      pressed: focusMode,
+      exitLabel: t('editor.toolbar.focusOff', 'Leave focus mode'),
+      onSelect: () =>
+        setFocusMode((value) => {
+          if (!value) setFullscreen(true);
+          return !value;
+        }),
+    },
+    {
+      id: 'shortcuts',
+      group: 'view',
+      label: t('editor.toolbar.shortcuts', 'Keyboard shortcuts'),
+      icon: <Command />,
+      shortcut: 'CMD+/',
+      movesFocus: true,
+      onSelect: () => setShortcutsOpen(true),
+    },
+  ];
 
   const fieldHint = valueError
     ? t('editor.value.invalid', 'The stored content could not be read. It is kept until you edit this field.')
@@ -1834,7 +1977,6 @@ const EditorFieldBody = ({
             canRedo={collabUndo ? collaboration.canRedo : undoState.canRedo}
             onUndo={() => undoRef.current && undoRef.current.undo()}
             onRedo={() => undoRef.current && undoRef.current.redo()}
-            historyAvailable={Boolean(target.uid && target.documentId && identityReady)}
             identityHint={
               target.uid && target.documentId && !identityReady
                 ? t(
@@ -1843,44 +1985,11 @@ const EditorFieldBody = ({
                   )
                 : null
             }
-            onOpenHistory={() => setHistoryOpen(true)}
-            historyButtonRef={historyButtonRef}
             collaboration={collaboration}
             stats={stats}
             limits={{ maxBlocks: preset.maxBlocks, maxCharacters: preset.maxCharacters }}
-            findOpen={findOpen}
-            onToggleFind={() => (findOpen ? closeFind() : setFindOpen(true))}
-            findButtonRef={findButtonRef}
-            qualityOpen={qualityOpen}
-            onToggleQuality={() => (qualityOpen ? closeQuality() : setQualityOpen(true))}
-            qualityCount={qualityCount}
-            qualityButtonRef={qualityButtonRef}
-            focusMode={focusMode}
-            onToggleFocus={() =>
-              setFocusMode((value) => {
-                if (!value) setFullscreen(true);
-                return !value;
-              })
-            }
-            onOpenShortcuts={() => setShortcutsOpen(true)}
-            commentsAvailable={commentsEnabled}
-            commentsOpen={commentsOpen}
-            onToggleComments={() => (commentsOpen ? closeComments() : setCommentsOpen(true))}
-            commentsCount={comments.counts.open}
-            commentsButtonRef={commentsButtonRef}
-            grammarOpen={grammarOpen}
-            onToggleGrammar={
-              grammarAllowed ? () => (grammarOpen ? closeGrammar() : setGrammarOpen(true)) : undefined
-            }
-            grammarButtonRef={grammarButtonRef}
-            onOpenFieldAi={fieldAiAllowed ? () => setFieldAiOpen(true) : undefined}
+            tools={fieldTools}
             moreButtonRef={moreButtonRef}
-            onOpenTemplates={target.uid ? () => setTemplatesOpen(true) : undefined}
-            templatesButtonRef={templatesButtonRef}
-            previewOpen={previewOpen}
-            onTogglePreview={() => togglePreview(false)}
-            previewButtonRef={previewButtonRef}
-            previewId={`${name}-mex-preview`}
           />
           {grammarOpen && grammarAllowed && ready ? (
             <PanelSlot padding={2} $fullscreen={fullscreen}>
@@ -2077,7 +2186,7 @@ const EditorFieldBody = ({
           onRestoreBlock={readOnly ? undefined : restoreBlock}
           onClose={() => {
             setHistoryOpen(false);
-            window.requestAnimationFrame(() => historyButtonRef.current && historyButtonRef.current.focus());
+            window.requestAnimationFrame(() => focusToolsMenu());
           }}
           canEdit={!readOnly}
           canReadActivity={Boolean(
@@ -2131,7 +2240,7 @@ const EditorFieldBody = ({
           onInsertParagraph={insertParagraph}
           onClose={() => setFieldAiOpen(false)}
           readOnly={readOnly}
-          returnFocus={() => moreButtonRef.current && moreButtonRef.current.focus()}
+          returnFocus={focusToolsMenu}
         />
       ) : null}
       {shortcutsOpen ? (

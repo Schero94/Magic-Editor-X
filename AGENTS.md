@@ -494,6 +494,38 @@ Scheduled link check:
 
 Defaults and validation in `server/src/config/index.js` (the README has the table): `debug`, `rawHtml`, `sanitizeOnSave`, `encryptionKey`, `uploads.maxImageBytes`, `uploads.maxFileBytes`, `linkPreview.enabled`, `linkPreview.timeoutMs`, `api.autoParseJSON`, `ai.allowPrivateBaseUrl`, `ai.apiKey`, `ai.requestsPerMinute`, `ai.timeoutMs`, `languageTool.allowPrivateBaseUrl`, `languageTool.requestsPerMinute`, `languageTool.timeoutMs`, `collaboration.enabled`, `collaboration.path`, `collaboration.allowedOrigins`, `collaboration.pollIntervalMs`, `collaboration.roomTtlMinutes`, `collaboration.maxMessageBytes`, `collaboration.snapshotIntervalMinutes`, `collaboration.tokenTtlSeconds`, `collaboration.maxConnectionsPerAdmin`, `collaboration.maxRoomsPerAdmin`, `collaboration.revalidateSeconds`, `collaboration.rateLimit.sessionsPerMinute`, `collaboration.rateLimit.updatesPer10s`, `collaboration.rateLimit.bytesPer10s`, `collaboration.compaction` (`enabled`, `idleSeconds`, `minBytes`, `ratio`, `checkIntervalSeconds`), `history.maxSnapshotsPerField`, `comments.enabled`, `comments.perMinute`, `links.urlPattern` (validated by `isValidLinkPattern`), `qualityChecks.externalLinks` (`enabled`, `timeoutMs`, `perMinute`, `allowPrivateOrigins`, `schedule`: `enabled`, `rule`, `tz`, `maxUrlsPerRun`, `perMinute`, `perHostConcurrency`), `audit.enabled`, `audit.retentionDays`. Environment: `MAGIC_EDITOR_X_ENCRYPTION_KEY`. Read config inside functions, never at module load. Arrays have empty defaults because Strapi merges config arrays by index.
 
+## Editor toolbar and field tools (2.4)
+
+The field toolbar stays short. Visible in the bar: Undo and Redo (not on read-only fields), the **More tools** menu (DS `Menu`, a text button), Full screen, a visible way back while a view-changing tool is on ("Back to editing", "Leave focus mode"), the save hint of a positional field without a saved key, then live collaboration presence/status and the counts. Every other tool of the field is one entry of the field tool registry and appears only in More tools, grouped **Review** (comments, version history, quality checks), **Write** (AI for the whole field, grammar check, find and replace, insert template) and **View** (preview, focus mode, keyboard shortcuts). Block-level tools stay where the block is: Editor.js block tunes (incl. the AI tune), the selection bar for selected blocks, comment markers in the gutter.
+
+Registry (`admin/src/editor/field-tools.mjs`, pure; rendered by `components/EditorField/FieldToolsMenu.jsx`; built in `EditorField` as `fieldTools`):
+
+| Key          | Type                                                     | Meaning                                                                                                                                                |
+| ------------ | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `id`         | string, unique                                           | Stable name; item `data-testid="mex-tool-<id>"`, exit button `mex-tool-exit-<id>`                                                                      |
+| `group`      | `'review' \| 'write' \| 'view'`                          | Menu section (order `TOOL_GROUPS`)                                                                                                                     |
+| `label`      | string                                                   | Translated, plain language                                                                                                                             |
+| `icon`       | node                                                     | Decorative start icon (`@strapi/icons`)                                                                                                                |
+| `shortcut`   | string                                                   | `CMD+SHIFT+F` form (as in `ShortcutsDialog`); shown as `Ctrl+Shift+F`/`Cmd+Shift+F` and set as `aria-keyshortcuts`. The tool keeps its own key handler |
+| `badge`      | `{ count, tone: 'primary'\|'warning'\|'danger', label }` | Count in the item (hidden at 0); `label` is the full accessible name with the count                                                                    |
+| `pressed`    | boolean                                                  | The tool is a toggle (panel, preview, focus mode): `menuitemcheckbox` with `aria-checked` and a check mark                                             |
+| `exitLabel`  | string                                                   | With `pressed`: label of the visible way-back button in the bar while the tool is on                                                                   |
+| `visible`    | boolean (default true)                                   | False removes the entry (permission, config, field option, read-only). Hidden entries are still validated                                              |
+| `disabled`   | boolean                                                  | Shown but not selectable                                                                                                                               |
+| `order`      | number                                                   | Position inside the group; otherwise the given order                                                                                                   |
+| `movesFocus` | boolean                                                  | The tool focuses its panel or dialog itself; the menu then does not return focus to its trigger                                                        |
+| `onSelect`   | function                                                 | Runs the tool. It runs after the menu has closed and released focus (Radix traps focus in an open menu)                                                |
+
+`groupFieldTools` throws on a missing or duplicate id, an unknown group or a missing `onSelect` (`tests/field-tools.test.mjs`).
+
+How to add a field tool:
+
+1. Build the panel or dialog as a self-contained component with one primary action, a close control and a helpful empty state. Panels render in a `PanelSlot` under the toolbar; dialogs use DS `Modal`.
+2. Add one entry to `fieldTools` in `EditorField/index.jsx` (pick the group by what the editor wants to do: review, write or view). Set `visible` from config, RBAC and field options so the item only appears where it can work; new features are off by default.
+3. On close, return focus with `focusToolsMenu()` (the More tools trigger), never to `<body>`.
+4. A keyboard shortcut goes in the existing key handler of the field plus `shortcut` in the entry and a row in `ShortcutsDialog`.
+5. Do not add icon buttons to `EditorToolbar.jsx`; the source test allows exactly undo, redo and full screen.
+
 ## Admin and i18n
 
 - Build every screen with `@strapi/design-system` and the admin `Page`/`Layouts`; colours and spacing from theme tokens only (no hex, no `var(--colors-*)`; 1rem = 10px). Destructive actions use `ConfirmDialog`. No `window.confirm`, no `console.log`, no emoji.
