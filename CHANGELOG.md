@@ -1,6 +1,12 @@
 # Changelog
 
-## [Unreleased]
+# [2.4.0](https://github.com/Schero94/Magic-Editor-X/compare/v2.3.1...v2.4.0) (2026-11-12)
+
+
+### Features
+
+* stable component field ids, tables v2, math, footnotes, range comments, suggest mode, audit trail and a simpler toolbar ([#8](https://github.com/Schero94/Magic-Editor-X/issues/8)) ([080d5af](https://github.com/Schero94/Magic-Editor-X/commit/080d5af4a4ca775560c42656956eb863a9bcfbcc))
+
 
 Magic Editor X 2.4 adds better tables, math and footnotes, comments on selected text with @mentions, block suggestions, an audit trail and block-scoped AI, gives fields in repeatable components and dynamic zones their history, comments and live editing back, and fixes a collaboration bug that could delete blocks. The field toolbar is now short: undo, redo, **More tools** and full screen. There are no breaking changes; stored content keeps working and Editor.js stays at 2.31.7.
 
