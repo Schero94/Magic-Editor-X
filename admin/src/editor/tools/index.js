@@ -107,7 +107,7 @@ export function buildTools(ctx) {
       tunes: ['alignmentTune', 'textVariant', 'indentTune'],
       config: {
         placeholder:
-          ctx.placeholder || t('tools.paragraph.placeholder', 'Write, or press Tab to choose a block'),
+          ctx.placeholder || t('tools.paragraph.placeholder', 'Write, or type / to choose a block'),
         preserveBlank: true,
       },
     },

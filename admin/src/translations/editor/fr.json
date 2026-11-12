@@ -1,7 +1,7 @@
 {
   "editor.upload.failed": "Le fichier n’a pas pu être téléversé.",
   "editor.upload.urlFailed": "L’image n’a pas pu être chargée depuis cette URL.",
-  "editor.placeholder": "Écrivez quelque chose ou appuyez sur Tab pour choisir un bloc",
+  "editor.placeholder": "Écrivez quelque chose ou tapez / pour choisir un bloc",
   "editor.value.invalid": "Le contenu enregistré n’a pas pu être lu. Il est conservé jusqu’à ce que vous modifiiez ce champ.",
   "editor.config.error": "L’éditeur n’a pas pu être chargé.",
   "editor.config.retry": "Réessayer",
@@ -131,7 +131,7 @@
   "editor.grammar.error.tooLong": "Ce champ est trop long pour être vérifié en une fois.",
   "editor.grammar.error.rateLimit": "Vous avez lancé beaucoup de vérifications. Réessayez dans une minute.",
   "editor.grammar.error.generic": "La vérification grammaticale n’est pas disponible pour le moment.",
-  "editor.keyboard": "Appuyez sur Tab dans un bloc vide pour choisir un type de bloc. Appuyez sur Échap puis sur Tab pour quitter l’éditeur.",
+  "editor.keyboard": "Tapez / dans un bloc vide pour choisir un type de bloc. Tab passe au bloc suivant ; appuyez sur Échap puis sur Tab pour quitter l’éditeur.",
   "editor.collab.status.reconnecting": "Reconnexion",
   "editor.collab.away": "{name} (absent)",
   "editor.collab.editingBlock": "{name} modifie ce bloc",

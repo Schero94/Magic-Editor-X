@@ -1,7 +1,7 @@
 {
   "editor.upload.failed": "Die Datei konnte nicht hochgeladen werden.",
   "editor.upload.urlFailed": "Das Bild konnte von dieser URL nicht geladen werden.",
-  "editor.placeholder": "Schreiben Sie etwas oder drücken Sie Tab, um einen Block zu wählen",
+  "editor.placeholder": "Schreiben Sie etwas oder tippen Sie /, um einen Block zu wählen",
   "editor.value.invalid": "Der gespeicherte Inhalt konnte nicht gelesen werden. Er bleibt erhalten, bis Sie dieses Feld bearbeiten.",
   "editor.config.error": "Der Editor konnte nicht geladen werden.",
   "editor.config.retry": "Erneut versuchen",
@@ -131,7 +131,7 @@
   "editor.grammar.error.tooLong": "Dieses Feld ist zu lang, um es auf einmal zu prüfen.",
   "editor.grammar.error.rateLimit": "Sie haben viele Prüfungen gestartet. Versuchen Sie es in einer Minute erneut.",
   "editor.grammar.error.generic": "Die Grammatikprüfung ist gerade nicht verfügbar.",
-  "editor.keyboard": "Drücken Sie in einem leeren Block Tab, um einen Blocktyp zu wählen. Drücken Sie Escape und dann Tab, um den Editor zu verlassen.",
+  "editor.keyboard": "Tippen Sie in einem leeren Block /, um einen Blocktyp zu wählen. Tab springt zum nächsten Block; drücken Sie Escape und dann Tab, um den Editor zu verlassen.",
   "editor.collab.status.reconnecting": "Verbindung wird wiederhergestellt",
   "editor.collab.away": "{name} (abwesend)",
   "editor.collab.editingBlock": "{name} bearbeitet diesen Block",

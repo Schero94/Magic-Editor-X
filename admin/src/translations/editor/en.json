@@ -1,7 +1,7 @@
 {
   "editor.upload.failed": "The file could not be uploaded.",
   "editor.upload.urlFailed": "The image could not be loaded from this URL.",
-  "editor.placeholder": "Write something, or press Tab to choose a block",
+  "editor.placeholder": "Write something, or type / to choose a block",
   "editor.value.invalid": "The stored content could not be read. It is kept until you edit this field.",
   "editor.config.error": "The editor could not be loaded.",
   "editor.config.retry": "Try again",
@@ -131,7 +131,7 @@
   "editor.grammar.error.tooLong": "This field is too long to check at once.",
   "editor.grammar.error.rateLimit": "You sent many checks. Try again in a minute.",
   "editor.grammar.error.generic": "The grammar check is not available right now.",
-  "editor.keyboard": "Press Tab in an empty block to choose a block type. Press Escape, then Tab, to leave the editor.",
+  "editor.keyboard": "Type / in an empty block to choose a block type. Tab moves to the next block; press Escape, then Tab, to leave the editor.",
   "editor.collab.status.reconnecting": "Reconnecting",
   "editor.collab.away": "{name} (away)",
   "editor.collab.editingBlock": "{name} is editing this block",

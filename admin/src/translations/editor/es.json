@@ -1,7 +1,7 @@
 {
   "editor.upload.failed": "No se pudo subir el archivo.",
   "editor.upload.urlFailed": "No se pudo cargar la imagen desde esta URL.",
-  "editor.placeholder": "Escriba algo o pulse Tab para elegir un bloque",
+  "editor.placeholder": "Escriba algo o teclee / para elegir un bloque",
   "editor.value.invalid": "No se pudo leer el contenido guardado. Se conserva hasta que edite este campo.",
   "editor.config.error": "No se pudo cargar el editor.",
   "editor.config.retry": "Reintentar",
@@ -131,7 +131,7 @@
   "editor.grammar.error.tooLong": "Este campo es demasiado largo para revisarlo de una vez.",
   "editor.grammar.error.rateLimit": "Ha lanzado muchas revisiones. Inténtelo de nuevo en un minuto.",
   "editor.grammar.error.generic": "La revisión gramatical no está disponible ahora.",
-  "editor.keyboard": "Pulse Tab en un bloque vacío para elegir un tipo de bloque. Pulse Escape y luego Tab para salir del editor.",
+  "editor.keyboard": "Teclee / en un bloque vacío para elegir un tipo de bloque. Tab pasa al bloque siguiente; pulse Escape y luego Tab para salir del editor.",
   "editor.collab.status.reconnecting": "Reconectando",
   "editor.collab.away": "{name} (ausente)",
   "editor.collab.editingBlock": "{name} está editando este bloque",

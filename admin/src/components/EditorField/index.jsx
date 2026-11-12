@@ -716,7 +716,7 @@ const EditorFieldBody = ({
       data: initial || undefined,
       readOnly,
       minHeight: 0,
-      placeholder: placeholder || t('editor.placeholder', 'Write something, or press Tab to choose a block'),
+      placeholder: placeholder || t('editor.placeholder', 'Write something, or type / to choose a block'),
       autofocus: false,
       logLevel: 'ERROR',
       i18n: { ...editorI18n(t), direction },
@@ -1593,7 +1593,7 @@ const EditorFieldBody = ({
           <VisuallyHidden id={`${name}-mex-keyboard`}>
             {t(
               'editor.keyboard',
-              'Press Tab in an empty block to choose a block type. Press Escape, then Tab, to leave the editor.'
+              'Type / in an empty block to choose a block type. Tab moves to the next block; press Escape, then Tab, to leave the editor.'
             )}
           </VisuallyHidden>
         </Frame>

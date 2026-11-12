@@ -1,7 +1,7 @@
 {
   "editor.upload.failed": "Não foi possível enviar o arquivo.",
   "editor.upload.urlFailed": "Não foi possível carregar a imagem a partir desta URL.",
-  "editor.placeholder": "Escreva algo ou pressione Tab para escolher um bloco",
+  "editor.placeholder": "Escreva algo ou digite / para escolher um bloco",
   "editor.value.invalid": "Não foi possível ler o conteúdo salvo. Ele é mantido até que edite este campo.",
   "editor.config.error": "Não foi possível carregar o editor.",
   "editor.config.retry": "Tentar novamente",
@@ -131,7 +131,7 @@
   "editor.grammar.error.tooLong": "Este campo é demasiado longo para verificar de uma vez.",
   "editor.grammar.error.rateLimit": "Iniciou muitas verificações. Tente novamente em um minuto.",
   "editor.grammar.error.generic": "A verificação gramatical não está disponível agora.",
-  "editor.keyboard": "Pressione Tab em um bloco vazio para escolher um tipo de bloco. Pressione Escape e depois Tab para sair do editor.",
+  "editor.keyboard": "Digite / em um bloco vazio para escolher um tipo de bloco. Tab passa para o bloco seguinte; pressione Escape e depois Tab para sair do editor.",
   "editor.collab.status.reconnecting": "Reconectando",
   "editor.collab.away": "{name} (ausente)",
   "editor.collab.editingBlock": "{name} está editando este bloco",
