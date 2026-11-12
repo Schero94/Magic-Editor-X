@@ -153,6 +153,37 @@ module.exports = ({ strapi }) => {
     };
   };
 
+  /**
+   * Adds the read-only state of the scheduled link check (counts only, no URLs).
+   * @param {object} dto - Settings DTO.
+   * @returns {Promise<object>} The same DTO.
+   */
+  const withLinkSchedule = async (dto) => {
+    let state = null;
+    try {
+      const status = await strapi.plugin('magic-editor-x').service('link-schedule').status();
+      state = {
+        enabled: status.enabled,
+        scheduled: status.scheduled,
+        rule: status.rule,
+        maxUrlsPerRun: status.maxUrlsPerRun,
+        perMinute: status.perMinute,
+        lastRun: status.lastRun
+          ? {
+              finishedAt: status.lastRun.finishedAt,
+              complete: status.lastRun.complete === true,
+              checked: Number(status.lastRun.checked) || 0,
+              problems: Number(status.lastRun.problems) || 0,
+            }
+          : null,
+      };
+    } catch {
+      // the schedule state is optional information
+    }
+    dto.environment.linkSchedule = state;
+    return dto;
+  };
+
   return {
     PROVIDERS,
     DEFAULT_MODELS,
@@ -165,7 +196,7 @@ module.exports = ({ strapi }) => {
      * @returns {Promise<object>} DTO.
      */
     async get() {
-      return toDto(await readRaw());
+      return withLinkSchedule(toDto(await readRaw()));
     },
 
     /**
@@ -221,7 +252,7 @@ module.exports = ({ strapi }) => {
         apiKeyEncrypted,
       };
       await store(strapi).set({ key: 'settings', value: { ai } });
-      return toDto({ ai });
+      return withLinkSchedule(toDto({ ai }));
     },
 
     /**

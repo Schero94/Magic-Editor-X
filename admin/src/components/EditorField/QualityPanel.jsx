@@ -1,4 +1,5 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useIntl } from 'react-intl';
 import {
   Badge,
   Box,
@@ -115,12 +116,53 @@ const Wrap = styled(Typography)`
 `;
 
 /**
+ * Loads the last scheduled link check of the field (GET /quality/link-report).
+ * @param {{ get?: Function }} fetchClient - Admin fetch client.
+ * @param {{ uid: string|null, documentId: string|null, locale: string|null, field: string }|null} target - Field, or null when the schedule is off.
+ * @returns {{ state: 'off'|'loading'|'error'|'done', report: object|null }} Result.
+ */
+const useScheduledReport = (fetchClient, target) => {
+  const get = fetchClient && fetchClient.get;
+  const uid = target && target.uid;
+  const documentId = target && target.documentId;
+  const locale = (target && target.locale) || null;
+  const field = target && target.field;
+  const key = get && uid && documentId && field ? `${uid}|${documentId}|${locale || ''}|${field}` : null;
+  const [result, setResult] = useState({ key: null, state: 'loading', report: null });
+  useEffect(() => {
+    if (!key) return undefined;
+    const controller = new AbortController();
+    get(API.qualityLinkReport, {
+      params: { uid, documentId, locale: locale || undefined, field },
+      signal: controller.signal,
+    }).then(
+      (response) => {
+        if (controller.signal.aborted) return;
+        const report = response && response.data && response.data.data;
+        setResult(
+          report && report.enabled ? { key, state: 'done', report } : { key, state: 'off', report: null }
+        );
+      },
+      () => {
+        if (!controller.signal.aborted) setResult({ key, state: 'error', report: null });
+      }
+    );
+    return () => controller.abort();
+  }, [key, get, uid, documentId, locale, field]);
+  if (!key) return { state: 'off', report: null };
+  if (result.key !== key) return { state: 'loading', report: null };
+  return result;
+};
+
+/**
  * @param {object} props - Props.
  * @param {Function} props.t - Translator `(id, defaultMessage, values) => string`.
  * @param {object|null} props.data - Current editor data.
  * @param {object} [props.options] - Field options (`requireAlt`, `publishGuard`).
- * @param {{ post: Function }} props.fetchClient - Admin fetch client.
+ * @param {{ get?: Function, post: Function }} props.fetchClient - Admin fetch client.
  * @param {boolean} [props.externalEnabled] - External link checks are enabled on the server.
+ * @param {boolean} [props.scheduledEnabled] - The scheduled link check is enabled on the server.
+ * @param {{ uid: string|null, documentId: string|null, locale: string|null, field: string }} [props.target] - Field target (for the scheduled result).
  * @param {(blockId: string) => void} props.onSelectBlock - Focuses a block.
  * @param {() => void} [props.onClose] - Closes the panel.
  * @param {Array<{ code: string, blockId: string|null, index: number|null, params?: object }>} [props.violations] - Field preset violations (saving fails while any remain).
@@ -133,11 +175,15 @@ export const QualityPanel = ({
   options,
   fetchClient,
   externalEnabled,
+  scheduledEnabled = false,
+  target = null,
   onSelectBlock,
   onClose,
   violations = [],
   onFixViolations = null,
 }) => {
+  const { formatDate } = useIntl();
+  const scheduled = useScheduledReport(fetchClient, scheduledEnabled ? target : null);
   const { issues, stats } = useQualityIssues(data, options);
   const [check, setCheck] = useState({ state: 'idle', result: null, message: '' });
   const [announcement, setAnnouncement] = useState('');
@@ -276,6 +322,119 @@ export const QualityPanel = ({
           );
         })}
       </List>
+    );
+  };
+
+  const brokenText = (count) =>
+    t(
+      'editor.quality.schedule.count',
+      '{count, plural, =0 {no broken links} one {# broken link} other {# broken links}}',
+      { count }
+    );
+
+  const renderScheduled = () => {
+    const { report } = scheduled;
+    let body;
+    if (scheduled.state === 'loading')
+      body = <Loader small>{t('editor.quality.schedule.loading', 'Loading the scheduled result')}</Loader>;
+    else if (scheduled.state === 'error')
+      body = (
+        <Typography variant="omega" textColor="danger600">
+          {t('editor.quality.schedule.failed', 'The scheduled result could not be loaded.')}
+        </Typography>
+      );
+    else if (!report.lastRun)
+      body = (
+        <Typography variant="pi" textColor="neutral600">
+          {t('editor.quality.schedule.never', 'No scheduled check has run yet.')}
+        </Typography>
+      );
+    else {
+      const date = formatDate(new Date(report.lastRun.finishedAt), {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+      });
+      const version = report.draft || report.published;
+      if (!version)
+        body = (
+          <Typography variant="pi" textColor="neutral600">
+            {t(
+              'editor.quality.schedule.noLinks',
+              'Last scheduled check {date}: no external links in the saved content.',
+              { date }
+            )}
+          </Typography>
+        );
+      else {
+        const problems = version.links.filter((link) => PROBLEMS.has(link.status));
+        const pending = version.links.filter((link) => link.status === 'skipped').length;
+        body = (
+          <Flex direction="column" alignItems="stretch" gap={2}>
+            <Typography variant="omega" textColor={problems.length ? 'danger700' : 'neutral800'}>
+              {t('editor.quality.schedule.summary', 'Last scheduled check {date}: {result}', {
+                date,
+                result: brokenText(version.problems),
+              })}
+            </Typography>
+            {report.draft && report.published ? (
+              <Typography variant="pi" textColor="neutral600">
+                {t('editor.quality.schedule.published', 'Published version: {result}', {
+                  result: brokenText(report.published.problems),
+                })}
+              </Typography>
+            ) : null}
+            {pending ? (
+              <Typography variant="pi" textColor="neutral600">
+                {t(
+                  'editor.quality.schedule.pending',
+                  '{count, plural, one {# link was} other {# links were}} not checked yet.',
+                  { count: pending }
+                )}
+              </Typography>
+            ) : null}
+            {problems.length ? (
+              <List
+                aria-label={t('editor.quality.schedule.results', 'Broken links found by the scheduled check')}
+              >
+                {problems.map((link, index) => {
+                  const status = LINK_STATUS[link.status] || LINK_STATUS.error;
+                  return (
+                    <Box tag="li" key={`scheduled-${index}`} paddingTop={1} paddingBottom={1}>
+                      <Flex gap={2} alignItems="flex-start" wrap="wrap">
+                        <Status variant={status.variant} size="S">
+                          <Typography variant="pi" fontWeight="bold" textColor={`${status.variant}700`}>
+                            {t(status.key, status.text)}
+                            {link.code ? ` (${link.code})` : ''}
+                          </Typography>
+                        </Status>
+                        {link.blockId && onSelectBlock ? (
+                          <RowButton type="button" onClick={() => onSelectBlock(link.blockId)}>
+                            <Wrap variant="pi" textColor="neutral800">
+                              {link.url}
+                            </Wrap>
+                          </RowButton>
+                        ) : (
+                          <Wrap variant="pi" textColor="neutral800">
+                            {link.url}
+                          </Wrap>
+                        )}
+                      </Flex>
+                    </Box>
+                  );
+                })}
+              </List>
+            ) : null}
+          </Flex>
+        );
+      }
+    }
+    return (
+      <Flex direction="column" alignItems="stretch" gap={2}>
+        <Typography variant="sigma" tag="h4" textColor="neutral600">
+          {t('editor.quality.schedule.title', 'Scheduled check')}
+        </Typography>
+        {body}
+      </Flex>
     );
   };
 
@@ -424,6 +583,8 @@ export const QualityPanel = ({
             </Typography>
           ) : null}
         </Flex>
+
+        {scheduled.state !== 'off' ? renderScheduled() : null}
       </Flex>
       <VisuallyHidden aria-live="polite" aria-atomic="true">
         {announcement}

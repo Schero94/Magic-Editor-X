@@ -52,6 +52,13 @@ module.exports = async ({ strapi }) => {
   }
 
   try {
+    // Opt-in scheduled external link check (one process per fire time, see services/link-schedule.js).
+    if (plugin.service('link-schedule').schedule()) logger.info('scheduled link check is on');
+  } catch (error) {
+    logger.error('the scheduled link check could not be registered', error);
+  }
+
+  try {
     await plugin.service('collaboration').start();
   } catch (error) {
     logger.error('live collaboration could not start', error);

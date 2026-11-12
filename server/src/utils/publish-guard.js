@@ -36,21 +36,22 @@ const isGuarded = (attribute) =>
  * @param {object} strapi - Strapi instance.
  * @param {object} schema - Content type or component schema.
  * @param {number} [depth=0] - Recursion depth.
+ * @param {(attribute: object) => boolean} [predicate] - Which editor fields to read (default: guarded ones).
  * @returns {{ fields: string[], populate: Record<string, unknown> } | null} Query parts.
  */
-const guardQuery = (strapi, schema, depth = 0) => {
+const guardQuery = (strapi, schema, depth = 0, predicate = isGuarded) => {
   if (!schema || depth > MAX_DEPTH) return null;
   const fields = [];
   const populate = {};
   for (const [name, attribute] of Object.entries(schema.attributes || {})) {
-    if (isGuarded(attribute)) fields.push(name);
+    if (predicate(attribute)) fields.push(name);
     else if (attribute.type === 'component') {
-      const inner = guardQuery(strapi, strapi.components[attribute.component], depth + 1);
+      const inner = guardQuery(strapi, strapi.components[attribute.component], depth + 1, predicate);
       if (inner) populate[name] = toPopulate(inner);
     } else if (attribute.type === 'dynamiczone') {
       const on = {};
       for (const uid of attribute.components || []) {
-        const inner = guardQuery(strapi, strapi.components[uid], depth + 1);
+        const inner = guardQuery(strapi, strapi.components[uid], depth + 1, predicate);
         if (inner) on[uid] = toPopulate(inner);
       }
       if (Object.keys(on).length) populate[name] = { on };
@@ -78,22 +79,23 @@ const toPopulate = (query) => {
  * @param {string} prefix - Path of `data`.
  * @param {Array<{ field: string, value: unknown, options: object }>} out - Accumulator.
  * @param {number} [depth=0] - Recursion depth.
+ * @param {(attribute: object) => boolean} [predicate] - Which editor fields to collect (default: guarded ones).
  * @returns {Array<{ field: string, value: unknown, options: object }>} Values.
  */
-const collectGuarded = (strapi, schema, data, prefix, out, depth = 0) => {
+const collectGuarded = (strapi, schema, data, prefix, out, depth = 0, predicate = isGuarded) => {
   if (!schema || !data || typeof data !== 'object' || depth > MAX_DEPTH) return out;
   for (const [name, attribute] of Object.entries(schema.attributes || {})) {
     if (!Object.prototype.hasOwnProperty.call(data, name)) continue;
     const value = data[name];
     const path = prefix ? `${prefix}.${name}` : name;
-    if (isGuarded(attribute)) out.push({ field: path, value, options: attribute.options });
+    if (predicate(attribute)) out.push({ field: path, value, options: attribute.options || {} });
     else if (attribute.type === 'component') {
       const component = strapi.components[attribute.component];
       if (Array.isArray(value))
         value.forEach((item, index) =>
-          collectGuarded(strapi, component, item, `${path}.${index}`, out, depth + 1)
+          collectGuarded(strapi, component, item, `${path}.${index}`, out, depth + 1, predicate)
         );
-      else collectGuarded(strapi, component, value, path, out, depth + 1);
+      else collectGuarded(strapi, component, value, path, out, depth + 1, predicate);
     } else if (attribute.type === 'dynamiczone' && Array.isArray(value)) {
       value.forEach((item, index) => {
         if (item && typeof item === 'object' && typeof item.__component === 'string')
@@ -103,7 +105,8 @@ const collectGuarded = (strapi, schema, data, prefix, out, depth = 0) => {
             item,
             `${path}.${index}`,
             out,
-            depth + 1
+            depth + 1,
+            predicate
           );
       });
     }

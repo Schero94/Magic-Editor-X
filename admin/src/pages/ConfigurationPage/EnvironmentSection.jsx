@@ -21,7 +21,7 @@ const megabytes = (t, formatNumber, bytes) =>
  */
 export const EnvironmentSection = ({ environment }) => {
   const t = useT();
-  const { formatNumber } = useIntl();
+  const { formatNumber, formatDate } = useIntl();
   const on = (value) =>
     value ? (
       <Badge backgroundColor="success100" textColor="success700">
@@ -42,6 +42,37 @@ export const EnvironmentSection = ({ environment }) => {
       disable: t('settings.environment.rawHtml.disable', 'Emptied on save'),
     }[environment.rawHtml] || environment.rawHtml;
   const collaboration = environment.collaboration || {};
+  const linkSchedule = environment.linkSchedule || null;
+  const lastRun = linkSchedule && linkSchedule.lastRun;
+  let linkScheduleHint;
+  if (linkSchedule && linkSchedule.enabled) {
+    const parts = [
+      t(
+        'settings.environment.linkScheduleHint',
+        'Rule {rule}, at most {max} links per run (qualityChecks.externalLinks.schedule).',
+        { rule: linkSchedule.rule || '', max: linkSchedule.maxUrlsPerRun ?? 0 }
+      ),
+      lastRun
+        ? t(
+            'settings.environment.linkScheduleLastRun',
+            'Last run {date}: {checked, number} links checked, {problems, number} with problems.',
+            {
+              date: formatDate(new Date(lastRun.finishedAt), { dateStyle: 'medium', timeStyle: 'short' }),
+              checked: lastRun.checked ?? 0,
+              problems: lastRun.problems ?? 0,
+            }
+          )
+        : t('settings.environment.linkScheduleNever', 'No run yet.'),
+    ];
+    if (lastRun && !lastRun.complete)
+      parts.push(
+        t(
+          'settings.environment.linkScheduleIncomplete',
+          'The last run did not finish; results of earlier runs were kept.'
+        )
+      );
+    linkScheduleHint = parts.join(' ');
+  }
 
   return (
     <SectionCard
@@ -87,6 +118,12 @@ export const EnvironmentSection = ({ environment }) => {
             key: 'files',
             label: t('settings.environment.maxFile', 'Largest file upload'),
             value: megabytes(t, formatNumber, environment.uploads && environment.uploads.maxFileBytes),
+          },
+          {
+            key: 'linkSchedule',
+            label: t('settings.environment.linkSchedule', 'Scheduled link check'),
+            value: on(Boolean(linkSchedule && linkSchedule.enabled)),
+            hint: linkScheduleHint,
           },
           {
             key: 'privateAi',

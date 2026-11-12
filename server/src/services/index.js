@@ -5,6 +5,7 @@ module.exports = {
   access: require('./access'),
   links: require('./links'),
   quality: require('./quality'),
+  'link-schedule': require('./link-schedule'),
   editor: require('./editor'),
   settings: require('./settings'),
   ai: require('./ai'),

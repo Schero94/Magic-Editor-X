@@ -1,7 +1,7 @@
 'use strict';
 
 const { errors } = require('@strapi/utils');
-const { fetchBounded } = require('../utils/url-security');
+const { fetchBounded, requestOnce } = require('../utils/url-security');
 const { createRateLimiter } = require('../utils/rate-limit');
 const { createLogger } = require('../utils/logger');
 
@@ -26,6 +26,22 @@ const CACHE_MAX = 1000;
 const HEAD_MAX_BYTES = 64 * 1024;
 const GET_MAX_BYTES = 256 * 1024;
 const CONCURRENCY = 4;
+
+/**
+ * One request that hands a redirect back as a final answer (the status stays
+ * 3xx), so a listed private origin cannot redirect the check elsewhere.
+ * @param {URL} url - Target.
+ * @param {object} options - requestOnce options.
+ * @returns {Promise<{ statusCode: number, headers: object, body: Buffer }>} Response.
+ */
+const requestWithoutRedirect = async (url, options) => {
+  const response = await requestOnce(url, options);
+  if (response.statusCode >= 300 && response.statusCode < 400) {
+    const { location: _location, ...headers } = response.headers || {};
+    return { ...response, headers };
+  }
+  return response;
+};
 
 module.exports = ({ strapi }, dependencies = {}) => {
   const logger = createLogger(strapi);
@@ -138,8 +154,25 @@ module.exports = ({ strapi }, dependencies = {}) => {
    */
   const checkUrl = async (url) => {
     const timeoutMs = Number(conf('timeoutMs', 5000)) || 5000;
+    const allowed = conf('allowPrivateOrigins', []);
+    let origin = '';
+    try {
+      origin = new URL(url).origin;
+    } catch {
+      // validateHttpUrl rejects it below
+    }
+    // An origin the owner listed may be private; its redirects are reported, never followed.
+    const privateOrigin = Array.isArray(allowed) && origin !== '' && allowed.includes(origin);
     const request = (method, maxBytes) =>
-      safeFetch(url, { method, maxBytes, timeoutMs, acceptStatus: () => true, maxRedirects: 5 });
+      safeFetch(url, {
+        method,
+        maxBytes,
+        timeoutMs,
+        acceptStatus: () => true,
+        ...(privateOrigin
+          ? { allowPrivate: true, maxRedirects: 0, request: requestWithoutRedirect }
+          : { maxRedirects: 5 }),
+      });
     let response;
     try {
       response = await request('HEAD', HEAD_MAX_BYTES);
@@ -177,6 +210,28 @@ module.exports = ({ strapi }, dependencies = {}) => {
   };
 
   return {
+    /**
+     * Checks one external URL through the SSRF-safe fetcher and the shared
+     * 10-minute cache. Rate limits are the caller's job. Never logs the URL.
+     * @param {string} url - Absolute http(s) URL.
+     * @returns {Promise<{ status: 'ok'|'broken'|'timeout'|'blocked'|'error', code?: number, cached: boolean }>} Result.
+     */
+    async checkExternalUrl(url) {
+      const hit = cached(url);
+      if (hit) return { ...hit, cached: true };
+      const result = await checkUrl(url);
+      remember(url, result);
+      return { ...result, cached: false };
+    },
+
+    /**
+     * @param {string} url - URL.
+     * @returns {boolean} True when the URL has a fresh cached result.
+     */
+    isCached(url) {
+      return cached(url) !== undefined;
+    },
+
     /**
      * Checks links and media references of one document.
      * @param {{ userAbility: object, user: { id: number }, internal?: Array<{ uid: string, documentId: string, locale?: string|null }>, media?: Array<number|string>, external?: string[] }} input - Validated input.
