@@ -12,6 +12,7 @@ const { registerCommentRetention } = require('./utils/comment-retention');
 const { registerAuditTrail } = require('./utils/audit-trail');
 const { OUTPUT_FORMATS } = require('../../shared/resolve-references.mjs');
 const { registerGraphql } = require('./graphql');
+const { registerMcp } = require('./mcp');
 const { readPositionalEntries } = require('./utils/field-identity');
 const {
   assignFieldKeys,
@@ -165,4 +166,6 @@ module.exports = ({ strapi }) => {
   registerGraphql(strapi);
   registerCommentRetention(strapi);
   registerAuditTrail(strapi);
+  // 2.5: MCP tools for AI clients (off unless `mcp.enabled` and Strapi's MCP server are on).
+  registerMcp(strapi);
 };

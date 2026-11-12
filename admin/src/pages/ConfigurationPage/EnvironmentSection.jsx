@@ -47,6 +47,25 @@ export const EnvironmentSection = ({ environment }) => {
   const privateImages = Array.isArray(environment.altTextPrivateOrigins)
     ? environment.altTextPrivateOrigins
     : [];
+  // 2.5: MCP status: on only when the plugin option and Strapi's MCP server are both on.
+  const mcp = environment.mcp || {};
+  let mcpHint;
+  if (mcp.active)
+    mcpHint = t(
+      'settings.environment.mcpOn',
+      'AI clients connect to {path} with an admin token. Give the token the permission "Use the MCP tools" under Plugins > Magic Editor X. The tools convert, check and render content; they never read or save entries.',
+      { path: mcp.path || '/mcp' }
+    );
+  else if (mcp.enabled)
+    mcpHint = t(
+      'settings.environment.mcpServerOff',
+      "Turned on (mcp.enabled), but Strapi's MCP server is off. Set server.mcp.enabled to true in config/server and restart."
+    );
+  else
+    mcpHint = t(
+      'settings.environment.mcpOff',
+      'Turn on with mcp.enabled in config/plugins and server.mcp.enabled in config/server, then restart.'
+    );
   const lastRun = linkSchedule && linkSchedule.lastRun;
   let linkScheduleHint;
   if (linkSchedule && linkSchedule.enabled) {
@@ -174,6 +193,13 @@ export const EnvironmentSection = ({ environment }) => {
               'settings.environment.privateAiHint',
               'Needed for local models on localhost or a private network (ai.allowPrivateBaseUrl).'
             ),
+          },
+          // 2.5: MCP tools for AI clients (config only).
+          {
+            key: 'mcp',
+            label: t('settings.environment.mcp', 'Tools for AI clients (MCP)'),
+            value: on(Boolean(mcp.active)),
+            hint: mcpHint,
           },
         ]}
       />
