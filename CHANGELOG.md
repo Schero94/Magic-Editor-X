@@ -40,6 +40,7 @@ Magic Editor X 2.3 connects the editor to the rest of your stack: React and Vue 
 
 ### Fixed
 
+- Collaboration: edits re-applied after a room compaction or a reconnect could split another person's text typed at the same spot (for example two inserts became interleaved). Re-applied inserts now stay whole (present since 2.1).
 - Version history: blocks whose tunes differed only in key order were reported as changed; tune changes are now shown readably ("Alignment: left → center").
 - Version history, live collaboration and the link report answered 404 for editor fields inside components (MEX-23-12).
 - Admin error handling read no HTTP status from Strapi's fetch client errors, so the 400 and 404 branches of the editor and the settings pages never ran (`readApiError`).
