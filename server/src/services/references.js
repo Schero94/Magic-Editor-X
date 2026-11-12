@@ -5,7 +5,9 @@ const { isPlainObject, normalizeEditorDataSafe } = require('../../../shared/edit
 const { resolveFieldPreset, allowedInlineTags } = require('../../../shared/presets.mjs');
 const { SYNCED_LIMITS, containsSynced, expandSynced, syncedRefsOf } = require('../../../shared/synced.mjs');
 const { filterSyncedForField } = require('../../../shared/templates.mjs');
+const { createHash } = require('node:crypto');
 const { cleanEditorValue } = require('../utils/sanitizer');
+const { renderMath } = require('../../../shared/math/index.mjs');
 const {
   collectReferences,
   applyReferences,
@@ -369,6 +371,30 @@ module.exports = ({ strapi }) => {
   };
 
   /**
+   * Render options of one value (2.4): MathML through the math helper, and a
+   * footnote id prefix of its own (`mex-<hash>-` of the locale and the first
+   * block id), so several fields or entries with footnotes in one response do
+   * not repeat ids such as `mex-footnotes-label`. Stable as long as the field
+   * starts with the same block.
+   * @param {object|null} data - Resolved value.
+   * @param {string|null} locale - Locale.
+   * @param {string} format - Output format (the prefix is used for HTML ids only; Markdown keeps `[^n]`).
+   * @returns {{ math: Function, footnotes?: { prefix: string } }} Options.
+   */
+  const renderExtras = (data, locale, format) => {
+    const extra = { math: renderMath };
+    const blocks = data && Array.isArray(data.blocks) ? data.blocks : [];
+    if (format === 'html' && blocks.length && JSON.stringify(blocks).includes('data-mex-footnote')) {
+      const hash = createHash('sha256')
+        .update(`${locale || '-'}|${blocks[0].id}`)
+        .digest('hex')
+        .slice(0, 8);
+      extra.footnotes = { prefix: `mex-${hash}-` };
+    }
+    return extra;
+  };
+
+  /**
    * Transforms values for output: expands synced blocks, resolves references
    * once for all values, then renders each.
    * @param {Array<{ value: unknown, locale?: string|null, format?: 'html'|'text'|'markdown'|'json', options?: object }>} items - Values (an item's `format` wins over `options.format`; `options` are the field options, for the preset of synced content).
@@ -390,7 +416,7 @@ module.exports = ({ strapi }) => {
         applied.blocks = applied.blocks.map((block) =>
           origins.has(block.id) ? { ...block, syncedFrom: origins.get(block.id) } : block
         );
-      return renderResolved(applied, outputFormat);
+      return renderResolved(applied, outputFormat, renderExtras(applied, locale, outputFormat));
     });
   };
 

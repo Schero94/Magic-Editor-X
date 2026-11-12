@@ -60,6 +60,12 @@ const blocksOptions = { ...renderOptions, entryPoints: ['shared/blocks/index.mjs
 await build({ ...blocksOptions, format: 'esm', outfile: 'dist/blocks/index.mjs' });
 await build({ ...blocksOptions, format: 'cjs', outfile: 'dist/blocks/index.js' });
 
+// Math helper (`magic-editor-x/math`, 2.4): Temml stays external (a dependency of the package),
+// the shared policy limit is bundled.
+const mathOptions = { ...renderOptions, entryPoints: ['shared/math/index.mjs'], external: ['temml'] };
+await build({ ...mathOptions, format: 'esm', outfile: 'dist/math/index.mjs' });
+await build({ ...mathOptions, format: 'cjs', outfile: 'dist/math/index.js' });
+
 // Framework components (`magic-editor-x/react`, `magic-editor-x/vue`): the
 // framework is the caller's (external), the renderer core is bundled in.
 for (const [name, external] of [
@@ -72,7 +78,7 @@ for (const [name, external] of [
 }
 
 // TypeScript finds these next to the resolved file (`index.d.ts` for require, `index.d.mts` for import).
-for (const name of ['render', 'react', 'vue', 'blocks']) {
+for (const name of ['render', 'react', 'vue', 'blocks', 'math']) {
   const types = await readFile(new URL(`../types/${name}.d.ts`, import.meta.url), 'utf8');
   const shimmed = types
     .replace("from './index.js'", "from '../../types/index.js'")

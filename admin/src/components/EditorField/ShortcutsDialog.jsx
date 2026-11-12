@@ -61,10 +61,11 @@ const Combo = ({ combo }) => (
  * @param {Function} props.t - Translator.
  * @param {Array<{ name: string, shortcut: string }>} props.tools - Tools with shortcuts (already filtered by the field preset).
  * @param {(name: string) => boolean} props.hasBlock - Whether a block type can be created (Markdown shortcuts shown accordingly).
+ * @param {(name: string) => boolean} [props.hasInline] - Whether an inline tool is available (2.4: inline math, footnotes).
  * @param {() => void} props.onClose - Closes the dialog.
  * @returns {JSX.Element} Dialog.
  */
-export const ShortcutsDialog = ({ t, tools, hasBlock, onClose }) => {
+export const ShortcutsDialog = ({ t, tools, hasBlock, hasInline = () => true, onClose }) => {
   const editorKeys = [
     ['CMD+Z', t('editor.shortcuts.undo', 'Undo')],
     ['CMD+SHIFT+Z', t('editor.shortcuts.redo', 'Redo')],
@@ -76,6 +77,12 @@ export const ShortcutsDialog = ({ t, tools, hasBlock, onClose }) => {
     ['Tab', t('editor.shortcuts.tableCell', 'Next table cell (Shift+Tab: previous cell)')],
     ['ALT+F10', t('editor.shortcuts.tableTools', 'Table tools (in a table cell)')],
     ['CMD+SHIFT+V', t('editor.shortcuts.plainPaste', 'Paste as plain text')],
+    ...(hasInline('inlineMath')
+      ? [['CMD+SHIFT+E', t('editor.shortcuts.inlineMath', 'Inline math (wraps the selection as TeX)')]]
+      : []),
+    ...(hasInline('footnote')
+      ? [['CMD+ALT+F', t('editor.shortcuts.footnote', 'Footnote at the caret, or edit the one next to it')]]
+      : []),
   ];
   const markdown = [
     ['#', 'header', t('editor.shortcuts.md.heading', 'Heading (# to ######, then Space)')],

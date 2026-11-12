@@ -15,7 +15,7 @@
  */
 
 import { isPlainObject, computeStats } from './editor-data.mjs';
-import { parseInline } from './render/inline.mjs';
+import { parseInline, walkInlineElements, mapFootnoteNotes } from './render/inline.mjs';
 import { activeBlocks } from './blocks/active.mjs';
 import { registeredBlockOf, isBuiltInBlock } from './sanitize-policy.mjs';
 
@@ -34,6 +34,7 @@ export const BUILTIN_BLOCKS = Object.freeze([
   'delimiter',
   'toc',
   'synced',
+  'math',
   'table',
   'embed',
   'raw',
@@ -58,6 +59,10 @@ export const INLINE_TOOL_TAGS = Object.freeze({
   strikethrough: ['s'],
   inlineCode: ['code'],
   tooltip: ['span'],
+  // 2.4: `<span data-mex-math>` and `<sup data-mex-footnote>`. A preset without the tool
+  // unwraps math to its TeX source and removes footnote markers with their notes.
+  inlineMath: ['span'],
+  footnote: ['sup'],
 });
 
 export const INLINE_TOOLS = Object.freeze(Object.keys(INLINE_TOOL_TAGS));
@@ -80,6 +85,7 @@ export const PRESETS = Object.freeze({
       'delimiter',
       'toc',
       'synced',
+      'math',
       'table',
       'embed',
       'image',
@@ -254,7 +260,8 @@ export const allowedInlineTags = (preset) => {
 const collectStrings = (value, out, depth = 0) => {
   if (depth > 12 || out.length > 5000) return out;
   if (typeof value === 'string') {
-    if (value.includes('<a')) out.push(value);
+    // `&lt;a` is a link inside a footnote note (escaped in the attribute).
+    if (value.includes('<a') || (value.includes('data-mex-note') && value.includes('&lt;a'))) out.push(value);
   } else if (Array.isArray(value)) value.forEach((item) => collectStrings(item, out, depth + 1));
   else if (isPlainObject(value)) Object.values(value).forEach((item) => collectStrings(item, out, depth + 1));
   return out;
@@ -268,15 +275,11 @@ const collectStrings = (value, out, depth = 0) => {
  */
 export const blockLinkKinds = (block) => {
   const kinds = [];
-  const visit = (nodes, depth = 0) => {
-    if (depth > 30) return;
-    for (const node of nodes) {
-      if (node.type !== 'element') continue;
+  // Links in footnote notes count too (2.4; notes never hold entry references).
+  for (const html of collectStrings(block.data, []))
+    walkInlineElements(parseInline(html), (node) => {
       if (node.tag === 'a') kinds.push(node.attrs['data-mex-uid'] ? 'internal' : 'external');
-      visit(node.children, depth + 1);
-    }
-  };
-  for (const html of collectStrings(block.data, [])) visit(parseInline(html));
+    });
   const data = isPlainObject(block.data) ? block.data : {};
   if (
     ['linkTool', 'button', 'personality'].includes(block.type) &&
@@ -431,7 +434,11 @@ export const fixPresetViolations = (data, preset) => {
     (preset.linkTargets === 'external' && !internal);
   const fixStrings = (value, depth = 0) => {
     if (depth > 12) return value;
-    if (typeof value === 'string') return value.includes('<a') ? unwrapLinks(value, keepLink) : value;
+    if (typeof value === 'string') {
+      const fixed = value.includes('<a') ? unwrapLinks(value, keepLink) : value;
+      // Links inside footnote notes (2.4) are escaped in an attribute; fix them through the parser.
+      return mapFootnoteNotes(fixed, (note) => (note.includes('<a') ? unwrapLinks(note, keepLink) : note));
+    }
     if (Array.isArray(value)) return value.map((item) => fixStrings(item, depth + 1));
     if (isPlainObject(value)) {
       const out = {};

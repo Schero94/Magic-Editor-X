@@ -164,6 +164,7 @@ const KITCHEN_SINK = {
   delimiter: {},
   toc: { title: 'Contents', minLevel: 2, maxLevel: 3, style: 'ordered' },
   synced: { ref: 'abc123def456' },
+  math: { tex: '\\frac{a}{b}', display: false },
 };
 
 test('policy output for every type has exactly the keys the schema describes', () => {

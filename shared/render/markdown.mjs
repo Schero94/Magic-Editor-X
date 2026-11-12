@@ -4,9 +4,73 @@
  * structure; raw HTML blocks are omitted unless explicitly allowed.
  */
 
-import { parseInline, resolveLinkAttributes, inlineToText } from './inline.mjs';
+import {
+  parseInline,
+  resolveLinkAttributes,
+  inlineToText,
+  isMathNode,
+  isFootnoteNode,
+  nodesToText,
+} from './inline.mjs';
 import { prepareBlocks, resolveMedia, overrideFor, scalarFields, annotateHeadings } from './common.mjs';
 import { buildTocTree } from '../toc.mjs';
+import { createFootnoteNumbers, footnoteOptions } from './math-notes.mjs';
+
+/**
+ * Footnotes of the Markdown render in progress (2.4); see `text.mjs`.
+ * @type {{ numbers: { add: (id: string) => { n: number } }, items: Array<{ label: string, note: Array<object> }>, prefix: string } | null}
+ */
+let notes = null;
+
+/**
+ * TeX source made safe for Markdown math. Inside `$…$`/`$$…$$` math-aware
+ * pipelines (GitHub, remark-math, markdown-it-texmath) take the text
+ * literally, so it is not escaped; only a `<` that could open an HTML tag or
+ * an autolink in a pipeline without math support gets a space after it
+ * (TeX ignores spaces in math mode).
+ * @param {string} tex - TeX source.
+ * @returns {string} Text.
+ */
+const mathSource = (tex) => tex.replace(/<(?=[A-Za-z/!?])/g, '< ');
+
+/**
+ * Dollar fence longer than any run of `$` in the text.
+ * @param {string} text - Math text.
+ * @param {number} min - Shortest fence.
+ * @returns {string} Fence.
+ */
+const dollarFence = (text, min) =>
+  '$'.repeat(Math.max(min, ...(text.match(/\$+/g) || []).map((run) => run.length + 1)));
+
+/**
+ * Inline math: `$TeX$` on one line.
+ * @param {string} tex - TeX source.
+ * @returns {string} Markdown.
+ */
+const inlineMath = (tex) => {
+  const text = mathSource(tex.replace(/\s*\n\s*/g, ' ').trim());
+  if (!text) return '';
+  const fence = dollarFence(text, 1);
+  return `${fence}${text}${fence}`;
+};
+
+/**
+ * Display math: `$$` fences on their own lines (blank lines removed, they end a math block).
+ * @param {string} tex - TeX source.
+ * @returns {string} Markdown.
+ */
+const displayMath = (tex) => {
+  const text = mathSource(
+    tex
+      .split('\n')
+      .filter((line) => line.trim())
+      .join('\n')
+      .trim()
+  );
+  if (!text) return '';
+  const fence = dollarFence(text, 2);
+  return `${fence}\n${text}\n${fence}`;
+};
 
 /**
  * Escapes Markdown punctuation in text.
@@ -90,6 +154,14 @@ const nodesToMarkdown = (nodes, options) =>
   nodes
     .map((node) => {
       if (node.type === 'text') return escapeMarkdown(node.value);
+      if (isMathNode(node)) return inlineMath(nodesToText(node.children));
+      if (isFootnoteNode(node)) {
+        if (!notes) return '';
+        const { n } = notes.numbers.add(node.attrs['data-mex-footnote']);
+        const label = `${notes.prefix}${n}`;
+        notes.items.push({ label, note: node.note || [] });
+        return `[^${label}]`;
+      }
       const inner = () => nodesToMarkdown(node.children, options);
       switch (node.tag) {
         case 'br':
@@ -306,6 +378,7 @@ const RENDERERS = {
       : escapeMarkdown(b.data.text);
   },
   delimiter: () => '---',
+  math: (b) => (b.data.display === false ? inlineMath(b.data.tex) : displayMath(b.data.tex)),
   toc: (b) => {
     const tree = buildTocTree(b.headings || [], b.data);
     if (!tree.length) return '';
@@ -381,6 +454,33 @@ const registeredMarkdown = (block, opts) => {
  */
 export const renderMarkdown = (value, options = {}) => {
   const opts = options && typeof options === 'object' ? options : {};
+  const previous = notes;
+  // GFM footnote labels: numbers, or `<prefix>n` when `footnotes.prefix` is set.
+  const prefix =
+    opts.footnotes && typeof opts.footnotes === 'object' && typeof opts.footnotes.prefix === 'string'
+      ? footnoteOptions(opts).prefix
+      : '';
+  notes = { numbers: createFootnoteNumbers(), items: [], prefix };
+  try {
+    const markdown = renderContent(value, opts);
+    if (!notes.items.length) return markdown;
+    const definitions = notes.items.map((item) => {
+      const body = nodesToMarkdown(item.note, opts).trim().replace(/\n/g, '\n    ');
+      return `[^${item.label}]: ${body}`.trimEnd();
+    });
+    return [markdown, definitions.join('\n')].filter(Boolean).join('\n\n');
+  } finally {
+    notes = previous;
+  }
+};
+
+/**
+ * Markdown of the blocks (footnote definitions excluded).
+ * @param {unknown} value - Stored field value.
+ * @param {object} opts - Options.
+ * @returns {string} Markdown.
+ */
+const renderContent = (value, opts) => {
   const render = (blocks) =>
     blocks
       .map((block) => {

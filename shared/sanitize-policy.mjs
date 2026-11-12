@@ -91,10 +91,37 @@ export const isMentionLink = (attrs) =>
     attrs && attrs['data-mex-mention'] === 'true' && attrs['data-mex-uid'] && attrs['data-mex-document-id']
   );
 
+/**
+ * Inline math (2.4): `<span data-mex-math="true">TeX source</span>`. Only the
+ * TeX source is stored (the text content), never rendered markup; the
+ * renderers turn it into MathML (`options.math`) or a delimited fallback.
+ */
+export const MATH_ATTRIBUTE = 'data-mex-math';
+
+/**
+ * Footnote marker (2.4): `<sup data-mex-footnote="<id>" data-mex-note="<inline HTML>">n</sup>`.
+ * The note travels with its marker (copy/paste, undo, collaboration, synced
+ * blocks, templates), so a note can never lose its reference. The text of
+ * the marker is a placeholder; numbers follow the reading order when the
+ * content is rendered.
+ */
+export const FOOTNOTE_ATTRIBUTES = Object.freeze(['data-mex-footnote', 'data-mex-note']);
+
+/** Footnote id: letters, digits, `_` and `-`, 1 to 64 characters. */
+export const FOOTNOTE_ID = /^[A-Za-z0-9_-]{1,64}$/;
+
+/** Longest TeX source of a math block. */
+export const MAX_MATH_TEX = 10000;
+/** Longest TeX source of inline math (longer text is cut). */
+export const MAX_INLINE_TEX = 2000;
+/** Longest note of a footnote (inline HTML, before cleaning; longer input is cut). */
+export const MAX_FOOTNOTE_NOTE = 4000;
+
 /** Attributes allowed per inline tag. */
 export const INLINE_ATTRIBUTES = Object.freeze({
   a: ['href', 'target', 'rel', 'title', ...INTERNAL_LINK_ATTRIBUTES],
-  span: ['class', 'data-tooltip'],
+  span: ['class', 'data-tooltip', MATH_ATTRIBUTE],
+  sup: [...FOOTNOTE_ATTRIBUTES],
   mark: ['class'],
   u: ['class'],
   s: ['class'],
@@ -529,6 +556,12 @@ export const BLOCK_POLICIES = {
   // Synced block (2.3): only the reference to its source is stored; an invalid reference becomes ''.
   synced: (d) => ({
     ref: typeof d.ref === 'string' && /^[a-z0-9]{1,64}$/.test(d.ref) ? d.ref : '',
+    _mex: BUILT_IN_MARKER_VERSION,
+  }),
+  // Math block (2.4): only the TeX source is stored; `display: false` renders it in text style.
+  math: (d) => ({
+    tex: plain(d.tex, MAX_MATH_TEX),
+    display: d.display !== false,
     _mex: BUILT_IN_MARKER_VERSION,
   }),
   toc: (d) => {

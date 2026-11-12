@@ -4,9 +4,37 @@
  * separated by blank lines.
  */
 
-import { inlineToText } from './inline.mjs';
+import { inlineToText as plainText, nodesToText } from './inline.mjs';
 import { prepareBlocks, overrideFor, scalarFields, annotateHeadings } from './common.mjs';
 import { buildTocTree } from '../toc.mjs';
+import { footnoteOptions, createFootnoteNumbers } from './math-notes.mjs';
+
+/**
+ * Footnotes of the text render in progress (2.4). Rendering is synchronous;
+ * `renderText` saves and restores it, so a nested call (an override that
+ * renders other content) keeps its own numbering.
+ * @type {{ numbers: { add: (id: string) => { n: number } }, items: Array<{ n: number, note: Array<object> }> } | null}
+ */
+let notes = null;
+
+/**
+ * `[n]` for a footnote marker; the note is listed after the content.
+ * @param {{ attrs: Record<string, string>, note?: Array<object> }} node - Marker.
+ * @returns {string} Reference text.
+ */
+const footnoteText = (node) => {
+  if (!notes) return '';
+  const { n } = notes.numbers.add(node.attrs['data-mex-footnote']);
+  notes.items.push({ n, note: node.note || [] });
+  return `[${n}]`;
+};
+
+/**
+ * Plain text of inline HTML with numbered footnote references.
+ * @param {unknown} html - Inline HTML.
+ * @returns {string} Text.
+ */
+const inlineToText = (html) => plainText(html, { footnote: footnoteText });
 
 /**
  * Plain-text lines of a table of contents (two spaces per level).
@@ -106,6 +134,7 @@ const RENDERERS = {
   personality: (b) => [b.data.name, b.data.description, b.data.link].filter(Boolean).join('\n'),
   button: (b) => (b.data.link ? `${b.data.text} (${b.data.link})` : b.data.text),
   delimiter: () => '---',
+  math: (b) => b.data.tex.trim(),
   toc: (b) => {
     const tree = buildTocTree(b.headings || [], b.data);
     if (!tree.length) return '';
@@ -144,6 +173,30 @@ const registeredText = (block) => {
  */
 export const renderText = (value, options = {}) => {
   const opts = options && typeof options === 'object' ? options : {};
+  const previous = notes;
+  notes = { numbers: createFootnoteNumbers(), items: [] };
+  try {
+    const text = renderContent(value, opts);
+    if (!notes.items.length) return text;
+    const list = notes.items.map((item) =>
+      `[${item.n}] ${nodesToText(item.note)
+        .replace(/\u00a0/g, ' ')
+        .trim()
+        .replace(/\n/g, '\n    ')}`.trimEnd()
+    );
+    return [text, [footnoteOptions(opts).label, ...list].join('\n')].filter(Boolean).join('\n\n');
+  } finally {
+    notes = previous;
+  }
+};
+
+/**
+ * Text of the blocks (footnote list excluded).
+ * @param {unknown} value - Stored field value.
+ * @param {object} opts - Options.
+ * @returns {string} Text.
+ */
+const renderContent = (value, opts) => {
   const render = (blocks) =>
     blocks
       .map((block) => {

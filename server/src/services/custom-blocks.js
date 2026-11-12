@@ -19,13 +19,13 @@ const UID = 'plugin::magic-editor-x.custom-block';
 
 /**
  * Names that became built-in tools in 2.3 (blocks `toc`, `gallery`, `video`,
- * `audio`, `synced`; inline tool `mention`). New custom blocks cannot use
+ * `audio`, `synced`; inline tool `mention`) and 2.4 (block `math`). New custom blocks cannot use
  * them; a block created earlier under one of them keeps working and can still
  * be edited under its name: its stored data has neither the built-in marker
  * nor the built-in shape (`isBuiltInBlock`), so it is never rewritten, and its
  * own editor tool keeps the name.
  */
-const LEGACY_BUILT_IN_NAMES = new Set(['toc', 'gallery', 'video', 'audio', 'synced', 'mention']);
+const LEGACY_BUILT_IN_NAMES = new Set(['toc', 'gallery', 'video', 'audio', 'synced', 'mention', 'math']);
 
 /** Built-in tool names a custom block must not shadow. */
 const RESERVED_NAMES = new Set(

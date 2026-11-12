@@ -7,8 +7,11 @@ import {
   cleanInternalLinkAttributes,
   sanitizeUrl,
   sanitizeEditorData,
+  MATH_ATTRIBUTE,
+  FOOTNOTE_ATTRIBUTES,
 } from '../../../shared/sanitize-policy.mjs';
 import { normalizeEditorData } from '../../../shared/editor-data.mjs';
+import { canonicalInlineExtras } from '../../../shared/render/inline.mjs';
 
 /**
  * Admin-side sanitising with DOMPurify, using the same policy as the server
@@ -66,16 +69,20 @@ const ALLOWED_ATTR = Array.from(new Set(Object.values(INLINE_ATTRIBUTES).flat())
  * @returns {string} Safe HTML.
  */
 export const sanitizeInline = (html) =>
-  instance().sanitize(String(html || ''), {
-    ALLOWED_TAGS: [...INLINE_TAGS],
-    ALLOWED_ATTR,
-    ALLOW_DATA_ATTR: false,
-    // DOMPurify checks attribute values like URIs; `api::article.article` looks
-    // like an unknown scheme and was dropped, which removed the entry reference
-    // of internal links whenever content was shown again. The values are
-    // validated by cleanInternalLinkAttributes in the hook above.
-    ADD_URI_SAFE_ATTR: [...INTERNAL_LINK_ATTRIBUTES],
-  });
+  canonicalInlineExtras(
+    instance().sanitize(String(html || ''), {
+      ALLOWED_TAGS: [...INLINE_TAGS],
+      ALLOWED_ATTR,
+      ALLOW_DATA_ATTR: false,
+      // DOMPurify checks attribute values like URIs; `api::article.article` looks
+      // like an unknown scheme and was dropped, which removed the entry reference
+      // of internal links whenever content was shown again. The values are
+      // validated by cleanInternalLinkAttributes in the hook above, and math and
+      // footnote attributes (2.4: a note is inline HTML, "See: …" looks like a
+      // scheme too) by `canonicalInlineExtras` below.
+      ADD_URI_SAFE_ATTR: [...INTERNAL_LINK_ATTRIBUTES, MATH_ATTRIBUTE, ...FOOTNOTE_ATTRIBUTES],
+    })
+  );
 
 /**
  * Sanitises markup of a custom block template (admin-defined, rendered for every editor).

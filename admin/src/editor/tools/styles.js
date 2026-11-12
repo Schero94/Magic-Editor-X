@@ -1027,6 +1027,94 @@ export const editorStyles = css`
       }
     }
 
+    /* Inline math (2.4): the TeX source is editable text in a chip. */
+    .ce-block span[data-mex-math] {
+      font-family: 'SFMono-Regular', Menlo, Consolas, monospace;
+      font-size: 0.92em;
+      color: ${c('neutral800')};
+      background: ${c('secondary100')};
+      border: 1px solid ${c('secondary200')};
+      border-radius: ${radius};
+      padding: 0 ${s(1)};
+      overflow-wrap: anywhere;
+      box-decoration-break: clone;
+      -webkit-box-decoration-break: clone;
+    }
+
+    /* Footnote markers (2.4): numbered in reading order with a CSS counter. */
+    .codex-editor__redactor {
+      counter-reset: mex-footnote;
+    }
+
+    .ce-block sup[data-mex-footnote] {
+      counter-increment: mex-footnote;
+      display: inline-block;
+      min-width: 1.6em;
+      font-size: 0;
+      line-height: 1;
+      vertical-align: super;
+      text-align: center;
+      cursor: pointer;
+      user-select: all;
+      color: ${c('primary700')};
+      background: ${c('primary100')};
+      border: 1px solid ${c('primary200')};
+      border-radius: ${radius};
+
+      &::before {
+        content: counter(mex-footnote);
+        font-size: ${f(0)};
+        font-weight: 600;
+        padding: 0 ${s(1)};
+      }
+
+      &:hover {
+        background: ${c('primary200')};
+      }
+    }
+
+    /* Math block (2.4) */
+    .mex-math-tool {
+      display: flex;
+      flex-direction: column;
+      gap: ${s(2)};
+      padding: ${s(3)};
+      border: 1px solid ${c('neutral200')};
+      border-radius: ${radius};
+      background: ${c('neutral0')};
+    }
+
+    .mex-math-tool__input {
+      font-family: 'SFMono-Regular', Menlo, Consolas, monospace;
+      min-height: 4.4rem;
+      resize: vertical;
+      width: 100%;
+      box-sizing: border-box;
+
+      &[aria-invalid='true'] {
+        border-color: ${c('danger600')};
+      }
+    }
+
+    .mex-math-tool__preview {
+      min-height: 3.2rem;
+      overflow-x: auto;
+      color: ${c('neutral800')};
+      font-size: ${f(3)};
+      padding: ${s(2)} 0;
+    }
+
+    .mex-math-tool__preview--display {
+      text-align: center;
+    }
+
+    .mex-math-tool__error {
+      margin: 0;
+      color: ${c('danger600')};
+      font-size: ${f(1)};
+      overflow-wrap: anywhere;
+    }
+
     /* Toggle */
     .mex-toggle {
       display: flex;
@@ -1858,6 +1946,37 @@ export const editorStyles = css`
         padding-inline-start: ${s(1)};
       }
     }
+  }
+
+  /* Inline math preview (2.4), next to the editor holder. */
+  .mex-math-popover {
+    position: absolute;
+    z-index: 3;
+    max-width: min(36rem, calc(100% - ${s(4)}));
+    box-sizing: border-box;
+    padding: ${s(2)} ${s(3)};
+    background: ${c('neutral0')};
+    color: ${c('neutral800')};
+    border: 1px solid ${c('neutral200')};
+    border-radius: ${radius};
+    box-shadow: ${({ theme }) => theme.shadows.filterShadow};
+    overflow-x: auto;
+    font-size: ${f(3)};
+  }
+
+  .mex-math-popover__error {
+    margin: 0;
+    font-size: ${f(1)};
+    color: ${c('neutral600')};
+    overflow-wrap: anywhere;
+
+    &:empty {
+      display: none;
+    }
+  }
+
+  .mex-math-popover__error--invalid {
+    color: ${c('danger600')};
   }
 `;
 

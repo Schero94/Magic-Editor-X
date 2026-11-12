@@ -14,7 +14,8 @@
 
 import { sanitizeUrl, LINK_SCHEMES } from '../sanitize-policy.mjs';
 import { isPlainObject } from '../editor-data.mjs';
-import { inlineToNodes, inlineToHtml, inlineToText } from './inline.mjs';
+import { inlineToNodes, inlineToHtml, inlineToText, inlineNodesToRender, RENDER_STATE } from './inline.mjs';
+import { mathElement, createFootnoteTree } from './math-notes.mjs';
 import {
   el,
   textNode,
@@ -560,11 +561,12 @@ const RENDERERS = {
       ? o.embedHosts.map((h) => String(h).toLowerCase())
       : DEFAULT_EMBED_HOSTS;
     const frame = embedFrameUrl(b.data.embed, hosts);
+    const href = b.data.source || b.data.embed;
+    // Checked before the caption is rendered, so footnotes of an omitted block are not counted.
+    if (!frame && !href) return null;
     const caption = inlineToNodes(b.data.caption, o);
     const title = inlineToText(b.data.caption) || b.data.service || 'Embedded content';
     if (!frame) {
-      const href = b.data.source || b.data.embed;
-      if (!href) return null;
       return el(
         'p',
         { class: classes(['mex-embed', 'mex-embed-link'], b.tunes) },
@@ -626,6 +628,18 @@ const RENDERERS = {
     return el('p', { class: classes(['mex-button-block'], b.tunes) }, inner);
   },
   delimiter: (b) => el('hr', { class: classes(['mex-delimiter'], b.tunes) }),
+  // Math block (2.4): MathML from `options.math`, else the delimited TeX source.
+  math: (b, o) =>
+    b.data.tex.trim()
+      ? mathElement(o, b.data.tex, {
+          display: b.data.display !== false,
+          block: true,
+          className: classes(
+            ['mex-math', ...(b.data.display !== false ? ['mex-math-display'] : [])],
+            b.tunes
+          ),
+        })
+      : null,
   toc: (b, o) => {
     const tree = buildTocTree(b.headings || [], b.data);
     if (!tree.length) return null;
@@ -858,7 +872,14 @@ const rawAllowed = (options) => options.rawHtml === 'allow' && typeof options.sa
  * @returns {{ nodes: Array<RenderNode|BlockNode>, renderBlocks: (blocks: PublicBlock[]) => Array<RenderNode|BlockNode>, helpers: object }} Builder result.
  */
 export const createTreeBuilder = (value, options, mode = {}) => {
-  const opts = options && typeof options === 'object' ? options : {};
+  const base = options && typeof options === 'object' ? options : {};
+  // Per-render state (2.4): inline math and footnote numbering for this value.
+  const opts = { ...base };
+  const footnotes = createFootnoteTree(base, (note) => inlineNodesToRender(note, opts));
+  opts[RENDER_STATE] = {
+    math: (tex) => mathElement(base, tex, { display: false, block: false }),
+    footnote: (node) => footnotes.marker(node),
+  };
   /** @type {WeakMap<object, PublicBlock>} */
   const publicOf = new WeakMap();
   /** @type {WeakMap<object, object>} */
@@ -968,6 +989,9 @@ export const createTreeBuilder = (value, options, mode = {}) => {
   };
 
   const nodes = renderList(annotateHeadings(prepareBlocks(value, opts), opts));
+  // Footnotes (2.4): the list follows the content.
+  const section = footnotes.section();
+  if (section) nodes.push(textNode('\n'), section);
   return { nodes, renderBlocks, helpers };
 };
 

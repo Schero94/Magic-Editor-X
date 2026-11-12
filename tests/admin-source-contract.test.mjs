@@ -77,7 +77,9 @@ test('remote collaboration content is sanitised before the editor renders it (ME
 
 test('internal-link attributes survive the admin sanitiser (DOMPurify treats them as URI-safe)', () => {
   const source = sources.find(([file]) => file === 'editor/sanitize.js')[1];
-  assert.match(source, /ADD_URI_SAFE_ATTR:\s*\[\.\.\.INTERNAL_LINK_ATTRIBUTES\]/);
+  assert.match(source, /ADD_URI_SAFE_ATTR:\s*\[\.\.\.INTERNAL_LINK_ATTRIBUTES[,\]]/);
+  // 2.4: math and footnote attributes too (a note such as "See: …" looks like a URI scheme).
+  assert.match(source, /ADD_URI_SAFE_ATTR:[^\n]*MATH_ATTRIBUTE, \.\.\.FOOTNOTE_ATTRIBUTES\]/);
 });
 
 test('the gallery offers the AI alternative text suggestion per image like the image block', () => {

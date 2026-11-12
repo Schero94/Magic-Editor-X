@@ -54,6 +54,14 @@ const RULES = {
     key: 'editor.quality.rule.tocNoHeadings',
     text: 'Table of contents without headings between level {minLevel} and {maxLevel}',
   },
+  'math-invalid': {
+    key: 'editor.quality.rule.mathInvalid',
+    text: 'Formula that cannot be rendered (check the TeX)',
+  },
+  'footnote-empty': {
+    key: 'editor.quality.rule.footnoteEmpty',
+    text: 'Footnote without text',
+  },
 };
 
 const LINK_STATUS = {

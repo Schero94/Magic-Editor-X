@@ -2,7 +2,7 @@ import { ICONS, el, button } from './dom';
 import { sanitizeUrl } from '../sanitize';
 import { createLinkPicker } from './link-picker';
 import { readInternalLink, internalLinkAttributes } from './logic.mjs';
-import { LINK_SANITIZE } from './sanitize-config';
+import { LINK_SANITIZE, SPAN_SANITIZE } from './sanitize-config';
 
 /**
  * Inline tools (Editor.js inline toolbar). Bold and italic come from the
@@ -246,7 +246,7 @@ export class TooltipTool extends AttributeInlineTool {
   }
 
   static get sanitize() {
-    return { span: { class: 'cdx-tooltip', 'data-tooltip': true } };
+    return { span: { ...SPAN_SANITIZE } };
   }
 
   get spec() {

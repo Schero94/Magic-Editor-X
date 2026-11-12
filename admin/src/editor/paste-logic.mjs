@@ -8,7 +8,7 @@ import { escapeHtml } from '../../../shared/editor-data.mjs';
 import { looksLikeMarkdown } from '../../../shared/convert/markdown.mjs';
 
 /** Blocks whose content is code, raw HTML or table cells: pastes there stay untouched. */
-export const PROTECTED_TOOLS = Object.freeze(['code', 'codeFlask', 'raw', 'table']);
+export const PROTECTED_TOOLS = Object.freeze(['code', 'codeFlask', 'raw', 'table', 'math']);
 
 /** Media types the editor uploads from pasted `data:` images. */
 export const PASTE_IMAGE_TYPES = Object.freeze([
@@ -55,7 +55,7 @@ export const countBlockTags = (html, stopAt = 2) => {
 
 /**
  * Decides how a paste is handled.
- * @param {{ html?: string, text?: string, plainOnly?: boolean, protectedTarget?: boolean, hasFiles?: boolean }} input - Clipboard content and context.
+ * @param {{ html?: string, text?: string, plainOnly?: boolean, protectedTarget?: boolean, hasFiles?: boolean, editorBlocks?: boolean }} input - Clipboard content and context; `editorBlocks`: the clipboard holds Editor.js blocks (`application/x-editor-js`).
  * @returns {'html'|'markdown'|'plain'|null} `html`/`markdown` convert into blocks, `plain` inserts plain text, null leaves the paste to Editor.js.
  */
 export const decidePaste = ({
@@ -64,8 +64,12 @@ export const decidePaste = ({
   plainOnly = false,
   protectedTarget = false,
   hasFiles = false,
+  editorBlocks = false,
 }) => {
   if (protectedTarget) return null;
+  // Blocks copied from an editor (also another Magic Editor X field) keep their data: Editor.js
+  // inserts them itself (math blocks, footnotes and every other block type survive the copy).
+  if (editorBlocks && !plainOnly) return null;
   if (plainOnly) return text ? 'plain' : null;
   if (html && html.length <= MAX_PASTE_LENGTH && (isOfficeHtml(html) || countBlockTags(html) >= 2))
     return 'html';
@@ -197,4 +201,33 @@ export const decodeDataImage = (src) => {
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
   return { type, bytes };
+};
+
+/** Longest Editor.js block clipboard that is read (larger ones go through the HTML conversion). */
+export const MAX_EDITOR_CLIPBOARD = 2 * 1024 * 1024;
+
+/**
+ * True when an Editor.js block clipboard (`application/x-editor-js`) can be
+ * left to Editor.js: valid JSON, at most `MAX_EDITOR_CLIPBOARD` long, and
+ * every block uses a tool this field has and allows. Otherwise the HTML
+ * conversion (with the field's preset filter) handles the paste as before.
+ * @param {unknown} json - Clipboard data.
+ * @param {(tool: string) => boolean} usable - Tool check.
+ * @returns {boolean} Result.
+ */
+export const editorClipboardFits = (json, usable) => {
+  if (typeof json !== 'string' || !json || json.length > MAX_EDITOR_CLIPBOARD) return false;
+  let blocks;
+  try {
+    blocks = JSON.parse(json);
+  } catch {
+    return false;
+  }
+  return (
+    Array.isArray(blocks) &&
+    blocks.length > 0 &&
+    blocks.every(
+      (block) => block && typeof block === 'object' && typeof block.tool === 'string' && usable(block.tool)
+    )
+  );
 };

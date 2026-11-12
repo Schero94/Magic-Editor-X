@@ -5,6 +5,7 @@
 
 import assert from 'node:assert/strict';
 import { INLINE_TAGS } from '../../shared/sanitize-policy.mjs';
+import { escapeHtml } from '../../shared/render/nodes.mjs';
 
 export const XSS = [
   '<script>alert(1)</script>',
@@ -63,6 +64,36 @@ export const XSS = [
   '&lt;script&gt;alert(1)&lt;/script&gt;',
   '<a href="&#0000106&#0000097&#0000118&#0000097&#0000115&#0000099&#0000114&#0000105&#0000112&#0000116&#0000058alert(1)">x</a>',
   '<a href="https://ok.example.test" target="javascript:alert(1)">x</a>',
+  // 2.4: inline math and footnote markers.
+  '<span data-mex-math onclick="alert(1)" class="cdx-tooltip">x<img src=x onerror=alert(1)></span>',
+  '<span data-mex-math="true">&lt;/span&gt;&lt;script&gt;alert(1)&lt;/script&gt;</span>',
+  '<span data-mex-math>\\href{javascript:alert(1)}{x}\\url{javascript:alert(1)}</span>',
+  '<sup data-mex-footnote="a" data-mex-note="&lt;img src=x onerror=alert(1)&gt;&lt;a href=&quot;javascript:alert(1)&quot;&gt;x&lt;/a&gt;" onclick="alert(1)">1</sup>',
+  '<sup data-mex-footnote="a&quot; onclick=&quot;alert(1)">1</sup>',
+  '<sup data-mex-footnote="ok" data-mex-note="&lt;sup data-mex-footnote=&quot;in&quot; data-mex-note=&quot;&amp;lt;script&amp;gt;&quot;&gt;2&lt;/sup&gt;">1</sup>',
+];
+
+/** TeX payloads for the math renderer (2.4). */
+export const TEX_XSS = [
+  '\\href{javascript:alert(1)}{x}',
+  '\\url{javascript:alert(1)}',
+  '\\htmlClass{evil}{x}',
+  '\\class{evil}{x}',
+  '\\style{background:url(javascript:alert(1))}{x}',
+  '\\data{x=1}{y}',
+  '\\id{top}{x}',
+  '\\includegraphics{https://x.example.test/a.png}',
+  '\\rule{100000em}{100000em}',
+  '\\def\\a{\\a\\a}\\a',
+  `${'{'.repeat(5000)}x${'}'.repeat(5000)}`,
+  '\\frac{'.repeat(2000),
+  '</span><script>alert(1)</script>',
+  '</math><img src=x onerror=alert(1)>',
+  '\\text{<img src=x onerror=alert(1)>}',
+  '\\color{red;background:url(x)}{x}',
+  '\\textcolor{javascript:alert(1)}{x}',
+  '\\label{x" onclick="alert(1)}x',
+  '\\tag{<b>1</b>}x',
 ];
 
 export const ALLOWED_OUTPUT_TAGS = new Set([
@@ -101,6 +132,7 @@ export const ALLOWED_OUTPUT_TAGS = new Set([
   'audio',
   'track',
   'nav',
+  'section',
 ]);
 
 export const assertSafeHtml = (html, label) => {
@@ -289,5 +321,14 @@ export const xssDocument = (payload) =>
     // Synced blocks render nothing without `options.synced` (the Content API expands them).
     { type: 'synced', data: { ref: payload } },
     { type: 'synced', data: { ref: 'abc123' } },
+    // 2.4: math block, inline math and a footnote whose note holds the payload.
+    { type: 'math', data: { tex: payload, display: payload } },
+    { type: 'math', data: { tex: payload, display: false, _mex: 1 } },
+    {
+      type: 'paragraph',
+      data: {
+        text: `<span data-mex-math>${payload}</span><sup data-mex-footnote="fn1" data-mex-note="${escapeHtml(payload)}">1</sup>`,
+      },
+    },
     { type: 'custom-x', data: { title: payload, url: payload, nested: { a: payload } } }
   );

@@ -7,6 +7,7 @@ import {
   PROTECTED_TOOLS,
   decidePaste,
   decodeDataImage,
+  editorClipboardFits,
   filterBlocks,
 } from './paste-logic.mjs';
 
@@ -46,6 +47,7 @@ const EXTENSIONS = {
  * @param {boolean} [options.canUpload=false] - The admin may upload files.
  * @param {(notice: { type: 'info'|'warning'|'danger', message: string }) => void} [options.notify] - Shows a notification.
  * @param {() => void} [options.onInserted] - Called after blocks were inserted (save the field).
+ * @param {(name: string) => boolean} [options.hasTool] - Whether the editor has a block tool (Editor.js block clipboard, 2.4).
  * @returns {{ destroy: () => void }} Handle.
  */
 export function createPasteHandler(options) {
@@ -60,6 +62,7 @@ export function createPasteHandler(options) {
     canUpload = false,
     notify = () => {},
     onInserted = () => {},
+    hasTool = () => false,
   } = options;
   const allow = (type) => type === 'paragraph' || typeof isAllowed !== 'function' || isAllowed(type) === true;
   let plainOnlyUntil = 0;
@@ -260,6 +263,10 @@ export function createPasteHandler(options) {
       plainOnly,
       protectedTarget: isProtected(event.target, position.block),
       hasFiles: Boolean(data.files && data.files.length),
+      editorBlocks: editorClipboardFits(
+        data.getData('application/x-editor-js'),
+        (name) => hasTool(name) && allow(name)
+      ),
     });
     if (!mode) return;
     event.preventDefault();
