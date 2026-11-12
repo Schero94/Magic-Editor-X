@@ -38,6 +38,9 @@ const ports = String(process.env.MEX_CLUSTER_PORTS).split(',').map(Number);
 const BALANCER = `http://127.0.0.1:${balancerPort}`;
 const DURATION_MS = Number(process.env.MEX_CLUSTER_DURATION_S || 150) * 1000;
 const CLIENTS = Number(process.env.MEX_CLUSTER_CLIENTS || 12);
+// Extra render time of every second simulated editor (a slow browser under load next to fast
+// ones, as on a loaded machine); 0 by default.
+const RENDER_DELAY_MS = Number(process.env.MEX_CLUSTER_RENDER_DELAY_MS || 0);
 const PERMISSION_SLA_MS = 5000;
 const url = (port) => `http://127.0.0.1:${port}`;
 const results = [];
@@ -138,6 +141,7 @@ for (let i = 0; i < CLIENTS; i += 1) {
     createCollabClient,
     url: BALANCER,
     requestSession: session(token, BALANCER, () => net.online),
+    renderDelayMs: i % 2 === 1 ? RENDER_DELAY_MS : 0,
     onSocket: (socket) => {
       net.sockets.push(socket);
       socket.on('disconnect', () => {
@@ -207,9 +211,13 @@ const editing = (async () => {
   }
 })();
 const chaos = (async () => {
+  // The first three events are one of each kind, so every run has kills, partitions and
+  // offline clients (a random kind only could miss one, as in 1 of about 100 runs).
+  let event = 0;
   while (Date.now() < chaosEnd - 20000) {
     await sleep(8000 + rnd(6000));
-    const kind = rnd(3);
+    const kind = event < 3 ? event : rnd(3);
+    event += 1;
     if (kind === 0 && down.size < 2) {
       const port = ports[1 + rnd(ports.length - 1)];
       if (down.has(port)) continue;
@@ -260,7 +268,16 @@ const lost = markers.filter((marker) => !finalText.includes(marker));
 record(
   'zero lost edits',
   lost.length === 0,
-  `${markers.length - lost.length}/${markers.length} edits present${lost.length ? `; lost ${lost.slice(0, 5).join(',')}` : ''}`
+  `${markers.length - lost.length}/${markers.length} edits present${lost.length ? `; lost ${lost.slice(0, 5).join(',')}` : ''}; ${clients.reduce((sum, sim) => sum + sim.editsBeforeFirstRender, 0)} edits made before the editor first rendered the room${RENDER_DELAY_MS ? ` (render delay ${RENDER_DELAY_MS} ms)` : ''}`
+);
+// Nobody deletes blocks in the chaos phase: every seed block must still be there.
+const seedKept = seed.blocks.filter((block) =>
+  clients[0].client.getData().blocks.some((item) => item.id === block.id)
+).length;
+record(
+  'no block deleted by an editor that had not rendered it',
+  seedKept === seed.blocks.length,
+  `seed blocks kept: ${seedKept}/${seed.blocks.length}`
 );
 const dupes = markers.filter((marker) => finalText.split(marker).length > 2);
 record('no duplicated edits', dupes.length === 0, `${dupes.length} duplicates`);
