@@ -8,6 +8,7 @@ import { AiSection } from './AiSection';
 import { EnvironmentSection } from './EnvironmentSection';
 import { CspSection } from './CspSection';
 import { LanguageToolSection } from './LanguageToolSection';
+import { LinkScheduleSection } from './LinkScheduleSection';
 
 const RBAC = [...PERMISSIONS.settingsRead, ...PERMISSIONS.settingsUpdate];
 
@@ -236,6 +237,10 @@ const ConfigurationPage = () => {
       <AiSection form={form} readOnly={readOnly} onTest={onTest} />
       <LanguageToolSection form={form} readOnly={readOnly} onTest={onTestLanguageTool} />
       <EnvironmentSection environment={form.dto.environment} />
+      <LinkScheduleSection
+        initial={(form.dto.environment && form.dto.environment.linkSchedule) || null}
+        canRun={!readOnly}
+      />
       <CspSection csp={form.dto.environment && form.dto.environment.csp} />
       <Form method="PUT" initialValues={form.saved}>
         <DraftSync values={form.draft} />

@@ -5,6 +5,17 @@ const { service } = require('./helpers');
 const { z, errors, parseOrThrow, documentIdSchema } = require('../utils/validation');
 
 const idParams = z.strictObject({ id: documentIdSchema });
+const versionParams = z.strictObject({ id: documentIdSchema, versionId: documentIdSchema });
+/** Version name: plain text, at most 120 characters, no control characters; '' or null removes it. */
+const labelBody = z.strictObject({
+  label: z
+    .string()
+    .trim()
+    .max(120)
+    // eslint-disable-next-line no-control-regex -- control characters are rejected
+    .regex(/^[^\u0000-\u001f\u007f]*$/)
+    .nullable(),
+});
 
 /**
  * Can the caller do `action` (CASL ability from the admin auth strategy)?
@@ -26,6 +37,7 @@ const can = (ctx, action) => {
  */
 module.exports = ({ strapi }) => {
   const templates = () => service(strapi, 'templates');
+  const versions = () => service(strapi, 'synced-versions');
 
   /**
    * True when the Content Manager lets the caller read the content type
@@ -94,13 +106,13 @@ module.exports = ({ strapi }) => {
     /** @route PUT /magic-editor-x/templates/:id @auth admin; access + templates.manage @sideeffect Replaces a template. */
     async update(ctx) {
       const { id } = parseOrThrow(idParams, { id: ctx.params.id });
-      ctx.body = { data: await templates().update(id, ctx.request.body || {}) };
+      ctx.body = { data: await templates().update(id, ctx.request.body || {}, ctx.state.user) };
     },
 
     /** @route DELETE /magic-editor-x/templates/:id @auth admin; access + templates.manage @sideeffect Deletes a template. */
     async remove(ctx) {
       const { id } = parseOrThrow(idParams, { id: ctx.params.id });
-      ctx.body = { data: await templates().remove(id) };
+      ctx.body = { data: await templates().remove(id, ctx.state.user) };
     },
 
     /** @route POST /magic-editor-x/templates/:id/duplicate @auth admin; access + templates.manage @sideeffect Creates a disabled copy. */
@@ -119,6 +131,66 @@ module.exports = ({ strapi }) => {
     async usage(ctx) {
       const { id } = parseOrThrow(idParams, { id: ctx.params.id });
       ctx.body = { data: await templates().usage(id) };
+    },
+
+    /**
+     * @route GET /magic-editor-x/templates/:id/versions
+     * @auth admin; access + templates.manage
+     * @returns {{ data: Array<{ id, version, trigger, label, name, createdAt, createdBy: { name }|null, blockCount }> }} Versions of a synced source, newest first.
+     * @throws {errors.NotFoundError} Unknown id or not a synced source.
+     */
+    async versions(ctx) {
+      const { id } = parseOrThrow(idParams, { id: ctx.params.id });
+      if (Object.keys(ctx.query || {}).length) throw new errors.ValidationError('Validation failed');
+      await templates().assertSynced(id);
+      ctx.body = { data: await versions().list(id) };
+    },
+
+    /**
+     * @route GET /magic-editor-x/templates/:id/versions/:versionId
+     * @auth admin; access + templates.manage
+     * @returns {{ data: { id, version, trigger, label, name, createdAt, createdBy, blockCount, content } }} One version with its blocks.
+     * @throws {errors.NotFoundError} Unknown source, other kinds, or a version of another source.
+     */
+    async version(ctx) {
+      const { id, versionId } = parseOrThrow(versionParams, {
+        id: ctx.params.id,
+        versionId: ctx.params.versionId,
+      });
+      await templates().assertSynced(id);
+      ctx.body = { data: await versions().findOne(id, versionId) };
+    },
+
+    /**
+     * @route PUT /magic-editor-x/templates/:id/versions/:versionId { label }
+     * @auth admin; access + templates.manage
+     * @sideeffect Names or renames a version ('' or null removes the name).
+     */
+    async renameVersion(ctx) {
+      const { id, versionId } = parseOrThrow(versionParams, {
+        id: ctx.params.id,
+        versionId: ctx.params.versionId,
+      });
+      const { label } = parseOrThrow(labelBody, ctx.request.body || {});
+      await templates().assertSynced(id);
+      ctx.body = { data: await versions().rename(id, versionId, label) };
+    },
+
+    /**
+     * @route POST /magic-editor-x/templates/:id/versions/:versionId/restore
+     * @auth admin; access + templates.manage
+     * @returns {{ data: object }} The updated source (a normal update: re-validated, new version with trigger `restore`).
+     * @sideeffect Replaces the source's blocks and name; the change is live in every referencing field.
+     */
+    async restoreVersion(ctx) {
+      const { id, versionId } = parseOrThrow(versionParams, {
+        id: ctx.params.id,
+        versionId: ctx.params.versionId,
+      });
+      const body = ctx.request.body;
+      if (body && typeof body === 'object' && Object.keys(body).length)
+        throw new errors.ValidationError('Validation failed');
+      ctx.body = { data: await templates().restoreVersion(id, versionId, ctx.state.user) };
     },
 
     /** @route PUT /magic-editor-x/templates/order { ids } @auth admin; access + templates.manage @sideeffect Saves the order. */

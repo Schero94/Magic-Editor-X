@@ -44,6 +44,25 @@ const adminRoutes = [
   ['PUT', '/templates/order', 'templates.reorder', [ACTIONS.access, ACTIONS.templatesManage]],
   ['GET', '/templates/:id', 'templates.findOne', [ACTIONS.access]],
   ['GET', '/templates/:id/usage', 'templates.usage', [ACTIONS.access, ACTIONS.templatesManage]],
+  ['GET', '/templates/:id/versions', 'templates.versions', [ACTIONS.access, ACTIONS.templatesManage]],
+  [
+    'GET',
+    '/templates/:id/versions/:versionId',
+    'templates.version',
+    [ACTIONS.access, ACTIONS.templatesManage],
+  ],
+  [
+    'PUT',
+    '/templates/:id/versions/:versionId',
+    'templates.renameVersion',
+    [ACTIONS.access, ACTIONS.templatesManage],
+  ],
+  [
+    'POST',
+    '/templates/:id/versions/:versionId/restore',
+    'templates.restoreVersion',
+    [ACTIONS.access, ACTIONS.templatesManage],
+  ],
   ['POST', '/templates', 'templates.create', [ACTIONS.access, ACTIONS.templatesManage]],
   ['PUT', '/templates/:id', 'templates.update', [ACTIONS.access, ACTIONS.templatesManage]],
   ['DELETE', '/templates/:id', 'templates.remove', [ACTIONS.access, ACTIONS.templatesManage]],
@@ -84,6 +103,10 @@ const adminRoutes = [
   ['POST', '/ai/image/alt-text', 'ai.altText', [ACTIONS.access, ACTIONS.ai]],
   ['POST', '/ai/field/:action', 'ai.field', [ACTIONS.access, ACTIONS.ai]],
   ['POST', '/grammar/check', 'grammar.check', [ACTIONS.access, ACTIONS.grammar]],
+
+  // Global listing needs settings.read too; a field-scoped one needs CM read on the document (handler).
+  ['GET', '/audit', 'audit.list', [ACTIONS.auditRead]],
+  ['GET', '/audit/actors', 'audit.actors', [ACTIONS.auditRead, ACTIONS.settingsRead]],
 
   ['GET', '/settings', 'settings.get', [ACTIONS.settingsRead]],
   ['PUT', '/settings', 'settings.update', [ACTIONS.settingsRead, ACTIONS.settingsUpdate]],

@@ -1856,6 +1856,9 @@ const EditorFieldBody = ({
             window.requestAnimationFrame(() => historyButtonRef.current && historyButtonRef.current.focus());
           }}
           canEdit={!readOnly}
+          canReadActivity={Boolean(
+            permissions.auditRead && !(config && config.audit && config.audit.enabled === false)
+          )}
         />
       ) : null}
       {aiRequest ? (

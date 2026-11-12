@@ -10,7 +10,7 @@
  *   normalize + sanitize (normalizeEditorData + server cleanEditorValue),
  *   renderHtml / renderText / renderMarkdown (public API only),
  *   diffDocuments, find + replace, Yjs seed + apply (shared/ydoc.mjs),
- *   quality lint, preset check.
+ *   quality lint, preset check, audit change summary (2.4).
  *
  * Checks (thresholds in scripts/bench-thresholds.json, see CONTRIBUTING.md):
  *   - absolute budget per operation at 5000 blocks (several times a local median);
@@ -33,6 +33,7 @@ import { findMatches, replaceMatches } from '../shared/find-replace.mjs';
 import { createSeedUpdate, applyLocalChanges, docToEditorData } from '../shared/ydoc.mjs';
 import { lintDocument } from '../shared/quality.mjs';
 import { resolveFieldPreset, checkPreset } from '../shared/presets.mjs';
+import { fieldChanges } from '../shared/audit.mjs';
 
 const require = createRequire(import.meta.url);
 const { cleanEditorValue } = require('../server/src/utils/sanitizer.js');
@@ -162,6 +163,11 @@ const operations = (data, edited) => {
     },
     lint: () => lintDocument(data).issues.length,
     presetCheck: () => checkPreset(data, preset).length,
+    // Audit trail: counts of one save (block id + fingerprint comparison, no word diff).
+    auditChanges: () => {
+      const { counts } = fieldChanges(data, edited);
+      return counts.added + counts.removed + counts.changed + counts.moved;
+    },
   };
 };
 

@@ -53,7 +53,7 @@ module.exports = ({ strapi }) => ({
   /**
    * @route GET /magic-editor-x/quality/link-schedule
    * @auth admin; plugin::magic-editor-x.settings.read
-   * @returns {{ data: { enabled, scheduled, rule, maxUrlsPerRun, perMinute, perHostConcurrency, running, lastRun } }} Schedule state, counts only.
+   * @returns {{ data: { enabled, scheduled, rule, tz, nextRunAt, maxUrlsPerRun, perMinute, perHostConcurrency, running, lastRun } }} Schedule state, counts only (`running`: any process holds the run lease).
    */
   async scheduleStatus(ctx) {
     if (Object.keys(ctx.query || {}).length) throw new errors.ValidationError('Validation failed');
@@ -72,7 +72,7 @@ module.exports = ({ strapi }) => ({
     const body = ctx.request.body;
     if (body && typeof body === 'object' && Object.keys(body).length)
       throw new errors.ValidationError('Validation failed');
-    const outcome = await service(strapi, 'link-schedule').runNow();
+    const outcome = await service(strapi, 'link-schedule').runNow(ctx.state.user || null);
     if (outcome.started) {
       ctx.status = 202;
       ctx.body = { data: { started: true } };

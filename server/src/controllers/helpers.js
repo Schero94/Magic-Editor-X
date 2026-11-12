@@ -4,6 +4,8 @@
  * Shared controller helpers.
  */
 
+const { recordAudit } = require('../utils/audit-record');
+
 const service = (strapi, name) => strapi.plugin('magic-editor-x').service(name);
 
 /**
@@ -58,4 +60,4 @@ const positionalReadOnly = (ctx, code) =>
     { code }
   );
 
-module.exports = { service, sendEditorError, identityTarget, positionalReadOnly };
+module.exports = { service, sendEditorError, identityTarget, positionalReadOnly, recordAudit };

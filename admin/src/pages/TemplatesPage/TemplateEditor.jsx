@@ -17,6 +17,7 @@ import { ArrowLeft, Check } from '@strapi/icons';
 import { Blocker, Form } from '@strapi/strapi/admin';
 import { ConfirmAction, DraftSync, PageShell, SectionCard, useT } from '../../components/ui';
 import { EditorFieldBody } from '../../components/EditorField';
+import { SyncedVersions } from './SyncedVersions';
 import { TEMPLATE_LIMITS } from '../../../../shared/templates.mjs';
 import {
   PRESET_NAMES,
@@ -82,9 +83,10 @@ const errorText = (t, code) => {
  * @param {() => void} props.onRetryTargets - Reloads the fields.
  * @param {(values: object) => Promise<{ ok: boolean, errors?: object }>} props.onSubmit - Saves.
  * @param {() => void} props.onBack - Returns to the list.
+ * @param {(template: object) => void} [props.onRestored] - A synced source version was restored (2.4).
  * @returns {JSX.Element} Page.
  */
-export const TemplateEditor = ({ template, targets, onRetryTargets, onSubmit, onBack }) => {
+export const TemplateEditor = ({ template, targets, onRetryTargets, onSubmit, onBack, onRestored }) => {
   const t = useT();
   const saved = useMemo(() => (template ? fromDto(template) : emptyValues()), [template]);
   const [values, setValues] = useState(saved);
@@ -394,6 +396,9 @@ export const TemplateEditor = ({ template, targets, onRetryTargets, onSubmit, on
           required
         />
       </SectionCard>
+      {savedSynced && onRestored ? (
+        <SyncedVersions template={template} current={values.blocks} dirty={dirty} onRestored={onRestored} />
+      ) : null}
       <Form method="PUT" initialValues={savedKey}>
         <DraftSync values={draftKey} />
         <Blocker />

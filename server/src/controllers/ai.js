@@ -1,6 +1,7 @@
 'use strict';
 
-const { service } = require('./helpers');
+const { service, recordAudit } = require('./helpers');
+const { fieldIdentity } = require('../../../shared/audit.mjs');
 const { z, parseOrThrow, uidSchema, fieldPathSchema, localeSchema, errors } = require('../utils/validation');
 const {
   BLOCK_ID_PATTERN,
@@ -129,6 +130,12 @@ module.exports = ({ strapi }) => {
         throw new errors.ForbiddenError('The AI assistant is turned off for this field');
       try {
         ctx.body = { data: await service(strapi, 'ai').run({ action, ...body }, ctx.state.user) };
+        await recordAudit(strapi, {
+          event: 'ai.action',
+          target: { uid: target.uid, field: fieldIdentity(target.field) },
+          counts: { segments: 1 },
+          meta: { action },
+        });
       } catch (error) {
         if (!sendProviderError(ctx, error)) throw error;
       }
@@ -152,6 +159,12 @@ module.exports = ({ strapi }) => {
             ctx.state.user
           ),
         };
+        await recordAudit(strapi, {
+          event: 'ai.action',
+          target: { uid: input.target.uid, field: fieldIdentity(input.target.field) },
+          counts: { images: 1 },
+          meta: { action: 'alt-text' },
+        });
       } catch (error) {
         if (!sendProviderError(ctx, error)) throw error;
       }
@@ -177,6 +190,12 @@ module.exports = ({ strapi }) => {
             ctx.state.user
           ),
         };
+        await recordAudit(strapi, {
+          event: 'ai.action',
+          target: { uid: input.target.uid, field: fieldIdentity(input.target.field) },
+          counts: { segments: input.segments.length },
+          meta: { action: `field-${action}` },
+        });
       } catch (error) {
         if (!sendProviderError(ctx, error)) throw error;
       }

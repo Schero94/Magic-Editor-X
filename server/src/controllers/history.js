@@ -1,6 +1,7 @@
 'use strict';
 
-const { service, identityTarget, positionalReadOnly } = require('./helpers');
+const { service, identityTarget, positionalReadOnly, recordAudit } = require('./helpers');
+const { fieldIdentity } = require('../../../shared/audit.mjs');
 const { z, parseOrThrow, fieldTargetSchema, documentIdSchema } = require('../utils/validation');
 
 /** Version name: plain text, at most 120 characters, no control characters; '' or null removes it. */
@@ -66,7 +67,23 @@ module.exports = ({ strapi }) => {
     async findOne(ctx) {
       const { id } = parseOrThrow(z.strictObject({ id: documentIdSchema }), { id: ctx.params.id });
       const { target, snapshot } = await history().findOne(id);
-      await access().checkField({ userAbility: ctx.state.userAbility, ...identityTarget(target) });
+      const result = await access().checkField({
+        userAbility: ctx.state.userAbility,
+        ...identityTarget(target),
+      });
+      // 2.4: `?intent=restore` (sent by the editor's Restore action) records `version.restore`
+      // in the audit trail; restoring itself still happens in the browser.
+      if (ctx.query && ctx.query.intent === 'restore' && result.canUpdate)
+        await recordAudit(strapi, {
+          event: 'version.restore',
+          target: {
+            uid: target.uid,
+            documentId: target.documentId,
+            locale: result.locale,
+            field: result.fieldName || fieldIdentity(target.field),
+          },
+          counts: { version: Number(snapshot.version) || 0, blocks: snapshot.stats?.blocks || 0 },
+        });
       ctx.body = { data: snapshot };
     },
 
@@ -112,6 +129,16 @@ module.exports = ({ strapi }) => {
       // Versions saved by position before 2.4 that belong to no single entry are read-only.
       if (target.legacy) return positionalReadOnly(ctx, 'POSITIONAL_READ_ONLY');
       ctx.body = { data: await history().rename(id, label) };
+      await recordAudit(strapi, {
+        event: 'version.rename',
+        target: {
+          uid: target.uid,
+          documentId: target.documentId,
+          locale: result.locale,
+          field: result.fieldName || fieldIdentity(target.field),
+        },
+        counts: { version: Number(ctx.body.data.version) || 0 },
+      });
       return undefined;
     },
   };

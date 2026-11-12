@@ -2,7 +2,8 @@
 
 const { errors } = require('@strapi/utils');
 const { ACTIONS } = require('../permissions');
-const { service, identityTarget, positionalReadOnly } = require('./helpers');
+const { service, identityTarget, positionalReadOnly, recordAudit } = require('./helpers');
+const { fieldIdentity } = require('../../../shared/audit.mjs');
 const { z, parseOrThrow, fieldTargetSchema, documentIdSchema } = require('../utils/validation');
 const { BLOCK_ID_PATTERN, MAX_COMMENT_LENGTH, countThreads } = require('../../../shared/comments.mjs');
 
@@ -66,6 +67,25 @@ module.exports = ({ strapi }) => {
     row.positional = target.legacy;
     return row;
   };
+
+  /**
+   * Audit event of a comment action: thread id and block id only, never text.
+   * @param {string} event - Event name.
+   * @param {object} row - Comment row (the comment acted on).
+   * @returns {Promise<boolean>} Stored.
+   */
+  const auditComment = (event, row) =>
+    recordAudit(strapi, {
+      event,
+      target: {
+        uid: row.contentType,
+        documentId: row.entryId,
+        locale: row.entryLocale || null,
+        field: fieldIdentity(row.fieldName),
+      },
+      blockIds: row.blockId ? [row.blockId] : [],
+      meta: { threadId: row.threadId || row.documentId },
+    });
 
   return {
     /**
@@ -132,6 +152,17 @@ module.exports = ({ strapi }) => {
         { blockId, body, excerpt },
         ctx.state.user
       );
+      await recordAudit(strapi, {
+        event: 'comment.create',
+        target: {
+          uid: target.uid,
+          documentId: target.documentId,
+          locale: result.locale,
+          field: result.fieldName,
+        },
+        blockIds: [blockId],
+        meta: { threadId: thread.id },
+      });
       ctx.status = 201;
       ctx.body = { data: thread };
       return undefined;
@@ -151,8 +182,10 @@ module.exports = ({ strapi }) => {
       const row = await loadReadable(ctx);
       if (row.positional) return positionalReadOnly(ctx, 'POSITIONAL_READ_ONLY');
       await comments().checkRate(ctx.state.user.id);
+      const reply = await comments().reply(row, body, ctx.state.user);
+      await auditComment('comment.reply', row);
       ctx.status = 201;
-      ctx.body = { data: await comments().reply(row, body, ctx.state.user) };
+      ctx.body = { data: reply };
       return undefined;
     },
 
@@ -185,6 +218,7 @@ module.exports = ({ strapi }) => {
       const row = await loadReadable(ctx);
       if (row.positional) return positionalReadOnly(ctx, 'POSITIONAL_READ_ONLY');
       ctx.body = { data: await comments().setResolved(row, true, ctx.state.user) };
+      await auditComment('comment.resolve', row);
       return undefined;
     },
 
@@ -200,6 +234,7 @@ module.exports = ({ strapi }) => {
       const row = await loadReadable(ctx);
       if (row.positional) return positionalReadOnly(ctx, 'POSITIONAL_READ_ONLY');
       ctx.body = { data: await comments().setResolved(row, false, ctx.state.user) };
+      await auditComment('comment.reopen', row);
       return undefined;
     },
 
@@ -217,6 +252,7 @@ module.exports = ({ strapi }) => {
       const row = await loadReadable(ctx);
       if (row.positional) return positionalReadOnly(ctx, 'POSITIONAL_READ_ONLY');
       ctx.body = { data: await comments().remove(row, ctx.state.user, rights(ctx)) };
+      await auditComment(row.authorId === ctx.state.user.id ? 'comment.delete' : 'comment.moderate', row);
       return undefined;
     },
   };

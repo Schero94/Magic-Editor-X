@@ -13,4 +13,5 @@ module.exports = {
   quality: require('./quality'),
   comments: require('./comments'),
   templates: require('./templates'),
+  audit: require('./audit'),
 };

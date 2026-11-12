@@ -19,6 +19,7 @@ import { ConfirmDialog, useFetchClient, useNotification } from '@strapi/strapi/a
 import styled from 'styled-components';
 import { API, readApiError } from '../../utils/api';
 import { VersionDiff } from './VersionDiff';
+import { FieldActivity } from './FieldActivity';
 
 /**
  * Version history of one field: list snapshots, save (and name) the current
@@ -66,7 +67,7 @@ const TRIGGERS = {
  * @param {object|null} content - Editor data.
  * @returns {string[]} Lines.
  */
-const previewLines = (content) => {
+export const previewLines = (content) => {
   if (!content || !Array.isArray(content.blocks)) return [];
   const parser = new DOMParser();
   return content.blocks.slice(0, 12).map((block) => {
@@ -88,7 +89,16 @@ const previewLines = (content) => {
  * @param {object} props - Props.
  * @returns {JSX.Element} Modal.
  */
-export const HistoryModal = ({ t, target, readContent, onRestore, onRestoreBlock, onClose, canEdit }) => {
+export const HistoryModal = ({
+  t,
+  target,
+  readContent,
+  onRestore,
+  onRestoreBlock,
+  onClose,
+  canEdit,
+  canReadActivity = false,
+}) => {
   const { formatDate } = useIntl();
   const { get, post, put } = useFetchClient();
   const { toggleNotification } = useNotification();
@@ -102,6 +112,7 @@ export const HistoryModal = ({ t, target, readContent, onRestore, onRestoreBlock
   const [renameBusy, setRenameBusy] = useState(false);
   const [tab, setTab] = useState('preview');
   const [diff, setDiff] = useState(null);
+  const [view, setView] = useState('versions');
   const saveButton = useRef(null);
   const renameButtons = useRef(new Map());
 
@@ -257,7 +268,8 @@ export const HistoryModal = ({ t, target, readContent, onRestore, onRestoreBlock
     const item = confirm;
     setRestoring(true);
     try {
-      const { data } = await get(API.historyItem(item.id));
+      // `intent=restore` records "version restored" in the audit trail (2.4).
+      const { data } = await get(API.historyItem(item.id), { params: { intent: 'restore' } });
       const applied = await onRestore(data.data.content);
       if (!applied) throw new Error('empty');
       toggleNotification({
@@ -476,99 +488,114 @@ export const HistoryModal = ({ t, target, readContent, onRestore, onRestoreBlock
           <Modal.Title>{t('editor.history.title', 'Version history')}</Modal.Title>
         </Modal.Header>
         <Modal.Body>
-          <Flex direction="column" alignItems="stretch" gap={4}>
-            <Typography variant="omega" textColor="neutral600">
-              {t(
-                'editor.history.description',
-                'Versions of this field. Restoring replaces the editor content; save the entry to keep it.'
-              )}
-            </Typography>
-            {canName ? (
-              <Field.Root
-                name="mex-version-label"
-                hint={t(
-                  'editor.history.labelHint',
-                  'Optional. For example "Before legal review". Up to 120 characters.'
+          {canReadActivity ? (
+            <Tabs.Root value={view} onValueChange={setView}>
+              <Tabs.List aria-label={t('editor.activity.tabs', 'History views')}>
+                <Tabs.Trigger value="versions">{t('editor.activity.tab.versions', 'Versions')}</Tabs.Trigger>
+                <Tabs.Trigger value="activity">{t('editor.activity.tab.activity', 'Activity')}</Tabs.Trigger>
+              </Tabs.List>
+              <Tabs.Content value="activity">
+                {view === 'activity' ? <FieldActivity t={t} target={target} /> : null}
+              </Tabs.Content>
+            </Tabs.Root>
+          ) : null}
+          {view === 'versions' ? (
+            <Flex direction="column" alignItems="stretch" gap={4} paddingTop={canReadActivity ? 3 : 0}>
+              <Typography variant="omega" textColor="neutral600">
+                {t(
+                  'editor.history.description',
+                  'Versions of this field. Restoring replaces the editor content; save the entry to keep it.'
                 )}
-                error={
-                  labelTooLong ? t('editor.history.labelTooLong', 'Use 120 characters or fewer.') : undefined
-                }
-              >
-                <Field.Label>{t('editor.history.labelField', 'Name of the new version')}</Field.Label>
-                <TextInput
-                  value={label}
-                  onChange={(event) => setLabel(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' && !labelTooLong && !saving) {
-                      event.preventDefault();
-                      saveVersion();
-                    }
-                  }}
-                />
-                <Field.Hint />
-                <Field.Error />
-              </Field.Root>
-            ) : null}
-            {state.loading ? (
-              <Flex justifyContent="center" padding={4}>
-                <Loader small>{t('editor.history.loading', 'Loading versions')}</Loader>
-              </Flex>
-            ) : null}
-            {state.error ? (
-              <Flex direction="column" alignItems="flex-start" gap={2}>
-                <Typography textColor="danger600">
-                  {t('editor.history.error', 'Versions could not be loaded.')}
-                </Typography>
-                <Button variant="secondary" startIcon={<ArrowClockwise />} onClick={load}>
-                  {t('editor.history.retry', 'Try again')}
-                </Button>
-              </Flex>
-            ) : null}
-            {!state.loading && !state.error && state.items.length === 0 ? (
-              <Typography textColor="neutral600">
-                {t('editor.history.empty', 'No versions yet. Save one to start the history.')}
               </Typography>
-            ) : null}
-            {!state.error && state.items.length > 0 ? (
-              <Flex
-                tag="ul"
-                direction="column"
-                alignItems="stretch"
-                gap={2}
-                aria-label={t('editor.history.listLabel', 'Versions')}
-              >
-                {state.items.map(renderItem)}
-              </Flex>
-            ) : null}
-            {!state.error && positionalVersions.length > 0 ? (
-              <Flex direction="column" alignItems="stretch" gap={2}>
-                <Typography tag="h3" variant="delta">
-                  {t('editor.history.positional.title', 'Older versions saved by position')}
-                </Typography>
-                <Typography variant="omega" textColor="neutral600">
-                  {t(
-                    'editor.history.positional.description',
-                    'Saved before this section had its own history. They may belong to another entry of this list, so they can be viewed and compared but not restored.'
+              {canName ? (
+                <Field.Root
+                  name="mex-version-label"
+                  hint={t(
+                    'editor.history.labelHint',
+                    'Optional. For example "Before legal review". Up to 120 characters.'
                   )}
+                  error={
+                    labelTooLong
+                      ? t('editor.history.labelTooLong', 'Use 120 characters or fewer.')
+                      : undefined
+                  }
+                >
+                  <Field.Label>{t('editor.history.labelField', 'Name of the new version')}</Field.Label>
+                  <TextInput
+                    value={label}
+                    onChange={(event) => setLabel(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' && !labelTooLong && !saving) {
+                        event.preventDefault();
+                        saveVersion();
+                      }
+                    }}
+                  />
+                  <Field.Hint />
+                  <Field.Error />
+                </Field.Root>
+              ) : null}
+              {state.loading ? (
+                <Flex justifyContent="center" padding={4}>
+                  <Loader small>{t('editor.history.loading', 'Loading versions')}</Loader>
+                </Flex>
+              ) : null}
+              {state.error ? (
+                <Flex direction="column" alignItems="flex-start" gap={2}>
+                  <Typography textColor="danger600">
+                    {t('editor.history.error', 'Versions could not be loaded.')}
+                  </Typography>
+                  <Button variant="secondary" startIcon={<ArrowClockwise />} onClick={load}>
+                    {t('editor.history.retry', 'Try again')}
+                  </Button>
+                </Flex>
+              ) : null}
+              {!state.loading && !state.error && state.items.length === 0 ? (
+                <Typography textColor="neutral600">
+                  {t('editor.history.empty', 'No versions yet. Save one to start the history.')}
                 </Typography>
+              ) : null}
+              {!state.error && state.items.length > 0 ? (
                 <Flex
                   tag="ul"
                   direction="column"
                   alignItems="stretch"
                   gap={2}
-                  aria-label={t('editor.history.positional.title', 'Older versions saved by position')}
+                  aria-label={t('editor.history.listLabel', 'Versions')}
                 >
-                  {positionalVersions.map(renderItem)}
+                  {state.items.map(renderItem)}
                 </Flex>
-              </Flex>
-            ) : null}
-          </Flex>
+              ) : null}
+              {!state.error && positionalVersions.length > 0 ? (
+                <Flex direction="column" alignItems="stretch" gap={2}>
+                  <Typography tag="h3" variant="delta">
+                    {t('editor.history.positional.title', 'Older versions saved by position')}
+                  </Typography>
+                  <Typography variant="omega" textColor="neutral600">
+                    {t(
+                      'editor.history.positional.description',
+                      'Saved before this section had its own history. They may belong to another entry of this list, so they can be viewed and compared but not restored.'
+                    )}
+                  </Typography>
+                  <Flex
+                    tag="ul"
+                    direction="column"
+                    alignItems="stretch"
+                    gap={2}
+                    aria-label={t('editor.history.positional.title', 'Older versions saved by position')}
+                  >
+                    {positionalVersions.map(renderItem)}
+                  </Flex>
+                </Flex>
+              ) : null}
+            </Flex>
+          ) : null}
         </Modal.Body>
         <Footer>
           <Modal.Close>
             <WrappingButton variant="tertiary">{t('editor.history.cancel', 'Close')}</WrappingButton>
           </Modal.Close>
-          {canWrite ? (
+          {canWrite && view === 'versions' ? (
             <WrappingButton ref={saveButton} onClick={saveVersion} loading={saving} disabled={labelTooLong}>
               {t('editor.history.save', 'Save current version')}
             </WrappingButton>

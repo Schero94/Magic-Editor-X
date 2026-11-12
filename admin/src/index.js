@@ -311,6 +311,13 @@ export default {
           permissions: PERMISSIONS.templatesManage,
           Component: () => import('./pages/TemplatesPage'),
         },
+        {
+          id: `${PLUGIN_ID}-audit`,
+          intlLabel: { id: getTranslation('settings.link.audit'), defaultMessage: 'Audit trail' },
+          to: `${PLUGIN_ID}/audit`,
+          permissions: PERMISSIONS.auditRead,
+          Component: () => import('./pages/AuditPage'),
+        },
       ]
     );
   },

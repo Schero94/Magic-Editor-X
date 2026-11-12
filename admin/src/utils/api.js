@@ -38,6 +38,15 @@ export const API = {
   template: (id) => `/magic-editor-x/templates/${encodeURIComponent(id)}`,
   templateDuplicate: (id) => `/magic-editor-x/templates/${encodeURIComponent(id)}/duplicate`,
   templateUsage: (id) => `/magic-editor-x/templates/${encodeURIComponent(id)}/usage`,
+  templateVersions: (id) => `/magic-editor-x/templates/${encodeURIComponent(id)}/versions`,
+  templateVersion: (id, versionId) =>
+    `/magic-editor-x/templates/${encodeURIComponent(id)}/versions/${encodeURIComponent(versionId)}`,
+  templateVersionRestore: (id, versionId) =>
+    `/magic-editor-x/templates/${encodeURIComponent(id)}/versions/${encodeURIComponent(versionId)}/restore`,
+  audit: '/magic-editor-x/audit',
+  auditActors: '/magic-editor-x/audit/actors',
+  linkSchedule: '/magic-editor-x/quality/link-schedule',
+  linkScheduleRun: '/magic-editor-x/quality/link-schedule/run',
   settings: '/magic-editor-x/settings',
   settingsAiTest: '/magic-editor-x/settings/ai/test',
   settingsLanguageToolTest: '/magic-editor-x/settings/language-tool/test',
