@@ -82,7 +82,8 @@ test('save round trip: hostile data is cleaned by the schema, unknown keys are n
   });
   assert.equal(read.status, 200);
   const [first, second] = read.body.data.body.blocks;
-  assert.deepEqual(Object.keys(first.data), ['title', 'body', 'link', 'tone']);
+  // PostgreSQL jsonb does not keep key order.
+  assert.deepEqual(Object.keys(first.data).sort(), ['body', 'link', 'title', 'tone']);
   assert.equal(first.data.title.length, 120);
   assert.equal(first.data.link, '');
   assert.equal(first.data.tone, 'info');
@@ -125,7 +126,8 @@ test('?mex=html|text|markdown and GraphQL render the block through its definitio
   const markdown = (await get('markdown')).body.data.body;
   assert.ok(markdown.includes('**Second**\n\nOk\n\n[Read more](</en/about>)'), markdown);
   const json = (await get('json')).body.data.body;
-  assert.deepEqual(Object.keys(json.blocks[0].data), ['title', 'body', 'link', 'tone']);
+  // PostgreSQL jsonb does not keep key order.
+  assert.deepEqual(Object.keys(json.blocks[0].data).sort(), ['body', 'link', 'title', 'tone']);
 
   const gql = await call('POST', '/graphql', {
     token: state.apiToken,

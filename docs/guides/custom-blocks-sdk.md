@@ -170,6 +170,8 @@ export class CalloutCardTool {
 }
 ```
 
+To match the editor in light and dark mode, give form controls the editor's classes: `mex-tool__field` (label plus control), `mex-tool__label`, `mex-tool__input`, `mex-tool__select` and `mex-tool__input mex-tool__editable` for a contenteditable area.
+
 With React, `apis.createReactTool(Component)` mounts the component with `createRoot` into the block and passes `{ data, onChange, readOnly, translate, definition }`; `onChange(next)` cleans the data and notifies Editor.js. The component runs in its own React root, so admin providers (theme, intl) are not available inside it.
 
 Registered blocks appear in the toolbox of every field whose preset allows them (`full`, the presets in `presets`, or `allowedBlocks` listing the name). Undo, version history (with the diff), collaboration and comments work like for built-in blocks. **Settings > Custom blocks** lists code-registered blocks read-only as "Defined in code", with a warning when only the server or only the admin knows a block.
