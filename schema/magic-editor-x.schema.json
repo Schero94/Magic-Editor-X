@@ -706,6 +706,26 @@
               }
             }
           }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "synced"
+              },
+              "data": {
+                "required": ["ref"]
+              }
+            },
+            "required": ["type", "data"]
+          },
+          "then": {
+            "properties": {
+              "data": {
+                "$ref": "#/$defs/data_synced"
+              }
+            }
+          }
         }
       ]
     },
@@ -1321,6 +1341,19 @@
         }
       },
       "required": ["title", "minLevel", "maxLevel", "style"],
+      "additionalProperties": false
+    },
+    "data_synced": {
+      "type": "object",
+      "description": "Synced block: a reference to shared content that is edited in one place.",
+      "properties": {
+        "ref": {
+          "type": "string",
+          "pattern": "^([a-z0-9]{1,64})?$",
+          "description": "documentId of the synced block source (Settings > Templates). Only the reference is stored; `?mex=` output and the renderers (`options.synced`) expand it. Empty when invalid."
+        }
+      },
+      "required": ["ref"],
       "additionalProperties": false
     }
   }

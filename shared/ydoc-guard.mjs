@@ -195,6 +195,20 @@ export const touchedBy = (transaction, blocks) => {
 };
 
 /**
+ * A synced block (built-in: its data has `ref`) holds exactly `{ ref }` with a
+ * documentId or '' (being chosen). Other blocks pass.
+ * @param {{ type: string, data: object }} block - Normalised block.
+ * @returns {boolean} Valid.
+ */
+const validSyncedData = (block) => {
+  if (block.type !== 'synced' || !Object.prototype.hasOwnProperty.call(block.data, 'ref')) return true;
+  const keys = Object.keys(block.data);
+  return (
+    keys.length === 1 && typeof block.data.ref === 'string' && /^([a-z0-9]{1,64})?$/.test(block.data.ref)
+  );
+};
+
+/**
  * Validates the parts of a document a transaction changed.
  * @param {Y.Doc} doc - Room document after the update.
  * @param {{ ids: Set<string>, order: boolean, meta: boolean }} touched - Result of `touchedBy`.
@@ -223,6 +237,8 @@ export const validateTouched = (doc, touched, options = {}) => {
       if (JSON.stringify(block).length > MAX_BLOCK_BYTES) return 'TOO_LARGE';
       const normalized = normalizeEditorData({ blocks: [block] });
       if (!normalized || normalized.blocks.length !== 1) return 'INVALID_BLOCK';
+      // Synced block (2.3): a reference only (`{ ref }`), never copied content.
+      if (!validSyncedData(normalized.blocks[0])) return 'INVALID_BLOCK';
       if (typeof options.checkBlock === 'function' && touched.structural && touched.structural.has(id)) {
         const code = options.checkBlock(normalized.blocks[0]);
         if (code) return code;

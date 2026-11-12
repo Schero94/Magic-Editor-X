@@ -59,7 +59,7 @@ const plannedFields = (strapi, typeRegistry) => {
       const rendered = `${name}Rendered`;
       const resolved = `${name}Resolved`;
       if (attributes[rendered] || attributes[resolved]) continue;
-      out.push({ typeName, attribute: name, rendered, resolved });
+      out.push({ typeName, attribute: name, rendered, resolved, options: attribute.options || {} });
     }
   }
   return out;
@@ -147,6 +147,8 @@ const registerGraphql = (strapi) => {
             value,
             format,
             locale: parent && typeof parent.locale === 'string' ? parent.locale : null,
+            // Field options: synced content is filtered by the field preset.
+            options: field.options,
             // A draft parent (publishedAt null) was requested with status DRAFT: resolve drafts too.
             status: parent && parent.publishedAt === null ? 'draft' : 'published',
           }).catch((error) => {

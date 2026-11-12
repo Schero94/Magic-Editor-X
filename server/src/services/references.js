@@ -1,7 +1,11 @@
 'use strict';
 
 const { renderLinkPattern } = require('../../../shared/link-pattern.mjs');
-const { isPlainObject } = require('../../../shared/editor-data.mjs');
+const { isPlainObject, normalizeEditorDataSafe } = require('../../../shared/editor-data.mjs');
+const { resolveFieldPreset, allowedInlineTags } = require('../../../shared/presets.mjs');
+const { SYNCED_LIMITS, containsSynced, expandSynced, syncedRefsOf } = require('../../../shared/synced.mjs');
+const { filterSyncedForField } = require('../../../shared/templates.mjs');
+const { cleanEditorValue } = require('../utils/sanitizer');
 const {
   collectReferences,
   applyReferences,
@@ -30,6 +34,17 @@ const { createLogger } = require('../utils/logger');
  * not resolved (missing, draft-only, not readable, over the limit or timed
  * out) is treated the same way in every case, so its existence is not
  * revealed. Logs carry counts only.
+ *
+ * Synced blocks (2.3) are expanded first: a reference block is replaced by
+ * a copy of its source's blocks (one query for all sources of a response, at
+ * most `SYNCED_LIMITS.refsPerResponse` distinct sources). Sources are shared
+ * editorial content an author embedded on purpose, so they are expanded for
+ * every caller who can read the containing entry, but only after they pass
+ * the containing field's sanitiser (raw HTML policy, the preset's inline
+ * tags) and preset (`filterSyncedForField`: blocks the field does not allow
+ * are left out). Links, mentions, embedded entries and media inside the
+ * expanded blocks are then resolved with the caller's permissions like any
+ * other reference. A missing source expands to nothing.
  */
 
 const UPLOAD_UID = 'plugin::upload.file';
@@ -307,18 +322,77 @@ module.exports = ({ strapi }) => {
   };
 
   /**
-   * Transforms values for output: resolves references once for all values, then renders each.
-   * @param {Array<{ value: unknown, locale?: string|null, format?: 'html'|'text'|'markdown'|'json' }>} items - Values (an item's `format` wins over `options.format`).
+   * Expands the synced blocks of several values (one source query for all).
+   * @param {Array<{ value: unknown, options?: object }>} items - Values with their field options (preset).
+   * @returns {Promise<Array<{ value: unknown, origins: Map<string, string> }>>} Expanded values; `origins` maps copied block ids to their source.
+   */
+  const expandAll = async (items) => {
+    const datas = items.map((item) => {
+      const data = normalizeEditorDataSafe(item.value);
+      return data && containsSynced(data.blocks) ? data : null;
+    });
+    if (!datas.some(Boolean)) return items.map((item) => ({ value: item.value, origins: new Map() }));
+    const wanted = [];
+    for (const data of datas)
+      for (const ref of data ? syncedRefsOf(data) : [])
+        if (!wanted.includes(ref) && wanted.length < SYNCED_LIMITS.refsPerResponse) wanted.push(ref);
+    const stored = await strapi.plugin('magic-editor-x').service('templates').syncedSources(wanted);
+    const rawHtml = strapi.config.get('plugin::magic-editor-x.rawHtml') || 'sanitize';
+    const cleaned = new Map();
+    const cleanSource = (ref, inlineTags) => {
+      const key = `${ref}|${inlineTags ? inlineTags.join(',') : '*'}`;
+      if (!cleaned.has(key)) {
+        let clean;
+        try {
+          clean = stored.has(ref) ? cleanEditorValue(stored.get(ref), { rawHtml, inlineTags }) : null;
+        } catch {
+          clean = null;
+        }
+        cleaned.set(key, clean);
+      }
+      return cleaned.get(key);
+    };
+    let unresolved = 0;
+    const out = items.map((item, index) => {
+      const data = datas[index];
+      if (!data) return { value: item.value, origins: new Map() };
+      const preset = resolveFieldPreset(item.options);
+      const inlineTags = allowedInlineTags(preset);
+      const result = expandSynced(data, (ref) => cleanSource(ref, inlineTags), {
+        filter: (blocks) => filterSyncedForField(blocks, preset).blocks,
+      });
+      unresolved += result.unresolved;
+      return { value: result.data, origins: result.origins };
+    });
+    if (unresolved) logger.debug(`output: ${unresolved} synced blocks expanded to nothing`);
+    return out;
+  };
+
+  /**
+   * Transforms values for output: expands synced blocks, resolves references
+   * once for all values, then renders each.
+   * @param {Array<{ value: unknown, locale?: string|null, format?: 'html'|'text'|'markdown'|'json', options?: object }>} items - Values (an item's `format` wins over `options.format`; `options` are the field options, for the preset of synced content).
    * @param {{ format?: 'html'|'text'|'markdown'|'json', auth?: object, status?: 'draft'|'published', limits?: object }} options - Output options.
    * @returns {Promise<Array<object|string|null>>} Output per item.
    */
   const transform = async (items, { format = 'json', auth, status, limits } = {}) => {
-    const { prepared, refs } = collect(items);
-    const results = await resolve(refs, { auth, status, limits });
-    return prepared.map(({ data, locale }, index) =>
-      renderResolved(applyReferences(data, results, { locale }), items[index].format || format)
+    const expanded = await expandAll(items);
+    const { prepared, refs } = collect(
+      expanded.map((entry, index) => ({ value: entry.value, locale: items[index].locale }))
     );
+    const results = await resolve(refs, { auth, status, limits });
+    return prepared.map(({ data, locale }, index) => {
+      const outputFormat = items[index].format || format;
+      const applied = applyReferences(data, results, { locale });
+      const { origins } = expanded[index];
+      // JSON output marks copied blocks with the source they come from.
+      if (outputFormat === 'json' && applied && origins.size)
+        applied.blocks = applied.blocks.map((block) =>
+          origins.has(block.id) ? { ...block, syncedFrom: origins.get(block.id) } : block
+        );
+      return renderResolved(applied, outputFormat);
+    });
   };
 
-  return { LIMITS, resolve, collect, transform };
+  return { LIMITS, resolve, collect, expandAll, transform };
 };

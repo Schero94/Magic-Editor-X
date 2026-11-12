@@ -78,6 +78,7 @@ export const RESERVED_BLOCK_NAMES = Object.freeze([
   'codeFlask',
   'delimiter',
   'toc',
+  'synced',
   'table',
   'embed',
   'raw',

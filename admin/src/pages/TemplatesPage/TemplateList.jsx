@@ -1,8 +1,10 @@
+import { useEffect, useState } from 'react';
 import {
   Badge,
   Box,
   Flex,
   IconButton,
+  Loader,
   Switch,
   Table,
   Tbody,
@@ -14,8 +16,10 @@ import {
   VisuallyHidden,
 } from '@strapi/design-system';
 import { ArrowDown, ArrowUp, Duplicate, Eye, Pencil, Trash } from '@strapi/icons';
+import { useFetchClient } from '@strapi/strapi/admin';
 import { ConfirmAction, useBreakpoint, useT } from '../../components/ui';
 import { normalizeScope } from '../../../../shared/templates.mjs';
+import { API } from '../../utils/api';
 
 /**
  * Template list of the settings page: table from the large breakpoint up,
@@ -28,10 +32,71 @@ import { normalizeScope } from '../../../../shared/templates.mjs';
  * @param {string} kind - `template` | `pattern`.
  * @returns {string} Label.
  */
-export const kindLabel = (t, kind) =>
-  kind === 'pattern'
-    ? t('settings.templates.kind.pattern', 'Pattern')
-    : t('settings.templates.kind.template', 'Template');
+export const kindLabel = (t, kind) => {
+  if (kind === 'pattern') return t('settings.templates.kind.pattern', 'Pattern');
+  if (kind === 'synced') return t('settings.templates.kind.synced', 'Synced block');
+  return t('settings.templates.kind.template', 'Template');
+};
+
+/**
+ * Body of the delete confirmation of a synced block: loads how often it is
+ * used (`GET /templates/:id/usage`, counts only) when the dialog opens.
+ * @param {{ template: object }} props - Synced source.
+ * @returns {JSX.Element} Text.
+ */
+const SyncedUsage = ({ template }) => {
+  const t = useT();
+  const { get } = useFetchClient();
+  const [state, setState] = useState({ status: 'loading', usage: null });
+  useEffect(() => {
+    const controller = new AbortController();
+    get(API.templateUsage(template.id), { signal: controller.signal }).then(
+      ({ data }) => {
+        if (!controller.signal.aborted) setState({ status: 'ready', usage: data.data });
+      },
+      () => {
+        if (!controller.signal.aborted) setState({ status: 'error', usage: null });
+      }
+    );
+    return () => controller.abort();
+  }, [get, template.id]);
+  const { status, usage } = state;
+  return (
+    <Flex direction="column" alignItems="stretch" gap={2}>
+      {status === 'loading' ? (
+        <Loader small>{t('settings.templates.usage.loading', 'Counting where it is used')}</Loader>
+      ) : null}
+      {status === 'error' ? (
+        <Typography textColor="danger600">
+          {t('settings.templates.usage.error', 'It could not be counted where this synced block is used.')}
+        </Typography>
+      ) : null}
+      {status === 'ready' ? (
+        <Typography textColor="neutral800" data-testid="mex-synced-usage">
+          {!usage.entries && !usage.templates && usage.complete
+            ? t('settings.templates.usage.none', 'It is not used in any entry, template or pattern.')
+            : usage.complete
+              ? t(
+                  'settings.templates.usage.count',
+                  'It is used in {entries, plural, one {# entry} other {# entries}} ({fields, plural, one {# field} other {# fields}}) and {templates, plural, one {# template or pattern} other {# templates or patterns}}.',
+                  usage
+                )
+              : t(
+                  'settings.templates.usage.countAtLeast',
+                  'It is used in at least {entries, plural, one {# entry} other {# entries}} ({fields, plural, one {# field} other {# fields}}) and {templates, plural, one {# template or pattern} other {# templates or patterns}}. Not every entry could be checked.',
+                  usage
+                )}
+        </Typography>
+      ) : null}
+      <Typography textColor="neutral800">
+        {t(
+          'settings.templates.delete.syncedBody',
+          'After deleting it, these places show nothing where the synced block was, on the website and in the API. Editors see "Synced block removed". This cannot be undone.'
+        )}
+      </Typography>
+    </Flex>
+  );
+};
 
 /**
  * Where a template is offered, in one short line.
@@ -117,12 +182,26 @@ const RowActions = ({
             <Trash />
           </IconButton>
         }
-        title={t('settings.templates.delete.title', 'Delete the template {name}?', { name })}
-        body={t(
-          'settings.templates.delete.body',
-          'Editors can no longer insert it. Content that was created from it stays unchanged. This cannot be undone.'
-        )}
-        confirmLabel={t('settings.templates.delete.confirm', 'Delete template')}
+        title={
+          template.kind === 'synced'
+            ? t('settings.templates.delete.syncedTitle', 'Delete the synced block {name}?', { name })
+            : t('settings.templates.delete.title', 'Delete the template {name}?', { name })
+        }
+        body={
+          template.kind === 'synced' ? (
+            <SyncedUsage template={template} />
+          ) : (
+            t(
+              'settings.templates.delete.body',
+              'Editors can no longer insert it. Content that was created from it stays unchanged. This cannot be undone.'
+            )
+          )
+        }
+        confirmLabel={
+          template.kind === 'synced'
+            ? t('settings.templates.delete.syncedConfirm', 'Delete synced block')
+            : t('settings.templates.delete.confirm', 'Delete template')
+        }
         onConfirm={() => onDelete(template)}
       />
     </Flex>

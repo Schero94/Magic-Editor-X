@@ -275,16 +275,18 @@ const TableScroll = ({ children, t }) => (
  * @param {boolean} [props.allowRaw=false] - Render Raw HTML blocks (sanitised).
  * @param {string} [props.lang] - Content language.
  * @param {'ltr'|'rtl'} [props.dir] - Text direction.
+ * @param {Map<string, object[]>} [props.synced] - Sources of synced blocks (renderer option `synced`); without it they render nothing.
  * @returns {JSX.Element} Rendered content.
  */
-export const RenderedContent = ({ value, t, allowRaw = false, lang, dir }) => {
+export const RenderedContent = ({ value, t, allowRaw = false, lang, dir, synced }) => {
   const options = useMemo(
     () => ({
       rawHtml: allowRaw ? 'allow' : 'sanitize',
       sanitizeRaw: allowRaw ? sanitizeRawPreview : undefined,
       code: { lineNumbers: true },
+      synced,
     }),
-    [allowRaw]
+    [allowRaw, synced]
   );
   const components = useMemo(
     () => ({

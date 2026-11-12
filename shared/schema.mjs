@@ -258,6 +258,18 @@ export const BLOCK_DATA_SCHEMAS = Object.freeze({
     ['title', 'minLevel', 'maxLevel', 'style'],
     'Table of contents. The entries are built from the headings when the content is rendered.'
   ),
+  synced: obj(
+    {
+      ref: {
+        type: 'string',
+        pattern: '^([a-z0-9]{1,64})?$',
+        description:
+          'documentId of the synced block source (Settings > Templates). Only the reference is stored; `?mex=` output and the renderers (`options.synced`) expand it. Empty when invalid.',
+      },
+    },
+    ['ref'],
+    'Synced block: a reference to shared content that is edited in one place.'
+  ),
 });
 
 /** Keys described by the schema that the current policy may not write yet (forward compatible). */

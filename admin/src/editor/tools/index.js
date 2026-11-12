@@ -30,6 +30,7 @@ import {
 } from './blocks';
 import { CodeHighlightTool } from './code-highlight';
 import { TocTool } from './toc';
+import { SyncedTool } from './synced';
 import { MentionTool } from './mention';
 import { ToggleTool } from './toggle';
 import { ChecklistTool } from './checklist';
@@ -168,6 +169,8 @@ export function buildTools(ctx) {
     codeFlask: { class: CodeHighlightTool, config: { ...shared, language: 'javascript' } },
     delimiter: { class: DelimiterTool, shortcut: 'CMD+SHIFT+D', config: shared },
     toc: { class: TocTool, config: { t, levels } },
+    // Synced block (2.3): inserted from the template dialog; the field renders its view (`ctx.mountSynced`).
+    synced: { class: SyncedTool, config: { mount: ctx.mountSynced } },
     table: {
       class: Table,
       inlineToolbar: inline,

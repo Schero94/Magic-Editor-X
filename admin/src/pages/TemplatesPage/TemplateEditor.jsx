@@ -63,6 +63,11 @@ const errorText = (t, code) => {
   if (code === 'scope')
     return t('settings.templates.form.scopeRequired', 'Choose at least one preset or field.');
   if (code === 'content') return t('settings.templates.form.contentRequired', 'Add at least one block.');
+  if (code === 'nestedSynced')
+    return t(
+      'settings.templates.form.nestedSynced',
+      'A synced block cannot contain another synced block. Remove it or detach it first.'
+    );
   if (code === 'tooManyBlocks')
     return t('settings.templates.form.tooManyBlocks', 'A template can have at most {max} blocks.', {
       max: TEMPLATE_LIMITS.blocks,
@@ -131,6 +136,8 @@ export const TemplateEditor = ({ template, targets, onRetryTargets, onSubmit, on
   );
 
   const presetLabel = (name) => t(PRESET_LABELS[name][0], PRESET_LABELS[name][1]);
+  // References point at synced blocks: a saved synced block stays one, and a template or pattern cannot become one.
+  const savedSynced = Boolean(template && template.kind === 'synced');
   const fieldOptions = targets.items.map((target) => ({
     key: fieldKey(target),
     label: t('settings.templates.form.fieldOption', '{type}: {field} ({preset})', {
@@ -223,19 +230,33 @@ export const TemplateEditor = ({ template, targets, onRetryTargets, onSubmit, on
                 value={values.kind}
                 onValueChange={(kind) => set({ kind })}
               >
-                <Radio.Item value="template">
+                <Radio.Item value="template" disabled={savedSynced}>
                   {t(
                     'settings.templates.form.kindTemplate',
                     'Template: starting content, applied to an empty field or replacing its content after a confirmation'
                   )}
                 </Radio.Item>
-                <Radio.Item value="pattern">
+                <Radio.Item value="pattern" disabled={savedSynced}>
                   {t(
                     'settings.templates.form.kindPattern',
                     'Pattern: a group of blocks inserted after the current block'
                   )}
                 </Radio.Item>
+                <Radio.Item value="synced" disabled={Boolean(template) && !savedSynced}>
+                  {t(
+                    'settings.templates.form.kindSynced',
+                    'Synced block: inserted as a reference; when you change it here, every field that uses it shows the change'
+                  )}
+                </Radio.Item>
               </Radio.Group>
+              {template ? (
+                <Typography variant="pi" textColor="neutral600">
+                  {t(
+                    'settings.templates.form.kindLocked',
+                    'A synced block cannot be turned into a template or pattern, or the other way round.'
+                  )}
+                </Typography>
+              ) : null}
             </Flex>
           </Grid.Item>
           <Grid.Item col={12} direction="column" alignItems="stretch">

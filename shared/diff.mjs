@@ -104,6 +104,8 @@ const leafKind = (type, path, value) => {
       .filter((part) => !/^\d+$/.test(part))
       .pop() || '';
   if (VALUE_KEY.test(key)) return 'value';
+  // Synced block (2.3): the reference is an id; the diff view shows the source name.
+  if (type === 'synced' && key === 'ref') return 'value';
   if (MEDIA_TYPES.has(type) && MEDIA_VALUE_KEY.test(key)) return 'value';
   if (PLAIN_TYPES.has(type) || PLAIN_KEYS.has(key)) return 'plain';
   return 'inline';

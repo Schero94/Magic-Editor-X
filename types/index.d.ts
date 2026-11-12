@@ -230,6 +230,16 @@ export interface TocData {
   style: 'ordered' | 'unordered';
 }
 
+/**
+ * Synced block (2.3): a reference to shared content (a Settings > Templates
+ * source of kind `synced`). Only the reference is stored; `?mex=` output,
+ * GraphQL `…Rendered`/`…Resolved` and the renderers (`options.synced`) expand it.
+ */
+export interface SyncedData {
+  /** documentId of the source ('' when invalid). */
+  ref: string;
+}
+
 /** Data per built-in block type. */
 export interface BlockDataMap {
   paragraph: ParagraphData;
@@ -256,6 +266,7 @@ export interface BlockDataMap {
   button: ButtonData;
   delimiter: DelimiterData;
   toc: TocData;
+  synced: SyncedData;
 }
 
 export type BuiltInBlockType = keyof BlockDataMap;

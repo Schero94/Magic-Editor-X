@@ -505,6 +505,8 @@ export const BLOCK_POLICIES = {
     openInNewTab: bool(d.openInNewTab),
   }),
   delimiter: () => ({}),
+  // Synced block (2.3): only the reference to its source is stored; an invalid reference becomes ''.
+  synced: (d) => ({ ref: typeof d.ref === 'string' && /^[a-z0-9]{1,64}$/.test(d.ref) ? d.ref : '' }),
   toc: (d) => {
     const minLevel = int(d.minLevel, 1, 6, 2);
     const maxLevel = int(d.maxLevel, 1, 6, 4);
@@ -523,7 +525,12 @@ export const BLOCK_POLICIES = {
  * and keeps being treated as custom block data (generic policy, neutral
  * rendering), so it is never stripped.
  */
-export const MEDIA_BLOCK_MARKERS = Object.freeze({ gallery: 'images', video: 'file', audio: 'file' });
+export const MEDIA_BLOCK_MARKERS = Object.freeze({
+  gallery: 'images',
+  video: 'file',
+  audio: 'file',
+  synced: 'ref',
+});
 
 /**
  * True when a block is a built-in block type whose policy applies.

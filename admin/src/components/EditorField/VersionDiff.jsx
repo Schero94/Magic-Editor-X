@@ -3,6 +3,8 @@ import { Badge, Box, Button, Flex, Typography, VisuallyHidden } from '@strapi/de
 import { ArrowClockwise } from '@strapi/icons';
 import styled from 'styled-components';
 import { blockText, diffDocuments, summarizeDiff } from '../../../../shared/diff.mjs';
+import { syncedDiffRefs } from '../../../../shared/synced.mjs';
+import { useSyncedSources } from '../../editor/synced-store';
 
 /**
  * "Changes" view of a version: what changed in the editor since this version.
@@ -160,6 +162,25 @@ const TextOps = ({ ops, t }) => (
 export const VersionDiff = ({ t, version, current, versionNumber, canRestore, onRestoreBlock }) => {
   const entries = useMemo(() => diffDocuments(version, current), [version, current]);
   const counts = useMemo(() => summarizeDiff(entries), [entries]);
+  // Synced blocks store a reference only: the diff names the source ("Synced block <name>").
+  const syncedRefs = useMemo(() => {
+    const out = new Set();
+    for (const entry of entries) {
+      const refs = entry.op === 'equal' ? null : syncedDiffRefs(entry);
+      if (refs && refs.before) out.add(refs.before);
+      if (refs && refs.after) out.add(refs.after);
+    }
+    return [...out];
+  }, [entries]);
+  const { entries: syncedSources } = useSyncedSources(syncedRefs);
+  const syncedText = (ref) => {
+    const source = ref ? syncedSources.get(ref) : null;
+    if (source && source.template)
+      return t('editor.history.diff.synced', 'Synced block {name}', { name: source.template.name });
+    if (source && source.status === 'missing')
+      return t('editor.history.diff.syncedRemoved', 'Synced block (source deleted)');
+    return t('editor.history.diff.syncedUnknown', 'Synced block');
+  };
   const visible = entries
     .map((entry, index) => ({ entry, index }))
     .filter(({ entry }) => entry.op !== 'equal');
@@ -198,6 +219,7 @@ export const VersionDiff = ({ t, version, current, versionNumber, canRestore, on
             entry.op === 'removed'
               ? neighboursOf(entries, index)
               : { replaceId: entry.after ? entry.after.id : null, afterId: null, beforeId: null };
+          const synced = syncedDiffRefs(entry);
           return (
             <Entry
               tag="li"
@@ -220,17 +242,35 @@ export const VersionDiff = ({ t, version, current, versionNumber, canRestore, on
                     {entry.type}
                   </Typography>
                 </Flex>
-                {entry.op === 'added' ? (
+                {synced ? (
+                  <Text tag="p" variant="pi" textColor="neutral800" data-testid="mex-diff-synced">
+                    {synced.before && synced.before !== synced.after ? (
+                      <Deleted>
+                        <VisuallyHidden>{t('editor.history.diff.deleted', 'Removed text:')} </VisuallyHidden>
+                        {syncedText(synced.before)}
+                      </Deleted>
+                    ) : null}
+                    {synced.before && synced.after && synced.before !== synced.after ? ' → ' : null}
+                    {synced.after && synced.before !== synced.after ? (
+                      <Inserted>
+                        <VisuallyHidden>{t('editor.history.diff.inserted', 'Added text:')} </VisuallyHidden>
+                        {syncedText(synced.after)}
+                      </Inserted>
+                    ) : null}
+                    {synced.before === synced.after ? syncedText(synced.after) : null}
+                  </Text>
+                ) : null}
+                {!synced && entry.op === 'added' ? (
                   <Text tag="p" variant="pi" textColor="neutral800">
                     <Inserted>{blockText(entry.after) || empty}</Inserted>
                   </Text>
                 ) : null}
-                {entry.op === 'removed' ? (
+                {!synced && entry.op === 'removed' ? (
                   <Text tag="p" variant="pi" textColor="neutral800">
                     <Deleted>{blockText(entry.before) || empty}</Deleted>
                   </Text>
                 ) : null}
-                {(entry.fields || []).map((field) => (
+                {(synced ? [] : entry.fields || []).map((field) => (
                   <Box key={field.path} minWidth={0}>
                     {field.kind !== 'tunes' && (entry.fields.length > 1 || field.kind === 'value') ? (
                       <Typography variant="sigma" textColor="neutral600">

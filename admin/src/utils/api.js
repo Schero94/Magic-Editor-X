@@ -37,6 +37,7 @@ export const API = {
   templatesOrder: '/magic-editor-x/templates/order',
   template: (id) => `/magic-editor-x/templates/${encodeURIComponent(id)}`,
   templateDuplicate: (id) => `/magic-editor-x/templates/${encodeURIComponent(id)}/duplicate`,
+  templateUsage: (id) => `/magic-editor-x/templates/${encodeURIComponent(id)}/usage`,
   settings: '/magic-editor-x/settings',
   settingsAiTest: '/magic-editor-x/settings/ai/test',
   settingsLanguageToolTest: '/magic-editor-x/settings/language-tool/test',
@@ -51,8 +52,13 @@ export const readApiError = (error) => {
   const response = error && error.response;
   const body = response && response.data;
   const apiError = body && body.error;
+  // Strapi's fetch client (FetchError) puts the HTTP status on the error and the body in `response.data`.
+  const status =
+    (response && response.status) ||
+    (error && typeof error.status === 'number' ? error.status : null) ||
+    (apiError && typeof apiError.status === 'number' ? apiError.status : null);
   return {
-    status: (response && response.status) || null,
+    status: status || null,
     message: (apiError && apiError.message) || (body && body.message) || null,
     code: (apiError && apiError.details && apiError.details.code) || null,
     details: (apiError && apiError.details) || null,

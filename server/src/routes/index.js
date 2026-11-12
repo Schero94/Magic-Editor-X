@@ -43,6 +43,7 @@ const adminRoutes = [
   ['GET', '/templates/targets', 'templates.targets', [ACTIONS.access, ACTIONS.templatesManage]],
   ['PUT', '/templates/order', 'templates.reorder', [ACTIONS.access, ACTIONS.templatesManage]],
   ['GET', '/templates/:id', 'templates.findOne', [ACTIONS.access]],
+  ['GET', '/templates/:id/usage', 'templates.usage', [ACTIONS.access, ACTIONS.templatesManage]],
   ['POST', '/templates', 'templates.create', [ACTIONS.access, ACTIONS.templatesManage]],
   ['PUT', '/templates/:id', 'templates.update', [ACTIONS.access, ACTIONS.templatesManage]],
   ['DELETE', '/templates/:id', 'templates.remove', [ACTIONS.access, ACTIONS.templatesManage]],

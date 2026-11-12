@@ -4,8 +4,11 @@ const { z } = require('zod');
 const { errors } = require('@strapi/utils');
 const { issueDetails } = require('../utils/validation');
 const { cleanEditorValue } = require('../utils/sanitizer');
-const { isEditorAttribute, resolveEditorField } = require('../utils/editor-fields');
-const { PRESET_NAMES, resolveFieldPreset } = require('../../../shared/presets.mjs');
+const { isEditorAttribute, resolveEditorField, schemaHasEditorFields } = require('../utils/editor-fields');
+const { guardQuery, collectGuarded } = require('../utils/publish-guard');
+const { PRESET_NAMES, resolveFieldPreset, isBlockAllowed } = require('../../../shared/presets.mjs');
+const { normalizeEditorDataSafe, isPlainObject } = require('../../../shared/editor-data.mjs');
+const { containsSynced, syncedRefOf } = require('../../../shared/synced.mjs');
 const {
   TEMPLATE_KINDS,
   TEMPLATE_LIMITS,
@@ -17,7 +20,11 @@ const {
 
 /**
  * Templates and block patterns (2.3): admin-defined starting content
- * (`kind: 'template'`) and insertable block sequences (`kind: 'pattern'`).
+ * (`kind: 'template'`), insertable block sequences (`kind: 'pattern'`) and
+ * synced block sources (`kind: 'synced'`: fields store only a reference
+ * `{ type: 'synced', data: { ref } }` to them; a source never contains a
+ * synced block, and its kind never changes, so references cannot form
+ * cycles or silently turn into something else).
  *
  * Data access only: the controller checks RBAC (`access` to use them,
  * `templates.manage` to change them). Rows live in the hidden content type
@@ -33,6 +40,9 @@ const UID = 'plugin::magic-editor-x.template';
 const ID_PATTERN = /^[a-z0-9]{1,64}$/;
 const API_UID = /^api::[a-z0-9-]{1,60}\.[a-z0-9-]{1,60}$/;
 const MAX_DEPTH = 4;
+
+/** Usage scan of a synced source: rows read per batch, at most `maxRows` rows and `timeoutMs`. */
+const USAGE_LIMITS = Object.freeze({ batchSize: 100, maxRows: 200000, timeoutMs: 20000 });
 
 const notFound = () => new errors.NotFoundError('Not found');
 
@@ -251,11 +261,14 @@ module.exports = ({ strapi }) => {
           invalid(`scope.fields.${index}`, 'This field does not exist or is not a Magic Editor X field');
       });
     }
+    const blocks = cleanBlocks(definition.blocks, rawHtml());
+    if (definition.kind === 'synced' && containsSynced(blocks.blocks))
+      invalid('blocks', 'A synced block cannot contain another synced block');
     const row = {
       name: definition.name,
       description: definition.description || null,
       kind: definition.kind,
-      blocks: cleanBlocks(definition.blocks, rawHtml()),
+      blocks,
       scope,
       enabled: definition.enabled !== false,
     };
@@ -292,15 +305,20 @@ module.exports = ({ strapi }) => {
       const contentType = strapi.contentType(uid);
       const resolved = contentType ? resolveEditorField(strapi, contentType, field) : null;
       if (!resolved) throw notFound();
-      const presetName = resolveFieldPreset(resolved.attribute.options).name;
+      const preset = resolveFieldPreset(resolved.attribute.options);
+      const presetName = preset.name;
       const rows = await query().findMany({
         where: { enabled: true },
         orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
         limit: TEMPLATE_LIMITS.templates,
       });
-      return rows
-        .filter((row) => templateMatchesTarget(row.scope, { uid, field: scopeFieldOf(field), presetName }))
-        .map(toDto);
+      return (
+        rows
+          .filter((row) => templateMatchesTarget(row.scope, { uid, field: scopeFieldOf(field), presetName }))
+          // Synced blocks only where the field allows the `synced` block.
+          .filter((row) => row.kind !== 'synced' || isBlockAllowed(preset, 'synced'))
+          .map(toDto)
+      );
     },
 
     /**
@@ -311,7 +329,8 @@ module.exports = ({ strapi }) => {
      */
     async findOne(documentId, { includeDisabled }) {
       const row = await findRow(documentId);
-      if (!includeDisabled && row.enabled === false) throw notFound();
+      // A disabled synced source is only no longer offered for insertion; existing references still show it.
+      if (!includeDisabled && row.enabled === false && row.kind !== 'synced') throw notFound();
       return toDto(row);
     },
 
@@ -340,6 +359,9 @@ module.exports = ({ strapi }) => {
     async update(documentId, input) {
       const existing = await findRow(documentId);
       const data = toRow(input);
+      // References point at synced sources: neither side may change kind.
+      if ((existing.kind === 'synced') !== (data.kind === 'synced'))
+        invalid('kind', 'The type of a synced block cannot be changed');
       const row = await query().update({ where: { id: existing.id }, data });
       return toDto(row);
     },
@@ -377,6 +399,110 @@ module.exports = ({ strapi }) => {
     },
 
     /**
+     * How often a synced source is used: every Magic Editor X field of the
+     * `api::` content types (top level, components, dynamic zones; drafts and
+     * published versions, all locales) is read in id-ordered batches and
+     * checked for a reference, plus the templates and patterns that contain
+     * one. It reads the stored data, so edits through the Content Manager,
+     * the Content API or scripts are all counted. Bounded by `USAGE_LIMITS`;
+     * `complete: false` means the counts are lower bounds. Counts only: no
+     * entry ids or content are returned or logged.
+     * @param {string} documentId - Source id.
+     * @returns {Promise<{ entries: number, fields: number, templates: number, complete: boolean }>} Usage.
+     */
+    async usage(documentId) {
+      const row = await findRow(documentId);
+      if (row.kind !== 'synced') throw notFound();
+      const uses = (value) => {
+        let data = value;
+        if (!isPlainObject(data) || !Array.isArray(data.blocks)) data = normalizeEditorDataSafe(value);
+        return Boolean(
+          data && Array.isArray(data.blocks) && data.blocks.some((block) => syncedRefOf(block) === documentId)
+        );
+      };
+      const deadline = Date.now() + USAGE_LIMITS.timeoutMs;
+      const entries = new Set();
+      let fields = 0;
+      let scanned = 0;
+      let complete = true;
+      const cache = new Map();
+      const types = Object.values(strapi.contentTypes || {})
+        .filter((ct) => typeof ct.uid === 'string' && ct.uid.startsWith('api::'))
+        .filter((ct) => schemaHasEditorFields(strapi, ct, cache))
+        .sort((a, b) => a.uid.localeCompare(b.uid));
+      scan: for (const contentType of types) {
+        const editorQuery = guardQuery(strapi, contentType, 0, isEditorAttribute);
+        if (!editorQuery) continue;
+        const localized = Boolean(contentType.pluginOptions?.i18n?.localized);
+        const statuses = contentType.options?.draftAndPublish ? ['draft', 'published'] : ['published'];
+        const fieldNames = [
+          ...new Set([...editorQuery.fields, 'documentId', ...(localized ? ['locale'] : [])]),
+        ];
+        for (const status of statuses) {
+          let cursor = 0;
+          for (;;) {
+            if (Date.now() > deadline || scanned >= USAGE_LIMITS.maxRows) {
+              complete = false;
+              break scan;
+            }
+            const rows = await strapi.documents(contentType.uid).findMany({
+              filters: { id: { $gt: cursor } },
+              sort: [{ id: 'asc' }],
+              limit: USAGE_LIMITS.batchSize,
+              status,
+              ...(localized ? { locale: '*' } : {}),
+              fields: fieldNames,
+              ...(Object.keys(editorQuery.populate).length ? { populate: editorQuery.populate } : {}),
+            });
+            if (!Array.isArray(rows) || rows.length === 0) break;
+            for (const entry of rows) {
+              cursor = Math.max(cursor, Number(entry.id) || 0);
+              scanned += 1;
+              for (const { value } of collectGuarded(
+                strapi,
+                contentType,
+                entry,
+                '',
+                [],
+                0,
+                isEditorAttribute
+              )) {
+                if (!uses(value)) continue;
+                fields += 1;
+                entries.add(`${contentType.uid}|${entry.documentId}`);
+              }
+            }
+            if (rows.length < USAGE_LIMITS.batchSize) break;
+          }
+        }
+      }
+      const templateRows = await query().findMany({
+        where: { kind: { $in: ['template', 'pattern'] } },
+        select: ['blocks'],
+        limit: TEMPLATE_LIMITS.templates,
+      });
+      const templates = templateRows.filter((item) => uses(item.blocks)).length;
+      return { entries: entries.size, fields, templates, complete };
+    },
+
+    /**
+     * Blocks of synced sources by id (Content API expansion; no permission
+     * check here: see services/references.js for the rule).
+     * @param {string[]} ids - Source documentIds (valid ids only are queried).
+     * @returns {Promise<Map<string, object>>} Stored source documents by id.
+     */
+    async syncedSources(ids) {
+      const wanted = [...new Set((ids || []).filter((id) => typeof id === 'string' && ID_PATTERN.test(id)))];
+      if (!wanted.length) return new Map();
+      const rows = await query().findMany({
+        where: { kind: 'synced', documentId: { $in: wanted } },
+        select: ['documentId', 'blocks'],
+        limit: wanted.length,
+      });
+      return new Map(rows.map((item) => [item.documentId, item.blocks]));
+    },
+
+    /**
      * Saves a new order.
      * @param {string[]} ids - Every template id once.
      * @returns {Promise<object[]>} Templates in the new order.
@@ -409,3 +535,4 @@ module.exports.listQuerySchema = listQuerySchema;
 module.exports.cleanBlocks = cleanBlocks;
 module.exports.displayName = displayName;
 module.exports.toDto = toDto;
+module.exports.USAGE_LIMITS = USAGE_LIMITS;
