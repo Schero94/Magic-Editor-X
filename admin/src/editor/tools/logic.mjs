@@ -241,7 +241,7 @@ export const normalizeButton = (data) => {
 /**
  * Normalises simple image data.
  * @param {unknown} data - Stored data.
- * @returns {{ url: string, caption: string, withBorder: boolean, withBackground: boolean, stretched: boolean }} Data.
+ * @returns {{ url: string, caption: string, withBorder: boolean, withBackground: boolean, stretched: boolean, alt: string, decorative: boolean }} Data.
  */
 export const normalizeSimpleImage = (data) => {
   const d = data && typeof data === 'object' ? data : {};
@@ -251,6 +251,8 @@ export const normalizeSimpleImage = (data) => {
     withBorder: d.withBorder === true,
     withBackground: d.withBackground === true,
     stretched: d.stretched === true,
+    alt: str(d.alt).slice(0, 500),
+    decorative: d.decorative === true,
   };
 };
 

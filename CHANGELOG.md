@@ -1,5 +1,52 @@
 # Changelog
 
+## [Unreleased]
+
+Magic Editor X 2.2 makes one editor fit every field and every frontend: per-field presets enforced on the server, renderers with a published schema and types, clean paste and migrations, faster writing, version comparison and quality checks. No migration is needed; stored content keeps the same Editor.js JSON.
+
+### Highlights
+
+- **Field presets.** Each field gets its own rules in the Content-Type Builder: a preset (`full`, `article`, `basic`, `minimal`), allowed blocks and heading levels, block and character limits, required alternative text, allowed links (entries, web addresses, both or none), AI and live collaboration on or off, and a publishing guard. They are enforced on every save (Content Manager, Content API, imports, code) and over the live channel, not only in the editor. Content that no longer fits is listed with **Fix automatically**, and the Content Manager shows the reason on the field.
+- **Render anywhere.** `magic-editor-x/render` renders stored content to HTML, plain text or Markdown in Node, browsers and edge runtimes, without dependencies and safe against XSS even for content that skipped the sanitiser; internal links can follow slug changes at render time, images get responsive `srcset` from the Media Library. `magic-editor-x/schema` (JSON Schema) and `magic-editor-x/types` (TypeScript) describe the stored data.
+- **Paste and migrate.** Word, Google Docs, LibreOffice, web pages and Markdown paste as real blocks (headings, nested lists, checklists, tables, code, links), with images copied into the Media Library. `npx magic-editor-x migrate` converts Strapi Blocks, Markdown and HTML fields (dry run first, idempotent, report without content).
+- **Write faster.** Markdown shortcuts, find and replace (regular expressions optional), a keyboard shortcut help (Ctrl/Cmd+/), focus mode, actions for several selected blocks (move, duplicate, delete, convert, copy as Markdown), characters and reading time with the field's limits, `lang` and right-to-left direction from the content locale.
+- **Media.** Alternative text and "decorative image" on image blocks, required when the field asks for it; images keep their Media Library id and formats.
+- **Versions.** Named versions, a comparison of any version with the current content (blocks and words, moves and formatting-only changes) and restore of a single block.
+- **Quality checks.** An accessibility lint (alternative texts, heading order, link texts in five languages, table headers, contrast of custom colours) and a link check (internal entries with your permissions, Media Library files, external links only when the owner turns it on), with an optional publishing guard.
+
+### Added
+
+- Custom field options `preset`, `allowedBlocks`, `headingLevels`, `maxBlocks`, `maxCharacters`, `requireAlt`, `linkTargets`, `disableAi`, `disableCollaboration`, `publishGuard`.
+- Package exports `magic-editor-x/render`, `magic-editor-x/schema`, `magic-editor-x/types`; the `magic-editor-x` CLI (`migrate`); services `migrate` (`run`) and `links.resolveHrefs`.
+- Admin routes `PUT /magic-editor-x/history/:id` (rename a version) and `POST /magic-editor-x/quality/links`; `POST /history` accepts `label`; versions return `label`; `GET /config` returns `data.quality.externalLinks`.
+- Config keys `qualityChecks.externalLinks` (`enabled` false, `timeoutMs` 5000, `perMinute` 30) and `collaboration.compaction` (`enabled` true, `idleSeconds` 60, `minBytes` 262144, `ratio` 4, `checkIntervalSeconds` 30).
+- Stored data: `image.data.decorative`, `simpleImage.data.alt` and `simpleImage.data.decorative` (optional).
+- Dependencies `marked` and `htmlparser2` (maintained; bundled into the server build).
+
+### Changed
+
+- `POST /magic-editor-x/ai/:action` requires `target: { uid, field }` (the field the text comes from); the admin sends it. Scripts that call this admin route directly must add it.
+- Validation errors of Magic Editor X fields carry `details.errors` with the field path (next to `details.code`), so the Content Manager shows them on the field.
+- Long-lived live rooms are rebuilt as a new generation when they are idle and much larger than their content; open editors switch without reconnecting.
+
+### Fixed
+
+- Internal links lost their entry reference (`data-mex-uid`) when content was shown again in the editor, so the next save stored a plain link (since 2.1).
+- Opening a long document in a new live room froze the tab (about 40 s with 2,000 blocks); typing now stays responsive (25 keystrokes in under a second).
+- An edit typed into a block that someone replaced at the same moment was acknowledged but not stored, and that editor's later edits did not reach other processes.
+- Re-applying unsent edits after a room reset could drop or garble concurrent remote edits.
+- `embed.service` and `codeFlask.language` only keep strings.
+- The history dialog footer wraps at narrow widths; "Save current version" no longer overflows its button at 320 px (contrast finding of 2.1).
+- The Content Manager no longer throws while showing a Magic Editor X validation error.
+
+### Security
+
+- See [docs/security-audit-2.2.md](./docs/security-audit-2.2.md): paste and import (MEX-22-01), renderers (MEX-22-02), server-side presets (MEX-22-03), AI per field (MEX-22-04), link check SSRF and existence leaks (MEX-22-05), migration (MEX-22-06), versions (MEX-22-07), internal-link integrity (MEX-22-08), lost edits (MEX-22-09), long documents (MEX-22-10).
+
+### Migration
+
+- No action needed. Rebuild the admin (`npm run build`) after updating. Fields without the new options behave as before (`full`).
+
 # [2.1.0](https://github.com/Schero94/Magic-Editor-X/compare/v2.0.0...v2.1.0) (2026-11-11)
 
 

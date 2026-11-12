@@ -18,14 +18,18 @@
  * (zero lost edits), no client has unsent edits, a fresh client sees the same
  * state; time-bucket and session-end versions exist exactly once per key; a
  * permission change reaches a client on another process within the SLA; the
- * AI rate limit is shared by all processes.
+ * AI rate limit is shared by all processes; field presets are enforced by
+ * every process (save and live channel) when the app has the `teaser` field
+ * with `{ preset: 'minimal' }` (see CONTRIBUTING.md).
  * Prints a result table and exits non-zero on any failure.
  */
 import crypto from 'node:crypto';
 import http from 'node:http';
 import { io } from 'socket.io-client';
 import pg from 'pg';
+import * as Y from 'yjs';
 import { loadCollabClient, simulatedEditor, ioRef } from './node-client.mjs';
+import { applyEditorDataToDoc } from '../../shared/ydoc.mjs';
 
 ioRef.io = io;
 const { createCollabClient } = await loadCollabClient();
@@ -134,7 +138,12 @@ for (let i = 0; i < CLIENTS; i += 1) {
     createCollabClient,
     url: BALANCER,
     requestSession: session(token, BALANCER, () => net.online),
-    onSocket: (socket) => net.sockets.push(socket),
+    onSocket: (socket) => {
+      net.sockets.push(socket);
+      socket.on('disconnect', () => {
+        net.disconnects = (net.disconnects || 0) + 1;
+      });
+    },
   });
   sim.net = net;
   clients.push(sim);
@@ -149,7 +158,9 @@ const slotEdit = (sim) => {
   const ok = sim.edit((doc) => {
     const slots = [];
     doc.blocks.forEach((block) => {
-      if (block.type === 'paragraph') slots.push((f) => (block.data.text = f(block.data.text)));
+      // The compaction phase rewrites the "churn" block as a whole; markers go elsewhere.
+      if (block.type === 'paragraph' && block.id !== 'churn')
+        slots.push((f) => (block.data.text = f(block.data.text)));
       if (block.type === 'table')
         block.data.content.forEach((row) => row.forEach((_, k) => slots.push((f) => (row[k] = f(row[k])))));
       if (block.type === 'list')
@@ -158,7 +169,8 @@ const slotEdit = (sim) => {
     const r = Math.random();
     const table = doc.blocks.find((block) => block.type === 'table');
     const list = doc.blocks.find((block) => block.type === 'list');
-    if (r < 0.08) {
+    // An editor that has not rendered the room yet has no slots: add a block instead.
+    if (r < 0.08 || slots.length === 0) {
       doc.blocks.splice(rnd(doc.blocks.length + 1), 0, {
         id: `b${sim.name}x${counter}`,
         type: 'paragraph',
@@ -273,6 +285,254 @@ record(
   `port ${lastPort}`
 );
 
+// --- room compaction across processes ---------------------------------------------
+// The hosts run with small compaction thresholds (MEX_COMPACT_* in
+// cluster-acceptance.mjs). Everybody types and deletes (tombstones), one
+// client goes offline and keeps typing, then the room is idle: exactly one
+// process must rebuild it as a new generation, every process and online
+// client must switch without reconnecting, and the offline client's edits
+// must arrive once after it comes back.
+if (process.env.MEX_COMPACT_IDLE_S) {
+  const idleMs = Number(process.env.MEX_COMPACT_IDLE_S) * 1000;
+  const pgdb = new pg.Client({ connectionString: process.env.MEX_CLUSTER_PG_URL });
+  await pgdb.connect();
+  const generation = async () =>
+    (await pgdb.query('select owner from magic_editor_x_locks where key = $1', [`gen:${room}`])).rows[0]
+      ?.owner || null;
+  const churnStart = markers.length;
+  const churnEnd = Date.now() + 10000;
+  while (Date.now() < churnEnd) {
+    for (const sim of clients) {
+      sim.edit((doc) => {
+        const block = doc.blocks.find((item) => item.id === 'churn');
+        if (!block) doc.blocks.push({ id: 'churn', type: 'paragraph', data: { text: 'Churn' } });
+        else block.data.text = block.data.text === 'Churn' ? `Churn ${'x'.repeat(60)}` : 'Churn';
+      });
+      if (Math.random() < 0.2) slotEdit(sim);
+    }
+    await sleep(100);
+  }
+  const genBefore = await generation();
+  const phaseStart = markers.length;
+  const pendingAtIdle = clients
+    .filter((sim) => sim.state.pending || sim.state.status !== 'live')
+    .map((sim) => `${sim.name}:${sim.state.status}${sim.state.pending ? '+pending' : ''}`);
+  const snapshotsAtIdle = new Map(clients.map((sim) => [sim.name, JSON.stringify(sim.client.getData())]));
+  const offlineSim = clients[clients.length - 1];
+  offlineSim.net.online = false;
+  for (const socket of offlineSim.net.sockets) if (socket.io && socket.io.engine) socket.io.engine.close();
+  await sleep(500);
+  for (let i = 0; i < 3; i += 1) slotEdit(offlineSim);
+  const online = clients.slice(0, -1);
+  const disconnectsBefore = online.map((sim) => sim.net.disconnects || 0);
+  const idleStart = Date.now();
+  let genAfter = genBefore;
+  while (genAfter === genBefore && Date.now() - idleStart < idleMs + 60000) {
+    await sleep(500);
+    genAfter = await generation();
+  }
+  const switchMs = Date.now() - idleStart;
+  const rows = (
+    await pgdb.query('select kind from magic_editor_x_collab_updates where room = $1 order by id', [room])
+  ).rows;
+  record(
+    'idle room is compacted into a new generation once',
+    genAfter !== genBefore &&
+      rows.length >= 1 &&
+      rows[0].kind === 'seed' &&
+      rows.filter((r) => r.kind === 'seed').length === 1,
+    `after ${Math.round(switchMs / 1000)} s idle (threshold ${idleMs / 1000} s); ${rows.length} row(s) left, first ${rows[0] && rows[0].kind}`
+  );
+  await sleep(3000);
+  const sameState = online.every(
+    (sim) => JSON.stringify(sim.client.getData().blocks) === JSON.stringify(online[0].client.getData().blocks)
+  );
+  record(
+    'online clients on every process switch without reconnecting',
+    sameState &&
+      online.every((sim, i) => (sim.net.disconnects || 0) === disconnectsBefore[i]) &&
+      online.every((sim) => sim.state.status === 'live'),
+    `${online.length} clients, ${online.reduce((n, sim, i) => n + (sim.net.disconnects || 0) - disconnectsBefore[i], 0)} disconnects`
+  );
+  offlineSim.net.online = true;
+  for (const socket of offlineSim.net.sockets) if (!socket.connected) socket.connect();
+  const burstEnd = Date.now() + 8000;
+  while (Date.now() < burstEnd) {
+    for (const sim of clients) if (Math.random() < 0.35) slotEdit(sim);
+    await sleep(200);
+  }
+  const settleCompaction = Date.now();
+  let converged = false;
+  while (!converged && Date.now() - settleCompaction < 60000) {
+    await sleep(500);
+    const first = JSON.stringify(clients[0].client.getData().blocks);
+    converged =
+      clients.every((sim) => sim.state.status === 'live' && !sim.state.pending) &&
+      clients.every((sim) => JSON.stringify(sim.client.getData().blocks) === first);
+  }
+  const text = JSON.stringify(clients[0].client.getData());
+  const lostAfter = markers.filter((marker) => !text.includes(marker));
+  const dupesAfter = markers.filter((marker) => text.split(marker).length > 2);
+  record(
+    'after compaction: converged, offline edits kept, nothing lost or duplicated',
+    converged && lostAfter.length === 0 && dupesAfter.length === 0,
+    `${markers.length - lostAfter.length}/${markers.length} edits, ${dupesAfter.length} duplicates, converged ${converged}${
+      lostAfter.length
+        ? `; lost ${lostAfter.slice(0, 8).join(',')} (offline client ${offlineSim.name}, ${markers.length} markers, churn from ${churnStart}, offline phase from ${phaseStart}; not settled at idle: ${pendingAtIdle.join(' ') || 'none'}; holders at idle: ${lostAfter
+            .slice(0, 3)
+            .map(
+              (m) =>
+                `${m}=${[...snapshotsAtIdle]
+                  .filter(([, text]) => text.includes(m))
+                  .map(([name]) => name)
+                  .join('/')}`
+            )
+            .join(' ')})`
+        : ''
+    }`
+  );
+  const late = simulatedEditor({
+    name: 'late',
+    createCollabClient,
+    url: url(ports[3]),
+    requestSession: session(token, url(ports[3])),
+  });
+  await waitLive([late], 30000);
+  await sleep(1000);
+  record(
+    'a fresh client after compaction sees the same state',
+    JSON.stringify(late.client.getData().blocks) === JSON.stringify(clients[0].client.getData().blocks),
+    `port ${ports[3]}`
+  );
+  late.client.destroy();
+  await pgdb.end();
+}
+
+// --- field presets on every process -------------------------------------------
+// `teaser` has `{ preset: 'minimal' }`: no headings. Every process must refuse a
+// heading on save and over its realtime channel, and accept a paragraph.
+{
+  const probe = await call(BALANCER, 'POST', '/content-manager/collection-types/api::article.article', {
+    token,
+    body: {
+      title: 'Cluster preset',
+      teaser: { time: 1, version: '2.31.7', blocks: [{ id: 't1', type: 'paragraph', data: { text: 'hi' } }] },
+    },
+  });
+  if (probe.status === 201 && probe.body.data.teaser) {
+    const presetTarget = {
+      uid: 'api::article.article',
+      documentId: probe.body.data.documentId,
+      locale: 'en',
+      field: 'teaser',
+    };
+    const heading = {
+      time: 2,
+      version: '2.31.7',
+      blocks: [{ id: 'h1', type: 'header', data: { text: 'H', level: 2 } }],
+    };
+    let saves = 0;
+    let live = 0;
+    let accepted = 0;
+    for (const port of ports) {
+      const saved = await call(
+        url(port),
+        'PUT',
+        `/content-manager/collection-types/api::article.article/${presetTarget.documentId}?plugins[i18n][locale]=en`,
+        {
+          token,
+          body: { title: 'Cluster preset', teaser: heading },
+        }
+      );
+      if (saved.status === 400 && saved.body.error.details.code === 'PRESET_VIOLATION') saves += 1;
+      const sess = await call(url(port), 'POST', '/magic-editor-x/collaboration/session', {
+        token,
+        body: presetTarget,
+      });
+      if (sess.status !== 200) continue;
+      const ydoc = new Y.Doc();
+      const socket = io(url(port), {
+        path: sess.body.data.path,
+        transports: ['websocket'],
+        auth: { token: sess.body.data.token, protocol: 3 },
+        reconnection: false,
+      });
+      await new Promise((resolve) => {
+        socket.on('mx:sync', ({ update }) => {
+          Y.applyUpdate(ydoc, new Uint8Array(update));
+          resolve();
+        });
+        setTimeout(resolve, 5000);
+      });
+      const send = (blocks) => {
+        const scratch = new Y.Doc();
+        Y.applyUpdate(scratch, Y.encodeStateAsUpdate(ydoc));
+        const before = Y.encodeStateVector(scratch);
+        applyEditorDataToDoc(scratch, { time: 3, version: '2.31.7', blocks });
+        const update = Y.encodeStateAsUpdate(scratch, before);
+        return new Promise((resolve) =>
+          socket.timeout(5000).emit('mx:update', update, (error, reply) => resolve(error ? {} : reply))
+        );
+      };
+      const current = () => {
+        const order = ydoc.getArray('order').toArray();
+        return order.map((id) => ({
+          id,
+          type: ydoc.getMap('blocks').get(id).get('type'),
+          data: { text: String(ydoc.getMap('blocks').get(id).get('data').get('text') || '') },
+        }));
+      };
+      const refused = await send([
+        ...current(),
+        { id: `h${port}`, type: 'header', data: { text: 'H', level: 2 } },
+      ]);
+      if (refused && refused.ok === false && refused.code === 'INVALID_UPDATE') live += 1;
+      socket.disconnect();
+      const sess2 = await call(url(port), 'POST', '/magic-editor-x/collaboration/session', {
+        token,
+        body: presetTarget,
+      });
+      const socket2 = io(url(port), {
+        path: sess2.body.data.path,
+        transports: ['websocket'],
+        auth: { token: sess2.body.data.token, protocol: 3 },
+        reconnection: false,
+      });
+      const fresh = new Y.Doc();
+      await new Promise((resolve) => {
+        socket2.on('mx:sync', ({ update }) => {
+          Y.applyUpdate(fresh, new Uint8Array(update));
+          resolve();
+        });
+        setTimeout(resolve, 5000);
+      });
+      Y.applyUpdate(ydoc, Y.encodeStateAsUpdate(fresh));
+      const ok = await new Promise((resolve) => {
+        const scratch = new Y.Doc();
+        Y.applyUpdate(scratch, Y.encodeStateAsUpdate(fresh));
+        const before = Y.encodeStateVector(scratch);
+        applyEditorDataToDoc(scratch, {
+          time: 4,
+          version: '2.31.7',
+          blocks: [...current(), { id: `p${port}`, type: 'paragraph', data: { text: `from ${port}` } }],
+        });
+        socket2
+          .timeout(5000)
+          .emit('mx:update', Y.encodeStateAsUpdate(scratch, before), (error, reply) =>
+            resolve(error ? {} : reply)
+          );
+      });
+      if (ok && ok.ok) accepted += 1;
+      socket2.disconnect();
+    }
+    record(
+      'field presets are enforced by every process (save and live channel)',
+      saves === ports.length && live === ports.length && accepted === ports.length,
+      `save refused ${saves}/${ports.length}, live heading refused ${live}/${ports.length}, paragraph accepted ${accepted}/${ports.length}`
+    );
+  }
+}
+
 // --- permission revocation across processes ------------------------------------
 const suffix = crypto.randomBytes(3).toString('hex');
 const role = await call(url(ports[0]), 'POST', '/admin/roles', {
@@ -373,7 +633,7 @@ const statuses = [];
 for (let i = 0; i < 32; i += 1) {
   const r = await call(url(ports[i % ports.length]), 'POST', '/magic-editor-x/ai/improve', {
     token,
-    body: { text: `Hello ${i}` },
+    body: { text: `Hello ${i}`, target: { uid: 'api::article.article', field: 'body' } },
   });
   statuses.push(r.status);
 }

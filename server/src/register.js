@@ -2,7 +2,10 @@
 
 const { createLogger } = require('./utils/logger');
 const { cleanEditorValue } = require('./utils/sanitizer');
+const { resolveFieldPreset, allowedInlineTags, checkPreset } = require('../../shared/presets.mjs');
 const { schemaHasEditorFields, transformEditorFields } = require('./utils/editor-fields');
+const { registerPublishGuard } = require('./utils/publish-guard');
+const { formErrorDetails } = require('./utils/form-errors');
 
 /**
  * Registers the custom field and the Document Service middleware that
@@ -28,20 +31,45 @@ module.exports = ({ strapi }) => {
     const contentType = ctx.contentType || strapi.contentType(ctx.uid);
     if (!contentType || !schemaHasEditorFields(strapi, contentType, cache)) return next();
     const rawHtml = strapi.config.get('plugin::magic-editor-x.rawHtml') || 'sanitize';
+    const violations = [];
+    let current = null;
     try {
-      transformEditorFields(strapi, contentType, ctx.params.data, (value) =>
-        cleanEditorValue(value, { rawHtml })
-      );
+      transformEditorFields(strapi, contentType, ctx.params.data, (value, attribute, path) => {
+        current = path;
+        const preset = resolveFieldPreset(attribute && attribute.options);
+        const clean = cleanEditorValue(value, { rawHtml, inlineTags: allowedInlineTags(preset) });
+        if (preset.restricted) {
+          for (const violation of checkPreset(clean, preset)) {
+            if (violations.length < 50) violations.push({ field: path, ...violation });
+          }
+        }
+        return clean;
+      });
     } catch (error) {
       if (error && error.name === 'EditorDataError') {
         const { errors } = require('@strapi/utils');
-        throw new errors.ValidationError('A Magic Editor X field contains invalid content', {
-          code: error.code,
-        });
+        throw new errors.ValidationError(
+          'A Magic Editor X field contains invalid content',
+          formErrorDetails(error.code, current ? [current] : [])
+        );
       }
       logger.error('editor content could not be sanitised', error);
       throw error;
     }
+    if (violations.length) {
+      const { errors } = require('@strapi/utils');
+      // Field presets (custom field options) are enforced here for every
+      // writer. Details carry rule codes and block ids only, never content.
+      throw new errors.ValidationError(
+        'A Magic Editor X field does not match its field settings',
+        formErrorDetails(
+          'PRESET_VIOLATION',
+          violations.map((violation) => violation.field),
+          { violations }
+        )
+      );
+    }
     return next();
   });
+  registerPublishGuard(strapi);
 };

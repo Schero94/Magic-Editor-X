@@ -10,7 +10,11 @@ Key facts for code generation:
 - Inline HTML may contain b, strong, i, em, u, s, mark, code, a, br, span (cdx-tooltip), sub, sup. Escape plain-text fields when rendering.
 - Admin routes only, under `/magic-editor-x`, each gated by `admin::hasPermissions` with `plugin::magic-editor-x.access|collaborate|ai.use|custom-blocks.manage|settings.read|settings.update`. Version history and collaboration also check Content Manager read/update permissions per document, locale and field; denied answers 404.
 - Collaboration: `POST /magic-editor-x/collaboration/session` returns a one-time signed token; Socket.IO on `collaboration.path` with the WebSocket transport only; handshake `auth: { token, protocol: 3 }`; events `mx:welcome`, `mx:sync`, `mx:update`, `mx:resync`, `mx:presence`, `mx:cursor`, `mx:role`, `mx:error`. Block data is structured in Yjs (schema 3: maps, arrays, texts per field), so concurrent edits of different cells, items, tunes and fields merge. Works without sticky sessions; all processes share the database and `ADMIN_JWT_SECRET`.
-- AI: `POST /magic-editor-x/ai/:action` with `{ text, language?, tone? }`; actions improve, grammar, shorten, expand, summarize, simplify, translate, tone, continue. The key never reaches the browser.
+- AI: `POST /magic-editor-x/ai/:action` with `{ text, language?, tone?, target: { uid, field } }`; actions improve, grammar, shorten, expand, summarize, simplify, translate, tone, continue. The key never reaches the browser; fields with `disableAi` answer 403.
+- Field presets are custom field options (`preset` full|article|basic|minimal, `allowedBlocks`, `headingLevels`, `maxBlocks`, `maxCharacters`, `requireAlt`, `linkTargets` all|internal|external|none, `disableAi`, `disableCollaboration`, `publishGuard`), enforced on save (400 `PRESET_VIOLATION`) and on the live channel.
+- Render stored values with `magic-editor-x/render` (`renderHtml`, `renderText`, `renderMarkdown`; options `links`, `media`, `overrides`, `embedHosts`, `imageSizes`, `rawHtml` + `sanitizeRaw`); validate with `magic-editor-x/schema` (JSON Schema 2020-12); types in `magic-editor-x/types`.
+- Migrate fields: `npx magic-editor-x migrate --uid api::x.y --from old --to new [--apply]` (Strapi Blocks, Markdown, HTML; dry run by default).
+- Quality checks: `shared/quality.mjs` lint, `POST /magic-editor-x/quality/links`, publish guard via `publishGuard` (400 `QUALITY_GATE`). Versions can be named (`PUT /magic-editor-x/history/:id`).
 
 ## Docs
 

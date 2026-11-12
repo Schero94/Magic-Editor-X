@@ -331,6 +331,27 @@ export const editorStyles = css`
       }
     }
 
+    .mex-alt {
+      display: flex;
+      flex-direction: column;
+      gap: ${s(2)};
+      margin-top: ${s(2)};
+      min-width: 0;
+
+      .mex-alt__input[aria-invalid='true'] {
+        border-color: ${c('danger600')};
+      }
+    }
+
+    .image-tool .mex-alt {
+      margin-bottom: ${s(2)};
+    }
+
+    ::highlight(mex-find) {
+      background-color: ${c('warning200')};
+      color: ${c('neutral800')};
+    }
+
     .mex-tool__caption {
       color: ${c('neutral600')};
       font-size: ${f(1)};

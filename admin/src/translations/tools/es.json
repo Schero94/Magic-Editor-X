@@ -169,5 +169,11 @@
   "tools.csp.hostBlocked": "El panel de administración no permite contenido de {host}. El bloque se guarda sin cambios y sigue apareciendo en su sitio web.",
   "tools.csp.blockedGeneric": "El panel de administración no permite este contenido. El bloque se guarda sin cambios y sigue apareciendo en su sitio web.",
   "tools.csp.howTo": "Cómo permitirlo",
-  "tools.csp.askAdmin": "Pida a un administrador que lo permita en la Content Security Policy."
+  "tools.csp.askAdmin": "Pida a un administrador que lo permita en la Content Security Policy.",
+  "tools.image.altRequired": "Texto alternativo (obligatorio)",
+  "tools.image.alt": "Texto alternativo",
+  "tools.image.altPlaceholder": "Describa la imagen para las personas que no pueden verla",
+  "tools.image.decorative": "Imagen decorativa (sin texto alternativo)",
+  "tools.image.altMissing": "Añada un texto alternativo o marque la imagen como decorativa.",
+  "tools.hyperlink.internalOnly": "Elija una entrada con «Enlazar a una entrada»"
 }

@@ -4,6 +4,7 @@ module.exports = {
   store: require('./store'),
   access: require('./access'),
   links: require('./links'),
+  quality: require('./quality'),
   editor: require('./editor'),
   settings: require('./settings'),
   ai: require('./ai'),
@@ -11,4 +12,5 @@ module.exports = {
   history: require('./history'),
   collaboration: require('./collaboration'),
   migrations: require('./migrations'),
+  migrate: require('./migrate'),
 };

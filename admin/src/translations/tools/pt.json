@@ -169,5 +169,11 @@
   "tools.csp.hostBlocked": "O painel de administração não permite conteúdo de {host}. O bloco é guardado sem alterações e continua a aparecer no seu site.",
   "tools.csp.blockedGeneric": "O painel de administração não permite este conteúdo. O bloco é guardado sem alterações e continua a aparecer no seu site.",
   "tools.csp.howTo": "Como permitir",
-  "tools.csp.askAdmin": "Peça a um administrador que o permita na Content Security Policy."
+  "tools.csp.askAdmin": "Peça a um administrador que o permita na Content Security Policy.",
+  "tools.image.altRequired": "Texto alternativo (obrigatório)",
+  "tools.image.alt": "Texto alternativo",
+  "tools.image.altPlaceholder": "Descreva a imagem para pessoas que não podem vê-la",
+  "tools.image.decorative": "Imagem decorativa (sem texto alternativo)",
+  "tools.image.altMissing": "Adicione um texto alternativo ou marque a imagem como decorativa.",
+  "tools.hyperlink.internalOnly": "Escolha uma entrada com \"Ligar a uma entrada\""
 }

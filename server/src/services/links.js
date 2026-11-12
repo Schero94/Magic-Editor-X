@@ -2,6 +2,8 @@
 
 const { errors } = require('@strapi/utils');
 const { renderLinkPattern } = require('../../../shared/link-pattern.mjs');
+const { normalizeEditorDataSafe, isPlainObject } = require('../../../shared/editor-data.mjs');
+const { parseInline, nodesToHtml } = require('../../../shared/render/inline.mjs');
 
 /**
  * Internal-link picker: lists linkable content types and searches entries.
@@ -72,8 +74,122 @@ module.exports = ({ strapi }) => {
   const isLocalized = (contentType) => Boolean(contentType.pluginOptions?.i18n?.localized);
   const hasDraftAndPublish = (contentType) => contentType.options?.draftAndPublish === true;
 
+  /**
+   * Calls `fn` for every string in block data (depth bounded) and stores its result.
+   * @param {unknown} value - Data value.
+   * @param {(text: string) => string} fn - String transformer.
+   * @param {number} [depth=0] - Depth.
+   * @returns {unknown} New value.
+   */
+  const mapStrings = (value, fn, depth = 0) => {
+    if (depth > 12) return value;
+    if (typeof value === 'string') return fn(value);
+    if (Array.isArray(value)) return value.map((item) => mapStrings(item, fn, depth + 1));
+    if (isPlainObject(value)) {
+      const out = {};
+      for (const [key, item] of Object.entries(value)) out[key] = mapStrings(item, fn, depth + 1);
+      return out;
+    }
+    return value;
+  };
+
+  /**
+   * Visits the internal-link elements of inline HTML.
+   * @param {Array<object>} nodes - Parsed inline nodes.
+   * @param {(attrs: Record<string, string>) => void} fn - Visitor.
+   * @param {number} [depth=0] - Depth.
+   */
+  const eachInternalLink = (nodes, fn, depth = 0) => {
+    if (depth > 40) return;
+    for (const node of nodes) {
+      if (node.type !== 'element') continue;
+      if (node.tag === 'a' && node.attrs['data-mex-uid'] && node.attrs['data-mex-document-id'])
+        fn(node.attrs);
+      eachInternalLink(node.children, fn, depth + 1);
+    }
+  };
+
   return {
     PAGE_SIZE,
+
+    /**
+     * Re-renders the `href` of every internal link in a stored value from
+     * `links.urlPattern` and the entry's current values, so links follow slug
+     * changes. Internal links store the entry reference (`data-mex-uid`,
+     * `data-mex-document-id`, `data-mex-locale`); the `href` is only the
+     * value at the time of linking. For server code (custom controllers,
+     * lifecycles, webhooks): it does not check admin permissions, so call it
+     * only for content the caller may already see. Links to entries that no
+     * longer exist keep their stored `href`.
+     * @param {unknown} value - Stored field value.
+     * @param {{ status?: 'draft'|'published' }} [options] - Which version supplies the slug (default `published`).
+     * @returns {Promise<object|null>} A new value (the input is not changed), or null for empty input.
+     */
+    async resolveHrefs(value, options = {}) {
+      const data = normalizeEditorDataSafe(value);
+      if (!data) return null;
+      const status = options.status === 'draft' ? 'draft' : 'published';
+      const wanted = new Map();
+      for (const block of data.blocks) {
+        mapStrings(block.data, (text) => {
+          if (text.includes('data-mex-uid'))
+            eachInternalLink(parseInline(text), (attrs) => {
+              const uid = attrs['data-mex-uid'];
+              const key = `${attrs['data-mex-locale'] || ''}`;
+              if (!wanted.has(uid)) wanted.set(uid, new Map());
+              if (!wanted.get(uid).has(key)) wanted.get(uid).set(key, new Set());
+              wanted.get(uid).get(key).add(attrs['data-mex-document-id']);
+            });
+          return text;
+        });
+      }
+      if (!wanted.size) return data;
+      const pattern = strapi.config.get('plugin::magic-editor-x.links.urlPattern') || '';
+      const hrefs = new Map();
+      for (const [uid, byLocale] of wanted) {
+        const contentType = strapi.contentType(uid);
+        if (!contentType || !uid.startsWith('api::')) continue;
+        const slugField = slugFieldFor(contentType);
+        for (const [locale, ids] of byLocale) {
+          const list = [...ids].slice(0, 1000);
+          const rows = await strapi.documents(uid).findMany({
+            filters: { documentId: { $in: list } },
+            locale: isLocalized(contentType) ? locale || undefined : undefined,
+            status: hasDraftAndPublish(contentType) ? status : undefined,
+            fields: slugField ? ['documentId', slugField] : ['documentId'],
+            limit: list.length,
+          });
+          for (const row of rows || []) {
+            const href = renderLinkPattern(pattern, {
+              documentId: row.documentId,
+              locale: isLocalized(contentType) ? locale || null : null,
+              slug: slugField && typeof row[slugField] === 'string' ? row[slugField] : null,
+              collection: contentType.info?.pluralName || '',
+              singular: contentType.info?.singularName || '',
+            });
+            if (href) hrefs.set(`${uid}|${locale}|${row.documentId}`, href);
+          }
+        }
+      }
+      const blocks = data.blocks.map((block) => ({
+        ...block,
+        data: mapStrings(block.data, (text) => {
+          if (!text.includes('data-mex-uid')) return text;
+          const nodes = parseInline(text);
+          let changed = false;
+          eachInternalLink(nodes, (attrs) => {
+            const key = `${attrs['data-mex-uid']}|${attrs['data-mex-locale'] || ''}|${attrs['data-mex-document-id']}`;
+            const href = hrefs.get(key);
+            if (href && href !== attrs.href) {
+              attrs.href = href;
+              changed = true;
+            }
+          });
+          return changed ? nodesToHtml(nodes) : text;
+        }),
+      }));
+      return { ...data, blocks };
+    },
 
     /**
      * Content types the caller can read in the Content Manager.

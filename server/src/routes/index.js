@@ -20,6 +20,7 @@ const adminRoutes = [
   ['GET', '/content-types', 'editor.contentTypes', [ACTIONS.access]],
   ['GET', '/links/types', 'links.types', [ACTIONS.access]],
   ['GET', '/links/search', 'links.search', [ACTIONS.access]],
+  ['POST', '/quality/links', 'quality.links', [ACTIONS.access]],
 
   ['GET', '/custom-blocks', 'customBlocks.list', [ACTIONS.access]],
   ['GET', '/custom-blocks/export', 'customBlocks.export', [ACTIONS.customBlocksManage]],
@@ -35,6 +36,7 @@ const adminRoutes = [
   ['GET', '/history', 'history.list', [ACTIONS.access]],
   ['GET', '/history/:id', 'history.findOne', [ACTIONS.access]],
   ['POST', '/history', 'history.create', [ACTIONS.access]],
+  ['PUT', '/history/:id', 'history.rename', [ACTIONS.access]],
 
   ['POST', '/ai/:action', 'ai.run', [ACTIONS.access, ACTIONS.ai]],
 

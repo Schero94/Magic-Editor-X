@@ -1,4 +1,5 @@
 import { ICONS, el, field, input, select, button, editable } from './dom';
+import { createAltControl } from './alt-text';
 import { sanitizeInline, sanitizeUrl } from '../sanitize';
 import {
   ALERT_TYPES,
@@ -254,7 +255,7 @@ export class SimpleImageTool extends BaseTool {
     }
     const img = el('img', {
       className: 'mex-simple-image__img',
-      attrs: { src: url, alt: '', loading: 'lazy' },
+      attrs: { src: url, alt: this.data.decorative ? '' : this.data.alt || '', loading: 'lazy' },
     });
     const frame = el('div', { className: 'mex-simple-image__frame', children: [img] });
     this.caption = editable({
@@ -263,7 +264,20 @@ export class SimpleImageTool extends BaseTool {
       readOnly: this.readOnly,
       className: 'mex-tool__caption',
     });
-    this.wrapper.append(frame, this.caption);
+    const alt = createAltControl({
+      t: (id, fallback, values) => this.t(id, fallback, values),
+      alt: this.data.alt,
+      decorative: this.data.decorative,
+      required: this.config.requireAlt === true,
+      readOnly: this.readOnly,
+      onChange: (value) => {
+        this.data.alt = value.alt;
+        this.data.decorative = value.decorative;
+        img.setAttribute('alt', value.decorative ? '' : value.alt);
+        this.changed();
+      },
+    });
+    this.wrapper.append(frame, this.caption, alt.element);
     this.applyFlags();
   }
 
@@ -308,7 +322,10 @@ export class SimpleImageTool extends BaseTool {
   }
 
   save() {
-    return { ...this.data, caption: this.caption ? this.caption.innerHTML : this.data.caption };
+    const out = { ...this.data, caption: this.caption ? this.caption.innerHTML : this.data.caption };
+    if (!out.decorative) delete out.decorative;
+    if (!out.alt) delete out.alt;
+    return out;
   }
 
   validate(data) {

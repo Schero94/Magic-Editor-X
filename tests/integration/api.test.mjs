@@ -10,6 +10,8 @@ const RUN = Date.now()
   .replace(/[^a-z0-9]/g, '');
 const doc = (blocks) => ({ time: Date.now(), version: '2.31.7', blocks });
 const p = (id, text) => ({ id, type: 'paragraph', data: { text } });
+/** Every AI request names the field it comes from (field presets can turn AI off). */
+const AI_TARGET = { uid: 'api::article.article', field: 'body' };
 
 test('anonymous calls are rejected on every admin route', async () => {
   for (const [method, path] of [
@@ -373,7 +375,7 @@ test('AI assistant: owner provider, encrypted key never returned, permissions, r
     });
     const before = await call('POST', '/magic-editor-x/ai/improve', {
       token: await tokenFor('editor'),
-      body: { text: 'Hello' },
+      body: { target: AI_TARGET, text: 'Hello' },
     });
     assert.equal(before.status, 503);
     const saved = await call('PUT', '/magic-editor-x/settings', {
@@ -412,7 +414,7 @@ test('AI assistant: owner provider, encrypted key never returned, permissions, r
     assert.ok(switched.body.error.details.fieldErrors['ai.apiKey']);
     const improved = await call('POST', '/magic-editor-x/ai/improve', {
       token: await tokenFor('editor'),
-      body: { text: 'Helo <b>wrld</b>' },
+      body: { target: AI_TARGET, text: 'Helo <b>wrld</b>' },
     });
     assert.equal(improved.status, 200, JSON.stringify(improved.body));
     assert.equal(improved.body.data.text, 'Improved <b>text</b>');
@@ -424,22 +426,22 @@ test('AI assistant: owner provider, encrypted key never returned, permissions, r
     assert.match(sent.json.messages[0].content, /<text>\nHelo <b>wrld<\/b>\n<\/text>/);
     const tooLong = await call('POST', '/magic-editor-x/ai/shorten', {
       token: await tokenFor('editor'),
-      body: { text: 'x'.repeat(2001) },
+      body: { target: AI_TARGET, text: 'x'.repeat(2001) },
     });
     assert.equal(tooLong.status, 413);
     const badLanguage = await call('POST', '/magic-editor-x/ai/translate', {
       token: await tokenFor('editor'),
-      body: { text: 'x', language: 'Klingon' },
+      body: { target: AI_TARGET, text: 'x', language: 'Klingon' },
     });
     assert.equal(badLanguage.status, 400);
     const unknown = await call('POST', '/magic-editor-x/ai/jailbreak', {
       token: await tokenFor('editor'),
-      body: { text: 'x' },
+      body: { target: AI_TARGET, text: 'x' },
     });
     assert.equal(unknown.status, 404);
     const reviewer = await call('POST', '/magic-editor-x/ai/improve', {
       token: await tokenFor('reviewer'),
-      body: { text: 'x' },
+      body: { target: AI_TARGET, text: 'x' },
     });
     assert.equal(reviewer.status, 403);
     const compatible = await call('PUT', '/magic-editor-x/settings', {
@@ -459,7 +461,7 @@ test('AI assistant: owner provider, encrypted key never returned, permissions, r
     assert.equal(compatible.status, 200);
     const summary = await call('POST', '/magic-editor-x/ai/summarize', {
       token: admin,
-      body: { text: 'Long text' },
+      body: { target: AI_TARGET, text: 'Long text' },
     });
     assert.equal(summary.body.data.text, 'Summary');
     assert.equal(requests.at(-1).path, '/v1/chat/completions');
@@ -483,7 +485,7 @@ test('AI assistant: owner provider, encrypted key never returned, permissions, r
     for (let i = 0; i < 25; i += 1) {
       const response = await call('POST', '/magic-editor-x/ai/grammar', {
         token: admin,
-        body: { text: 'x' },
+        body: { target: AI_TARGET, text: 'x' },
       });
       if (response.status === 429) limited += 1;
     }

@@ -118,6 +118,18 @@ export const createReplica = ({
       base = shown || docToEditorData(shadow);
     },
 
+    /** What the editor showed last (the base of the next local diff). */
+    view: () => base,
+
+    /**
+     * Sets what the editor shows without changing the documents (after the
+     * replica was replaced while the editor kept its content).
+     * @param {object} data - Editor content.
+     */
+    setView(data) {
+      base = data;
+    },
+
     /** Content of the shared state. */
     read: () => reader.read(),
     /** Room generation. */

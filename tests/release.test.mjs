@@ -130,10 +130,13 @@ test('Dependabot waits before proposing releases and never proposes versions the
   }
 });
 
-test('the package ships only build output and the top-level docs', () => {
+test('the package ships only build output, the data contract and the top-level docs', () => {
   const pkg = JSON.parse(read('package.json'));
   assert.deepEqual(pkg.files, [
     'dist',
+    'schema',
+    'types',
+    'bin',
     'strapi-admin.js',
     'strapi-server.js',
     'README.md',
@@ -142,5 +145,17 @@ test('the package ships only build output and the top-level docs', () => {
   ]);
   for (const entry of pkg.files) assert.doesNotMatch(entry, /docs|tests|pics|scripts/);
   assert.equal(pkg.name, 'magic-editor-x');
+  // The CLI is self-contained (Node built-ins and the project's own @strapi/strapi).
+  assert.deepEqual(pkg.bin, { 'magic-editor-x': 'bin/magic-editor-x.mjs' });
+  assert.doesNotMatch(read('bin/magic-editor-x.mjs'), /from '\.\.?\//);
   assert.equal(pkg.homepage, 'https://schero94.github.io/Magic-Editor-X/');
+  // strapi-plugin build requires `source` and `default`; types sit next to the bundles (dist/render/index.d.ts, .d.mts).
+  assert.deepEqual(pkg.exports['./render'], {
+    source: './shared/render/index.mjs',
+    import: './dist/render/index.mjs',
+    require: './dist/render/index.js',
+    default: './dist/render/index.js',
+  });
+  assert.equal(pkg.exports['./schema'], './schema/magic-editor-x.schema.json');
+  assert.equal(pkg.exports['./types'], './types/index.d.ts');
 });

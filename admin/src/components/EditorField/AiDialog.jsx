@@ -62,7 +62,7 @@ const toText = (html) =>
  * @param {object} props - Props.
  * @returns {JSX.Element} Modal.
  */
-export const AiDialog = ({ t, request, config, onApply, onClose }) => {
+export const AiDialog = ({ t, request, config, target, onApply, onClose }) => {
   const { post } = useFetchClient();
   const actions = (config && config.actions) || Object.keys(ACTION_LABELS);
   const [action, setAction] = useState(actions[0] || 'improve');
@@ -85,6 +85,7 @@ export const AiDialog = ({ t, request, config, onApply, onClose }) => {
         API.ai(action),
         {
           text: original,
+          target,
           ...(action === 'translate' ? { language } : {}),
           ...(action === 'tone' ? { tone } : {}),
         },

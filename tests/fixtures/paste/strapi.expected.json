@@ -1,0 +1,97 @@
+[
+  {
+    "type": "header",
+    "data": {
+      "text": "Strapi &lt;Blocks&gt;",
+      "level": 2
+    }
+  },
+  {
+    "type": "paragraph",
+    "data": {
+      "text": "Plain <b>bold</b><u class=\"cdx-underline\"><i> and </i></u><code class=\"inline-code\">code()</code> <a href=\"https://example.com/a?b=1&amp;c=2\"><s class=\"cdx-strikethrough\">link</s></a> bad"
+    }
+  },
+  {
+    "type": "list",
+    "data": {
+      "style": "unordered",
+      "meta": {},
+      "items": [
+        {
+          "content": "One",
+          "meta": {},
+          "items": [
+            {
+              "content": "One.a",
+              "meta": {},
+              "items": []
+            }
+          ]
+        },
+        {
+          "content": "Two",
+          "meta": {},
+          "items": []
+        }
+      ]
+    }
+  },
+  {
+    "type": "list",
+    "data": {
+      "style": "ordered",
+      "meta": {
+        "start": 1,
+        "counterType": "numeric"
+      },
+      "items": [
+        {
+          "content": "First",
+          "meta": {},
+          "items": []
+        }
+      ]
+    }
+  },
+  {
+    "type": "quote",
+    "data": {
+      "text": "Quote<br>line",
+      "caption": "",
+      "alignment": "left"
+    }
+  },
+  {
+    "type": "codeFlask",
+    "data": {
+      "code": "const a = '<b>';",
+      "language": "javascript"
+    }
+  },
+  {
+    "type": "image",
+    "data": {
+      "file": {
+        "url": "/uploads/field_123.jpg",
+        "alt": "Field at dawn",
+        "width": 1200,
+        "height": 800,
+        "mime": "image/jpeg",
+        "id": 7,
+        "documentId": "img7synthetic",
+        "formats": {
+          "small": {
+            "url": "/uploads/small_field_123.jpg",
+            "width": 500,
+            "height": 333
+          }
+        }
+      },
+      "caption": "Dawn &lt;i&gt;",
+      "withBorder": false,
+      "withBackground": false,
+      "stretched": false
+    }
+  }
+]

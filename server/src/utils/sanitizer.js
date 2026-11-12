@@ -109,10 +109,34 @@ const sanitizeInlineHtml = (html) => sanitizeHtml(String(html), INLINE_OPTIONS);
  */
 const sanitizeRawHtml = (html) => sanitizeHtml(String(html), RAW_OPTIONS);
 
+const restrictedInline = new Map();
+
+/**
+ * Inline sanitiser limited to some tags (field presets unwrap the formatting
+ * of inline tools they leave out; the text stays). Cached per tag set.
+ * @param {string[]} tags - Allowed inline tags.
+ * @returns {(html: string) => string} Sanitiser.
+ */
+const inlineSanitizerFor = (tags) => {
+  const allowed = INLINE_TAGS.filter((tag) => tags.includes(tag));
+  const key = allowed.join(',');
+  if (!restrictedInline.has(key)) {
+    const allowedAttributes = {};
+    const allowedClasses = {};
+    for (const tag of allowed) {
+      if (INLINE_ATTRIBUTES[tag]) allowedAttributes[tag] = INLINE_ATTRIBUTES[tag];
+      if (INLINE_CLASSES[tag]) allowedClasses[tag] = INLINE_CLASSES[tag];
+    }
+    const options = { ...INLINE_OPTIONS, allowedTags: allowed, allowedAttributes, allowedClasses };
+    restrictedInline.set(key, (html) => sanitizeHtml(String(html), options));
+  }
+  return restrictedInline.get(key);
+};
+
 /**
  * Normalises and sanitises one Magic Editor X field value.
  * @param {unknown} value - Submitted or stored value.
- * @param {{ rawHtml?: 'sanitize'|'allow'|'disable' }} [options] - Raw HTML policy.
+ * @param {{ rawHtml?: 'sanitize'|'allow'|'disable', inlineTags?: string[]|null }} [options] - Raw HTML policy and, for field presets, the allowed inline tags.
  * @returns {object|null} Clean Editor.js object or null.
  * @throws {import('../../../shared/editor-data.mjs').EditorDataError} When the value is not editor content or too large.
  */
@@ -120,7 +144,9 @@ const cleanEditorValue = (value, options = {}) => {
   const normalized = normalizeEditorData(value);
   if (!normalized) return null;
   return sanitizeEditorData(normalized, {
-    sanitizeInlineHtml,
+    sanitizeInlineHtml: Array.isArray(options.inlineTags)
+      ? inlineSanitizerFor(options.inlineTags)
+      : sanitizeInlineHtml,
     sanitizeRawHtml,
     rawHtml: options.rawHtml || 'sanitize',
   });

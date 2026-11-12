@@ -55,6 +55,28 @@ const fieldTargetSchema = z.strictObject({
   field: fieldPathSchema,
 });
 
+/** Media Library file reference: numeric id or documentId. */
+const mediaIdSchema = z.union([
+  z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
+  z.string().regex(/^[A-Za-z0-9]{1,64}$/),
+]);
+
+/** Link check: POST /quality/links. */
+const qualityLinksSchema = z.strictObject({
+  internal: z
+    .array(
+      z.strictObject({
+        uid: apiUidSchema,
+        documentId: documentIdSchema,
+        locale: localeSchema.nullish(),
+      })
+    )
+    .max(100)
+    .optional(),
+  media: z.array(mediaIdSchema).max(100).optional(),
+  external: z.array(z.string().min(1).max(2048)).max(20).optional(),
+});
+
 /**
  * Turns a zod error into `{ formErrors, fieldErrors }` with dotted paths
  * (`ai.model`, `fields.2.name`) so the admin can show each message next to its field.
@@ -98,6 +120,7 @@ module.exports = {
   fieldTargetSchema,
   apiUidSchema,
   linkSearchSchema,
+  qualityLinksSchema,
   parseOrThrow,
   issueDetails,
 };

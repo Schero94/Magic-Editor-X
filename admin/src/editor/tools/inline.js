@@ -330,8 +330,21 @@ export class HyperlinkTool extends AttributeInlineTool {
         children: [this.newTab, el('span', { text: this.t('tools.hyperlink.newTab', 'Open in a new tab') })],
       })
     );
-    if (this.config.fetchClient && typeof this.config.fetchClient.get === 'function')
+    const targets = this.config.linkTargets || 'all';
+    if (
+      targets !== 'external' &&
+      this.config.fetchClient &&
+      typeof this.config.fetchClient.get === 'function'
+    )
       this.renderPicker(actions);
+    if (targets === 'internal' && this.input) {
+      // Field preset: only links to entries. The address comes from the picked entry.
+      this.input.readOnly = true;
+      this.input.placeholder = this.t(
+        'tools.hyperlink.internalOnly',
+        'Choose an entry with "Link to an entry"'
+      );
+    }
     return actions;
   }
 
@@ -393,6 +406,9 @@ export class HyperlinkTool extends AttributeInlineTool {
       url = `https://${url}`;
     const safe = sanitizeUrl(url);
     if (!safe) return false;
+    const targets = this.config.linkTargets || 'all';
+    if (targets === 'external') this.internal = null;
+    if (targets === 'internal' && !(this.internal && this.internal.href === safe)) return false;
     node.setAttribute('href', safe);
     for (const [name, attribute] of Object.entries(internalLinkAttributes(this.internal, safe))) {
       if (attribute) node.setAttribute(name, attribute);

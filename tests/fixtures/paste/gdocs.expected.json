@@ -1,0 +1,65 @@
+[
+  {
+    "type": "header",
+    "data": {
+      "text": "Release plan",
+      "level": 1
+    }
+  },
+  {
+    "type": "paragraph",
+    "data": {
+      "text": "<b>Owner:</b> Team <u class=\"cdx-underline\"><i>Example</i></u><s class=\"cdx-strikethrough\">old</s><sup>2</sup>"
+    }
+  },
+  {
+    "type": "list",
+    "data": {
+      "style": "unordered",
+      "meta": {},
+      "items": [
+        {
+          "content": "Draft",
+          "meta": {},
+          "items": [
+            {
+              "content": "Review <a href=\"https://docs.example.com/review\"><u class=\"cdx-underline\">checklist</u></a>",
+              "meta": {},
+              "items": []
+            }
+          ]
+        },
+        {
+          "content": "Publish",
+          "meta": {},
+          "items": []
+        }
+      ]
+    }
+  },
+  {
+    "type": "table",
+    "data": {
+      "withHeadings": false,
+      "stretched": false,
+      "content": [
+        ["<b>Step</b>", "<b>Date</b>"],
+        ["Freeze", "2026-12-01"]
+      ]
+    }
+  },
+  {
+    "type": "image",
+    "data": {
+      "file": {
+        "url": "https://lh7-rt.googleusercontent.example/docsz/AD_synthetic",
+        "width": 200,
+        "height": 100
+      },
+      "caption": "",
+      "withBorder": false,
+      "withBackground": false,
+      "stretched": false
+    }
+  }
+]

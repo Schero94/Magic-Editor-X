@@ -1,0 +1,57 @@
+[
+  { "type": "heading", "level": 2, "children": [{ "type": "text", "text": "Strapi <Blocks>" }] },
+  {
+    "type": "paragraph",
+    "children": [
+      { "type": "text", "text": "Plain " },
+      { "type": "text", "text": "bold", "bold": true },
+      { "type": "text", "text": " and ", "italic": true, "underline": true },
+      { "type": "text", "text": "code()", "code": true },
+      { "type": "text", "text": " " },
+      {
+        "type": "link",
+        "url": "https://example.com/a?b=1&c=2",
+        "children": [{ "type": "text", "text": "link", "strikethrough": true }]
+      },
+      { "type": "link", "url": "javascript:alert(1)", "children": [{ "type": "text", "text": " bad" }] }
+    ]
+  },
+  {
+    "type": "list",
+    "format": "unordered",
+    "children": [
+      { "type": "list-item", "children": [{ "type": "text", "text": "One" }] },
+      {
+        "type": "list",
+        "format": "unordered",
+        "indentLevel": 1,
+        "children": [{ "type": "list-item", "children": [{ "type": "text", "text": "One.a" }] }]
+      },
+      { "type": "list-item", "children": [{ "type": "text", "text": "Two" }] }
+    ]
+  },
+  {
+    "type": "list",
+    "format": "ordered",
+    "children": [{ "type": "list-item", "children": [{ "type": "text", "text": "First" }] }]
+  },
+  { "type": "quote", "children": [{ "type": "text", "text": "Quote\nline" }] },
+  { "type": "code", "language": "javascript", "children": [{ "type": "text", "text": "const a = '<b>';" }] },
+  {
+    "type": "image",
+    "image": {
+      "id": 7,
+      "documentId": "img7synthetic",
+      "url": "/uploads/field_123.jpg",
+      "alternativeText": "Field at dawn",
+      "caption": "Dawn <i>",
+      "width": 1200,
+      "height": 800,
+      "mime": "image/jpeg",
+      "formats": { "small": { "url": "/uploads/small_field_123.jpg", "width": 500, "height": 333 } }
+    },
+    "children": [{ "type": "text", "text": "" }]
+  },
+  { "type": "paragraph", "children": [{ "type": "text", "text": "" }] },
+  { "type": "unknown-node", "children": [] }
+]
