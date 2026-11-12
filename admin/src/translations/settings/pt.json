@@ -513,5 +513,10 @@
   "settings.csp.copy": "Copiar o excerto",
   "settings.csp.copied": "Excerto copiado para a área de transferência.",
   "settings.csp.copyFailed": "O navegador não permitiu copiar. O excerto está selecionado; copie-o com Ctrl+C ou Cmd+C.",
-  "settings.csp.mergeHint": "Mantenha as suas outras diretivas (por exemplo, os hosts do seu fornecedor de upload) e reinicie o Strapi após a alteração."
+  "settings.csp.mergeHint": "Mantenha as suas outras diretivas (por exemplo, os hosts do seu fornecedor de upload) e reinicie o Strapi após a alteração.",
+  "settings.audit.event.suggestionCreate": "Alterações sugeridas",
+  "settings.audit.event.suggestionAccept": "Sugestão aceite",
+  "settings.audit.event.suggestionReject": "Sugestão rejeitada",
+  "settings.audit.event.suggestionWithdraw": "Sugestão retirada",
+  "settings.audit.counts.outdated": "Substituída uma versão mais recente do bloco"
 }

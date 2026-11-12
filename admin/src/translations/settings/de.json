@@ -513,5 +513,10 @@
   "settings.csp.copy": "Snippet kopieren",
   "settings.csp.copied": "Snippet in die Zwischenablage kopiert.",
   "settings.csp.copyFailed": "Der Browser hat das Kopieren nicht erlaubt. Das Snippet ist markiert; kopieren Sie es mit Strg+C oder Cmd+C.",
-  "settings.csp.mergeHint": "Behalten Sie Ihre anderen Direktiven (zum Beispiel die Hosts Ihres Upload-Providers) und starten Sie Strapi nach der Änderung neu."
+  "settings.csp.mergeHint": "Behalten Sie Ihre anderen Direktiven (zum Beispiel die Hosts Ihres Upload-Providers) und starten Sie Strapi nach der Änderung neu.",
+  "settings.audit.event.suggestionCreate": "Änderungen vorgeschlagen",
+  "settings.audit.event.suggestionAccept": "Vorschlag angenommen",
+  "settings.audit.event.suggestionReject": "Vorschlag abgelehnt",
+  "settings.audit.event.suggestionWithdraw": "Vorschlag zurückgezogen",
+  "settings.audit.counts.outdated": "Neuere Fassung des Blocks ersetzt"
 }
