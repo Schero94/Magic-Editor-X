@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useFetchClient } from '@strapi/strapi/admin';
 import { API, readApiError } from '../../utils/api';
 import { countThreads } from '../../../../shared/comments.mjs';
+import { mentionsInText } from '../../../../shared/comment-mentions.mjs';
 
 /**
  * Block comments of one editor field (2.3).
@@ -40,6 +41,7 @@ export const useComments = ({ target, enabled, panelOpen, elementRef }) => {
     canWrite: false,
     canModerate: false,
     positionalThreads: [],
+    notifications: [],
   });
   const [newFromOthers, setNewFromOthers] = useState(0);
   const knownIdsRef = useRef(null);
@@ -84,6 +86,8 @@ export const useComments = ({ target, enabled, panelOpen, elementRef }) => {
           canWrite: Boolean(meta.canWrite),
           canModerate: Boolean(meta.canModerate),
           positionalThreads: Array.isArray(meta.positionalThreads) ? meta.positionalThreads : [],
+          // 2.4: the caller's unread mentions and replies on this field.
+          notifications: Array.isArray(meta.notifications) ? meta.notifications : [],
         });
       },
       () => {
@@ -112,6 +116,7 @@ export const useComments = ({ target, enabled, panelOpen, elementRef }) => {
           canWrite: false,
           canModerate: false,
           positionalThreads: [],
+          notifications: [],
         };
 
   // Is the field on screen?
@@ -168,7 +173,10 @@ export const useComments = ({ target, enabled, panelOpen, elementRef }) => {
       try {
         const { data } = await request();
         await refresh();
-        return data && data.data;
+        const value = data && data.data;
+        // 2.4: mentions the server dropped (the person can no longer read this field).
+        const dropped = Number(data && data.meta && data.meta.droppedMentions) || 0;
+        return value && typeof value === 'object' && dropped ? { ...value, droppedMentions: dropped } : value;
       } catch (error) {
         const info = readApiError(error);
         const failure = new Error(info.message || 'Request failed');
@@ -180,11 +188,47 @@ export const useComments = ({ target, enabled, panelOpen, elementRef }) => {
     [refresh]
   );
 
+  /** 2.4: mention ids for a request body (only when the text still names them). */
+  const mentionIds = (body, mentions) =>
+    Array.isArray(mentions) ? { mentions: mentionsInText(body, mentions).map((mention) => mention.id) } : {};
+
   const actions = {
-    createThread: ({ blockId, body, excerpt }) =>
-      run(() => post(API.comments, { ...params(), blockId, body, excerpt: excerpt || null })),
-    reply: (id, body) => run(() => post(API.commentReplies(id), { body })),
-    edit: (id, body) => run(() => put(API.comment(id), { body })),
+    createThread: ({ blockId, body, excerpt, anchor, mentions }) =>
+      run(() =>
+        post(API.comments, {
+          ...params(),
+          blockId,
+          body,
+          excerpt: excerpt || null,
+          ...(anchor ? { anchor } : {}),
+          ...mentionIds(body, mentions),
+        })
+      ),
+    reply: (id, body, mentions) =>
+      run(() => post(API.commentReplies(id), { body, ...mentionIds(body, mentions) })),
+    edit: (id, body, mentions) => run(() => put(API.comment(id), { body, ...mentionIds(body, mentions) })),
+    /**
+     * 2.4: people the caller can mention in this field (opaque ids and names).
+     * @param {string} text - Search text.
+     * @returns {Promise<Array<{ id: string, name: string }>>} People.
+     */
+    searchMentions: async (text) => {
+      const { data } = await get(API.commentMentionable, { params: { ...params(), q: text || undefined } });
+      return Array.isArray(data && data.data) ? data.data : [];
+    },
+    /**
+     * 2.4: marks the caller's notifications of these threads read.
+     * @param {string[]} threadIds - Threads.
+     * @returns {Promise<void>}
+     */
+    markThreadsRead: async (threadIds) => {
+      if (!threadIds.length) return;
+      try {
+        await post(API.notificationsReadAll, { threadIds });
+      } finally {
+        await refresh();
+      }
+    },
     resolve: (id) => run(() => post(API.commentResolve(id), {})),
     reopen: (id) => run(() => post(API.commentReopen(id), {})),
     remove: (id) => run(() => del(API.comment(id))),

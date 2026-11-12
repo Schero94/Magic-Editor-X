@@ -288,6 +288,7 @@
   "tools.focal.none": "No focal point set (frontends use the centre).",
   "tools.focal.toggleSet": "Focal point {x} %, {y} %",
   "tools.focal.toggle": "Set focal point",
+  "tools.names.comment": "Comment",
   "tools.names.gallery": "Gallery",
   "tools.names.video": "Video",
   "tools.names.audio": "Audio",

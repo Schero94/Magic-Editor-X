@@ -15,6 +15,7 @@ module.exports = {
   blocks: require('./blocks'),
   history: require('./history'),
   comments: require('./comments'),
+  'comment-notifications': require('./comment-notifications'),
   templates: require('./templates'),
   'synced-versions': require('./synced-versions'),
   audit: require('./audit'),

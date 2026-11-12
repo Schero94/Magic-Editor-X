@@ -615,6 +615,16 @@ test('controllers: keyless positional fields refuse writes, unmapped rows are re
   services.store = { acquire: async () => true, release: async () => true, hit: async () => ({ count: 1 }) };
   services.history = historyService({ strapi });
   services.comments = commentsService({ strapi });
+  // 2.4 mentions and notifications are covered by tests/comment-mentions.test.mjs.
+  services['comment-notifications'] = {
+    resolveMentions: async () => ({ ids: [], dropped: 0 }),
+    notify: async () => ({ mentions: 0, replies: 0 }),
+    forField: async () => [],
+    pruneMentions: async () => {},
+    mentionMapper: async () => () => [],
+    removeForComments: async () => {},
+    readAll: async () => 0,
+  };
   const checked = [];
   services.access = {
     checkField: async (input) => {

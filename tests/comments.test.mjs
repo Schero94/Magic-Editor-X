@@ -147,14 +147,16 @@ test('comment actions are registered and every comment route has its policies', 
     assert.match(uid, /^[a-z]([a-z.-]+)[a-z]$/);
   }
   const commentRoutes = routes.admin.routes.filter((route) => route.path.startsWith('/comments'));
-  assert.equal(commentRoutes.length, 7);
+  // 2.4: + GET /comments/mentionable (writers only: only they can mention).
+  assert.equal(commentRoutes.length, 8);
   for (const route of commentRoutes) {
     const [auth, perms] = route.config.policies;
     assert.equal(auth, 'admin::isAuthenticatedAdmin');
     assert.equal(perms.name, 'admin::hasPermissions');
     assert.ok(perms.config.actions.includes(ACTIONS.access), route.path);
     assert.ok(perms.config.actions.includes(ACTIONS.commentsRead), route.path);
-    const writes = route.method !== 'GET' && route.method !== 'DELETE';
+    const writes =
+      (route.method !== 'GET' && route.method !== 'DELETE') || route.path === '/comments/mentionable';
     assert.equal(
       perms.config.actions.includes(ACTIONS.commentsWrite),
       writes,
@@ -234,6 +236,19 @@ const createFakeDb = () => {
 
 const { errors } = require('@strapi/utils');
 
+/** 2.4: notifications service without mentions (the 2.3 behaviour). */
+const notificationStub = () => ({
+  resolveMentions: async () => ({ ids: [], dropped: 0 }),
+  notify: async () => ({ mentions: 0, replies: 0 }),
+  forField: async () => [],
+  pruneMentions: async () => {},
+  mentionMapper: async () => () => [],
+  removeForComments: async () => {},
+  readAll: async () => 0,
+  removeForEntries: async () => {},
+  removeForRecipient: async () => {},
+});
+
 const createFixture = ({ readable = ['doc1'] } = {}) => {
   const db = createFakeDb();
   const counters = new Map();
@@ -256,6 +271,8 @@ const createFixture = ({ readable = ['doc1'] } = {}) => {
     },
   };
   services.comments = commentsService({ strapi });
+  // 2.4 mentions and notifications are covered by tests/comment-mentions.test.mjs.
+  services['comment-notifications'] = notificationStub();
   const controller = commentsController({ strapi });
   const users = {
     anna: { id: 1, firstname: 'Anna', lastname: 'Beispiel' },

@@ -288,6 +288,7 @@
   "tools.focal.none": "Kein Fokuspunkt gesetzt (Frontends verwenden die Mitte).",
   "tools.focal.toggleSet": "Fokuspunkt {x} %, {y} %",
   "tools.focal.toggle": "Fokuspunkt festlegen",
+  "tools.names.comment": "Kommentieren",
   "tools.names.gallery": "Galerie",
   "tools.names.video": "Video",
   "tools.names.audio": "Audio",

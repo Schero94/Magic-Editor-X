@@ -124,6 +124,17 @@ const defaults = {
     enabled: true,
     /** Comments and replies one admin may post per minute, shared by all processes. */
     perMinute: 30,
+    /** 2.4: @mention picker searches one admin may run per minute, shared by all processes. */
+    mentionsPerMinute: 60,
+    notifications: {
+      /**
+       * 2.4: e-mail people when they are mentioned, through Strapi's email plugin (owner opt-in).
+       * The mail names who mentioned them, the entry title they can read and a link; never the comment text.
+       */
+      email: false,
+      /** Mention e-mails one person receives per hour at most, shared by all processes. */
+      emailPerHour: 10,
+    },
   },
   qualityChecks: {
     externalLinks: {
@@ -266,7 +277,15 @@ const configSchema = z.looseObject({
     }),
   }),
   history: z.looseObject({ maxSnapshotsPerField: positiveInt(1000) }),
-  comments: z.looseObject({ enabled: z.boolean(), perMinute: positiveInt(1000) }),
+  comments: z.looseObject({
+    enabled: z.boolean(),
+    perMinute: positiveInt(1000),
+    // 2.4 keys are optional so a 2.3 configuration validated without the defaults merged stays valid.
+    mentionsPerMinute: positiveInt(1000).optional(),
+    notifications: z
+      .looseObject({ email: z.boolean().optional(), emailPerHour: positiveInt(1000).optional() })
+      .optional(),
+  }),
   qualityChecks: z
     .looseObject({
       externalLinks: z.looseObject({

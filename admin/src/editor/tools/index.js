@@ -40,6 +40,7 @@ import { GalleryTool, VideoTool, AudioTool } from './media';
 import { MathTool } from './math';
 import { InlineMathTool } from './inline-math';
 import { FootnoteTool } from './footnote';
+import { CommentInlineTool } from './comment';
 import { MARKED_BLOCKS } from '../../../../shared/sanitize-policy.mjs';
 import { markedTool } from './marked';
 import { isBlockAllowed } from '../../../../shared/presets.mjs';
@@ -79,6 +80,12 @@ const LEGACY_CUSTOM_NAMES = new Set([...Object.keys(MARKED_BLOCKS), 'mention']);
  * block names cannot contain `$`, so it never clashes with one.
  */
 const MENTION_FALLBACK_KEY = 'mention$mex';
+
+/**
+ * Key of the range comment inline tool (2.4). Custom block names cannot contain `$`, so it never
+ * clashes with one; the tool stores nothing in the content.
+ */
+const COMMENT_TOOL = 'comment$mex';
 
 /** Keys of the 2.4 inline tools when a custom block (Settings or code) owns their name. */
 const INLINE_FALLBACK_KEYS = Object.freeze({ inlineMath: 'inlineMath$mex', footnote: 'footnote$mex' });
@@ -121,7 +128,11 @@ export function buildTools(ctx) {
   const allowedInline = mentions
     ? keyed.flatMap((name) => (name === 'hyperlink' ? [name, mentionKey] : [name]))
     : keyed;
-  const inline = ctx.aiEnabled ? [...allowedInline, 'aiAssistant'] : allowedInline;
+  const withAi = ctx.aiEnabled ? [...allowedInline, 'aiAssistant'] : allowedInline;
+  // 2.4: "Comment" on a selection, for fields with comments the admin may write. Not content, so presets
+  // never remove it.
+  const commentsOn = typeof ctx.onComment === 'function';
+  const inline = commentsOn ? [...withAi, COMMENT_TOOL] : withAi;
   const levels = preset && preset.headingLevels.length ? preset.headingLevels : [1, 2, 3, 4, 5, 6];
   const canUpload = ctx.canUpload !== false;
   // Choosing files in the Media Library dialog needs `plugin::upload.read`.
@@ -349,6 +360,13 @@ export function buildTools(ctx) {
     };
   }
 
+  if (commentsOn) {
+    tools[COMMENT_TOOL] = {
+      class: CommentInlineTool,
+      config: { onComment: ctx.onComment, isAvailable: ctx.commentsAvailable },
+    };
+  }
+
   const withAiTune = ctx.aiEnabled && typeof ctx.onBlockAi === 'function';
   if (withAiTune) tools.aiBlockTune = { class: AiBlockTune, config: { t, onBlockAi: ctx.onBlockAi } };
 
@@ -383,6 +401,7 @@ const NOT_BLOCKS = new Set([
   'mention',
   MENTION_FALLBACK_KEY,
   'aiAssistant',
+  COMMENT_TOOL,
   'aiBlockTune',
   'alignmentTune',
   'textVariant',
@@ -489,6 +508,7 @@ export function editorI18n(t) {
         Math: tr('tools.names.math', 'Math'),
         'Inline math': tr('tools.names.inlineMath', 'Inline math'),
         Footnote: tr('tools.names.footnote', 'Footnote'),
+        Comment: tr('tools.names.comment', 'Comment'),
       },
       tools: {
         link: { 'Add a link': tr('tools.hyperlink.placeholder', 'Paste a link and press Enter') },

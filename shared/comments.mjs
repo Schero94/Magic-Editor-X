@@ -189,6 +189,8 @@ export const groupThreads = (rows) => {
       id: root.id,
       blockId: root.blockId,
       excerpt: root.excerpt || null,
+      // 2.4: range comments carry the anchor of the text they are on (shared/comment-anchor.mjs).
+      anchor: root.anchor || null,
       status: root.status,
       resolvedAt: root.resolvedAt || null,
       resolvedBy: root.resolvedBy || null,
@@ -202,6 +204,7 @@ export const groupThreads = (rows) => {
           resolvedAt: _r,
           resolvedBy: _rb,
           threadId: _t,
+          anchor: _a,
           ...comment
         }) => comment
       ),

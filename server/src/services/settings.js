@@ -243,6 +243,18 @@ module.exports = ({ strapi }) => {
           pollIntervalMs: config('collaboration.pollIntervalMs', 400),
           snapshotIntervalMinutes: config('collaboration.snapshotIntervalMinutes', 10),
         },
+        // 2.4: mention e-mails (config only, shown read-only).
+        mentionEmails: {
+          enabled: config('comments.notifications.email', false) === true,
+          available: (() => {
+            try {
+              return Boolean(strapi.plugin('email'));
+            } catch {
+              return false;
+            }
+          })(),
+          perHour: config('comments.notifications.emailPerHour', 10),
+        },
         rawHtml: config('rawHtml', 'sanitize'),
         uploads: {
           maxImageBytes: config('uploads.maxImageBytes', 10 * 1024 * 1024),

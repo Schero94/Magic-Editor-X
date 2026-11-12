@@ -34,6 +34,12 @@ export const API = {
   commentReplies: (id) => `/magic-editor-x/comments/${encodeURIComponent(id)}/replies`,
   commentResolve: (id) => `/magic-editor-x/comments/${encodeURIComponent(id)}/resolve`,
   commentReopen: (id) => `/magic-editor-x/comments/${encodeURIComponent(id)}/reopen`,
+  // 2.4: @mentions and notifications.
+  commentMentionable: '/magic-editor-x/comments/mentionable',
+  notifications: '/magic-editor-x/notifications',
+  notificationsReadAll: '/magic-editor-x/notifications/read-all',
+  notificationRead: (id) => `/magic-editor-x/notifications/${encodeURIComponent(id)}/read`,
+  notificationUnread: (id) => `/magic-editor-x/notifications/${encodeURIComponent(id)}/unread`,
   templates: '/magic-editor-x/templates',
   templateTargets: '/magic-editor-x/templates/targets',
   templatesOrder: '/magic-editor-x/templates/order',

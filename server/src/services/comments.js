@@ -16,6 +16,8 @@ const {
   ownerOfBlocks,
   fieldIdentity,
 } = require('../../../shared/field-identity.mjs');
+const { cleanAnchor } = require('../../../shared/comment-anchor.mjs');
+const { MAX_MENTIONS } = require('../../../shared/comment-mentions.mjs');
 
 /**
  * Block comments (2.3).
@@ -59,7 +61,11 @@ const toDto = (row, viewerId) => ({
   threadId: row.threadId || null,
   blockId: row.blockId,
   excerpt: row.threadId ? null : row.excerpt || null,
+  // 2.4: anchor of a range comment (root only; null for block comments).
+  anchor: row.threadId ? null : cleanAnchor(row.anchor),
   body: row.body,
+  // 2.4: filled by `withMentions` ({ id (opaque), name, you }).
+  mentions: [],
   author: {
     name: row.authorId == null ? null : row.authorName || null,
     own: viewerId != null && row.authorId != null && Number(row.authorId) === Number(viewerId),
@@ -73,8 +79,44 @@ const toDto = (row, viewerId) => ({
   resolvedBy: row.resolved ? { name: row.resolvedById == null ? null : row.resolvedByName || null } : null,
 });
 
+/**
+ * Stored mention list: distinct admin ids, bounded.
+ * @param {unknown} ids - Admin ids.
+ * @returns {number[]|null} Ids, or null when there are none.
+ */
+const storedMentions = (ids) => {
+  const list = Array.from(
+    new Set((Array.isArray(ids) ? ids : []).map(Number).filter((id) => Number.isInteger(id) && id > 0))
+  ).slice(0, MAX_MENTIONS);
+  return list.length ? list : null;
+};
+
 module.exports = ({ strapi }) => {
   const query = () => strapi.db.query(UID);
+  /** 2.4 notifications service (null in unit tests that stub only this service). */
+  const notifications = () => {
+    try {
+      return strapi.plugin('magic-editor-x').service('comment-notifications') || null;
+    } catch {
+      return null;
+    }
+  };
+
+  /**
+   * Comment DTOs of rows with their mention lists resolved (`{ id, name, you }`).
+   * @param {object[]} rows - Comment rows.
+   * @param {number|null} viewerId - Caller.
+   * @returns {Promise<object[]>} DTOs.
+   */
+  const withMentions = async (rows, viewerId) => {
+    const lists = rows.map((row) => row.mentions);
+    const service = notifications();
+    const map =
+      service && lists.some((list) => Array.isArray(list) && list.length)
+        ? await service.mentionMapper(lists, viewerId)
+        : () => [];
+    return rows.map((row) => ({ ...toDto(row, viewerId), mentions: map(row.mentions) }));
+  };
   const conf = (key, fallback) => {
     const value = strapi.config.get(`plugin::magic-editor-x.comments.${key}`);
     return value === undefined ? fallback : value;
@@ -200,6 +242,7 @@ module.exports = ({ strapi }) => {
         } else unmappedRows.push(root, ...replies);
       }
       const threadsOf = (list) => groupThreads(list.map((row) => toDto(row, viewerId)));
+      // Read-only legacy threads keep their text; mentions (2.4 only) cannot occur in them.
       return {
         mapped,
         byPath: new Map(Array.from(byPath, ([path, list]) => [path, threadsOf(list)])),
@@ -219,7 +262,7 @@ module.exports = ({ strapi }) => {
         orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
         limit: MAX_COMMENTS_PER_FIELD,
       });
-      const threads = groupThreads(rows.map((row) => toDto(row, viewerId)));
+      const threads = groupThreads(await withMentions(rows, viewerId));
       return { threads, counts: countThreads(threads) };
     },
 
@@ -249,9 +292,10 @@ module.exports = ({ strapi }) => {
     /**
      * Opens a thread on a block.
      * @param {{ uid: string, documentId: string, locale?: string|null, field: string }} target - Field (locale resolved).
-     * @param {{ blockId: string, body: string, excerpt?: string|null }} input - Validated input.
+     * @param {{ blockId: string, body: string, excerpt?: string|null, anchor?: object|null, mentions?: number[] }} input - Validated input
+     *   (2.4: `anchor` of a range comment, `mentions` admin ids already checked by `resolveMentions`).
      * @param {{ id: number }} user - Author (admin user).
-     * @returns {Promise<object>} The new thread.
+     * @returns {Promise<{ thread: object, row: object }>} The new thread and its row.
      * @throws {errors.ValidationError} Empty body or too many comments on the field.
      * @sideeffect Inserts one row.
      */
@@ -271,9 +315,11 @@ module.exports = ({ strapi }) => {
           authorId: user.id,
           authorName: displayName(user),
           resolved: false,
+          anchor: cleanAnchor(input.anchor),
+          mentions: storedMentions(input.mentions),
         },
       });
-      return groupThreads([toDto(row, user.id)])[0];
+      return { thread: groupThreads(await withMentions([row], user.id))[0], row };
     },
 
     /**
@@ -281,11 +327,12 @@ module.exports = ({ strapi }) => {
      * @param {object} root - Root row (from findTarget).
      * @param {string} bodyInput - Untrusted body.
      * @param {{ id: number }} user - Author.
-     * @returns {Promise<object>} The new comment.
+     * @param {number[]} [mentions] - 2.4: mentioned admin ids (checked by `resolveMentions`).
+     * @returns {Promise<{ comment: object, row: object }>} The new comment and its row.
      * @throws {errors.ValidationError} Not a thread, empty body or too many replies.
      * @sideeffect Inserts one row; may reopen the thread.
      */
-    async reply(root, bodyInput, user) {
+    async reply(root, bodyInput, user, mentions = []) {
       if (root.threadId) {
         throw new errors.ValidationError('Replies go to the thread', { code: 'NOT_A_THREAD' });
       }
@@ -312,6 +359,7 @@ module.exports = ({ strapi }) => {
           authorId: user.id,
           authorName: displayName(user),
           resolved: false,
+          mentions: storedMentions(mentions),
         },
       });
       if (root.resolved) {
@@ -320,7 +368,7 @@ module.exports = ({ strapi }) => {
           data: { resolved: false, resolvedAt: null, resolvedById: null, resolvedByName: null },
         });
       }
-      return toDto(row, user.id);
+      return { comment: (await withMentions([row], user.id))[0], row };
     },
 
     /**
@@ -328,20 +376,27 @@ module.exports = ({ strapi }) => {
      * @param {object} row - Comment row.
      * @param {string} bodyInput - Untrusted body.
      * @param {{ id: number }} user - Caller.
-     * @returns {Promise<object>} Updated comment.
+     * @param {number[]|undefined} [mentions] - 2.4: new mention list (admin ids, checked); undefined keeps it.
+     * @returns {Promise<{ comment: object, row: object, added: number[] }>} Updated comment, its row and newly mentioned ids.
      * @throws {errors.ForbiddenError} When the caller is not the author.
-     * @sideeffect Updates `body` and `editedAt`.
+     * @sideeffect Updates `body`, `editedAt` and `mentions`.
      */
-    async edit(row, bodyInput, user) {
+    async edit(row, bodyInput, user, mentions) {
       if (row.authorId == null || Number(row.authorId) !== Number(user.id)) {
         throw new errors.ForbiddenError('Only the author can edit this comment');
       }
       const body = cleanBody(bodyInput);
+      const before = storedMentions(row.mentions) || [];
+      const next = mentions === undefined ? before : storedMentions(mentions) || [];
       const updated = await query().update({
         where: { id: row.id },
-        data: { body, editedAt: new Date() },
+        data: { body, editedAt: new Date(), mentions: next.length ? next : null },
       });
-      return toDto(updated, user.id);
+      return {
+        comment: (await withMentions([updated], user.id))[0],
+        row: updated,
+        added: next.filter((id) => !before.includes(id)),
+      };
     },
 
     /**
@@ -390,6 +445,7 @@ module.exports = ({ strapi }) => {
       }
       if (row.threadId) {
         await query().delete({ where: { id: row.id } });
+        await notifications()?.removeForComments([row.documentId]);
         return { id: row.documentId, removed: 1 };
       }
       const replies = await query().findMany({
@@ -407,6 +463,8 @@ module.exports = ({ strapi }) => {
       await query().deleteMany({ where: { id: { $in: ids } } });
       // Replies beyond the read bound (never expected) go too.
       await query().deleteMany({ where: { threadId: row.documentId } });
+      // 2.4: notifications of the thread go with it (threadId covers the replies).
+      await notifications()?.removeForComments([row.documentId]);
       return { id: row.documentId, removed: ids.length };
     },
 
@@ -425,6 +483,7 @@ module.exports = ({ strapi }) => {
       if (named.length) or.push({ entryLocale: { $in: named } });
       if (locales.some((locale) => !locale)) or.push({ entryLocale: null });
       const result = await query().deleteMany({ where: { contentType: uid, entryId: documentId, $or: or } });
+      await notifications()?.removeForEntries(uid, documentId, locales);
       return Number(result && result.count) || 0;
     },
 
@@ -443,6 +502,8 @@ module.exports = ({ strapi }) => {
         where: { resolvedById: userId },
         data: { resolvedById: null, resolvedByName: null },
       });
+      // 2.4: their notifications go; mention lists keep the bare id, which no longer resolves to a name.
+      await notifications()?.removeForRecipient(userId);
     },
   };
 };

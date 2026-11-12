@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useIntl } from 'react-intl';
-import { useHref, useNavigate } from 'react-router-dom';
+import { useHref, useLocation, useNavigate } from 'react-router-dom';
 import EditorJS from '@editorjs/editorjs';
 import {
   Box,
@@ -40,6 +40,9 @@ import { BlockSelectionBar } from './BlockSelectionBar';
 import { useComments } from './useComments';
 import { CommentsPanel } from './CommentsPanel';
 import { CommentMarkers } from './CommentMarkers';
+import { useCommentAnchors } from './useCommentAnchors';
+import { SelectionCommentButton } from './SelectionCommentButton';
+import { anchorFromSelection } from '../../editor/comment-anchor-dom';
 import { blockExcerpt, openThreadsByBlock } from '../../../../shared/comments.mjs';
 import { FieldPreview } from './FieldPreview';
 import { TemplateDialog } from './TemplateDialog';
@@ -723,6 +726,60 @@ const EditorFieldBody = ({
     elementRef: frameRef,
   });
 
+  // 2.4 range comments: "Comment" on selected text (inline toolbar, Ctrl/Cmd+Alt+M, or the floating
+  // button in read-only editors) builds an anchor and opens the panel with a new thread on that text.
+  const [rangeDraft, setRangeDraft] = useState(null);
+  const commentsWritable = Boolean(commentsEnabled && comments.loaded && comments.canWrite);
+  const commentsWritableRef = useRef(false);
+  useEffect(() => {
+    commentsWritableRef.current = commentsWritable;
+  }, [commentsWritable]);
+  const startRangeCommentRef = useRef(null);
+  const startRangeComment = async ({ range }) => {
+    const editor = editorRef.current;
+    const holder = holderRef.current;
+    if (!commentsWritableRef.current || !holder || !range) return;
+    if (editor && editor.inlineToolbar) editor.inlineToolbar.close();
+    const client = collabRef.current;
+    let doc = client && client.getDoc ? client.getDoc() : null;
+    let blockData = null;
+    if (doc) {
+      // Typing not yet in the room would make the editor text differ from the shared text.
+      await flushLocal(client);
+      doc = client.getDoc();
+    } else if (editor) {
+      const start =
+        range.startContainer.nodeType === 1 ? range.startContainer : range.startContainer.parentElement;
+      const blockElement = start && start.closest('.ce-block[data-id]');
+      const api = blockElement ? editor.blocks.getById(blockElement.getAttribute('data-id')) : null;
+      try {
+        const saved = api ? await api.save() : null;
+        blockData = saved ? saved.data : null;
+      } catch {
+        blockData = null;
+      }
+    }
+    const result = anchorFromSelection({ range, holder, doc, blockData });
+    if (result.error) {
+      toggleNotification({
+        type: 'warning',
+        message:
+          result.error === 'multiple'
+            ? t(
+                'editor.comments.range.multiple',
+                'Select text inside one paragraph, heading, list item or table cell to comment on it.'
+              )
+            : t('editor.comments.range.empty', 'Select some text to comment on it.'),
+      });
+      return;
+    }
+    setRangeDraft(result);
+    setCommentsOpen(true);
+  };
+  useEffect(() => {
+    startRangeCommentRef.current = startRangeComment;
+  });
+
   // Upload helpers (multipart through the admin fetch client).
   const upload = useCallback(
     async (path, field, file) => {
@@ -861,6 +918,12 @@ const EditorFieldBody = ({
       attachmentTypes: config.uploads.attachmentTypes,
       mountSynced,
       onFootnoteEdit: (marker, info) => footnoteEditRef.current && footnoteEditRef.current(marker, info),
+      // 2.4: "Comment" in the inline toolbar for admins who may write comments.
+      onComment:
+        config.comments && config.comments.enabled && permissions.commentsWrite && target.uid
+          ? (request) => startRangeCommentRef.current && startRangeCommentRef.current(request)
+          : undefined,
+      commentsAvailable: () => commentsWritableRef.current,
     });
     const toolNames = new Set(Object.keys(tools));
     // User input is tracked before Editor.js renders the blocks: after the
@@ -1505,6 +1568,118 @@ const EditorFieldBody = ({
     window.requestAnimationFrame(() => commentsButtonRef.current && commentsButtonRef.current.focus());
   }, []);
 
+  // 2.4: range comment highlights (CSS Custom Highlight API) and where each thread's text is.
+  const commentOwner = useId();
+  const getCommentDoc = useCallback(() => {
+    const client = collabRef.current;
+    return client && client.getDoc ? client.getDoc() : null;
+  }, []);
+  const [commentRevealThread, setCommentRevealThread] = useState(null);
+  /** Click on commented text: open the panel and show the thread, focus stays in the editor. */
+  const revealThread = useCallback((threadId) => {
+    setCommentsOpen(true);
+    setCommentRevealThread(threadId);
+  }, []);
+  const anchors = useCommentAnchors({
+    owner: commentOwner,
+    holderRef,
+    threads: comments.threads,
+    enabled: Boolean(commentsEnabled && ready && !previewOpen),
+    version: contentVersion,
+    getDoc: getCommentDoc,
+    onOpen: revealThread,
+  });
+
+  /**
+   * Ctrl/Cmd+Alt+N: the next open thread after the caret (Shift: the previous one), in document order;
+   * its text is shown and the thread is focused in the panel.
+   * @param {number} direction - 1 or -1.
+   */
+  const goToComment = useCallback(
+    (direction) => {
+      const order = new Map(commentBlockIds.map((id, index) => [id, index]));
+      const ranges = anchors.ranges.current;
+      const open = comments.threads
+        .filter((thread) => thread.status === 'open' && order.has(thread.blockId))
+        .sort((a, b) => {
+          const block = order.get(a.blockId) - order.get(b.blockId);
+          if (block) return block;
+          const ra = ranges.get(a.id);
+          const rb = ranges.get(b.id);
+          if (ra && rb) return ra.compareBoundaryPoints(Range.START_TO_START, rb);
+          return ra ? 1 : rb ? -1 : 0;
+        });
+      if (!open.length) {
+        toggleNotification({
+          type: 'info',
+          message: t('editor.comments.noneOpen', 'There are no open comments.'),
+        });
+        return;
+      }
+      const current = open.findIndex((thread) => thread.id === anchors.activeId);
+      const next = open[(current + direction + open.length) % open.length] || open[0];
+      if (!anchors.selectRange(next.id)) selectBlock(next.blockId);
+      setCommentsOpen(true);
+      setCommentFocusThread(next.id);
+    },
+    [anchors, commentBlockIds, comments.threads, selectBlock, t, toggleNotification]
+  );
+
+  // Ctrl/Cmd+Alt+M (comment on the selection) and Ctrl/Cmd+Alt+N (next comment) while working in this field.
+  useEffect(() => {
+    if (!ready || !commentsEnabled) return undefined;
+    const onKey = (event) => {
+      if (!(event.metaKey || event.ctrlKey) || !event.altKey) return;
+      if (event.code !== 'KeyM' && event.code !== 'KeyN') return;
+      const frame = frameRef.current;
+      const holder = holderRef.current;
+      const selection = window.getSelection();
+      const selectionHere = Boolean(
+        selection && selection.rangeCount && holder && holder.contains(selection.anchorNode)
+      );
+      if (!frame || !(frame.contains(document.activeElement) || selectionHere)) return;
+      if (event.code === 'KeyN') {
+        event.preventDefault();
+        event.stopPropagation();
+        goToComment(event.shiftKey ? -1 : 1);
+        return;
+      }
+      if (event.shiftKey || !selectionHere || selection.isCollapsed || !commentsWritableRef.current) return;
+      event.preventDefault();
+      event.stopPropagation();
+      startRangeCommentRef.current({ range: selection.getRangeAt(0).cloneRange() });
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [ready, commentsEnabled, goToComment]);
+
+  // 2.4: a link from a notification (`?mexThread=<id>`) opens the field's thread once.
+  const location = useLocation();
+  const linkedThread = new URLSearchParams(location.search).get('mexThread');
+  const [handledLink, setHandledLink] = useState(null);
+  if (
+    linkedThread &&
+    linkedThread !== handledLink &&
+    comments.loaded &&
+    comments.threads.some((item) => item.id === linkedThread)
+  ) {
+    setHandledLink(linkedThread);
+    setCommentsOpen(true);
+    setCommentFocusThread(linkedThread);
+  }
+  const markThreadsRead = comments.actions.markThreadsRead;
+  const linkedNotified = Boolean(
+    handledLink && comments.notifications.some((note) => note.threadId === handledLink)
+  );
+  useEffect(() => {
+    if (!handledLink) return;
+    if (frameRef.current) frameRef.current.scrollIntoView({ block: 'start' });
+  }, [handledLink]);
+  useEffect(() => {
+    if (handledLink && linkedNotified) markThreadsRead([handledLink]).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- markThreadsRead changes every render
+  }, [handledLink, linkedNotified]);
+
   /** Marker click: open the panel on the block's first open thread. */
   const openBlockComments = useCallback(
     (blockId) => {
@@ -1938,6 +2113,13 @@ const EditorFieldBody = ({
                 focusThreadId={commentFocusThread}
                 onFocusHandled={() => setCommentFocusThread(null)}
                 fail={(message) => toggleNotification({ type: 'danger', message })}
+                rangeDraft={rangeDraft}
+                onRangeDraftHandled={() => setRangeDraft(null)}
+                anchorStatuses={anchors.statuses}
+                onShowRange={anchors.selectRange}
+                activeThreadId={anchors.activeId}
+                revealThreadId={commentRevealThread}
+                onRevealHandled={() => setCommentRevealThread(null)}
               />
             </PanelSlot>
           ) : null}
@@ -2005,6 +2187,14 @@ const EditorFieldBody = ({
               aria-busy={!ready}
               aria-describedby={`${name}-mex-keyboard`}
             />
+            {commentsWritable && readOnly && ready && !previewOpen ? (
+              <SelectionCommentButton
+                containerRef={areaRef}
+                holderRef={holderRef}
+                onComment={(range) => startRangeCommentRef.current({ range })}
+                t={t}
+              />
+            ) : null}
             {commentsEnabled && ready && !previewOpen ? (
               <CommentMarkers
                 containerRef={areaRef}
@@ -2141,6 +2331,7 @@ const EditorFieldBody = ({
           hasBlock={(type) => isBlockAllowed(preset, type)}
           hasInline={(tool) => !readOnly && (!preset.inline || preset.inline.includes(tool))}
           onClose={() => setShortcutsOpen(false)}
+          comments={commentsEnabled}
         />
       ) : null}
       {[...syncedMounts].map(([key, mount]) =>

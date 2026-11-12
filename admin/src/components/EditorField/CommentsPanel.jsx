@@ -9,14 +9,15 @@ import {
   Loader,
   SingleSelect,
   SingleSelectOption,
-  Textarea,
+  TextButton,
   Typography,
   VisuallyHidden,
 } from '@strapi/design-system';
 import { Cross, Plus } from '@strapi/icons';
 import styled from 'styled-components';
 import { CommentThread } from './CommentThread';
-import { MAX_COMMENT_LENGTH, arrangeThreads } from '../../../../shared/comments.mjs';
+import { MentionTextarea } from './MentionTextarea';
+import { MAX_COMMENT_LENGTH, arrangeThreads, normalizeExcerpt } from '../../../../shared/comments.mjs';
 
 /**
  * Comments panel of one editor field (2.3): new thread on a block, the
@@ -36,6 +37,16 @@ const List = styled.ul`
 `;
 
 const Excerpt = styled(Typography)`
+  overflow-wrap: anywhere;
+  min-width: 0;
+`;
+
+/** 2.4: the selected text a new range comment is on. */
+const Quote = styled(Typography)`
+  display: block;
+  padding-inline-start: ${({ theme }) => theme.spaces[2]};
+  border-inline-start: 3px solid ${({ theme }) => theme.colors.secondary500};
+  white-space: pre-wrap;
   overflow-wrap: anywhere;
   min-width: 0;
 `;
@@ -62,6 +73,13 @@ const shorten = (text) =>
  * @param {string|null} [props.focusThreadId] - Thread to show and focus (marker click).
  * @param {() => void} [props.onFocusHandled] - Called after focusing it.
  * @param {(message: string) => void} props.fail - Shows an error notification.
+ * @param {{ blockId: string, anchor: object }|null} [props.rangeDraft] - 2.4: start a thread on selected text.
+ * @param {() => void} [props.onRangeDraftHandled] - Called once the draft is taken over.
+ * @param {Map<string, string>} [props.anchorStatuses] - 2.4: where the text of each range thread is.
+ * @param {((threadId: string) => void)|null} [props.onShowRange] - 2.4: selects a thread's text in the editor.
+ * @param {string|null} [props.activeThreadId] - 2.4: thread of the highlight the caret is in.
+ * @param {string|null} [props.revealThreadId] - 2.4: thread to scroll into view without moving focus (click on its text).
+ * @param {() => void} [props.onRevealHandled] - Called after revealing it.
  * @returns {JSX.Element} Panel.
  */
 export const CommentsPanel = ({
@@ -74,10 +92,17 @@ export const CommentsPanel = ({
   focusThreadId = null,
   onFocusHandled,
   fail,
+  rangeDraft = null,
+  onRangeDraftHandled,
+  anchorStatuses = null,
+  onShowRange = null,
+  activeThreadId = null,
+  revealThreadId = null,
+  onRevealHandled,
 }) => {
   const [showResolved, setShowResolved] = useState(false);
   const [composing, setComposing] = useState(false);
-  const [draft, setDraft] = useState({ blockId: null, body: '' });
+  const [draft, setDraft] = useState({ blockId: null, body: '', anchor: null, mentions: [] });
   const [posting, setPosting] = useState(false);
   const [announcement, setAnnouncement] = useState('');
   const headingRef = useRef(null);
@@ -87,6 +112,18 @@ export const CommentsPanel = ({
   const { threads, canWrite, canModerate, actions, loaded, error, counts, newFromOthers, clearNew } =
     comments;
   const positionalThreads = Array.isArray(comments.positionalThreads) ? comments.positionalThreads : [];
+  // 2.4: the caller's unread mentions and replies on this field, per thread (mention wins).
+  const notifiedThreads = useMemo(() => {
+    const map = new Map();
+    for (const note of Array.isArray(comments.notifications) ? comments.notifications : []) {
+      if (note.kind === 'mention' || !map.has(note.threadId)) map.set(note.threadId, note.kind);
+    }
+    return map;
+  }, [comments.notifications]);
+  const mentionCount = Array.from(notifiedThreads.values()).filter((kind) => kind === 'mention').length;
+  const replyCount = notifiedThreads.size - mentionCount;
+  const searchMentions =
+    canWrite && typeof actions.searchMentions === 'function' ? actions.searchMentions : null;
 
   const blockIds = useMemo(() => blocks.map((block) => block.id), [blocks]);
   const excerpts = useMemo(() => new Map(blocks.map((block) => [block.id, block.excerpt])), [blocks]);
@@ -114,13 +151,36 @@ export const CommentsPanel = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- announce once per batch of new comments
   }, [newFromOthers]);
 
-  // Marker click: focus that thread (markers only point to open threads).
+  // Marker click, next comment or a notification link: focus that thread (resolved ones are shown for it).
+  const [seenFocus, setSeenFocus] = useState(null);
+  if (focusThreadId && focusThreadId !== seenFocus) {
+    setSeenFocus(focusThreadId);
+    if (threads.some((thread) => thread.id === focusThreadId && thread.status === 'resolved'))
+      setShowResolved(true);
+  }
   useEffect(() => {
     if (!focusThreadId) return;
     pendingFocusRef.current = focusThreadId;
     if (onFocusHandled) onFocusHandled();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- runs when a marker asks for a thread
   }, [focusThreadId]);
+
+  // 2.4: click on commented text: show the thread, focus stays in the editor.
+  const pendingRevealRef = useRef(null);
+  useEffect(() => {
+    if (!revealThreadId) return;
+    pendingRevealRef.current = revealThreadId;
+    if (onRevealHandled) onRevealHandled();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs when a highlight asks for a thread
+  }, [revealThreadId]);
+  useEffect(() => {
+    const id = pendingRevealRef.current;
+    if (!id) return;
+    const element = threadRefs.current.get(id);
+    if (!element) return;
+    pendingRevealRef.current = null;
+    element.scrollIntoView({ block: 'nearest' });
+  });
 
   // Focus a thread once it is rendered (after a marker click or a new thread).
   useEffect(() => {
@@ -135,9 +195,28 @@ export const CommentsPanel = ({
 
   const startComposing = () => {
     const known = blocks.some((block) => block.id === currentBlockId);
-    setDraft({ blockId: known ? currentBlockId : blocks[0] ? blocks[0].id : null, body: '' });
+    setDraft({
+      blockId: known ? currentBlockId : blocks[0] ? blocks[0].id : null,
+      body: '',
+      anchor: null,
+      mentions: [],
+    });
     setComposing(true);
   };
+
+  // 2.4: "Comment" on selected text starts a thread on that text.
+  const [seenDraft, setSeenDraft] = useState(null);
+  if (rangeDraft && rangeDraft !== seenDraft) {
+    setSeenDraft(rangeDraft);
+    if (canWrite) {
+      setDraft({ blockId: rangeDraft.blockId, body: '', anchor: rangeDraft.anchor, mentions: [] });
+      setComposing(true);
+    }
+  }
+  useEffect(() => {
+    if (rangeDraft && onRangeDraftHandled) onRangeDraftHandled();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once per new draft
+  }, [rangeDraft]);
 
   const cancelComposing = () => {
     setComposing(false);
@@ -151,12 +230,25 @@ export const CommentsPanel = ({
       const thread = await actions.createThread({
         blockId: draft.blockId,
         body: draft.body,
-        excerpt: excerpts.get(draft.blockId) || null,
+        // A range comment's excerpt is the text it is on.
+        excerpt: draft.anchor
+          ? normalizeExcerpt(draft.anchor.quote.exact)
+          : excerpts.get(draft.blockId) || null,
+        anchor: draft.anchor || null,
+        mentions: draft.mentions,
       });
       setComposing(false);
-      setDraft({ blockId: null, body: '' });
+      setDraft({ blockId: null, body: '', anchor: null, mentions: [] });
       if (thread && thread.id) pendingFocusRef.current = thread.id;
       announce(t('editor.comments.announce.added', 'Comment added'));
+      if (thread && thread.droppedMentions)
+        fail(
+          t(
+            'editor.comments.mentions.dropped',
+            '{count, plural, one {# person was} other {# people were}} not mentioned: they cannot read this field.',
+            { count: thread.droppedMentions }
+          )
+        );
     } catch (requestError) {
       fail(
         requestError && requestError.status === 429
@@ -210,7 +302,10 @@ export const CommentsPanel = ({
         {counts.resolved && !showResolved
           ? t('editor.comments.emptyOpen', 'No open threads. Resolved threads are hidden.')
           : canWrite
-            ? t('editor.comments.empty', 'No comments yet. Choose a block and add the first comment.')
+            ? t(
+                'editor.comments.emptyRange',
+                'No comments yet. Select text in the editor and choose Comment, or comment on a whole block.'
+              )
             : t('editor.comments.emptyReadOnly', 'No comments yet.')}
       </Typography>
     );
@@ -234,6 +329,11 @@ export const CommentsPanel = ({
               announce={announce}
               fail={fail}
               fallbackFocusRef={headingRef}
+              anchorStatus={anchorStatuses ? anchorStatuses.get(thread.id) || null : null}
+              onShowRange={onShowRange}
+              notification={notifiedThreads.get(thread.id) || null}
+              searchMentions={searchMentions}
+              active={thread.id === activeThreadId}
             />
           </li>
         ))}
@@ -272,6 +372,43 @@ export const CommentsPanel = ({
           </IconButton>
         </Flex>
 
+        {notifiedThreads.size > 0 ? (
+          <Box
+            padding={3}
+            hasRadius
+            background="alternative100"
+            borderColor="alternative200"
+            data-testid="mex-comments-notified"
+          >
+            <Flex gap={3} wrap="wrap" alignItems="center" justifyContent="space-between">
+              <Typography variant="omega" textColor="neutral800" fontWeight="semiBold">
+                {mentionCount
+                  ? t(
+                      'editor.comments.notified.mentioned',
+                      'You were mentioned in {count, plural, one {# thread} other {# threads}}.',
+                      { count: mentionCount }
+                    )
+                  : t(
+                      'editor.comments.notified.replies',
+                      'New replies in {count, plural, one {# thread} other {# threads}} you are in.',
+                      { count: replyCount }
+                    )}
+              </Typography>
+              <Button
+                size="S"
+                variant="secondary"
+                onClick={() =>
+                  actions
+                    .markThreadsRead(Array.from(notifiedThreads.keys()))
+                    .catch(() => fail(t('editor.comments.actionFailed', 'This did not work. Try again.')))
+                }
+              >
+                {t('editor.comments.notified.markRead', 'Mark as read')}
+              </Button>
+            </Flex>
+          </Box>
+        ) : null}
+
         <Flex gap={4} wrap="wrap" alignItems="center" justifyContent="space-between">
           {canWrite ? (
             <Button
@@ -309,48 +446,63 @@ export const CommentsPanel = ({
             data-testid="mex-comment-new"
           >
             <Flex direction="column" alignItems="stretch" gap={3}>
-              <Field.Root name="mex-comment-block">
-                <Field.Label>{t('editor.comments.block.label', 'Block')}</Field.Label>
-                <SingleSelect
-                  value={draft.blockId || undefined}
-                  onChange={(value) => setDraft((current) => ({ ...current, blockId: String(value) }))}
-                >
-                  {blocks.map((block) => (
-                    <SingleSelectOption key={block.id} value={block.id}>
-                      {optionLabel(block)}
-                    </SingleSelectOption>
-                  ))}
-                </SingleSelect>
-              </Field.Root>
-              <Field.Root
+              {draft.anchor ? (
+                <Flex direction="column" alignItems="flex-start" gap={1} minWidth={0}>
+                  <Typography variant="sigma" textColor="neutral600">
+                    {t('editor.comments.thread.onText', 'On selected text')}
+                  </Typography>
+                  <Quote variant="omega" textColor="neutral800" data-testid="mex-comment-new-quote">
+                    {normalizeExcerpt(draft.anchor.quote.exact)}
+                  </Quote>
+                  <TextButton
+                    onClick={() => setDraft((current) => ({ ...current, anchor: null }))}
+                    data-testid="mex-comment-whole-block"
+                  >
+                    {t('editor.comments.wholeBlock', 'Comment on the whole block instead')}
+                  </TextButton>
+                </Flex>
+              ) : (
+                <Field.Root name="mex-comment-block">
+                  <Field.Label>{t('editor.comments.block.label', 'Block')}</Field.Label>
+                  <SingleSelect
+                    value={draft.blockId || undefined}
+                    onChange={(value) => setDraft((current) => ({ ...current, blockId: String(value) }))}
+                  >
+                    {blocks.map((block) => (
+                      <SingleSelectOption key={block.id} value={block.id}>
+                        {optionLabel(block)}
+                      </SingleSelectOption>
+                    ))}
+                  </SingleSelect>
+                </Field.Root>
+              )}
+              <MentionTextarea
                 name="mex-comment-body"
-                hint={t(
-                  'editor.comments.body.hint',
-                  'Plain text, up to {max} characters. Ctrl or Cmd + Enter posts.',
-                  {
-                    max: MAX_COMMENT_LENGTH,
-                  }
-                )}
-              >
-                <Field.Label>{t('editor.comments.body.label', 'Comment')}</Field.Label>
-                <Textarea
-                  value={draft.body}
-                  maxLength={MAX_COMMENT_LENGTH}
-                  onChange={(event) => setDraft((current) => ({ ...current, body: event.target.value }))}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Escape') {
-                      event.stopPropagation();
-                      cancelComposing();
-                    } else if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
-                      event.preventDefault();
-                      post();
-                    }
-                  }}
-                  autoFocus
-                />
-                <Field.Hint />
-              </Field.Root>
-              {draft.blockId && excerpts.get(draft.blockId) ? (
+                label={t('editor.comments.body.label', 'Comment')}
+                hint={
+                  searchMentions
+                    ? t(
+                        'editor.comments.body.hintMentions',
+                        'Plain text, up to {max} characters. Type @ to mention someone. Ctrl or Cmd + Enter posts.',
+                        { max: MAX_COMMENT_LENGTH }
+                      )
+                    : t(
+                        'editor.comments.body.hint',
+                        'Plain text, up to {max} characters. Ctrl or Cmd + Enter posts.',
+                        { max: MAX_COMMENT_LENGTH }
+                      )
+                }
+                value={draft.body}
+                onChange={(body) => setDraft((current) => ({ ...current, body }))}
+                mentions={draft.mentions}
+                onMentionsChange={(mentions) => setDraft((current) => ({ ...current, mentions }))}
+                search={searchMentions}
+                onSubmit={post}
+                onCancel={cancelComposing}
+                t={t}
+                autoFocus
+              />
+              {!draft.anchor && draft.blockId && excerpts.get(draft.blockId) ? (
                 <Excerpt variant="pi" textColor="neutral600">
                   {t('editor.comments.thread.on', 'On: {excerpt}', { excerpt: excerpts.get(draft.blockId) })}
                 </Excerpt>

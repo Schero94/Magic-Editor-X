@@ -77,6 +77,13 @@ const adminRoutes = [
   ['PUT', '/history/:id', 'history.rename', [ACTIONS.access]],
 
   ['GET', '/comments', 'comments.list', [ACTIONS.access, ACTIONS.commentsRead]],
+  // 2.4: @mention picker (registered before `/comments/:id` routes; only GET /comments shares the prefix).
+  [
+    'GET',
+    '/comments/mentionable',
+    'comments.mentionable',
+    [ACTIONS.access, ACTIONS.commentsRead, ACTIONS.commentsWrite],
+  ],
   ['POST', '/comments', 'comments.create', [ACTIONS.access, ACTIONS.commentsRead, ACTIONS.commentsWrite]],
   [
     'POST',
@@ -99,6 +106,11 @@ const adminRoutes = [
   ],
   // Own comments need comments.write, anyone's comments.moderate (checked in the handler).
   ['DELETE', '/comments/:id', 'comments.remove', [ACTIONS.access, ACTIONS.commentsRead]],
+  // 2.4: the caller's own mention and reply notifications.
+  ['GET', '/notifications', 'notifications.list', [ACTIONS.access, ACTIONS.commentsRead]],
+  ['POST', '/notifications/read-all', 'notifications.readAll', [ACTIONS.access, ACTIONS.commentsRead]],
+  ['POST', '/notifications/:id/read', 'notifications.read', [ACTIONS.access, ACTIONS.commentsRead]],
+  ['POST', '/notifications/:id/unread', 'notifications.unread', [ACTIONS.access, ACTIONS.commentsRead]],
 
   ['POST', '/ai/:action', 'ai.run', [ACTIONS.access, ACTIONS.ai]],
   ['POST', '/ai/image/alt-text', 'ai.altText', [ACTIONS.access, ACTIONS.ai]],
