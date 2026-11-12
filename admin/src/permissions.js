@@ -15,6 +15,7 @@ export const PERMISSIONS = {
   commentsWrite: action('comments.write'),
   commentsModerate: action('comments.moderate'),
   grammar: action('grammar.use'),
+  templatesManage: action('templates.manage'),
 };
 
 export default PERMISSIONS;

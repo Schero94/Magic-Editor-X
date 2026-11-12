@@ -12,4 +12,5 @@ module.exports = {
   links: require('./links'),
   quality: require('./quality'),
   comments: require('./comments'),
+  templates: require('./templates'),
 };

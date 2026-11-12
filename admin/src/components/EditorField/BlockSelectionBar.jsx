@@ -7,7 +7,7 @@ import {
   Typography,
   VisuallyHidden,
 } from '@strapi/design-system';
-import { ArrowDown, ArrowUp, Duplicate, Trash, Code } from '@strapi/icons';
+import { ArrowDown, ArrowUp, Duplicate, Trash, Code, Layout } from '@strapi/icons';
 import styled from 'styled-components';
 import { renderMarkdown } from '../../../../shared/render/index.mjs';
 
@@ -55,6 +55,7 @@ const selectedIds = (holder) =>
  * @param {(type: string) => boolean} props.canCreate - Whether a block type may be created (field preset).
  * @param {() => void} props.onChanged - Called after an action changed the content.
  * @param {(message: string) => void} props.notify - Success message.
+ * @param {(ids: string[]) => void} [props.onSaveSelection] - "Save as pattern" for template managers (2.3).
  * @returns {JSX.Element|null} Bar.
  */
 export const BlockSelectionBar = ({
@@ -66,6 +67,7 @@ export const BlockSelectionBar = ({
   canCreate,
   onChanged,
   notify,
+  onSaveSelection,
 }) => {
   const [ids, setIds] = useState([]);
   const actingRef = useRef(false);
@@ -226,6 +228,21 @@ export const BlockSelectionBar = ({
       >
         <Code />
       </IconButton>
+      {onSaveSelection ? (
+        <IconButton
+          label={t('editor.selection.saveTemplate', 'Save as pattern')}
+          variant="ghost"
+          onClick={() => {
+            const selection = [...ids];
+            actingRef.current = false;
+            setIds([]);
+            onSaveSelection(selection);
+          }}
+          data-testid="mex-selection-save-template"
+        >
+          <Layout />
+        </IconButton>
+      ) : null}
       <IconButton label={t('editor.selection.delete', 'Delete')} variant="ghost" onClick={remove}>
         <Trash />
       </IconButton>

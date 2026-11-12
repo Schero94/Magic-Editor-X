@@ -70,6 +70,7 @@ export const ShortcutsDialog = ({ t, tools, hasBlock, onClose }) => {
     ['CMD+SHIFT+Z', t('editor.shortcuts.redo', 'Redo')],
     ['CMD+SHIFT+F', t('editor.shortcuts.find', 'Find and replace')],
     ['CMD+/', t('editor.shortcuts.help', 'Show keyboard shortcuts')],
+    ['CMD+ALT+P', t('editor.shortcuts.preview', 'Show or hide the rendered preview')],
     ['Tab', t('editor.shortcuts.toolbox', 'Choose a block type (in an empty block)')],
     ['Escape+Tab', t('editor.shortcuts.leave', 'Leave the editor')],
     ['CMD+SHIFT+V', t('editor.shortcuts.plainPaste', 'Paste as plain text')],

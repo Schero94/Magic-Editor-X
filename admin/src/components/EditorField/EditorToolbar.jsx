@@ -21,6 +21,8 @@ import {
   Eye,
   EyeStriked,
   Feather,
+  Layout,
+  Monitor,
   More,
   SealCheck,
   Search,
@@ -140,6 +142,12 @@ export const EditorToolbar = ({
   grammarButtonRef,
   onOpenFieldAi,
   moreButtonRef,
+  onOpenTemplates,
+  templatesButtonRef,
+  previewOpen = false,
+  onTogglePreview,
+  previewButtonRef,
+  previewId,
 }) => {
   const status = STATUS[collaboration.status];
   const peers = collaboration.peers || [];
@@ -272,6 +280,36 @@ export const EditorToolbar = ({
             data-testid="mex-grammar-toggle"
           >
             <Feather />
+          </IconButton>
+        ) : null}
+        {onOpenTemplates ? (
+          <IconButton
+            ref={templatesButtonRef}
+            label={t('editor.toolbar.templates', 'Insert template')}
+            variant="ghost"
+            onClick={onOpenTemplates}
+            disabled={!ready || readOnly || previewOpen}
+            data-testid="mex-templates-open"
+          >
+            <Layout />
+          </IconButton>
+        ) : null}
+        {onTogglePreview ? (
+          <IconButton
+            ref={previewButtonRef}
+            label={
+              previewOpen
+                ? t('editor.toolbar.previewOff', 'Back to editing')
+                : t('editor.toolbar.preview', 'Preview')
+            }
+            variant="ghost"
+            onClick={onTogglePreview}
+            aria-pressed={previewOpen}
+            aria-controls={previewOpen ? previewId : undefined}
+            disabled={!ready}
+            data-testid="mex-preview-toggle"
+          >
+            <Monitor />
           </IconButton>
         ) : null}
         <SimpleMenu
