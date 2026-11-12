@@ -330,6 +330,8 @@ test('store: the generation row guards appends, switches and the 200-row merge',
 
 const FROM = Number(process.env.MEX_COMPACT_FROM || 1);
 const SEEDS = Number(process.env.MEX_COMPACT_SEEDS || 3);
+// Longer than the wait between "every client is live" and the first edits.
+const SLOW_RENDER_MS = 400;
 
 for (let seed = FROM; seed < FROM + SEEDS; seed += 1) {
   test(`two processes, live and offline clients, compaction mid-session (seed ${seed})`, async () => {
@@ -352,6 +354,11 @@ for (let seed = FROM; seed < FROM + SEEDS; seed += 1) {
           name: `c${i}`,
           createCollabClient,
           url: instance.url,
+          // c0 renders remote data late, like a browser under load. It is the first
+          // one to churn: before 2.4 its edits were diffed against the room state it
+          // had not rendered yet, which deleted every block (flaky "seed 2" under
+          // --test-concurrency=4; deterministic with this delay).
+          renderDelayMs: i === 0 ? SLOW_RENDER_MS : 0,
           requestSession: async () => {
             if (!net.online) throw Object.assign(new Error('offline'), { response: { status: 0 } });
             return { token: tokenFor(instance), path: '/magic-editor-x/realtime', canEdit: true };

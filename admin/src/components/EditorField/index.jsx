@@ -321,6 +321,10 @@ const EditorFieldBody = ({
   const collabRef = useRef(null);
   const pendingLocalRef = useRef(false);
   const syncedOnceRef = useRef(false);
+  // What the editor shows as far as live collaboration knows: the content it was created with
+  // (in the editor's own serialisation once available), then the last room state it rendered.
+  // A new collaboration client diffs edits made before its first render against this.
+  const viewRef = useRef({ blocks: [] });
   const historyButtonRef = useRef(null);
   const areaRef = useRef(null);
   const remoteCacheRef = useRef(new WeakMap());
@@ -685,7 +689,9 @@ const EditorFieldBody = ({
       // The editor's own serialisation of what it now shows is the base of the next local diff.
       const shown = await editor.save().catch(() => null);
       client.markShown(catchUp, shown || shared);
+      viewRef.current = shown || shared;
     },
+    getInitialView: () => viewRef.current,
   });
   useEffect(() => {
     collabRef.current = collaboration.client;
@@ -814,6 +820,7 @@ const EditorFieldBody = ({
     const prepared = prepareEditorValue(value);
     setValueError(prepared.error);
     const initial = prepared.data;
+    viewRef.current = initial || { blocks: [] };
     lastEmittedRef.current = contentKey(initial);
     lastEmittedRawRef.current = contentKey(initial);
     rememberBlocks(knownRef.current, initial || { blocks: [] });
@@ -950,6 +957,14 @@ const EditorFieldBody = ({
         setReady(true);
         // Edits made while Editor.js was starting are stored right away.
         if (userTouchedRef.current) scheduleSave(0);
+        else
+          editor
+            .save()
+            .then((data) => {
+              if (!destroyed && !userTouchedRef.current && data && Array.isArray(data.blocks))
+                viewRef.current = data;
+            })
+            .catch(() => null);
       },
     });
     return () => {

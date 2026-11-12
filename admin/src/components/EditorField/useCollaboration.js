@@ -26,16 +26,26 @@ const INITIAL = {
  * @param {boolean} options.ready - True once the editor is ready.
  * @param {() => void} options.onRemoteData - Shows the shared document in the editor.
  * @param {(seeded: boolean, client: object) => Promise<void>} [options.onFirstSync] - First sync hook.
+ * @param {() => object|null} [options.getInitialView] - What the editor shows before it rendered the room.
  * @returns {{ active: boolean, status: string, canEdit: boolean, peers: object[], error: string|null, pending: boolean, canUndo: boolean, canRedo: boolean, client: object|null }} State.
  */
-export const useCollaboration = ({ target, getLocalData, ready, onRemoteData, onFirstSync }) => {
+export const useCollaboration = ({
+  target,
+  getLocalData,
+  ready,
+  onRemoteData,
+  onFirstSync,
+  getInitialView,
+}) => {
   const { post } = useFetchClient();
   const [state, setState] = useState(INITIAL);
   const [client, setClient] = useState(null);
   const getLocalRef = useRef(getLocalData);
   const onRemoteRef = useRef(onRemoteData);
   const onFirstSyncRef = useRef(onFirstSync);
+  const getInitialViewRef = useRef(getInitialView);
   useEffect(() => {
+    getInitialViewRef.current = getInitialView;
     getLocalRef.current = getLocalData;
     onRemoteRef.current = onRemoteData;
     onFirstSyncRef.current = onFirstSync;
@@ -70,6 +80,7 @@ export const useCollaboration = ({ target, getLocalData, ready, onRemoteData, on
         return data.data;
       },
       onRemoteData: () => onRemoteRef.current(),
+      getInitialView: () => (getInitialViewRef.current ? getInitialViewRef.current() : null),
       onFirstSync: (seeded) => (onFirstSyncRef.current ? onFirstSyncRef.current(seeded, instance) : null),
       onState: (next) => setState((previous) => ({ ...previous, ...next })),
       onUndoState: (undo) => setState((previous) => ({ ...previous, ...undo })),
