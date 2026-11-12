@@ -1,5 +1,6 @@
 import { Box, Button, Flex, Modal, Typography } from '@strapi/design-system';
 import styled from 'styled-components';
+import { modKeyName } from '../../editor/field-tools.mjs';
 
 /**
  * Keyboard shortcut help (Ctrl/Cmd + /). Lists the editor's own shortcuts,
@@ -35,15 +36,6 @@ const Table = styled.table`
 `;
 
 /**
- * Platform modifier label.
- * @returns {string} "Cmd" on Apple platforms, otherwise "Ctrl".
- */
-const modKey = () =>
-  typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent || '')
-    ? 'Cmd'
-    : 'Ctrl';
-
-/**
  * Renders a key combination such as "CMD+SHIFT+H".
  * @param {{ combo: string }} props - Props.
  * @returns {JSX.Element} Keys.
@@ -51,7 +43,7 @@ const modKey = () =>
 const Combo = ({ combo }) => (
   <Flex gap={1} wrap="wrap" tag="span">
     {combo.split('+').map((key, index) => (
-      <Keys key={`${key}-${index}`}>{key === 'CMD' ? modKey() : key}</Keys>
+      <Keys key={`${key}-${index}`}>{key === 'CMD' ? modKeyName() : key}</Keys>
     ))}
   </Flex>
 );
@@ -61,10 +53,19 @@ const Combo = ({ combo }) => (
  * @param {Function} props.t - Translator.
  * @param {Array<{ name: string, shortcut: string }>} props.tools - Tools with shortcuts (already filtered by the field preset).
  * @param {(name: string) => boolean} props.hasBlock - Whether a block type can be created (Markdown shortcuts shown accordingly).
+ * @param {(name: string) => boolean} [props.hasInline] - Whether an inline tool is available (2.4: inline math, footnotes).
  * @param {() => void} props.onClose - Closes the dialog.
+ * @param {boolean} [props.comments] - 2.4: comments are shown in this field (range comment keys).
  * @returns {JSX.Element} Dialog.
  */
-export const ShortcutsDialog = ({ t, tools, hasBlock, onClose }) => {
+export const ShortcutsDialog = ({
+  t,
+  tools,
+  hasBlock,
+  hasInline = () => true,
+  onClose,
+  comments = false,
+}) => {
   const editorKeys = [
     ['CMD+Z', t('editor.shortcuts.undo', 'Undo')],
     ['CMD+SHIFT+Z', t('editor.shortcuts.redo', 'Redo')],
@@ -73,7 +74,21 @@ export const ShortcutsDialog = ({ t, tools, hasBlock, onClose }) => {
     ['CMD+ALT+P', t('editor.shortcuts.preview', 'Show or hide the rendered preview')],
     ['Tab', t('editor.shortcuts.toolbox', 'Choose a block type (in an empty block)')],
     ['Escape+Tab', t('editor.shortcuts.leave', 'Leave the editor')],
+    ['Tab', t('editor.shortcuts.tableCell', 'Next table cell (Shift+Tab: previous cell)')],
+    ['ALT+F10', t('editor.shortcuts.tableTools', 'Table tools (in a table cell)')],
     ['CMD+SHIFT+V', t('editor.shortcuts.plainPaste', 'Paste as plain text')],
+    ...(hasInline('inlineMath')
+      ? [['CMD+SHIFT+E', t('editor.shortcuts.inlineMath', 'Inline math (wraps the selection as TeX)')]]
+      : []),
+    ...(hasInline('footnote')
+      ? [['CMD+ALT+F', t('editor.shortcuts.footnote', 'Footnote at the caret, or edit the one next to it')]]
+      : []),
+    ...(comments
+      ? [
+          ['CMD+ALT+M', t('editor.shortcuts.comment', 'Comment on the selected text')],
+          ['CMD+ALT+N', t('editor.shortcuts.nextComment', 'Next comment (with Shift: previous comment)')],
+        ]
+      : []),
   ];
   const markdown = [
     ['#', 'header', t('editor.shortcuts.md.heading', 'Heading (# to ######, then Space)')],

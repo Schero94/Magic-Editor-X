@@ -29,6 +29,7 @@ const TABLES = Object.freeze({
   counters: 'magic_editor_x_counters',
   linkFields: 'magic_editor_x_link_fields',
   linkUrls: 'magic_editor_x_link_urls',
+  audit: 'magic_editor_x_audit',
 });
 
 const ABORT = 'magic-editor-x:abort-transaction';
@@ -131,6 +132,25 @@ module.exports = ({ strapi }) => {
             t.string('run_id', 40).notNullable();
             t.index(['run_id', 'checked_at'], 'mex_link_urls_run');
           });
+          // Audit trail (2.4): append-only, counts and block ids only (services/audit.js).
+          await ensureTable(TABLES.audit, (t) => {
+            t.bigIncrements('id').primary();
+            t.bigInteger('created_at').notNullable();
+            t.string('event', 64).notNullable();
+            t.string('uid', 160);
+            t.string('document_id', 64);
+            t.string('locale', 40);
+            t.string('field', 300);
+            t.integer('actor_id');
+            t.string('actor_name', 200);
+            t.string('actor_kind', 16).notNullable().defaultTo('system');
+            t.text('counts');
+            t.text('block_ids');
+            t.text('meta');
+            t.index(['uid', 'document_id', 'locale', 'id'], 'mex_audit_target');
+            t.index(['created_at'], 'mex_audit_time');
+            t.index(['actor_id', 'id'], 'mex_audit_actor');
+          });
         })().catch((error) => {
           ready = null;
           logger.error('plugin tables could not be created', error);
@@ -175,6 +195,19 @@ module.exports = ({ strapi }) => {
         .where({ key, owner })
         .update({ expires_at: Date.now() + ttlMs });
       return updated === 1;
+    },
+
+    /**
+     * True while someone holds the lease (an unexpired row exists).
+     * @param {string} key - Lock key.
+     * @returns {Promise<boolean>} Held.
+     */
+    async isHeld(key) {
+      const row = await table(TABLES.locks)
+        .where({ key })
+        .andWhere('expires_at', '>=', Date.now())
+        .first('key');
+      return Boolean(row);
     },
 
     /**
@@ -632,6 +665,110 @@ module.exports = ({ strapi }) => {
         .andWhere('updated_at', '>', freshAfter)
         .first('id');
       return Boolean(row);
+    },
+
+    /**
+     * Appends audit rows. Joins the caller's database transaction when there
+     * is one (Strapi's `db.transaction` reuses the active one), so a write
+     * inside a Content Manager transaction neither waits for a second pool
+     * connection (SQLite has one) nor survives a rollback.
+     * @param {Array<object>} rows - Column values (bounded by the caller).
+     * @returns {Promise<void>}
+     */
+    async appendAudit(rows) {
+      if (!rows.length) return;
+      const schema = strapi.db.getSchemaName ? strapi.db.getSchemaName() : undefined;
+      await strapi.db.transaction(async ({ trx }) => {
+        for (let i = 0; i < rows.length; i += 100) {
+          const builder = schema ? trx(TABLES.audit).withSchema(schema) : trx(TABLES.audit);
+          await builder.insert(rows.slice(i, i + 100));
+        }
+      });
+    },
+
+    /**
+     * Reads audit rows, newest first.
+     * @param {{ uid?: string, documentId?: string, locale?: string|null, field?: string, actorId?: number, event?: string, from?: number, to?: number }} filters - Equality filters and a time range (ms).
+     * @param {{ offset: number, limit: number }} page - Window.
+     * @returns {Promise<{ rows: object[], total: number }>} Rows and total.
+     */
+    async listAudit(filters, { offset, limit }) {
+      const apply = (builder) => {
+        if (filters.uid) builder.where('uid', filters.uid);
+        if (filters.documentId) builder.where('document_id', filters.documentId);
+        if (filters.locale !== undefined) {
+          if (filters.locale === null) builder.whereNull('locale');
+          else builder.where('locale', filters.locale);
+        }
+        if (filters.field) builder.where('field', filters.field);
+        if (filters.actorId) builder.where('actor_id', filters.actorId);
+        if (filters.event) builder.where('event', filters.event);
+        if (filters.from) builder.where('created_at', '>=', filters.from);
+        if (filters.to) builder.where('created_at', '<=', filters.to);
+        return builder;
+      };
+      const [{ count }] = await apply(table(TABLES.audit)).count({ count: '*' });
+      const rows = await apply(table(TABLES.audit))
+        .orderBy('id', 'desc')
+        .offset(offset)
+        .limit(limit)
+        .select('*');
+      return { rows, total: Number(count) || 0 };
+    },
+
+    /**
+     * Distinct admin actors of the audit trail (bounded).
+     * @param {number} limit - Max actors.
+     * @returns {Promise<Array<{ id: number, name: string|null }>>} Actors.
+     */
+    async auditActors(limit) {
+      const rows = await table(TABLES.audit)
+        .whereNotNull('actor_id')
+        .groupBy('actor_id')
+        .max({ id: 'id' })
+        .select('actor_id')
+        .limit(limit);
+      if (!rows.length) return [];
+      const names = await table(TABLES.audit)
+        .whereIn(
+          'id',
+          rows.map((row) => row.id)
+        )
+        .select('actor_id', 'actor_name');
+      return names.map((row) => ({ id: Number(row.actor_id), name: row.actor_name || null }));
+    },
+
+    /**
+     * Deletes audit rows older than `before` (bounded batches).
+     * @param {number} before - Cut-off time (ms).
+     * @param {number} [maxBatches=50] - At most this many batches of 1000 rows.
+     * @returns {Promise<number>} Rows removed.
+     */
+    async pruneAudit(before, maxBatches = 50) {
+      let removed = 0;
+      for (let batch = 0; batch < maxBatches; batch += 1) {
+        const rows = await table(TABLES.audit).where('created_at', '<', before).select('id').limit(1000);
+        if (rows.length === 0) break;
+        removed += await table(TABLES.audit)
+          .whereIn(
+            'id',
+            rows.map((row) => row.id)
+          )
+          .del();
+        if (rows.length < 1000) break;
+      }
+      return removed;
+    },
+
+    /**
+     * Anonymises the actor of a deleted admin user.
+     * @param {number} actorId - Admin id.
+     * @returns {Promise<number>} Rows changed.
+     */
+    async anonymizeAuditActor(actorId) {
+      return table(TABLES.audit)
+        .where({ actor_id: actorId })
+        .update({ actor_id: null, actor_name: null, actor_kind: 'deleted' });
     },
 
     /**

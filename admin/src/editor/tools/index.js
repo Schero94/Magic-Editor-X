@@ -4,7 +4,6 @@ import List from '@editorjs/list';
 import Quote from '@editorjs/quote';
 import Warning from '@editorjs/warning';
 import Code from '@editorjs/code';
-import Table from '@editorjs/table';
 import Embed from '@editorjs/embed';
 import Raw from '@editorjs/raw';
 import Attaches from '@editorjs/attaches';
@@ -18,7 +17,7 @@ import {
   HyperlinkTool,
   AiInlineTool,
 } from './inline';
-import { AlignmentTune, TextVariantTune } from './tunes';
+import { AiBlockTune, AlignmentTune, TextVariantTune } from './tunes';
 import {
   AlertTool,
   DelimiterTool,
@@ -33,14 +32,19 @@ import { TocTool } from './toc';
 import { SyncedTool } from './synced';
 import { MentionTool } from './mention';
 import { ToggleTool } from './toggle';
+import { TableTool } from './table';
 import { ChecklistTool } from './checklist';
 import { buildCustomBlockTools } from './custom-block';
 import { MexImageTool } from './alt-text';
 import { GalleryTool, VideoTool, AudioTool } from './media';
+import { MathTool } from './math';
+import { InlineMathTool } from './inline-math';
+import { FootnoteTool } from './footnote';
+import { CommentInlineTool } from './comment';
 import { MARKED_BLOCKS } from '../../../../shared/sanitize-policy.mjs';
 import { markedTool } from './marked';
 import { isBlockAllowed } from '../../../../shared/presets.mjs';
-import { buildCodeBlockTools } from '../block-registry';
+import { buildCodeBlockTools, codeBlocks } from '../block-registry';
 
 export { createUndoManager } from './undo';
 export { createDragDrop } from './drag-drop';
@@ -63,6 +67,9 @@ const INLINE = [
   'strikethrough',
   'inlineCode',
   'tooltip',
+  // 2.4
+  'inlineMath',
+  'footnote',
 ];
 
 /** Names 2.3 gave to built-in tools that a Settings custom block could already have. */
@@ -73,6 +80,15 @@ const LEGACY_CUSTOM_NAMES = new Set([...Object.keys(MARKED_BLOCKS), 'mention']);
  * block names cannot contain `$`, so it never clashes with one.
  */
 const MENTION_FALLBACK_KEY = 'mention$mex';
+
+/**
+ * Key of the range comment inline tool (2.4). Custom block names cannot contain `$`, so it never
+ * clashes with one; the tool stores nothing in the content.
+ */
+const COMMENT_TOOL = 'comment$mex';
+
+/** Keys of the 2.4 inline tools when a custom block (Settings or code) owns their name. */
+const INLINE_FALLBACK_KEYS = Object.freeze({ inlineMath: 'inlineMath$mex', footnote: 'footnote$mex' });
 
 /**
  * True when an enabled custom block has this exact name.
@@ -102,10 +118,21 @@ export function buildTools(ctx) {
   // A custom block named `mention` from before 2.3 keeps the name; the inline tool then uses another key
   // (inline tools store no name, so this changes nothing in the content).
   const mentionKey = hasCustomBlock(ctx.customBlocks, 'mention') ? MENTION_FALLBACK_KEY : 'mention';
+  // 2.4: inline math and footnotes keep working when a custom block (Settings or code) has their name.
+  const codeNames = new Set(codeBlocks().map((entry) => entry.definition.name));
+  const inlineKey = (name) =>
+    INLINE_FALLBACK_KEYS[name] && (hasCustomBlock(ctx.customBlocks, name) || codeNames.has(name))
+      ? INLINE_FALLBACK_KEYS[name]
+      : name;
+  const keyed = presetInline.map(inlineKey);
   const allowedInline = mentions
-    ? presetInline.flatMap((name) => (name === 'hyperlink' ? [name, mentionKey] : [name]))
-    : presetInline;
-  const inline = ctx.aiEnabled ? [...allowedInline, 'aiAssistant'] : allowedInline;
+    ? keyed.flatMap((name) => (name === 'hyperlink' ? [name, mentionKey] : [name]))
+    : keyed;
+  const withAi = ctx.aiEnabled ? [...allowedInline, 'aiAssistant'] : allowedInline;
+  // 2.4: "Comment" on a selection, for fields with comments the admin may write. Not content, so presets
+  // never remove it.
+  const commentsOn = typeof ctx.onComment === 'function';
+  const inline = commentsOn ? [...withAi, COMMENT_TOOL] : withAi;
   const levels = preset && preset.headingLevels.length ? preset.headingLevels : [1, 2, 3, 4, 5, 6];
   const canUpload = ctx.canUpload !== false;
   // Choosing files in the Media Library dialog needs `plugin::upload.read`.
@@ -191,13 +218,16 @@ export function buildTools(ctx) {
     codeFlask: { class: CodeHighlightTool, config: { ...shared, language: 'javascript' } },
     delimiter: { class: DelimiterTool, shortcut: 'CMD+SHIFT+D', config: shared },
     toc: { class: markedTool(TocTool, 'toc'), config: { t, levels } },
+    // Math block (2.4): TeX with a live preview (Temml, loaded on demand).
+    math: { class: markedTool(MathTool, 'math'), config: { t } },
     // Synced block (2.3): inserted from the template dialog; the field renders its view (`ctx.mountSynced`).
     synced: { class: markedTool(SyncedTool, 'synced'), config: { t, mount: ctx.mountSynced } },
+    // 2.4: own table tool (header row and column, alignment, merged cells, caption).
     table: {
-      class: Table,
+      class: TableTool,
       inlineToolbar: inline,
       shortcut: 'CMD+SHIFT+T',
-      config: { rows: 2, cols: 3, withHeadings: true },
+      config: { rows: 2, cols: 3, withHeadings: true, t },
     },
     embed: {
       class: Embed,
@@ -296,6 +326,11 @@ export function buildTools(ctx) {
         linkTargets: (preset && preset.linkTargets) || 'all',
       },
     },
+    [inlineKey('inlineMath')]: { class: InlineMathTool, config: { t } },
+    [inlineKey('footnote')]: {
+      class: FootnoteTool,
+      config: { t, onEdit: typeof ctx.onFootnoteEdit === 'function' ? ctx.onFootnoteEdit : null },
+    },
     ...(mentions
       ? {
           [mentionKey]: {
@@ -325,6 +360,16 @@ export function buildTools(ctx) {
     };
   }
 
+  if (commentsOn) {
+    tools[COMMENT_TOOL] = {
+      class: CommentInlineTool,
+      config: { onComment: ctx.onComment, isAvailable: ctx.commentsAvailable },
+    };
+  }
+
+  const withAiTune = ctx.aiEnabled && typeof ctx.onBlockAi === 'function';
+  if (withAiTune) tools.aiBlockTune = { class: AiBlockTune, config: { t, onBlockAi: ctx.onBlockAi } };
+
   const custom = buildCustomBlockTools(ctx.customBlocks, { ...ctx, t, canUpload }, shared);
   for (const [name, tool] of Object.entries(custom)) {
     // A custom block created before 2.3 under a name 2.3 gave to a built-in tool
@@ -339,15 +384,25 @@ export function buildTools(ctx) {
   // cannot exist (the server refuses to start), so the code tool wins.
   const code = buildCodeBlockTools({ t, locale: ctx.locale, inline, shared });
   for (const [name, tool] of Object.entries(code)) tools[name] = tool;
+  // 2.4: text blocks (those with an inline toolbar) get "AI assistant" in their block menu.
+  if (withAiTune) {
+    for (const [name, tool] of Object.entries(tools)) {
+      if (NOT_BLOCKS.has(name) || !tool || !tool.inlineToolbar) continue;
+      tools[name] = { ...tool, tunes: [...(Array.isArray(tool.tunes) ? tool.tunes : []), 'aiBlockTune'] };
+    }
+  }
   return preset ? applyPreset(tools, preset) : tools;
 }
 
 /** Tools that are not blocks of their own (inline tools, tunes, the Media Library placeholder). */
 const NOT_BLOCKS = new Set([
   ...INLINE,
+  ...Object.values(INLINE_FALLBACK_KEYS),
   'mention',
   MENTION_FALLBACK_KEY,
   'aiAssistant',
+  COMMENT_TOOL,
+  'aiBlockTune',
   'alignmentTune',
   'textVariant',
   'indentTune',
@@ -450,6 +505,10 @@ export function editorI18n(t) {
         'Inline Code': tr('tools.names.inlineCode', 'Inline code'),
         Tooltip: tr('tools.names.tooltip', 'Tooltip'),
         'AI assistant': tr('tools.names.ai', 'AI assistant'),
+        Math: tr('tools.names.math', 'Math'),
+        'Inline math': tr('tools.names.inlineMath', 'Inline math'),
+        Footnote: tr('tools.names.footnote', 'Footnote'),
+        Comment: tr('tools.names.comment', 'Comment'),
       },
       tools: {
         link: { 'Add a link': tr('tools.hyperlink.placeholder', 'Paste a link and press Enter') },
@@ -470,16 +529,6 @@ export function editorI18n(t) {
           Unordered: tr('tools.list.unordered', 'Bulleted'),
           Ordered: tr('tools.list.ordered', 'Numbered'),
           Checklist: tr('tools.names.checklist', 'Checklist'),
-        },
-        table: {
-          'With headings': tr('tools.table.withHeadings', 'With headings'),
-          'Without headings': tr('tools.table.withoutHeadings', 'Without headings'),
-          'Add row above': tr('tools.table.rowAbove', 'Add row above'),
-          'Add row below': tr('tools.table.rowBelow', 'Add row below'),
-          'Delete row': tr('tools.table.deleteRow', 'Delete row'),
-          'Add column to left': tr('tools.table.columnLeft', 'Add column to the left'),
-          'Add column to right': tr('tools.table.columnRight', 'Add column to the right'),
-          'Delete column': tr('tools.table.deleteColumn', 'Delete column'),
         },
         header: {
           'Heading 1': tr('tools.header.level1', 'Heading 1'),

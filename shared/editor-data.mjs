@@ -16,6 +16,7 @@
 /** Hard limits for one field value. Bigger values are rejected, never truncated. */
 import { activeBlock } from './blocks/active.mjs';
 import { isMarkedBuiltIn } from './built-in-marker.mjs';
+import { isValidFieldKey } from './field-identity.mjs';
 
 export const EDITOR_DATA_LIMITS = Object.freeze({
   maxBlocks: 5000,
@@ -203,9 +204,10 @@ const unwrapValue = (value) => {
  * - Drops blocks without a valid type, gives blocks without an id a deterministic id,
  *   de-duplicates ids and removes prototype-polluting keys.
  * - Never truncates: a value above the limits throws, so nothing is silently lost.
+ * - Keeps a valid `fieldKey` (2.4, identity of a positional field); other top-level keys are dropped.
  *
  * @param {unknown} value - Stored or submitted value.
- * @returns {{ time: number, blocks: Array<{id: string, type: string, data: object, tunes?: object}>, version: string } | null}
+ * @returns {{ time: number, blocks: Array<{id: string, type: string, data: object, tunes?: object}>, version: string, fieldKey?: string } | null}
  *   The normalised value, or null for an empty/absent value.
  * @throws {EditorDataError} When the value is too large, too deep or not editor content.
  */
@@ -244,6 +246,8 @@ export const normalizeEditorData = (value) => {
   const time = Number.isFinite(clean.time) && clean.time > 0 ? Math.floor(clean.time) : 0;
   const version = typeof clean.version === 'string' && clean.version.length <= 32 ? clean.version : '2.31.7';
   const result = { time, blocks, version };
+  // 2.4: identity of a field inside a repeatable component or dynamic zone (shared/field-identity.mjs).
+  if (isValidFieldKey(clean.fieldKey)) result.fieldKey = clean.fieldKey;
   const size = byteLength(JSON.stringify(result));
   if (size > EDITOR_DATA_LIMITS.maxBytes) {
     throw new EditorDataError('Editor content exceeds the size limit', 'TOO_LARGE');

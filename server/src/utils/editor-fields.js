@@ -48,12 +48,13 @@ const schemaHasEditorFields = (strapi, schema, cache = new Map(), depth = 0) => 
 
 /**
  * Walks write data and replaces every editor field value with
- * `transform(value, attribute, path)`. Mutates and returns `data`. Unknown
- * shapes are left alone.
+ * `transform(value, attribute, path, container)`. Mutates and returns `data`.
+ * Unknown shapes are left alone.
  * @param {object} strapi - Strapi instance.
  * @param {object} schema - Schema of `data`.
  * @param {object} data - Document data being written.
- * @param {(value: unknown, attribute: object, path: string) => unknown} transform - Value transformer.
+ * @param {(value: unknown, attribute: object, path: string, container: object) => unknown} transform - Value
+ *   transformer; `container` is the object holding the value (the document or the component entry).
  * @param {number} [depth=0] - Recursion depth.
  * @param {string} [prefix=''] - Dotted path of `data` (for messages).
  * @returns {object} The same data object.
@@ -65,7 +66,7 @@ const transformEditorFields = (strapi, schema, data, transform, depth = 0, prefi
     const value = data[name];
     const path = prefix ? `${prefix}.${name}` : name;
     if (isEditorAttribute(attribute)) {
-      data[name] = transform(value, attribute, path);
+      data[name] = transform(value, attribute, path, data);
     } else if (attribute.type === 'component') {
       const component = strapi.components[attribute.component];
       if (Array.isArray(value))
@@ -92,15 +93,17 @@ const transformEditorFields = (strapi, schema, data, transform, depth = 0, prefi
 };
 
 /**
- * Resolves a field path (`body`, `sections.0.text`) to its attribute so the
- * server can check that a collaboration room or snapshot targets a real
- * Magic Editor X field.
+ * Resolves a field path (`body`, `sections.0.text`, or a base path without
+ * indices such as `sections.text`) to its attribute so the server can check
+ * that a collaboration room or snapshot targets a real Magic Editor X field.
  * @param {object} strapi - Strapi instance.
  * @param {object} contentType - Content-type schema.
  * @param {string} path - Dotted field path.
- * @returns {{ topLevel: string, permissionField: string, attribute: object } | null} The editor attribute,
- *   the top-level field name and the field path the Content Manager permissions use
- *   (`sections.body` inside components; the dynamic zone itself for fields inside one).
+ * @returns {{ topLevel: string, permissionField: string, attribute: object, positional: boolean, basePath: string } | null}
+ *   The editor attribute, the top-level field name, the field path the Content Manager permissions use
+ *   (`sections.body` inside components; the dynamic zone itself for fields inside one), whether the
+ *   field lies inside a repeatable component or dynamic zone (its path is positional) and the path
+ *   without indices (`sections.body`, `zone.body`).
  */
 const resolveEditorField = (strapi, contentType, path) => {
   const parts = String(path).split('.');
@@ -108,24 +111,43 @@ const resolveEditorField = (strapi, contentType, path) => {
   let attribute = null;
   const topLevel = parts[0];
   const names = [];
+  const base = [];
   let inZone = false;
+  let positional = false;
+  let expectIndex = false;
   for (let i = 0; i < parts.length; i += 1) {
     const part = parts[i];
-    if (/^\d+$/.test(part)) continue;
+    if (/^\d+$/.test(part)) {
+      // An index is only valid right after a repeatable component or a dynamic zone.
+      if (!expectIndex) return null;
+      expectIndex = false;
+      continue;
+    }
+    expectIndex = false;
     attribute = schema?.attributes?.[part];
     if (!attribute) return null;
+    base.push(part);
     if (!inZone) names.push(part);
     if (i === parts.length - 1) break;
-    if (attribute.type === 'component') schema = strapi.components[attribute.component];
-    else if (attribute.type === 'dynamiczone') {
+    if (attribute.type === 'component') {
+      schema = strapi.components[attribute.component];
+      if (attribute.repeatable === true) {
+        positional = true;
+        expectIndex = true;
+      }
+    } else if (attribute.type === 'dynamiczone') {
       inZone = true;
-      const next = parts[i + 2];
+      positional = true;
+      const hasIndex = /^\d+$/.test(parts[i + 1] || '');
+      const next = parts[hasIndex ? i + 2 : i + 1];
       const candidates = (attribute.components || []).map((uid) => strapi.components[uid]).filter(Boolean);
       schema = candidates.find((candidate) => candidate.attributes?.[next]) || null;
-      i += 1;
+      if (hasIndex) i += 1;
     } else return null;
   }
-  return isEditorAttribute(attribute) ? { topLevel, permissionField: names.join('.'), attribute } : null;
+  return isEditorAttribute(attribute)
+    ? { topLevel, permissionField: names.join('.'), attribute, positional, basePath: base.join('.') }
+    : null;
 };
 
 module.exports = {

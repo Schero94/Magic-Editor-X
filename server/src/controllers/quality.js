@@ -28,7 +28,7 @@ module.exports = ({ strapi }) => ({
   },
 
   /**
-   * @route GET /magic-editor-x/quality/link-report?uid&documentId&locale&field
+   * @route GET /magic-editor-x/quality/link-report?uid&documentId&locale&field&fieldKey?
    * @auth admin; plugin::magic-editor-x.access; CM read on the document, locale and field (services/access.js)
    * @returns {{ data: { enabled: boolean, lastRun: { finishedAt, complete }|null, draft: object|null, published: object|null } }} Last scheduled result of the field (`draft`/`published`: `{ scannedAt, problems, links: [{ url, status, code?, checkedAt, blockId }] }`).
    * @throws {import('@strapi/utils').errors.ValidationError} 400 on invalid input.
@@ -40,20 +40,20 @@ module.exports = ({ strapi }) => ({
       userAbility: ctx.state.userAbility,
       ...target,
     });
+    // 2.4: by the field identity; a positional field without a stored key has no report yet (null).
     ctx.body = {
-      data: await service(strapi, 'link-schedule').report({
-        uid: target.uid,
-        documentId: target.documentId,
-        locale: access.locale,
-        field: target.field,
-      }),
+      data: await service(strapi, 'link-schedule').report(
+        access.fieldName
+          ? { uid: target.uid, documentId: target.documentId, locale: access.locale, field: access.fieldName }
+          : null
+      ),
     };
   },
 
   /**
    * @route GET /magic-editor-x/quality/link-schedule
    * @auth admin; plugin::magic-editor-x.settings.read
-   * @returns {{ data: { enabled, scheduled, rule, maxUrlsPerRun, perMinute, perHostConcurrency, running, lastRun } }} Schedule state, counts only.
+   * @returns {{ data: { enabled, scheduled, rule, tz, nextRunAt, maxUrlsPerRun, perMinute, perHostConcurrency, running, lastRun } }} Schedule state, counts only (`running`: any process holds the run lease).
    */
   async scheduleStatus(ctx) {
     if (Object.keys(ctx.query || {}).length) throw new errors.ValidationError('Validation failed');
@@ -72,7 +72,7 @@ module.exports = ({ strapi }) => ({
     const body = ctx.request.body;
     if (body && typeof body === 'object' && Object.keys(body).length)
       throw new errors.ValidationError('Validation failed');
-    const outcome = await service(strapi, 'link-schedule').runNow();
+    const outcome = await service(strapi, 'link-schedule').runNow(ctx.state.user || null);
     if (outcome.started) {
       ctx.status = 202;
       ctx.body = { data: { started: true } };

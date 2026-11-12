@@ -1,5 +1,73 @@
 # Changelog
 
+## [Unreleased]
+
+Magic Editor X 2.4 adds better tables, math and footnotes, comments on selected text with @mentions, block suggestions, an audit trail and block-scoped AI, gives fields in repeatable components and dynamic zones their history, comments and live editing back, and fixes a collaboration bug that could delete blocks. The field toolbar is now short: undo, redo, **More tools** and full screen. There are no breaking changes; stored content keeps working and Editor.js stays at 2.31.7.
+
+### Features
+
+- **Fields in repeatable components and dynamic zones** have version history, comments and live editing again. Their values carry a stable `fieldKey`, so history and comments follow their entry when entries are moved, added or removed. A new section gets them after its first save; until then the toolbar shows a hint. New optional `fieldKey` on `GET|POST /history`, `GET|POST /comments`, `POST /collaboration/session`, `GET /quality/link-report` and the new mention and suggestion routes; `meta.fieldKey`, `meta.positionalVersions`, `meta.positionalThreads`.
+- **Tables** have a header row and a header column, per-column alignment, merged cells and a caption. Select cells with Shift+click and merge them, or use merge right/down from one cell. Tab moves between cells and Alt+F10 opens the table toolbar. Pasting from a spreadsheet fills the cells; pasting from Word or a web page keeps merged cells, header cells and alignment. New optional data keys `headerColumn`, `align`, `merges`, `caption`; renderers output `<caption>`, `<th scope>`, `colspan`/`rowspan` and `mex-align-*` classes, Markdown a GFM alignment row. Quality rule `table-empty-header`.
+- **Math:** formulas in TeX as a block (`math`) or inside text (Ctrl/Cmd+Shift+E), with a live preview. The API and the renderers output MathML (Temml 0.14, MathML allow-list); new render option `math` and export `magic-editor-x/math` (`renderMath`, `checkMath`, `MATH_SETTINGS`). Markdown `$…$` / `$$…$$`. Quality rule `math-invalid`.
+- **Footnotes** with Ctrl/Cmd+Alt+F, numbered in reading order and listed under the field. The note lives in its marker, so copy, move, undo and delete keep them together. Render option `footnotes`, GFM footnotes in Markdown. Quality rule `footnote-empty`.
+- **Comments on selected text:** select text and choose Comment (Ctrl/Cmd+Alt+M); Magic Editor X highlights the passage and keeps the thread on the text while people edit. Ctrl/Cmd+Alt+N moves to the next comment. Read-only reviewers get a floating Comment button.
+- **@mentions and notifications:** type `@` in a comment to mention a colleague who can read the field. They see it in the comments panel and in the **Mentions and replies** widget on the admin home page; replies notify the other people in the thread. Optional e-mails through the Strapi email plugin (`comments.notifications.email`, default `false`; `emailPerHour` 10), never with the comment text. Routes `GET /comments/mentionable`, `GET /notifications`, `POST /notifications/read-all`, `POST /notifications/:id/read|unread`; config `comments.mentionsPerMinute` (60).
+- **Block suggestions:** give a role **Suggest block changes** (`suggestions.create`) and its members can choose Suggest changes even in fields they cannot edit. Their edits stay in a separate copy until they send them; each changed, new or removed block becomes one suggestion that editors with **Review block suggestions** (`suggestions.review`) accept or reject in the Suggestions panel. Accepted changes go into the field like any edit; save the entry to keep them. Routes `GET|POST /suggestions`, `POST /suggestions/:id/accept|reject`, `DELETE /suggestions/:id`; config `suggestions.enabled` (true), `suggestions.perMinute` (20).
+- **AI for chosen blocks:** select blocks, or open a block's menu, and choose AI to rewrite, shorten, translate or change the tone of just those blocks (Ctrl/Cmd+Shift+G). Only their text is sent; a word diff shows the change before it is applied and one Undo reverts it. Route `POST /ai/blocks/:action`. The assistant for selected text now also keeps formatting the selection crosses, limits its answer to the field's inline tools and shows a word diff.
+- **Audit trail:** Settings > Magic Editor X > Audit trail and an Activity tab in the version history show who changed which field, version, comment, suggestion, template, synced block or setting, and when, with counts and block ids but never content. Permission `audit.read`; routes `GET /audit`, `GET /audit/actors`; config `audit.enabled` (true), `audit.retentionDays` (180). Events are also sent to Strapi's Enterprise audit logs when that feature exists.
+- **Versions of synced blocks:** every save of a synced source keeps a version; preview, compare, rename and restore them in Settings > Templates. Routes `GET /templates/:id/versions[/:versionId]`, `PUT /templates/:id/versions/:versionId`, `POST /templates/:id/versions/:versionId/restore`.
+- **Scheduled link check:** **Run now** in Settings > Configuration and a time zone for the rule (`qualityChecks.externalLinks.schedule.tz`); `GET /quality/link-schedule` adds `tz` and `nextRunAt`.
+- **`@` in text** opens entry suggestions at the caret and inserts a mention; e-mail addresses never trigger it.
+- **Code file names:** the highlighted code block has an optional file name (`codeFlask.filename`), rendered as a caption and as ` ```lang title="…" ` in Markdown.
+- **Pasted video and audio** from web pages become video and audio blocks: the file, poster and caption tracks are copied into the Media Library through the new SSRF-safe `POST /media/byUrl`. Config `uploads.maxMediaBytes` (50 MiB) and `uploads.allowPrivateOrigins` (`[]`, also used by images by URL).
+- **Alt text from private image storage:** `ai.altText.allowPrivateOrigins` (`[]`) lists exact origins of upload storage inside your network that alt text suggestions may read.
+- **Strapi AI translations** no longer corrupt Magic Editor X fields: only text is sent to the provider, and other locales are rebuilt from the source structure. A value that cannot be matched is refused with `AI_TRANSLATION_UNSAFE`.
+- **Releases** show entries blocked by the publishing guard as "Not ready to publish".
+- **Field toolbar:** undo, redo, a **More tools** menu (Review, Write, View) and full screen. Every other tool moved into the menu and appears only where it can work; keyboard shortcuts are unchanged.
+
+### Fixes
+
+- Collaboration: an editor that joined a room diffed its first edits against room content it had not rendered yet, which deleted the blocks it had not shown, including other people's acknowledged edits inside them; edits typed before the first sync were dropped. The base of every edit is now what the editor shows until it has rendered the room, and early edits are merged onto the room (present since 2.0).
+- Live sessions without changes created a version when they ended, because Editor.js writes default settings (alignment left, no indent) into every block. Default settings now count as no setting in version comparisons.
+- Collaboration: a data key removed by a collaborator stayed on other screens (Editor.js `blocks.update` merges data); after a remote change the caret returned only to the first input of a block.
+- `@editorjs/table` dropped line breaks in cells.
+- Copying blocks between editor fields went through HTML conversion and lost data; the Editor.js block clipboard is now used when the blocks fit the target field.
+- Ctrl/Cmd+Enter in the footnote dialog and in comment boxes triggered the Content Manager save (403 for reviewers without update rights).
+- The embed renderer computed the caption before deciding to render nothing.
+- The block selection bar was not reachable with the keyboard.
+- AI for selected text nested bold tags when the selection crossed formatting.
+- The translate validator accepted the id `"01"` for `"1"`.
+- Block menus opened under the next editor field.
+- Collaboration: text typed in the first moments after a field with existing room content opened could lose its last characters (same cause as the first fix above).
+- Code blocks: tokens without their own colour took the colours of the global code theme loaded by Strapi's Blocks field, some below the contrast minimum (for example Python builtins at 2.93:1); every token now has its own colour (present since 2.3).
+- After "Leave focus mode" keyboard focus fell to the page; it now returns to More tools.
+- Dialogs with icon buttons needed several Escape presses while a tooltip was open.
+
+### Security
+
+- See [docs/security-audit-2.4.md](./docs/security-audit-2.4.md): field identities (MEX-24-01), rows saved by position (MEX-24-02), tables (MEX-24-03), math (MEX-24-04), footnotes (MEX-24-05), video and audio by URL (MEX-24-06), the `@` trigger and code file names (MEX-24-07), AI for chosen blocks (MEX-24-08), alt text from private storage (MEX-24-09), audit trail (MEX-24-10), synced source versions (MEX-24-11), link check Run now and time zone (MEX-24-12), comment anchors (MEX-24-13), mentions, notifications and e-mail (MEX-24-14), suggestions (MEX-24-15), Strapi AI translations (MEX-24-16), Releases readiness and the published-status bypass (MEX-24-17) and the collaboration data-loss fix (MEX-24-18).
+- `documents().create/update({ status: 'published' })`, which the Content API uses for `?status=published`, published without running the publishing guard. These writes are now refused with 400 `QUALITY_GATE` when a guarded field has errors.
+- Dependencies: `temml` 0.14.0 added (MIT), `@editorjs/table` removed; `npm audit --omit=dev` reports 0 vulnerabilities.
+
+### Notes
+
+- **`fieldKey`:** values of editor fields inside repeatable components and dynamic zones get a top-level `fieldKey` (16 to 32 URL-safe characters) when they are saved. It is additive: renderers ignore it, the JSON Schema and `MagicEditorXData.fieldKey?` describe it, and Content API and GraphQL output include it. Top-level fields and fields in single components never get one.
+- **Versions and comments saved by position before 2.4** are mapped to their entry when their block ids prove it, the first time that field's history or comments are opened. Rows that cannot be mapped stay readable but read-only ("Older versions saved by position", 409 `POSITIONAL_READ_ONLY`). Nothing is deleted.
+- **`@editorjs/table` is replaced** by the plugin's own table tool. The stored `table` data is compatible: tables saved before 2.4 keep their exact shape and renderer output, and renderers that do not know the new keys show a full grid.
+- **Content API `?status=published`** creates and updates now run the publishing guard. This is a behaviour change that matches what `publishGuard` always promised.
+- **`math`:** the name is a built-in block now. Settings custom blocks named `math` from before 2.4 keep their data and tool; new ones cannot take the name. Blocks registered in code with the SDK may still be named `math`, so hosts that registered one with 2.3 keep starting.
+- **Editor.js stays at 2.31.7:** 2.32.0 is still a release candidate on npm (`next` tag `2.32.0-rc.3`, checked 2026-11-12). [docs/engine-decision.md](./docs/engine-decision.md) explains why the plugin stays on Editor.js for 2.x.
+- **Review workflows** are not supported: Strapi registers them only with an Enterprise or Growth plan, so a stage hook cannot be tested end to end and none ships.
+- Known issues: an Editor.js toolbar handler swallows the first Tab presses in dialogs opened from an editor (also the keyboard shortcuts dialog); an empty field's first live catch-up can move focus into that field; discarding a draft whose published version predates 2.4 drops keys added to the draft.
+
+### Migration
+
+- No action needed. Rebuild the admin (`npm run build`) after updating.
+- Grant the new permissions to roles that should use them: `suggestions.create`, `suggestions.review`, `audit.read`. No role gets them automatically.
+- API clients that write values inside repeatable components or dynamic zones should send the stored `fieldKey` back (or the component `id`); otherwise each write gives the value a new key and its history and comments start fresh.
+- Clients that create or update entries with `?status=published` on types with `publishGuard` must handle 400 `QUALITY_GATE`.
+- Optional: `comments.notifications.email: true` (needs a working email provider), `qualityChecks.externalLinks.schedule.tz`, `uploads.allowPrivateOrigins`, `ai.altText.allowPrivateOrigins`. The audit trail is on by default; set `audit.enabled: false` to turn it off.
+
 ## [2.3.1](https://github.com/Schero94/Magic-Editor-X/compare/v2.3.0...v2.3.1) (2026-11-12)
 
 

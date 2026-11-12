@@ -13,6 +13,7 @@
  * comments and unknown elements are never copied.
  */
 
+import { TABLE_ALIGNS, TABLE_LIMITS, cleanTableAlign, normalizeMerges } from '../table.mjs';
 import {
   MAX_CONVERTED_BLOCKS,
   classifyImageSource,
@@ -27,6 +28,9 @@ import {
   wrapLink,
   wrapMark,
 } from './common.mjs';
+import { escapeHtml } from '../editor-data.mjs';
+import { FOOTNOTE_ID, MAX_MEDIA_TRACKS, TRACK_KINDS, sanitizeUrl } from '../sanitize-policy.mjs';
+import { canonicalInlineExtras } from '../render/inline.mjs';
 
 /** Longest HTML input the converter reads (characters). */
 export const MAX_HTML_LENGTH = 5 * 1024 * 1024;
@@ -242,12 +246,13 @@ const inlineOf = (nodes, state, depth = 0) => {
       continue;
     }
     const name = node.name;
-    if (DROP.has(name)) continue;
+    if (DROP.has(name) && name !== 'video' && name !== 'audio') continue;
     if (name === 'br') {
       html += '<br>';
       continue;
     }
-    if (name === 'img') {
+    if (name === 'img' || name === 'video' || name === 'audio') {
+      // Videos and audio only become blocks with `media: 'collect'` (see pushMedia).
       state.images.push(node);
       continue;
     }
@@ -264,6 +269,19 @@ const inlineOf = (nodes, state, depth = 0) => {
       continue;
     }
     previousBlock = false;
+    // 2.4: inline math and footnote markers copied from a Magic Editor X field keep their
+    // stored form (rebuilt through the strict inline parser, never copied markup).
+    if (name === 'span' && Object.prototype.hasOwnProperty.call(node.attribs || {}, 'data-mex-math')) {
+      const tex = textOf(node).replace(/\u200b/g, '');
+      if (tex.trim()) html += `<span data-mex-math="true">${escapeText(tex)}</span>`;
+      continue;
+    }
+    if (name === 'sup' && FOOTNOTE_ID.test(attr(node, 'data-mex-footnote'))) {
+      html += canonicalInlineExtras(
+        `<sup data-mex-footnote="${escapeHtml(attr(node, 'data-mex-footnote'))}" data-mex-note="${escapeHtml(attr(node, 'data-mex-note'))}">*</sup>`
+      );
+      continue;
+    }
     if (name === 'code' || name === 'kbd' || name === 'samp' || name === 'tt') {
       html += wrapMark(escapeText(textOf(node)), 'code');
       continue;
@@ -293,6 +311,7 @@ const inlineOf = (nodes, state, depth = 0) => {
 const createContext = (options) => ({
   blocks: [],
   images: [],
+  media: options.media === 'collect' ? [] : null,
   skipped: new Map(),
   dataImages: options.dataImages === 'placeholder' ? 'placeholder' : 'skip',
   full: false,
@@ -345,7 +364,97 @@ const pushImage = (ctx, node, caption = '') => {
   }
 };
 
-const pushImages = (ctx, images) => images.forEach((node) => pushImage(ctx, node));
+const pushImages = (ctx, images) =>
+  images.forEach((node) => {
+    if (node.name === 'video' || node.name === 'audio') {
+      // Without `media: 'collect'` inline videos and audio are left out silently (2.3 behaviour).
+      if (ctx.media) pushMedia(ctx, node);
+    } else pushImage(ctx, node);
+  });
+
+/**
+ * An http(s) URL of a pasted media element, or '' (data:, blob:, file:,
+ * relative and other sources are never fetched).
+ * @param {string} value - Attribute value.
+ * @returns {string} URL.
+ */
+const remoteMediaUrl = (value) => {
+  const text = typeof value === 'string' ? value.trim() : '';
+  return /^https?:/i.test(text)
+    ? sanitizeUrl(text, { schemes: ['http', 'https'], allowRelative: false })
+    : '';
+};
+
+const hasAttr = (node, name) =>
+  Boolean(node.attribs && Object.prototype.hasOwnProperty.call(node.attribs, name));
+
+/**
+ * Collects a pasted `<video>` or `<audio>` (2.4, `media: 'collect'`): the
+ * file URL (`src`, else the first `<source src>` with a matching or no
+ * `type`), the poster, up to 8 `<track>` elements, title, loop and muted.
+ * The block made here is a placeholder; the caller copies the files into the
+ * Media Library and builds the block (`report.media[].index`). A media
+ * element without a usable http(s) URL is reported with `index: -1`.
+ * @param {object} ctx - Context.
+ * @param {object} node - `<video>` or `<audio>`.
+ * @param {string} [caption=''] - Caption HTML (from a figure).
+ */
+const pushMedia = (ctx, node, caption = '') => {
+  const kind = node.name;
+  const children = (node.children || []).filter(isElement);
+  let src = remoteMediaUrl(attr(node, 'src'));
+  if (!src) {
+    const sources = children.filter((child) => child.name === 'source');
+    const typed = sources.find((child) => attr(child, 'type').toLowerCase().startsWith(`${kind}/`));
+    const candidate = typed || sources.find((child) => !attr(child, 'type')) || sources[0];
+    src = candidate ? remoteMediaUrl(attr(candidate, 'src')) : '';
+  }
+  if (!src) {
+    ctx.media.push({ index: -1, kind, src: '' });
+    skip(ctx, 'media', kind);
+    return;
+  }
+  const tracks = children
+    .filter((child) => child.name === 'track')
+    .map((child) => {
+      const trackKind = attr(child, 'kind').toLowerCase() || 'subtitles';
+      return {
+        src: remoteMediaUrl(attr(child, 'src')),
+        kind: TRACK_KINDS.includes(trackKind) ? trackKind : 'subtitles',
+        srclang: attr(child, 'srclang').trim().slice(0, 35),
+        label: attr(child, 'label').trim().slice(0, 100),
+        default: hasAttr(child, 'default'),
+      };
+    })
+    .filter((track) => track.src)
+    .slice(0, MAX_MEDIA_TRACKS);
+  const title = (attr(node, 'title') || attr(node, 'aria-label')).replace(/\s+/g, ' ').trim().slice(0, 200);
+  const entry = {
+    index: ctx.blocks.length,
+    kind,
+    src,
+    title,
+    caption,
+    loop: hasAttr(node, 'loop'),
+    tracks,
+  };
+  if (kind === 'video') {
+    entry.muted = hasAttr(node, 'muted');
+    entry.poster = remoteMediaUrl(attr(node, 'poster'));
+  }
+  ctx.media.push(entry);
+  push(ctx, {
+    type: kind,
+    data: {
+      file: { url: '' },
+      title,
+      caption,
+      loop: entry.loop,
+      ...(kind === 'video' ? { muted: entry.muted } : {}),
+      tracks: [],
+    },
+  });
+};
 
 /**
  * Adds a paragraph (and the images found in it).
@@ -519,14 +628,47 @@ const pushList = (ctx, node) => {
 };
 
 /**
- * Converts a table; the first row is a header row when it uses `<th>` or `<thead>`.
+ * Explicit alignment of a cell: `text-align` or `align` on the cell, else the
+ * one alignment all its paragraphs share (Word and Google Docs align the
+ * paragraph inside the cell).
+ * @param {object} cell - `<td>`/`<th>`.
+ * @returns {'left'|'center'|'right'|null} Alignment.
+ */
+const cellAlign = (cell) => {
+  const read = (node) => {
+    const match = /(?:^|;)\s*text-align\s*:\s*([a-z]+)/.exec(styleOf(node));
+    const value = match ? match[1] : attr(node, 'align').toLowerCase();
+    return TABLE_ALIGNS.includes(value) ? value : null;
+  };
+  const own = read(cell);
+  if (own) return own;
+  const paragraphs = visible(cell.children).filter(
+    (node) => isElement(node) && /^(p|div|h[1-6])$/.test(node.name)
+  );
+  const values = paragraphs.map(read);
+  return values.length && values.every((value) => value && value === values[0]) ? values[0] : null;
+};
+
+/** A `colspan`/`rowspan` value, 1 when missing or invalid, at most `max`. */
+const spanOf = (value, max) => {
+  const number = Number.parseInt(value, 10);
+  return Number.isInteger(number) && number > 1 ? Math.min(number, Math.max(max, 1)) : 1;
+};
+
+/**
+ * Converts a table. The first row is a header row when it is in `<thead>` or
+ * uses only `<th>`; the first column is a header column when every body row
+ * starts with a `<th>` and the body has data cells. `colspan`/`rowspan`
+ * become merged cells (a rowspan ends with its row group), `text-align`/`align`
+ * shared by a column's body cells becomes its alignment, `<caption>` the caption.
  * @param {object} ctx - Context.
  * @param {object} node - `<table>`.
  */
 const pushTable = (ctx, node) => {
   const rows = [];
-  let withHeadings = false;
   const state = { images: [] };
+  let caption = '';
+  let group = 0;
   const collect = (nodes, inHead, depth = 0) => {
     for (const child of visible(nodes)) {
       if (!isElement(child) || depth > 3) continue;
@@ -534,18 +676,72 @@ const pushTable = (ctx, node) => {
         const cells = visible(child.children).filter(
           (cell) => isElement(cell) && (cell.name === 'td' || cell.name === 'th')
         );
-        if (!cells.length) continue;
-        if (rows.length === 0 && (inHead || cells.every((cell) => cell.name === 'th'))) withHeadings = true;
-        rows.push(cells.slice(0, 100).map((cell) => tidyInline(inlineOf(cell.children, state))));
-      } else if (/^(thead|tbody|tfoot)$/.test(child.name))
+        if (cells.length && rows.length < TABLE_LIMITS.rows) rows.push({ cells, head: inHead, group });
+      } else if (/^(thead|tbody|tfoot)$/.test(child.name)) {
+        group += 1;
         collect(child.children, child.name === 'thead', depth + 1);
+        group += 1;
+      } else if (child.name === 'caption' && depth === 0 && !caption)
+        caption = tidyInline(inlineOf(child.children, state));
     }
   };
   collect(node.children, false);
   if (!rows.length) return;
-  const width = Math.max(...rows.map((row) => row.length));
-  const content = rows.slice(0, 500).map((row) => [...row, ...Array(width - row.length).fill('')]);
-  push(ctx, { type: 'table', data: { withHeadings, stretched: false, content } });
+  // Grid of anchor cells (the HTML table model, bounded): covered slots hold COVERED.
+  const COVERED = {};
+  const grid = rows.map(() => []);
+  const merges = [];
+  rows.forEach((row, r) => {
+    let groupEnd = r;
+    while (groupEnd + 1 < rows.length && rows[groupEnd + 1].group === row.group) groupEnd += 1;
+    let c = 0;
+    for (const cell of row.cells) {
+      while (grid[r][c]) c += 1;
+      if (c >= TABLE_LIMITS.cols) break;
+      const colspan = spanOf(attr(cell, 'colspan'), TABLE_LIMITS.cols - c);
+      const rowspan = spanOf(attr(cell, 'rowspan'), groupEnd - r + 1);
+      for (let rr = 0; rr < rowspan; rr += 1)
+        for (let cc = 0; cc < colspan; cc += 1) grid[r + rr][c + cc] = rr || cc ? COVERED : cell;
+      if (rowspan * colspan > 1) merges.push({ row: r, col: c, rowspan, colspan });
+      c += colspan;
+    }
+  });
+  const width = Math.max(...grid.map((row) => row.length));
+  const anchor = (r, c) => (grid[r][c] && grid[r][c] !== COVERED ? grid[r][c] : null);
+  const content = grid.map((row, r) =>
+    Array.from({ length: width }, (_, c) => {
+      const cell = anchor(r, c);
+      return cell ? tidyInline(inlineOf(cell.children, state)) : '';
+    })
+  );
+  const withHeadings = rows[0].head || rows[0].cells.every((cell) => cell.name === 'th');
+  const data = { withHeadings, stretched: false, content };
+  const body = rows.map((_, r) => r).slice(withHeadings ? 1 : 0);
+  const starts = body.map((r) => anchor(r, 0)).filter(Boolean);
+  if (
+    starts.length &&
+    starts.every((cell) => cell.name === 'th') &&
+    body.some((r) => grid[r].some((cell) => cell && cell !== COVERED && cell.name === 'td'))
+  )
+    data.headerColumn = true;
+  const alignRows = body.length ? body : [0];
+  const align = cleanTableAlign(
+    Array.from({ length: width }, (_, c) => {
+      const values = alignRows
+        .map((r) => anchor(r, c))
+        .filter(
+          (cell) => cell && spanOf(attr(cell, 'colspan'), 2) === 1 && cell.children && cell.children.length
+        )
+        .map(cellAlign);
+      return values.length && values.every((value) => value && value === values[0]) ? values[0] : null;
+    }),
+    width
+  );
+  if (align) data.align = align;
+  const valid = normalizeMerges(merges, content.length, width, { headerRow: withHeadings });
+  if (valid.length) data.merges = valid;
+  if (caption && !isBlankInline(caption)) data.caption = caption;
+  push(ctx, { type: 'table', data });
   pushImages(ctx, state.images);
 };
 
@@ -554,16 +750,16 @@ const pushTable = (ctx, node) => {
  * @param {object} ctx - Context.
  * @param {object} node - `<pre>`.
  */
-const pushCode = (ctx, node) => {
+const pushCode = (ctx, node, filename) => {
   const code = visible(node.children).find((child) => isElement(child) && child.name === 'code');
   const className = `${attr(node, 'class')} ${code ? attr(code, 'class') : ''}`;
   const language = (/\b(?:language|lang)-([a-z0-9+#-]{1,32})\b/i.exec(className) || [])[1];
   const text = textOf(node);
-  if (text.trim()) push(ctx, codeBlock(text, language));
+  if (text.trim()) push(ctx, codeBlock(text, language, filename));
 };
 
 /**
- * Converts `<figure>` with an image or a video frame and an optional caption.
+ * Converts `<figure>` with an image, a video frame or code (2.4) and an optional caption.
  * @param {object} ctx - Context.
  * @param {object} node - `<figure>`.
  */
@@ -585,11 +781,23 @@ const pushFigure = (ctx, node) => {
     pushImage(ctx, img, caption);
     return;
   }
+  const media = ctx.media ? find(children, 'video') || find(children, 'audio') : null;
+  if (media) {
+    pushMedia(ctx, media, caption);
+    return;
+  }
   const frame = find(children, 'iframe');
   if (frame) {
     const embed = embedBlock(attr(frame, 'src'), caption);
     if (embed) push(ctx, embed);
     else skip(ctx, 'unsupported-element', 'iframe');
+    return;
+  }
+  // 2.4: code with a file name (`<figure><figcaption>name</figcaption><pre>`, the renderers' output).
+  const body = children.filter((child) => isElement(child) && child.name !== 'figcaption');
+  const pre = body.length === 1 ? (body[0].name === 'pre' ? body[0] : find(body[0].children, 'pre')) : null;
+  if (pre) {
+    pushCode(ctx, pre, captionNode ? textOf(captionNode) : '');
     return;
   }
   walkBlocks(ctx, children, 1);
@@ -616,6 +824,11 @@ const walkBlocks = (ctx, nodes, depth) => {
       continue;
     }
     const name = node.name;
+    if (ctx.media && (name === 'video' || name === 'audio')) {
+      flush();
+      pushMedia(ctx, node);
+      continue;
+    }
     if (DROP.has(name)) {
       if (!/^(head|meta|link|style|title|base|xml)$/.test(name)) skip(ctx, 'unsupported-element', name);
       continue;
@@ -710,7 +923,7 @@ const walkBlocks = (ctx, nodes, depth) => {
 /**
  * Converts HTML into Editor.js blocks.
  * @param {string} html - Untrusted HTML.
- * @param {{ parse: (html: string) => Array<object>, dataImages?: 'skip'|'placeholder' }} options - `parse` turns HTML into the node tree (see the adapters); `dataImages: 'placeholder'` keeps an empty image block for each `data:` image so a caller can upload it.
+ * @param {{ parse: (html: string) => Array<object>, dataImages?: 'skip'|'placeholder', media?: 'skip'|'collect' }} options - `parse` turns HTML into the node tree (see the adapters); `dataImages: 'placeholder'` keeps an empty image block for each `data:` image so a caller can upload it; `media: 'collect'` (2.4) turns `<video>`/`<audio>` with an http(s) source into placeholder `video`/`audio` blocks listed in `report.media` (`[{ index, kind, src, title, caption, loop, muted?, poster?, tracks: [{ src, kind, srclang, label, default }] }]`, `index: -1` and reason `media` when there is no usable URL) so a caller can copy the files into the Media Library; by default they are skipped as before.
  * @returns {{ blocks: Array<{id: string, type: string, data: object}>, report: { skipped: Array<{reason: string, tag?: string, count: number}>, images: Array<{index: number, src: string, kind: 'remote'|'relative'|'data'|'unsupported'}> } }} Blocks and what was left out. `images[].index` is the block index, -1 when no block was made; `src` is '' for local files.
  * @throws {TypeError} When `parse` is missing.
  */
@@ -726,7 +939,11 @@ export const htmlToBlocks = (html, options = {}) => {
   }
   return {
     blocks: withIds(ctx.blocks),
-    report: { skipped: Array.from(ctx.skipped.values()), images: ctx.images },
+    report: {
+      skipped: Array.from(ctx.skipped.values()),
+      images: ctx.images,
+      ...(ctx.media ? { media: ctx.media } : {}),
+    },
   };
 };
 

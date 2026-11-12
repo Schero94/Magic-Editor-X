@@ -10,7 +10,7 @@ import { allowShortcut, matchBlockShortcut, matchInlineShortcut } from './markdo
 const INLINE_TOOL_OF = { b: 'bold', i: 'italic', s: 'strikethrough', code: 'inlineCode' };
 const INLINE_CLASS_OF = { s: 'cdx-strikethrough', code: 'inline-code' };
 const SKIP =
-  '.ce-code, .ce-rawtool, .cdx-input--code, .mex-code, .tc-table, .tc-wrap, input, textarea, select';
+  '.ce-code, .ce-rawtool, .cdx-input--code, .mex-code, .tc-table, .tc-wrap, .mex-table-tool, input, textarea, select';
 
 /**
  * Text from the start of `root` up to the caret.

@@ -38,7 +38,14 @@ const RULES = {
     key: 'editor.quality.rule.videoCaptions',
     text: 'Video without captions or subtitles',
   },
-  'table-no-header': { key: 'editor.quality.rule.tableHeader', text: 'Table without a header row' },
+  'table-no-header': {
+    key: 'editor.quality.rule.tableHeader',
+    text: 'Table without a header row or header column',
+  },
+  'table-empty-header': {
+    key: 'editor.quality.rule.tableEmptyHeader',
+    text: '{count, plural, one {# empty header cell} other {# empty header cells}} in a table',
+  },
   'low-contrast': {
     key: 'editor.quality.rule.lowContrast',
     text: 'Text colour contrast {ratio}:1 is below 4.5:1',
@@ -46,6 +53,14 @@ const RULES = {
   'toc-no-headings': {
     key: 'editor.quality.rule.tocNoHeadings',
     text: 'Table of contents without headings between level {minLevel} and {maxLevel}',
+  },
+  'math-invalid': {
+    key: 'editor.quality.rule.mathInvalid',
+    text: 'Formula that cannot be rendered (check the TeX)',
+  },
+  'footnote-empty': {
+    key: 'editor.quality.rule.footnoteEmpty',
+    text: 'Footnote without text',
   },
 };
 
@@ -126,7 +141,8 @@ const Wrap = styled(Typography)`
 /**
  * Loads the last scheduled link check of the field (GET /quality/link-report).
  * @param {{ get?: Function }} fetchClient - Admin fetch client.
- * @param {{ uid: string|null, documentId: string|null, locale: string|null, field: string }|null} target - Field, or null when the schedule is off.
+ * @param {{ uid: string|null, documentId: string|null, locale: string|null, field: string, fieldKey?: string }|null} target - Field
+ *   (`fieldKey` for fields inside a repeatable component or dynamic zone, 2.4), or null when the schedule is off.
  * @returns {{ state: 'off'|'loading'|'error'|'done', report: object|null }} Result.
  */
 const useScheduledReport = (fetchClient, target) => {
@@ -135,13 +151,17 @@ const useScheduledReport = (fetchClient, target) => {
   const documentId = target && target.documentId;
   const locale = (target && target.locale) || null;
   const field = target && target.field;
-  const key = get && uid && documentId && field ? `${uid}|${documentId}|${locale || ''}|${field}` : null;
+  const fieldKey = (target && target.fieldKey) || null;
+  const key =
+    get && uid && documentId && field
+      ? `${uid}|${documentId}|${locale || ''}|${fieldKey ? `#${fieldKey}` : field}`
+      : null;
   const [result, setResult] = useState({ key: null, state: 'loading', report: null });
   useEffect(() => {
     if (!key) return undefined;
     const controller = new AbortController();
     get(API.qualityLinkReport, {
-      params: { uid, documentId, locale: locale || undefined, field },
+      params: { uid, documentId, locale: locale || undefined, field, ...(fieldKey ? { fieldKey } : {}) },
       signal: controller.signal,
     }).then(
       (response) => {
@@ -156,7 +176,7 @@ const useScheduledReport = (fetchClient, target) => {
       }
     );
     return () => controller.abort();
-  }, [key, get, uid, documentId, locale, field]);
+  }, [key, get, uid, documentId, locale, field, fieldKey]);
   if (!key) return { state: 'off', report: null };
   if (result.key !== key) return { state: 'loading', report: null };
   return result;

@@ -14,7 +14,8 @@
 
 import { sanitizeUrl, LINK_SCHEMES } from '../sanitize-policy.mjs';
 import { isPlainObject } from '../editor-data.mjs';
-import { inlineToNodes, inlineToHtml, inlineToText } from './inline.mjs';
+import { inlineToNodes, inlineToHtml, inlineToText, inlineNodesToRender, RENDER_STATE } from './inline.mjs';
+import { mathElement, createFootnoteTree } from './math-notes.mjs';
 import {
   el,
   textNode,
@@ -36,6 +37,7 @@ import {
   annotateHeadings,
 } from './common.mjs';
 import { buildTocTree } from '../toc.mjs';
+import { tableLayout } from '../table.mjs';
 
 /**
  * @typedef {import('./nodes.mjs').RenderNode} RenderNode
@@ -303,11 +305,11 @@ const numberedLines = (code) => {
 };
 
 /**
- * Code block (`code` and `codeFlask`) with optional line numbers and copy button.
+ * Code block (`code` and `codeFlask`) with optional line numbers, copy button and (codeFlask, 2.4) file name.
  * @param {object} b - Prepared block.
  * @param {string|undefined} language - Validated language (codeFlask only).
  * @param {object} o - Render options.
- * @returns {RenderNode} `<pre>` or, with a copy button, `<div class="mex-code-block">`.
+ * @returns {RenderNode} `<pre>`, with a copy button `<div class="mex-code-block">`, with a file name `<figure class="mex-code-figure">` around either.
  */
 const codeBlock = (b, language, o) => {
   const { lineNumbers, copy } = codeOptions(o);
@@ -325,8 +327,24 @@ const codeBlock = (b, language, o) => {
     },
     el('code', language ? { class: `language-${language}` } : {}, numbers ? numberedLines(code) : code)
   );
-  if (!copy) return pre;
-  return el('div', { class: 'mex-code-block', 'data-mex-code': 'copy' }, [
+  const block = copy ? copyBlock(pre, copy) : pre;
+  // 2.4: a file name label wraps the block in a figure; without one the output is unchanged.
+  const filename = b.type === 'codeFlask' && typeof b.data.filename === 'string' ? b.data.filename : '';
+  if (!filename) return block;
+  return el('figure', { class: 'mex-code-figure' }, [
+    el('figcaption', { class: 'mex-code-filename' }, filename),
+    block,
+  ]);
+};
+
+/**
+ * Wraps a code `<pre>` with the copy button and its status region.
+ * @param {RenderNode} pre - Code block.
+ * @param {{ label: string, copied: string, failed: string }} copy - Button labels.
+ * @returns {RenderNode} `<div class="mex-code-block">`.
+ */
+const copyBlock = (pre, copy) =>
+  el('div', { class: 'mex-code-block', 'data-mex-code': 'copy' }, [
     pre,
     el(
       'button',
@@ -341,7 +359,6 @@ const codeBlock = (b, language, o) => {
     ),
     el('span', { class: 'mex-code-copy-status', role: 'status', 'aria-live': 'polite' }),
   ]);
-};
 
 /**
  * Default nodes per block type. Each entry returns a node, an array of nodes,
@@ -430,21 +447,30 @@ const RENDERERS = {
       ? el('div', { class: classes(['mex-raw'], b.tunes) }, { type: 'raw', html })
       : null;
   },
+  // Header row: <thead> with <th scope="col">; header column (2.4): <th scope="row">;
+  // merged cells: colspan/rowspan (covered cells are left out); alignment: a class.
   table: (b, o) => {
-    const rows = b.data.content;
+    const rows = tableLayout(b.data);
     if (!rows.length) return null;
-    const cells = (row, tag) =>
+    const cell = (item) =>
       el(
-        'tr',
-        {},
-        row.map((cell) => el(tag, tag === 'th' ? { scope: 'col' } : {}, inlineToNodes(cell, o)))
+        item.header ? 'th' : 'td',
+        {
+          ...(item.header ? { scope: item.header } : {}),
+          ...(item.colspan > 1 ? { colspan: String(item.colspan) } : {}),
+          ...(item.rowspan > 1 ? { rowspan: String(item.rowspan) } : {}),
+          ...(item.align ? { class: `mex-align-${item.align}` } : {}),
+        },
+        inlineToNodes(item.html, o)
       );
-    const head = b.data.withHeadings ? el('thead', {}, cells(rows[0], 'th')) : null;
-    const body = (b.data.withHeadings ? rows.slice(1) : rows).map((row) => cells(row, 'td'));
+    const tr = (row) => el('tr', {}, row.map(cell));
+    const head = b.data.withHeadings ? el('thead', {}, tr(rows[0])) : null;
+    const body = (b.data.withHeadings ? rows.slice(1) : rows).map(tr);
+    const caption = b.data.caption ? el('caption', {}, inlineToNodes(b.data.caption, o)) : null;
     return el(
       'table',
       { class: classes(['mex-table', ...(b.data.stretched ? ['mex-stretched'] : [])], b.tunes) },
-      [head, body.length ? el('tbody', {}, body) : null]
+      [caption, head, body.length ? el('tbody', {}, body) : null]
     );
   },
   image: (b, o) => {
@@ -550,11 +576,12 @@ const RENDERERS = {
       ? o.embedHosts.map((h) => String(h).toLowerCase())
       : DEFAULT_EMBED_HOSTS;
     const frame = embedFrameUrl(b.data.embed, hosts);
+    const href = b.data.source || b.data.embed;
+    // Checked before the caption is rendered, so footnotes of an omitted block are not counted.
+    if (!frame && !href) return null;
     const caption = inlineToNodes(b.data.caption, o);
     const title = inlineToText(b.data.caption) || b.data.service || 'Embedded content';
     if (!frame) {
-      const href = b.data.source || b.data.embed;
-      if (!href) return null;
       return el(
         'p',
         { class: classes(['mex-embed', 'mex-embed-link'], b.tunes) },
@@ -616,6 +643,18 @@ const RENDERERS = {
     return el('p', { class: classes(['mex-button-block'], b.tunes) }, inner);
   },
   delimiter: (b) => el('hr', { class: classes(['mex-delimiter'], b.tunes) }),
+  // Math block (2.4): MathML from `options.math`, else the delimited TeX source.
+  math: (b, o) =>
+    b.data.tex.trim()
+      ? mathElement(o, b.data.tex, {
+          display: b.data.display !== false,
+          block: true,
+          className: classes(
+            ['mex-math', ...(b.data.display !== false ? ['mex-math-display'] : [])],
+            b.tunes
+          ),
+        })
+      : null,
   toc: (b, o) => {
     const tree = buildTocTree(b.headings || [], b.data);
     if (!tree.length) return null;
@@ -848,7 +887,14 @@ const rawAllowed = (options) => options.rawHtml === 'allow' && typeof options.sa
  * @returns {{ nodes: Array<RenderNode|BlockNode>, renderBlocks: (blocks: PublicBlock[]) => Array<RenderNode|BlockNode>, helpers: object }} Builder result.
  */
 export const createTreeBuilder = (value, options, mode = {}) => {
-  const opts = options && typeof options === 'object' ? options : {};
+  const base = options && typeof options === 'object' ? options : {};
+  // Per-render state (2.4): inline math and footnote numbering for this value.
+  const opts = { ...base };
+  const footnotes = createFootnoteTree(base, (note) => inlineNodesToRender(note, opts));
+  opts[RENDER_STATE] = {
+    math: (tex) => mathElement(base, tex, { display: false, block: false }),
+    footnote: (node) => footnotes.marker(node),
+  };
   /** @type {WeakMap<object, PublicBlock>} */
   const publicOf = new WeakMap();
   /** @type {WeakMap<object, object>} */
@@ -958,6 +1004,9 @@ export const createTreeBuilder = (value, options, mode = {}) => {
   };
 
   const nodes = renderList(annotateHeadings(prepareBlocks(value, opts), opts));
+  // Footnotes (2.4): the list follows the content.
+  const section = footnotes.section();
+  if (section) nodes.push(textNode('\n'), section);
   return { nodes, renderBlocks, helpers };
 };
 

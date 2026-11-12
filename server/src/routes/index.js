@@ -17,6 +17,7 @@ const adminRoutes = [
   ['POST', '/image/byFile', 'editor.uploadImageFile', [ACTIONS.access, UPLOAD_CREATE]],
   ['POST', '/image/byUrl', 'editor.uploadImageUrl', [ACTIONS.access, UPLOAD_CREATE]],
   ['POST', '/file/upload', 'editor.uploadAttachment', [ACTIONS.access, UPLOAD_CREATE]],
+  ['POST', '/media/byUrl', 'editor.uploadMediaUrl', [ACTIONS.access, UPLOAD_CREATE]],
   ['GET', '/content-types', 'editor.contentTypes', [ACTIONS.access]],
   ['GET', '/links/types', 'links.types', [ACTIONS.access]],
   ['GET', '/links/search', 'links.search', [ACTIONS.access]],
@@ -44,6 +45,25 @@ const adminRoutes = [
   ['PUT', '/templates/order', 'templates.reorder', [ACTIONS.access, ACTIONS.templatesManage]],
   ['GET', '/templates/:id', 'templates.findOne', [ACTIONS.access]],
   ['GET', '/templates/:id/usage', 'templates.usage', [ACTIONS.access, ACTIONS.templatesManage]],
+  ['GET', '/templates/:id/versions', 'templates.versions', [ACTIONS.access, ACTIONS.templatesManage]],
+  [
+    'GET',
+    '/templates/:id/versions/:versionId',
+    'templates.version',
+    [ACTIONS.access, ACTIONS.templatesManage],
+  ],
+  [
+    'PUT',
+    '/templates/:id/versions/:versionId',
+    'templates.renameVersion',
+    [ACTIONS.access, ACTIONS.templatesManage],
+  ],
+  [
+    'POST',
+    '/templates/:id/versions/:versionId/restore',
+    'templates.restoreVersion',
+    [ACTIONS.access, ACTIONS.templatesManage],
+  ],
   ['POST', '/templates', 'templates.create', [ACTIONS.access, ACTIONS.templatesManage]],
   ['PUT', '/templates/:id', 'templates.update', [ACTIONS.access, ACTIONS.templatesManage]],
   ['DELETE', '/templates/:id', 'templates.remove', [ACTIONS.access, ACTIONS.templatesManage]],
@@ -57,6 +77,13 @@ const adminRoutes = [
   ['PUT', '/history/:id', 'history.rename', [ACTIONS.access]],
 
   ['GET', '/comments', 'comments.list', [ACTIONS.access, ACTIONS.commentsRead]],
+  // 2.4: @mention picker (registered before `/comments/:id` routes; only GET /comments shares the prefix).
+  [
+    'GET',
+    '/comments/mentionable',
+    'comments.mentionable',
+    [ACTIONS.access, ACTIONS.commentsRead, ACTIONS.commentsWrite],
+  ],
   ['POST', '/comments', 'comments.create', [ACTIONS.access, ACTIONS.commentsRead, ACTIONS.commentsWrite]],
   [
     'POST',
@@ -79,11 +106,28 @@ const adminRoutes = [
   ],
   // Own comments need comments.write, anyone's comments.moderate (checked in the handler).
   ['DELETE', '/comments/:id', 'comments.remove', [ACTIONS.access, ACTIONS.commentsRead]],
+  // 2.4: the caller's own mention and reply notifications.
+  ['GET', '/notifications', 'notifications.list', [ACTIONS.access, ACTIONS.commentsRead]],
+  ['POST', '/notifications/read-all', 'notifications.readAll', [ACTIONS.access, ACTIONS.commentsRead]],
+  ['POST', '/notifications/:id/read', 'notifications.read', [ACTIONS.access, ACTIONS.commentsRead]],
+  ['POST', '/notifications/:id/unread', 'notifications.unread', [ACTIONS.access, ACTIONS.commentsRead]],
+
+  // 2.4 block suggestions. Listing needs suggestions.create or suggestions.review (checked in the handler).
+  ['GET', '/suggestions', 'suggestions.list', [ACTIONS.access]],
+  ['POST', '/suggestions', 'suggestions.create', [ACTIONS.access, ACTIONS.suggestionsCreate]],
+  ['POST', '/suggestions/:id/accept', 'suggestions.accept', [ACTIONS.access, ACTIONS.suggestionsReview]],
+  ['POST', '/suggestions/:id/reject', 'suggestions.reject', [ACTIONS.access, ACTIONS.suggestionsReview]],
+  ['DELETE', '/suggestions/:id', 'suggestions.withdraw', [ACTIONS.access, ACTIONS.suggestionsCreate]],
 
   ['POST', '/ai/:action', 'ai.run', [ACTIONS.access, ACTIONS.ai]],
   ['POST', '/ai/image/alt-text', 'ai.altText', [ACTIONS.access, ACTIONS.ai]],
   ['POST', '/ai/field/:action', 'ai.field', [ACTIONS.access, ACTIONS.ai]],
+  ['POST', '/ai/blocks/:action', 'ai.blocks', [ACTIONS.access, ACTIONS.ai]],
   ['POST', '/grammar/check', 'grammar.check', [ACTIONS.access, ACTIONS.grammar]],
+
+  // Global listing needs settings.read too; a field-scoped one needs CM read on the document (handler).
+  ['GET', '/audit', 'audit.list', [ACTIONS.auditRead]],
+  ['GET', '/audit/actors', 'audit.actors', [ACTIONS.auditRead, ACTIONS.settingsRead]],
 
   ['GET', '/settings', 'settings.get', [ACTIONS.settingsRead]],
   ['PUT', '/settings', 'settings.update', [ACTIONS.settingsRead, ACTIONS.settingsUpdate]],

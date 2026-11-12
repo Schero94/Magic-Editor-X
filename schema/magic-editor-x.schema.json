@@ -19,6 +19,11 @@
     "version": {
       "type": "string",
       "maxLength": 32
+    },
+    "fieldKey": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{16,32}$",
+      "description": "Since 2.4: stable identity of a value inside a repeatable component or dynamic zone (random, URL-safe). Set by the server on save; renderers ignore it. Absent on top-level fields."
     }
   },
   "required": ["time", "blocks", "version"],
@@ -26,7 +31,7 @@
   "$defs": {
     "inlineHtml": {
       "type": "string",
-      "description": "Inline HTML limited to b, strong, i, em, u, s, mark, code, a, br, span, sub, sup with the attributes of the sanitising policy. Internal links carry data-mex-uid, data-mex-document-id and data-mex-locale; mentions (inline entry references) also data-mex-mention=\"true\"."
+      "description": "Inline HTML limited to b, strong, i, em, u, s, mark, code, a, br, span, sub, sup with the attributes of the sanitising policy. Internal links carry data-mex-uid, data-mex-document-id and data-mex-locale; mentions (inline entry references) also data-mex-mention=\"true\". Inline math (2.4): <span data-mex-math=\"true\">TeX source</span> (text only). Footnote markers (2.4): <sup data-mex-footnote=\"id\" data-mex-note=\"inline HTML of the note\">n</sup> (the note follows the same rules without footnotes and entry references; the marker text is a placeholder)."
     },
     "url": {
       "type": "string",
@@ -811,6 +816,48 @@
           "if": {
             "properties": {
               "type": {
+                "const": "math"
+              },
+              "data": {
+                "type": "object",
+                "anyOf": [
+                  {
+                    "required": ["_mex"],
+                    "properties": {
+                      "_mex": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Built-in block marker (2.3: 1). Tells the built-in block apart from a custom block created before 2.3 under the same name."
+                      }
+                    }
+                  },
+                  {
+                    "properties": {
+                      "tex": {
+                        "type": "string"
+                      },
+                      "display": {}
+                    },
+                    "additionalProperties": false,
+                    "required": ["tex"]
+                  }
+                ]
+              }
+            },
+            "required": ["type", "data"]
+          },
+          "then": {
+            "properties": {
+              "data": {
+                "$ref": "#/$defs/data_math"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
                 "const": "synced"
               },
               "data": {
@@ -1026,6 +1073,12 @@
         },
         "showlinenumbers": {
           "type": "boolean"
+        },
+        "filename": {
+          "type": "string",
+          "maxLength": 200,
+          "minLength": 1,
+          "description": "Optional file name label shown above the code (plain text, no control characters; 2.4). Omitted when empty."
         }
       },
       "required": ["code", "language"],
@@ -1047,7 +1100,8 @@
       "type": "object",
       "properties": {
         "withHeadings": {
-          "type": "boolean"
+          "type": "boolean",
+          "description": "The first row is a header row."
         },
         "stretched": {
           "type": "boolean"
@@ -1061,7 +1115,56 @@
             "items": {
               "$ref": "#/$defs/inlineHtml"
             }
+          },
+          "description": "Rows of cells. With `merges` the grid is rectangular and the cells a merge covers are empty strings."
+        },
+        "headerColumn": {
+          "type": "boolean",
+          "description": "2.4: the first column is a header column (only written when true)."
+        },
+        "align": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "enum": ["left", "center", "right", null]
+          },
+          "description": "2.4: alignment per column (null = not set); trailing nulls are removed."
+        },
+        "merges": {
+          "type": "array",
+          "maxItems": 1000,
+          "description": "2.4: merged cells, sorted by row and column. Inside the grid, never overlapping, at least two cells, never from the header row into the body.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "row": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 499
+              },
+              "col": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 99
+              },
+              "rowspan": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 500
+              },
+              "colspan": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100
+              }
+            },
+            "required": ["row", "col", "rowspan", "colspan"],
+            "additionalProperties": false
           }
+        },
+        "caption": {
+          "$ref": "#/$defs/inlineHtml",
+          "description": "2.4: table caption (inline HTML, only written when not empty)."
         }
       },
       "required": ["withHeadings", "stretched", "content"],
@@ -1482,6 +1585,28 @@
         }
       },
       "required": ["title", "minLevel", "maxLevel", "style", "_mex"],
+      "additionalProperties": false
+    },
+    "data_math": {
+      "type": "object",
+      "description": "Math block (2.4).",
+      "properties": {
+        "tex": {
+          "type": "string",
+          "maxLength": 10000,
+          "description": "TeX source of the formula (only the source is stored). Renderers output MathML with `options.math`, else the source between \\[ \\] delimiters."
+        },
+        "display": {
+          "type": "boolean",
+          "description": "Display style (default true); false renders the formula in text style."
+        },
+        "_mex": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Built-in block marker (2.3: 1). Tells the built-in block apart from a custom block created before 2.3 under the same name."
+        }
+      },
+      "required": ["tex", "display", "_mex"],
       "additionalProperties": false
     },
     "data_synced": {

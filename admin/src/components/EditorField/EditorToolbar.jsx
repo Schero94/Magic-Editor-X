@@ -2,50 +2,30 @@ import {
   Avatar,
   Badge,
   Box,
+  Button,
   Flex,
   IconButton,
-  MenuItem,
-  SimpleMenu,
   Tooltip,
   Typography,
   VisuallyHidden,
 } from '@strapi/design-system';
-import {
-  ArrowClockwise,
-  ArrowsCounterClockwise,
-  ClockCounterClockwise,
-  Collapse,
-  Command,
-  Discuss,
-  Expand,
-  Eye,
-  EyeStriked,
-  Feather,
-  Layout,
-  Monitor,
-  More,
-  SealCheck,
-  Search,
-  Sparkle,
-} from '@strapi/icons';
+import { ArrowClockwise, ArrowsCounterClockwise, Collapse, Expand } from '@strapi/icons';
 import styled from 'styled-components';
+import { FieldToolsMenu } from './FieldToolsMenu';
+import { exitTools } from '../../editor/field-tools.mjs';
 import { peerFamily } from './RemoteCarets';
 
 /**
- * Toolbar above the editor: undo/redo, version history, find and replace,
- * quality checks, block comments, focus mode, keyboard shortcuts, fullscreen, live
+ * Toolbar above the editor (2.4 layout). It stays short: undo and redo (not
+ * for read-only fields), the "More tools" menu with every secondary tool from
+ * the field tool registry (`editor/field-tools.mjs`), full screen, a visible
+ * way back while a view-changing tool is on (preview, focus mode), the live
  * collaboration status with the people in the room, and counts (blocks,
  * words, characters, reading time) with the limits of the field preset.
  */
 
 /** Words per minute used for the reading time. */
 const WORDS_PER_MINUTE = 200;
-
-const CountBadge = styled.span`
-  display: inline-flex;
-  align-items: center;
-  gap: ${({ theme }) => theme.spaces[1]};
-`;
 
 const Bar = styled(Flex)`
   min-width: 0;
@@ -116,38 +96,12 @@ export const EditorToolbar = ({
   canRedo,
   onUndo,
   onRedo,
-  historyAvailable,
-  onOpenHistory,
-  historyButtonRef,
+  identityHint = null,
   collaboration,
   stats,
   limits = {},
-  findOpen = false,
-  onToggleFind,
-  qualityOpen = false,
-  onToggleQuality,
-  qualityCount = { errors: 0, total: 0 },
-  qualityButtonRef,
-  findButtonRef,
-  focusMode = false,
-  onToggleFocus,
-  onOpenShortcuts,
-  commentsAvailable = false,
-  commentsOpen = false,
-  onToggleComments,
-  commentsCount = 0,
-  commentsButtonRef,
-  grammarOpen = false,
-  onToggleGrammar,
-  grammarButtonRef,
-  onOpenFieldAi,
+  tools = [],
   moreButtonRef,
-  onOpenTemplates,
-  templatesButtonRef,
-  previewOpen = false,
-  onTogglePreview,
-  previewButtonRef,
-  previewId,
 }) => {
   const status = STATUS[collaboration.status];
   const peers = collaboration.peers || [];
@@ -167,177 +121,28 @@ export const EditorToolbar = ({
       paddingRight={3}
       justifyContent="space-between"
     >
-      <Flex gap={1} wrap="wrap">
-        <IconButton
-          label={t('editor.toolbar.undo', 'Undo')}
-          variant="ghost"
-          onClick={onUndo}
-          disabled={!ready || readOnly || !canUndo}
-        >
-          <ArrowsCounterClockwise />
-        </IconButton>
-        <IconButton
-          label={t('editor.toolbar.redo', 'Redo')}
-          variant="ghost"
-          onClick={onRedo}
-          disabled={!ready || readOnly || !canRedo}
-        >
-          <ArrowClockwise />
-        </IconButton>
-        {historyAvailable ? (
-          <IconButton
-            ref={historyButtonRef}
-            label={t('editor.toolbar.history', 'Version history')}
-            variant="ghost"
-            onClick={onOpenHistory}
-            disabled={!ready}
-          >
-            <ClockCounterClockwise />
-          </IconButton>
-        ) : null}
-        {onToggleFind ? (
-          <IconButton
-            ref={findButtonRef}
-            label={t('editor.toolbar.find', 'Find and replace')}
-            variant="ghost"
-            onClick={onToggleFind}
-            aria-pressed={findOpen}
-            disabled={!ready}
-          >
-            <Search />
-          </IconButton>
-        ) : null}
-        {onToggleQuality ? (
-          <CountBadge>
+      <Flex gap={1} wrap="wrap" alignItems="center">
+        {readOnly ? null : (
+          <>
             <IconButton
-              ref={qualityButtonRef}
-              label={
-                qualityCount.total
-                  ? t(
-                      'editor.toolbar.qualityCount',
-                      'Quality checks ({count, plural, one {# problem} other {# problems}})',
-                      {
-                        count: qualityCount.total,
-                      }
-                    )
-                  : t('editor.toolbar.quality', 'Quality checks')
-              }
+              label={t('editor.toolbar.undo', 'Undo')}
               variant="ghost"
-              onClick={onToggleQuality}
-              aria-pressed={qualityOpen}
-              disabled={!ready}
+              onClick={onUndo}
+              disabled={!ready || !canUndo}
             >
-              <SealCheck />
+              <ArrowsCounterClockwise />
             </IconButton>
-            {qualityCount.total ? (
-              <Badge
-                size="S"
-                aria-hidden="true"
-                backgroundColor={qualityCount.errors ? 'danger100' : 'warning100'}
-                textColor={qualityCount.errors ? 'danger700' : 'neutral800'}
-              >
-                {qualityCount.total > 99 ? '99+' : qualityCount.total}
-              </Badge>
-            ) : null}
-          </CountBadge>
-        ) : null}
-        {commentsAvailable && onToggleComments ? (
-          <CountBadge>
             <IconButton
-              ref={commentsButtonRef}
-              label={
-                commentsCount
-                  ? t(
-                      'editor.toolbar.commentsCount',
-                      'Comments ({count, plural, one {# open thread} other {# open threads}})',
-                      { count: commentsCount }
-                    )
-                  : t('editor.toolbar.comments', 'Comments')
-              }
+              label={t('editor.toolbar.redo', 'Redo')}
               variant="ghost"
-              onClick={onToggleComments}
-              aria-pressed={commentsOpen}
-              disabled={!ready}
-              data-testid="mex-comments-toggle"
+              onClick={onRedo}
+              disabled={!ready || !canRedo}
             >
-              <Discuss />
+              <ArrowClockwise />
             </IconButton>
-            {commentsCount ? (
-              <Badge size="S" aria-hidden="true" backgroundColor="primary100" textColor="primary700">
-                {commentsCount > 99 ? '99+' : commentsCount}
-              </Badge>
-            ) : null}
-          </CountBadge>
-        ) : null}
-        {onToggleGrammar ? (
-          <IconButton
-            ref={grammarButtonRef}
-            label={t('editor.toolbar.grammar', 'Check grammar')}
-            variant="ghost"
-            onClick={onToggleGrammar}
-            aria-pressed={grammarOpen}
-            disabled={!ready}
-            data-testid="mex-grammar-toggle"
-          >
-            <Feather />
-          </IconButton>
-        ) : null}
-        {onOpenTemplates ? (
-          <IconButton
-            ref={templatesButtonRef}
-            label={t('editor.toolbar.templates', 'Insert template')}
-            variant="ghost"
-            onClick={onOpenTemplates}
-            disabled={!ready || readOnly || previewOpen}
-            data-testid="mex-templates-open"
-          >
-            <Layout />
-          </IconButton>
-        ) : null}
-        {onTogglePreview ? (
-          <IconButton
-            ref={previewButtonRef}
-            label={
-              previewOpen
-                ? t('editor.toolbar.previewOff', 'Back to editing')
-                : t('editor.toolbar.preview', 'Preview')
-            }
-            variant="ghost"
-            onClick={onTogglePreview}
-            aria-pressed={previewOpen}
-            aria-controls={previewOpen ? previewId : undefined}
-            disabled={!ready}
-            data-testid="mex-preview-toggle"
-          >
-            <Monitor />
-          </IconButton>
-        ) : null}
-        <SimpleMenu
-          ref={moreButtonRef}
-          tag={IconButton}
-          icon={<More />}
-          label={t('editor.toolbar.more', 'More editor actions')}
-          variant="ghost"
-          popoverPlacement="bottom-start"
-        >
-          {onToggleFocus ? (
-            <MenuItem onSelect={onToggleFocus} startIcon={focusMode ? <EyeStriked /> : <Eye />}>
-              {focusMode
-                ? t('editor.toolbar.focusOff', 'Leave focus mode')
-                : t('editor.toolbar.focusOn', 'Focus mode')}
-            </MenuItem>
-          ) : null}
-          {onOpenFieldAi ? (
-            <MenuItem onSelect={onOpenFieldAi} startIcon={<Sparkle />}>
-              {t('editor.toolbar.fieldAi', 'AI for the whole field')}
-            </MenuItem>
-          ) : null}
-          {onOpenShortcuts ? (
-            <MenuItem onSelect={onOpenShortcuts} startIcon={<Command />}>
-              {t('editor.toolbar.shortcuts', 'Keyboard shortcuts')}
-            </MenuItem>
-          ) : null}
-        </SimpleMenu>
+          </>
+        )}
+        <FieldToolsMenu ref={moreButtonRef} t={t} tools={tools} disabled={!ready} />
         <IconButton
           label={
             fullscreen
@@ -350,6 +155,29 @@ export const EditorToolbar = ({
         >
           {fullscreen ? <Collapse /> : <Expand />}
         </IconButton>
+        {exitTools(tools).map((entry) => (
+          <Button
+            key={entry.id}
+            size="S"
+            variant="secondary"
+            onClick={() => {
+              entry.onSelect();
+              // The button unmounts with its tool: focus goes to the More tools trigger, not <body>.
+              if (!entry.movesFocus)
+                window.requestAnimationFrame(() => moreButtonRef.current && moreButtonRef.current.focus());
+            }}
+            data-testid={`mex-tool-exit-${entry.id}`}
+          >
+            {entry.exitLabel}
+          </Button>
+        ))}
+        {identityHint ? (
+          <Flex alignItems="center" paddingLeft={1} paddingRight={1} minHeight="3.2rem">
+            <Typography variant="pi" textColor="neutral600" data-testid="mex-identity-hint">
+              {identityHint}
+            </Typography>
+          </Flex>
+        ) : null}
       </Flex>
       <Flex gap={3} wrap="wrap" justifyContent="flex-end" minWidth={0}>
         {status ? (

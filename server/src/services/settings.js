@@ -227,6 +227,11 @@ module.exports = ({ strapi }) => {
       environment: {
         allowPrivateBaseUrl: config('ai.allowPrivateBaseUrl', false) === true,
         requestsPerMinute: config('ai.requestsPerMinute', 20),
+        // 2.4: private image storage origins for alt text (config only, shown read-only).
+        altTextPrivateOrigins: (() => {
+          const list = config('ai.altText.allowPrivateOrigins', []);
+          return Array.isArray(list) ? list.filter((item) => typeof item === 'string').slice(0, 20) : [];
+        })(),
         languageTool: {
           allowPrivateBaseUrl: config('languageTool.allowPrivateBaseUrl', false) === true,
           requestsPerMinute: config('languageTool.requestsPerMinute', 30),
@@ -237,6 +242,18 @@ module.exports = ({ strapi }) => {
           path: config('collaboration.path', '/magic-editor-x/realtime'),
           pollIntervalMs: config('collaboration.pollIntervalMs', 400),
           snapshotIntervalMinutes: config('collaboration.snapshotIntervalMinutes', 10),
+        },
+        // 2.4: mention e-mails (config only, shown read-only).
+        mentionEmails: {
+          enabled: config('comments.notifications.email', false) === true,
+          available: (() => {
+            try {
+              return Boolean(strapi.plugin('email'));
+            } catch {
+              return false;
+            }
+          })(),
+          perHour: config('comments.notifications.emailPerHour', 10),
         },
         rawHtml: config('rawHtml', 'sanitize'),
         uploads: {
@@ -261,6 +278,9 @@ module.exports = ({ strapi }) => {
         enabled: status.enabled,
         scheduled: status.scheduled,
         rule: status.rule,
+        tz: status.tz || null,
+        nextRunAt: status.nextRunAt || null,
+        running: status.running === true,
         maxUrlsPerRun: status.maxUrlsPerRun,
         perMinute: status.perMinute,
         lastRun: status.lastRun

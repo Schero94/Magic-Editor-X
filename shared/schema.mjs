@@ -8,6 +8,8 @@
  */
 
 import { BUILT_IN_MARKER, MARKED_BLOCKS } from './sanitize-policy.mjs';
+import { FIELD_KEY_PATTERN } from './field-identity.mjs';
+import { TABLE_ALIGNS, TABLE_LIMITS } from './table.mjs';
 
 export const SCHEMA_ID = 'https://schero94.github.io/Magic-Editor-X/schema/magic-editor-x.schema.json';
 
@@ -120,6 +122,12 @@ export const BLOCK_DATA_SCHEMAS = Object.freeze({
       code: str(500000),
       language: { type: 'string', pattern: '^[a-zA-Z0-9+#-]{1,32}$' },
       showlinenumbers: bool,
+      filename: {
+        ...str(200),
+        minLength: 1,
+        description:
+          'Optional file name label shown above the code (plain text, no control characters; 2.4). Omitted when empty.',
+      },
     },
     ['code', 'language']
   ),
@@ -134,9 +142,41 @@ export const BLOCK_DATA_SCHEMAS = Object.freeze({
   ),
   table: obj(
     {
-      withHeadings: bool,
+      withHeadings: { ...bool, description: 'The first row is a header row.' },
       stretched: bool,
-      content: { type: 'array', maxItems: 500, items: { type: 'array', maxItems: 100, items: html } },
+      content: {
+        type: 'array',
+        maxItems: TABLE_LIMITS.rows,
+        items: { type: 'array', maxItems: TABLE_LIMITS.cols, items: html },
+        description:
+          'Rows of cells. With `merges` the grid is rectangular and the cells a merge covers are empty strings.',
+      },
+      headerColumn: {
+        ...bool,
+        description: '2.4: the first column is a header column (only written when true).',
+      },
+      align: {
+        type: 'array',
+        maxItems: TABLE_LIMITS.cols,
+        items: { enum: [...TABLE_ALIGNS, null] },
+        description: '2.4: alignment per column (null = not set); trailing nulls are removed.',
+      },
+      merges: {
+        type: 'array',
+        maxItems: TABLE_LIMITS.merges,
+        description:
+          '2.4: merged cells, sorted by row and column. Inside the grid, never overlapping, at least two cells, never from the header row into the body.',
+        items: obj(
+          {
+            row: int(0, TABLE_LIMITS.rows - 1),
+            col: int(0, TABLE_LIMITS.cols - 1),
+            rowspan: int(1, TABLE_LIMITS.rows),
+            colspan: int(1, TABLE_LIMITS.cols),
+          },
+          ['row', 'col', 'rowspan', 'colspan']
+        ),
+      },
+      caption: { ...html, description: '2.4: table caption (inline HTML, only written when not empty).' },
     },
     ['withHeadings', 'stretched', 'content']
   ),
@@ -296,6 +336,22 @@ export const BLOCK_DATA_SCHEMAS = Object.freeze({
     ['title', 'minLevel', 'maxLevel', 'style', '_mex'],
     'Table of contents. The entries are built from the headings when the content is rendered.'
   ),
+  math: obj(
+    {
+      tex: {
+        ...str(10000),
+        description:
+          'TeX source of the formula (only the source is stored). Renderers output MathML with `options.math`, else the source between \\[ \\] delimiters.',
+      },
+      display: {
+        ...bool,
+        description: 'Display style (default true); false renders the formula in text style.',
+      },
+      _mex: marker,
+    },
+    ['tex', 'display', '_mex'],
+    'Math block (2.4).'
+  ),
   synced: obj(
     {
       ref: {
@@ -329,6 +385,12 @@ export const buildEditorSchema = () => ({
     time: { type: 'integer', minimum: 0 },
     blocks: { type: 'array', maxItems: 5000, items: { $ref: '#/$defs/block' } },
     version: str(32),
+    fieldKey: {
+      type: 'string',
+      pattern: FIELD_KEY_PATTERN.source,
+      description:
+        'Since 2.4: stable identity of a value inside a repeatable component or dynamic zone (random, URL-safe). Set by the server on save; renderers ignore it. Absent on top-level fields.',
+    },
   },
   required: ['time', 'blocks', 'version'],
   additionalProperties: false,
@@ -336,7 +398,7 @@ export const buildEditorSchema = () => ({
     inlineHtml: {
       type: 'string',
       description:
-        'Inline HTML limited to b, strong, i, em, u, s, mark, code, a, br, span, sub, sup with the attributes of the sanitising policy. Internal links carry data-mex-uid, data-mex-document-id and data-mex-locale; mentions (inline entry references) also data-mex-mention="true".',
+        'Inline HTML limited to b, strong, i, em, u, s, mark, code, a, br, span, sub, sup with the attributes of the sanitising policy. Internal links carry data-mex-uid, data-mex-document-id and data-mex-locale; mentions (inline entry references) also data-mex-mention="true". Inline math (2.4): <span data-mex-math="true">TeX source</span> (text only). Footnote markers (2.4): <sup data-mex-footnote="id" data-mex-note="inline HTML of the note">n</sup> (the note follows the same rules without footnotes and entry references; the marker text is a placeholder).',
     },
     url: {
       type: 'string',
@@ -434,7 +496,7 @@ export const buildEditorSchema = () => ({
       required: ['id', 'type', 'data'],
       additionalProperties: false,
       allOf: Object.keys(BLOCK_DATA_SCHEMAS).map((type) => ({
-        // 2.3 types (`MARKED_BLOCKS`): data without the marker or the exact shape is custom block data written before 2.3.
+        // `MARKED_BLOCKS` types (2.3, math 2.4): data without the marker or the exact shape is custom block data.
         if: MARKED_BLOCKS[type]
           ? markedCondition(type)
           : { properties: { type: { const: type } }, required: ['type'] },

@@ -1,3 +1,4 @@
+import { Bell } from '@strapi/icons';
 import { PLUGIN_ID } from './pluginId';
 import { PluginIcon } from './components/PluginIcon';
 import { PERMISSIONS } from './permissions';
@@ -82,6 +83,24 @@ export default {
     // `apis` (Strapi admin plugin API): the custom block SDK for the host app's
     // `src/admin/app.js`: `app.getPlugin('magic-editor-x').apis.registerBlock({ definition, tool })`.
     app.registerPlugin({ id: PLUGIN_ID, name: PLUGIN_ID, apis: { registerBlock, createReactTool } });
+
+    // 2.4: homepage widget with the admin's comment mentions and replies (Strapi 5.13+ widget API).
+    if (app.widgets && typeof app.widgets.register === 'function') {
+      app.widgets.register({
+        id: 'mentions',
+        pluginId: PLUGIN_ID,
+        icon: Bell,
+        title: { id: getTranslation('widget.mentions.title'), defaultMessage: 'Mentions and replies' },
+        component: async () => {
+          const { MentionsWidget } = await import('./components/MentionsWidget');
+          return MentionsWidget;
+        },
+        permissions: [
+          { action: 'plugin::magic-editor-x.access' },
+          { action: 'plugin::magic-editor-x.comments.read' },
+        ],
+      });
+    }
 
     app.customFields.register({
       name: 'richtext',
@@ -310,6 +329,13 @@ export default {
           to: `${PLUGIN_ID}/templates`,
           permissions: PERMISSIONS.templatesManage,
           Component: () => import('./pages/TemplatesPage'),
+        },
+        {
+          id: `${PLUGIN_ID}-audit`,
+          intlLabel: { id: getTranslation('settings.link.audit'), defaultMessage: 'Audit trail' },
+          to: `${PLUGIN_ID}/audit`,
+          permissions: PERMISSIONS.auditRead,
+          Component: () => import('./pages/AuditPage'),
         },
       ]
     );

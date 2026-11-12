@@ -1,6 +1,6 @@
 /**
- * Built-in marker of the 2.3 block types whose names a Settings custom block
- * could already use before 2.3. Kept free of imports so that every shared
+ * Built-in marker of the block types (2.3 and later) whose names a Settings
+ * custom block could already use before they became built-in. Kept free of imports so that every shared
  * module (also `editor-data.mjs`, which `sanitize-policy.mjs` imports) can use
  * it; `sanitize-policy.mjs` re-exports it.
  */
@@ -58,6 +58,8 @@ export const MARKED_BLOCKS = Object.freeze({
     anchor: Object.freeze(['file', 'object']),
   }),
   synced: Object.freeze({ keys: Object.freeze(['ref']), anchor: Object.freeze(['ref', 'string']) }),
+  // 2.4: math block. A Settings custom block named `math` could exist before 2.4.
+  math: Object.freeze({ keys: Object.freeze(['tex', 'display']), anchor: Object.freeze(['tex', 'string']) }),
 });
 
 /**

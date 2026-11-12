@@ -42,9 +42,21 @@ const KITCHEN_SINK = {
   alert: { type: 'danger', align: 'center', message: 'm' },
   toggle: { text: 't', status: 'closed', fk: 'k1', items: 1 },
   code: { code: 'x' },
-  codeFlask: { code: 'x', language: 'js', showlinenumbers: true },
+  codeFlask: { code: 'x', language: 'js', showlinenumbers: true, filename: 'src/app.js' },
   raw: { html: '<b>x</b>' },
-  table: { withHeadings: true, stretched: true, content: [['a']] },
+  table: {
+    withHeadings: true,
+    stretched: true,
+    content: [
+      ['a', 'b'],
+      ['c', 'd'],
+      ['e', 'f'],
+    ],
+    headerColumn: true,
+    align: ['center', 'right'],
+    merges: [{ row: 1, col: 0, rowspan: 2, colspan: 2 }],
+    caption: 'Caption',
+  },
   image: {
     file: {
       url: 'https://cdn.example.test/a.png',
@@ -152,6 +164,7 @@ const KITCHEN_SINK = {
   delimiter: {},
   toc: { title: 'Contents', minLevel: 2, maxLevel: 3, style: 'ordered' },
   synced: { ref: 'abc123def456' },
+  math: { tex: '\\frac{a}{b}', display: false },
 };
 
 test('policy output for every type has exactly the keys the schema describes', () => {

@@ -1,7 +1,9 @@
 'use strict';
 
 const { z } = require('zod');
+const { isTimeZone } = require('../utils/time-zone');
 const { isValidLinkPattern, MAX_LINK_PATTERN_LENGTH } = require('../../../shared/link-pattern.mjs');
+const { isListablePrivateOrigin } = require('../utils/url-security');
 
 /**
  * Plugin configuration (config/plugins.js -> 'magic-editor-x': { config: {...} }).
@@ -28,6 +30,10 @@ const defaults = {
   uploads: {
     maxImageBytes: 10 * MiB,
     maxFileBytes: 20 * MiB,
+    /** 2.4: size cap of a video or audio file copied from a URL (pasted <video>/<audio>; buffered in memory). */
+    maxMediaBytes: 50 * MiB,
+    /** 2.4: exact origins the image and media by-URL routes may fetch although they are private or loopback (no redirects). */
+    allowPrivateOrigins: [],
   },
   linkPreview: {
     enabled: true,
@@ -44,6 +50,18 @@ const defaults = {
     apiKey: undefined,
     requestsPerMinute: 20,
     timeoutMs: 60000,
+    altText: {
+      /**
+       * 2.4: exact origins (`http://minio.internal:9000`) of self-hosted image
+       * storage on a private network (S3/MinIO) that alt text suggestions may
+       * read images from. Relaxes the SSRF protection for these origins only:
+       * redirects are never followed, size, type and dimension caps stay, and
+       * link-local or cloud metadata addresses stay refused (also refused here
+       * at boot). Empty (default) reads public URLs only. Config only, never in
+       * the Settings UI.
+       */
+      allowPrivateOrigins: [],
+    },
   },
   languageTool: {
     /** Allow LanguageTool base URLs on private or loopback hosts (self-hosted server in the LAN). Owner opt-in only. */
@@ -106,6 +124,26 @@ const defaults = {
     enabled: true,
     /** Comments and replies one admin may post per minute, shared by all processes. */
     perMinute: 30,
+    /** 2.4: @mention picker searches one admin may run per minute, shared by all processes. */
+    mentionsPerMinute: 60,
+    notifications: {
+      /**
+       * 2.4: e-mail people when they are mentioned, through Strapi's email plugin (owner opt-in).
+       * The mail names who mentioned them, the entry title they can read and a link; never the comment text.
+       */
+      email: false,
+      /** Mention e-mails one person receives per hour at most, shared by all processes. */
+      emailPerHour: 10,
+    },
+  },
+  suggestions: {
+    /**
+     * Block suggestions (2.4). Shown only to admins with `suggestions.create` or
+     * `suggestions.review`; off hides them and the suggestion routes answer 404.
+     */
+    enabled: true,
+    /** Suggestion requests (each "Send suggestions") one admin may make per minute, shared by all processes. */
+    perMinute: 20,
   },
   qualityChecks: {
     externalLinks: {
@@ -128,8 +166,10 @@ const defaults = {
        */
       schedule: {
         enabled: false,
-        /** Cron rule with five fields (minute hour day month weekday), server time zone. */
+        /** Cron rule with five fields (minute hour day month weekday), in `tz` (default: the server time zone). */
         rule: '0 3 * * *',
+        // `tz` (2.4, optional, no default): IANA time zone of the rule (`Europe/Berlin`, `UTC`);
+        // unset uses the server time zone. Validated with utils/time-zone.js.
         /** Most URLs requested per run; the least recently checked go first. */
         maxUrlsPerRun: 500,
         /** Requests per minute of a run (all hosts). */
@@ -138,6 +178,12 @@ const defaults = {
         perHostConcurrency: 2,
       },
     },
+  },
+  audit: {
+    /** Audit trail (2.4): who changed what and when, counts and block ids only, never content. */
+    enabled: true,
+    /** Days records are kept; older ones are pruned once an hour by one process. 0 keeps them. */
+    retentionDays: 180,
   },
   links: {
     /**
@@ -175,6 +221,8 @@ const configSchema = z.looseObject({
   uploads: z.looseObject({
     maxImageBytes: positiveInt(200 * MiB),
     maxFileBytes: positiveInt(500 * MiB),
+    maxMediaBytes: positiveInt(200 * MiB),
+    allowPrivateOrigins: z.array(z.string().max(300).refine(isOrigin)).max(20),
   }),
   linkPreview: z.looseObject({ enabled: z.boolean(), timeoutMs: z.number().int().min(1000).max(30000) }),
   api: z.looseObject({ autoParseJSON: z.boolean() }),
@@ -183,6 +231,9 @@ const configSchema = z.looseObject({
     apiKey: z.string().min(1).max(500).optional(),
     requestsPerMinute: positiveInt(1000),
     timeoutMs: z.number().int().min(1000).max(300000),
+    altText: z.looseObject({
+      allowPrivateOrigins: z.array(z.string().max(300).refine(isListablePrivateOrigin)).max(20),
+    }),
   }),
   languageTool: z.looseObject({
     allowPrivateBaseUrl: z.boolean(),
@@ -235,7 +286,16 @@ const configSchema = z.looseObject({
     }),
   }),
   history: z.looseObject({ maxSnapshotsPerField: positiveInt(1000) }),
-  comments: z.looseObject({ enabled: z.boolean(), perMinute: positiveInt(1000) }),
+  comments: z.looseObject({
+    enabled: z.boolean(),
+    perMinute: positiveInt(1000),
+    // 2.4 keys are optional so a 2.3 configuration validated without the defaults merged stays valid.
+    mentionsPerMinute: positiveInt(1000).optional(),
+    notifications: z
+      .looseObject({ email: z.boolean().optional(), emailPerHour: positiveInt(1000).optional() })
+      .optional(),
+  }),
+  suggestions: z.looseObject({ enabled: z.boolean(), perMinute: positiveInt(1000) }),
   qualityChecks: z
     .looseObject({
       externalLinks: z.looseObject({
@@ -246,6 +306,7 @@ const configSchema = z.looseObject({
         schedule: z.looseObject({
           enabled: z.boolean(),
           rule: z.string().max(100).regex(CRON_RULE),
+          tz: z.string().max(64).refine(isTimeZone).optional(),
           maxUrlsPerRun: positiveInt(10000),
           perMinute: positiveInt(600),
           perHostConcurrency: positiveInt(8),
@@ -255,6 +316,14 @@ const configSchema = z.looseObject({
     .refine((value) => !value.externalLinks.schedule.enabled || value.externalLinks.enabled, {
       path: ['externalLinks', 'schedule', 'enabled'],
     }),
+  audit: z.looseObject({
+    enabled: z.boolean(),
+    retentionDays: z
+      .number()
+      .int()
+      .min(0)
+      .max(10 * 366),
+  }),
   links: z.looseObject({
     urlPattern: z.string().max(MAX_LINK_PATTERN_LENGTH).refine(isValidLinkPattern),
   }),

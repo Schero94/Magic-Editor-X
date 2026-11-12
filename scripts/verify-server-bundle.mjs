@@ -96,6 +96,37 @@ for (const file of ['../dist/blocks/index.mjs', '../dist/blocks/index.js']) {
 
 console.log('Magic Editor X CJS and ESM blocks bundles load and define blocks the renderers accept');
 
+// Math helper (`magic-editor-x/math`, 2.4): both formats render MathML that the
+// render bundle accepts through its allow-list; hostile TeX renders nothing unsafe.
+const cjsMath = require('../dist/math/index.js');
+const esmMath = await import('../dist/math/index.mjs');
+for (const [format, math] of [
+  ['CJS', cjsMath],
+  ['ESM', esmMath],
+]) {
+  for (const name of ['renderMath', 'checkMath'])
+    if (typeof math[name] !== 'function') throw new Error(`${format} math bundle must export ${name}`);
+  const value = {
+    blocks: [
+      { id: 'm', type: 'math', data: { tex: '\\frac{a}{b}' } },
+      { id: 'p', type: 'paragraph', data: { text: 'x <span data-mex-math>\\includegraphics{x.png}</span>' } },
+    ],
+  };
+  const html = cjsRender.renderHtml(value, { math: math.renderMath });
+  if (!html.includes('<mfrac><mi>a</mi><mi>b</mi></mfrac>') || /<img|style=/.test(html))
+    throw new Error(`${format} math bundle rendered unexpected HTML: ${html}`);
+  if (!html.includes('\\(\\includegraphics{x.png}\\)'))
+    throw new Error(`${format} math bundle did not fall back for untrusted TeX`);
+  if (math.checkMath('\\frac{').ok !== false) throw new Error(`${format} math bundle accepted invalid TeX`);
+}
+for (const file of ['../dist/math/index.mjs', '../dist/math/index.js']) {
+  const source = await readFile(new URL(file, import.meta.url), 'utf8');
+  if (/\b(require\(|from |import\()["'](node:|react|react-dom|vue|zod)/.test(source))
+    throw new Error(`${file} must not import Node built-ins, a framework or zod`);
+}
+
+console.log('Magic Editor X CJS and ESM math bundles render TeX through the render bundle');
+
 // Framework components: both formats load with the caller's framework and
 // render the same HTML as renderHtml (Vue fragment markers removed).
 const frameworkSmoke = {

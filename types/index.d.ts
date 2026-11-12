@@ -69,15 +69,35 @@ export interface CodeFlaskData {
   code: string;
   language: string;
   showlinenumbers?: boolean;
+  /** File name label shown above the code (plain text, max 200 characters; 2.4). */
+  filename?: string;
 }
 export interface RawData {
   /** Raw HTML, sanitised or emptied according to the server's `rawHtml` option. */
   html: string;
 }
+/** A merged table cell (2.4): anchor (top left) cell and size. */
+export interface TableMerge {
+  row: number;
+  col: number;
+  rowspan: number;
+  colspan: number;
+}
+export type TableAlign = 'left' | 'center' | 'right';
 export interface TableData {
+  /** The first row is a header row. */
   withHeadings: boolean;
   stretched: boolean;
+  /** Rows of cells. With `merges` the grid is rectangular and covered cells are ''. */
   content: InlineHtml[][];
+  /** 2.4: the first column is a header column (only stored when true). */
+  headerColumn?: boolean;
+  /** 2.4: alignment per column (null = not set). */
+  align?: Array<TableAlign | null>;
+  /** 2.4: merged cells (inside the grid, never overlapping, never from the header row into the body). */
+  merges?: TableMerge[];
+  /** 2.4: caption (only stored when not empty). */
+  caption?: InlineHtml;
 }
 export interface MediaFormat {
   url: Url;
@@ -265,6 +285,22 @@ export interface SyncedData {
   _mex: number;
 }
 
+/**
+ * Math block (2.4): only the TeX source is stored. Renderers output MathML with
+ * the `math` render option (for example `renderMath` from `magic-editor-x/math`),
+ * else the source between `\\[ \\]` delimiters. Inline math is stored in inline
+ * HTML as `<span data-mex-math="true">TeX</span>`; footnotes as
+ * `<sup data-mex-footnote="id" data-mex-note="note HTML">n</sup>`.
+ */
+export interface MathData {
+  /** TeX source (at most 10000 characters). */
+  tex: string;
+  /** Display style (default true); false renders the formula in text style. */
+  display: boolean;
+  /** Built-in block marker (2.4 writes 1); a custom block named `math` from before 2.4 has none. */
+  _mex: number;
+}
+
 /** Data per built-in block type. */
 export interface BlockDataMap {
   paragraph: ParagraphData;
@@ -292,6 +328,7 @@ export interface BlockDataMap {
   delimiter: DelimiterData;
   toc: TocData;
   synced: SyncedData;
+  math: MathData;
 }
 
 export type BuiltInBlockType = keyof BlockDataMap;
@@ -316,6 +353,11 @@ export interface MagicEditorXData {
   time: number;
   blocks: MagicEditorXBlock[];
   version: string;
+  /**
+   * Since 2.4: stable identity of a value inside a repeatable component or dynamic zone
+   * (16-32 URL-safe characters, set by the server on save). Renderers ignore it.
+   */
+  fieldKey?: string;
 }
 
 export type MagicEditorXValue = MagicEditorXData | null;

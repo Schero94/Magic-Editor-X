@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useIntl } from 'react-intl';
-import { useHref, useNavigate } from 'react-router-dom';
+import { useHref, useLocation, useNavigate } from 'react-router-dom';
 import EditorJS from '@editorjs/editorjs';
 import {
   Box,
@@ -13,7 +13,20 @@ import {
   Typography,
   VisuallyHidden,
 } from '@strapi/design-system';
+import {
+  ClockCounterClockwise,
+  Command,
+  Discuss,
+  Eye,
+  Feather,
+  Layout,
+  Monitor,
+  SealCheck,
+  Search,
+  Sparkle,
+} from '@strapi/icons';
 import { useFetchClient, useNotification, useStrapiApp } from '@strapi/strapi/admin';
+import { Lightbulb, Pencil } from '@strapi/icons';
 import styled, { createGlobalStyle } from 'styled-components';
 import { buildTools, editorI18n, createUndoManager, createDragDrop } from '../../editor/tools';
 import { editorStyles } from '../../editor/tools/styles';
@@ -40,8 +53,20 @@ import { BlockSelectionBar } from './BlockSelectionBar';
 import { useComments } from './useComments';
 import { CommentsPanel } from './CommentsPanel';
 import { CommentMarkers } from './CommentMarkers';
+import { useCommentAnchors } from './useCommentAnchors';
+import { SelectionCommentButton } from './SelectionCommentButton';
+import { anchorFromSelection } from '../../editor/comment-anchor-dom';
 import { blockExcerpt, openThreadsByBlock } from '../../../../shared/comments.mjs';
 import { FieldPreview } from './FieldPreview';
+import { useSuggestions } from './useSuggestions';
+import { SuggestEditor } from './SuggestEditor';
+import { SuggestionsPanel } from './SuggestionsPanel';
+import { SuggestionMarkers } from './SuggestionMarkers';
+import {
+  applySuggestions,
+  openSuggestionsByBlock,
+  pendingInsertsOf,
+} from '../../../../shared/suggestions.mjs';
 import { TemplateDialog } from './TemplateDialog';
 import { SaveTemplateDialog } from './SaveTemplateDialog';
 import {
@@ -56,22 +81,40 @@ import { loadSynced, primeSynced, useSyncedSources } from '../../editor/synced-s
 import { SyncedBlockView } from './SyncedBlockView';
 import { createPasteHandler } from '../../editor/paste';
 import { createMarkdownShortcuts } from '../../editor/markdown-shortcuts';
-import { createMentionKeys } from '../../editor/tools/mention';
+import { MentionTool, createMentionKeys } from '../../editor/tools/mention';
+import { createMentionTrigger } from '../../editor/mention-trigger';
+import { createInlineMathKeys } from '../../editor/tools/inline-math';
+import {
+  FOOTNOTE_SELECTOR,
+  createFootnoteKeys,
+  notifyFootnoteInput,
+  releaseFootnote,
+} from '../../editor/tools/footnote';
+import { FootnoteDialog } from './FootnoteDialog';
+import { FootnotesPanel } from './FootnotesPanel';
 import { restoreBlockInEditor } from '../../editor/restore-block.mjs';
 import { markInputReady, trackUserInput } from '../../editor/input-tracking.mjs';
 import { createStyleOwners } from '../../editor/style-owners.mjs';
 import { highlightMatch, clearHighlight } from '../../editor/find-highlight';
 import { createAltTextSuggester } from '../../editor/ai-alt-text';
+import { insertSuggestion } from '../../editor/ai-selection';
 import { GrammarPanel } from './GrammarPanel';
 import { FieldAiDialog } from './FieldAiDialog';
+import { BlockAiDialog } from './BlockAiDialog';
 import { applySegments } from '../../../../shared/ai-fields.mjs';
-import { isPositionalFieldPath } from '../../editor/field-path.mjs';
+import {
+  isPositionalFieldPath,
+  isValidFieldKey,
+  createFieldKey,
+  identityTarget,
+} from '../../editor/field-path.mjs';
 import { escapeHtml } from '../../../../shared/render/inline.mjs';
 import {
   resolveFieldPreset,
   checkPreset,
   fixPresetViolations,
   isBlockAllowed,
+  allowedInlineTags,
 } from '../../../../shared/presets.mjs';
 
 /**
@@ -192,6 +235,17 @@ const Frame = styled(Box)`
 const EditorArea = styled.div`
   position: relative;
   min-width: 0;
+  /*
+   * Editor.js renders the block menu, the toolbox and their nested popovers
+   * inside .ce-toolbar, which is its own stacking context (will-change:
+   * opacity). Their z-index therefore cannot lift them over positioned
+   * content of the fields that follow (the next field's toolbar and text drew
+   * over the menu). While a popover or the inline toolbar is open, the whole
+   * area is lifted to the DS popover layer.
+   */
+  &:has(.ce-popover--opened, .ce-inline-toolbar--showed) {
+    z-index: ${({ theme }) => theme.zIndices.popover};
+  }
   ${({ $fullscreen }) => ($fullscreen ? 'flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0;' : '')}
   /*
    * Visually hidden while the rendered preview is shown. The editor stays laid
@@ -212,8 +266,11 @@ const Holder = styled.div`
   }
   min-height: ${({ $minHeight }) => `${$minHeight}px`};
   ${({ $fullscreen }) => ($fullscreen ? 'flex: 1 1 auto; overflow: auto;' : '')}
-  /* Room for the block comment markers at the inline end (they sit outside the holder). */
-  ${({ $gutter, theme }) => ($gutter ? `&& { padding-inline-end: ${theme.spaces[8]}; }` : '')}
+  /* Room for the block comment and suggestion markers at the inline end (they sit outside the holder). */
+  ${({ $gutter, theme }) =>
+    $gutter
+      ? `&& { padding-inline-end: ${$gutter === 2 ? `calc(${theme.spaces[8]} + 3.6rem)` : theme.spaces[8]}; }`
+      : ''}
   ${({ $focus, theme }) =>
     $focus
       ? `
@@ -303,7 +360,10 @@ const EditorFieldBody = ({
   const collabRef = useRef(null);
   const pendingLocalRef = useRef(false);
   const syncedOnceRef = useRef(false);
-  const historyButtonRef = useRef(null);
+  // What the editor shows as far as live collaboration knows: the content it was created with
+  // (in the editor's own serialisation once available), then the last room state it rendered.
+  // A new collaboration client diffs edits made before its first render against this.
+  const viewRef = useRef({ blocks: [] });
   const areaRef = useRef(null);
   const remoteCacheRef = useRef(new WeakMap());
   // True once the user interacted with the editor. Before that, changes Editor.js
@@ -317,38 +377,73 @@ const EditorFieldBody = ({
   const [fullscreen, setFullscreen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [aiRequest, setAiRequest] = useState(null);
+  // 2.4: block AI actions for the chosen block ids.
+  const [blockAiRequest, setBlockAiRequest] = useState(null);
   const [mediaRequest, setMediaRequest] = useState(null);
   const [undoState, setUndoState] = useState({ canUndo: false, canRedo: false });
   const [valueError, setValueError] = useState(null);
   const [currentData, setCurrentData] = useState(null);
+  const currentDataRef = useRef(null);
+  useEffect(() => {
+    currentDataRef.current = currentData;
+  }, [currentData]);
   const [findOpen, setFindOpen] = useState(false);
   const [qualityOpen, setQualityOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [focusMode, setFocusMode] = useState(false);
-  const findButtonRef = useRef(null);
   const [toolShortcuts, setToolShortcuts] = useState([]);
-  const qualityButtonRef = useRef(null);
   const frameRef = useRef(null);
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [commentFocusThread, setCommentFocusThread] = useState(null);
   const [currentBlockId, setCurrentBlockId] = useState(null);
-  const commentsButtonRef = useRef(null);
   // 2.3: grammar check panel and whole-field AI actions.
   const [grammarOpen, setGrammarOpen] = useState(false);
   const [fieldAiOpen, setFieldAiOpen] = useState(false);
-  const grammarButtonRef = useRef(null);
   const moreButtonRef = useRef(null);
+  // Secondary tools live in the "More tools" menu (2.4): closing a tool's panel or dialog returns focus there.
+  const focusToolsMenu = useCallback(() => {
+    if (moreButtonRef.current) moreButtonRef.current.focus();
+  }, []);
+  // 2.4 block suggestions: suggest mode (a local copy, see SuggestEditor) and the review panel.
+  const [suggestSession, setSuggestSession] = useState(null);
+  const suggestMode = Boolean(suggestSession);
+  const suggestModeRef = useRef(false);
+  useEffect(() => {
+    suggestModeRef.current = suggestMode;
+  }, [suggestMode]);
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false);
+  const [suggestionFocusBlock, setSuggestionFocusBlock] = useState(null);
   const targetRef = useRef(target);
   useEffect(() => {
     targetRef.current = target;
   }, [target]);
+  // 2.4 field identity: a value inside a repeatable component or dynamic zone carries a `fieldKey`.
+  // A keyless value gets one when the user edits it; history, comments and the live room use the key
+  // once the Content Manager has loaded it back from the saved entry (shared/field-identity.mjs).
+  const positional = isPositionalFieldPath(target.field);
+  const valueKey = positional && value && isValidFieldKey(value.fieldKey) ? value.fieldKey : null;
+  const [localKey, setLocalKey] = useState(null);
+  const fieldKey = valueKey || localKey;
+  const fieldKeyRef = useRef(fieldKey);
+  useEffect(() => {
+    fieldKeyRef.current = fieldKey;
+  }, [fieldKey]);
+  const savedKey =
+    positional && fieldKey && target.savedFieldKeys && target.savedFieldKeys.has(fieldKey) ? fieldKey : null;
+  const identityReady = !positional || Boolean(savedKey);
+  const fieldTarget = useMemo(
+    () =>
+      identityTarget(
+        { uid: target.uid, documentId: target.documentId, locale: target.locale, field: target.field },
+        savedKey
+      ),
+    [target.uid, target.documentId, target.locale, target.field, savedKey]
+  );
   // Templates, block patterns and the in-field preview (2.3).
   const [previewOpen, setPreviewOpen] = useState(false);
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [saveTemplate, setSaveTemplate] = useState(null);
   const previewRef = useRef(null);
-  const previewButtonRef = useRef(null);
-  const templatesButtonRef = useRef(null);
   const lastBlockIdRef = useRef(null);
   // Synced blocks (2.3): the tool hands its element to the field, which renders the view through a portal.
   const [syncedMounts, setSyncedMounts] = useState(() => new Map());
@@ -365,6 +460,28 @@ const EditorFieldBody = ({
         return next;
       });
   }, []);
+
+  // Footnotes (2.4): the note dialog edits the marker the tool or the list points at.
+  const [footnoteEdit, setFootnoteEdit] = useState(null);
+  const footnoteEditRef = useRef(null);
+  const onFootnoteEdit = useCallback((marker, info = {}) => {
+    const holder = holderRef.current;
+    if (!holder || !marker) return;
+    const markers = Array.from(holder.querySelectorAll(FOOTNOTE_SELECTOR));
+    const index = markers.indexOf(marker);
+    if (index < 0) return;
+    setFootnoteEdit({
+      id: marker.getAttribute('data-mex-footnote'),
+      index,
+      isNew: Boolean(info.isNew),
+      html: marker.getAttribute('data-mex-note') || '',
+      // Focus goes back here when the dialog closes (the list button or the editor).
+      returnTo: document.activeElement instanceof HTMLElement ? document.activeElement : null,
+    });
+  }, []);
+  useEffect(() => {
+    footnoteEditRef.current = onFootnoteEdit;
+  }, [onFootnoteEdit]);
 
   useEffect(() => {
     onChangeRef.current = onChange;
@@ -397,10 +514,10 @@ const EditorFieldBody = ({
     preset.collaboration &&
     target.uid &&
     target.documentId &&
-    // Positional paths (`sections.0.body`) can point to another entry after entries are removed or
-    // reordered before saving; their room would show the other entry's content (editor/field-path.mjs).
-    !isPositionalFieldPath(target.field)
-      ? target
+    // Positional paths (`sections.0.body`) name another entry after entries are removed or reordered:
+    // the room is keyed by the entry's saved key instead (editor/field-path.mjs).
+    identityReady
+      ? fieldTarget
       : null;
 
   /** Emits editor content to the Content Manager form when it changed. */
@@ -423,7 +540,19 @@ const EditorFieldBody = ({
       // Editor.js reuses the tune objects of a block between saves, and the
       // Content Manager form freezes what it stores. Hand over a copy so the
       // editor can keep writing to its own objects.
-      onChangeRef.current(name, next ? JSON.parse(JSON.stringify(next)) : null);
+      const copy = next ? JSON.parse(JSON.stringify(next)) : null;
+      // 2.4: an edited value inside a repeatable component or dynamic zone keeps (or gets) its key.
+      // An empty field stays null, so required-field checks are unchanged.
+      if (copy && isPositionalFieldPath(name)) {
+        let key = fieldKeyRef.current;
+        if (!key) {
+          key = createFieldKey();
+          fieldKeyRef.current = key;
+          setLocalKey(key);
+        }
+        copy.fieldKey = key;
+      }
+      onChangeRef.current(name, copy);
     },
     [name]
   );
@@ -609,13 +738,18 @@ const EditorFieldBody = ({
       // The editor's own serialisation of what it now shows is the base of the next local diff.
       const shown = await editor.save().catch(() => null);
       client.markShown(catchUp, shown || shared);
+      viewRef.current = shown || shared;
     },
+    getInitialView: () => viewRef.current,
   });
   useEffect(() => {
     collabRef.current = collaboration.client;
   }, [collaboration.client]);
 
-  const readOnly = Boolean(disabled) || (collaboration.status === 'live' && !collaboration.canEdit);
+  // In suggest mode the field's own editor is read-only and hidden: edits go to a separate local copy.
+  const readOnly =
+    Boolean(disabled) || (collaboration.status === 'live' && !collaboration.canEdit) || suggestMode;
+  const editableOutsideSuggest = !disabled && !(collaboration.status === 'live' && !collaboration.canEdit);
   const collabUndo = collaboration.active && collaboration.client && collaboration.canEdit;
 
   // Undo/redo during live collaboration only revert the user's own changes.
@@ -637,16 +771,86 @@ const EditorFieldBody = ({
     permissions.commentsRead &&
     target.uid &&
     target.documentId &&
-    // Comments and versions are keyed by the field path; a positional path (`sections.0.body`)
-    // can name another entry after entries are removed or moved (editor/field-path.mjs).
-    !isPositionalFieldPath(target.field)
+    // Inside a repeatable component or dynamic zone, comments follow the entry's saved key (2.4).
+    identityReady
   );
   const comments = useComments({
-    target,
+    target: fieldTarget,
     enabled: commentsEnabled,
     panelOpen: commentsOpen,
     elementRef: frameRef,
   });
+
+  // 2.4 range comments: "Comment" on selected text (inline toolbar, Ctrl/Cmd+Alt+M, or the floating
+  // button in read-only editors) builds an anchor and opens the panel with a new thread on that text.
+  const [rangeDraft, setRangeDraft] = useState(null);
+  const commentsWritable = Boolean(commentsEnabled && comments.loaded && comments.canWrite);
+  const commentsWritableRef = useRef(false);
+  useEffect(() => {
+    commentsWritableRef.current = commentsWritable;
+  }, [commentsWritable]);
+  const startRangeCommentRef = useRef(null);
+  const startRangeComment = async ({ range }) => {
+    const editor = editorRef.current;
+    const holder = holderRef.current;
+    if (!commentsWritableRef.current || !holder || !range) return;
+    if (editor && editor.inlineToolbar) editor.inlineToolbar.close();
+    const client = collabRef.current;
+    let doc = client && client.getDoc ? client.getDoc() : null;
+    let blockData = null;
+    if (doc) {
+      // Typing not yet in the room would make the editor text differ from the shared text.
+      await flushLocal(client);
+      doc = client.getDoc();
+    } else if (editor) {
+      const start =
+        range.startContainer.nodeType === 1 ? range.startContainer : range.startContainer.parentElement;
+      const blockElement = start && start.closest('.ce-block[data-id]');
+      const api = blockElement ? editor.blocks.getById(blockElement.getAttribute('data-id')) : null;
+      try {
+        const saved = api ? await api.save() : null;
+        blockData = saved ? saved.data : null;
+      } catch {
+        blockData = null;
+      }
+    }
+    const result = anchorFromSelection({ range, holder, doc, blockData });
+    if (result.error) {
+      toggleNotification({
+        type: 'warning',
+        message:
+          result.error === 'multiple'
+            ? t(
+                'editor.comments.range.multiple',
+                'Select text inside one paragraph, heading, list item or table cell to comment on it.'
+              )
+            : t('editor.comments.range.empty', 'Select some text to comment on it.'),
+      });
+      return;
+    }
+    setRangeDraft(result);
+    setCommentsOpen(true);
+  };
+  useEffect(() => {
+    startRangeCommentRef.current = startRangeComment;
+  });
+  // Block suggestions (2.4): for admins who may suggest or review; stored apart from the value.
+  const suggestionsEnabled = Boolean(
+    config &&
+    config.suggestions &&
+    config.suggestions.enabled &&
+    (permissions.suggestionsCreate || permissions.suggestionsReview) &&
+    target.uid &&
+    target.documentId &&
+    identityReady
+  );
+  const suggestions = useSuggestions({
+    target: fieldTarget,
+    enabled: suggestionsEnabled,
+    panelOpen: suggestionsOpen,
+    elementRef: frameRef,
+  });
+  const canSuggest = Boolean(suggestionsEnabled && permissions.suggestionsCreate && suggestions.canCreate);
 
   // Upload helpers (multipart through the admin fetch client).
   const upload = useCallback(
@@ -691,6 +895,21 @@ const EditorFieldBody = ({
     [post, t, toggleNotification]
   );
 
+  // 2.4: pasted videos, audio, WebVTT tracks and posters. No notification per file:
+  // the paste handler reports the files that could not be copied in one notice.
+  const uploadMediaByUrl = useCallback(
+    async (url, kind) => {
+      try {
+        const { data } =
+          kind === 'poster' ? await post(API.imageByUrl, { url }) : await post(API.mediaByUrl, { url, kind });
+        return data;
+      } catch {
+        return { success: 0 };
+      }
+    },
+    [post]
+  );
+
   const openMediaLibrary = useCallback((request) => setMediaRequest(request || {}), []);
   const onAiRequest = useCallback((request) => {
     const editor = editorRef.current;
@@ -698,6 +917,13 @@ const EditorFieldBody = ({
     if (editor && editor.inlineToolbar) editor.inlineToolbar.close();
     if (editor && editor.tooltip && typeof editor.tooltip.hide === 'function') editor.tooltip.hide();
     setAiRequest(request);
+  }, []);
+  const onBlockAiRequest = useCallback((ids) => {
+    const editor = editorRef.current;
+    // Close the block toolbar and its tooltip so nothing floats above the dialog.
+    if (editor && editor.toolbar && typeof editor.toolbar.close === 'function') editor.toolbar.close();
+    if (editor && editor.tooltip && typeof editor.tooltip.hide === 'function') editor.tooltip.hide();
+    if (Array.isArray(ids) && ids.length) setBlockAiRequest({ ids: [...ids] });
   }, []);
 
   // Create the editor once the configuration is known; recreate it only when
@@ -717,6 +943,7 @@ const EditorFieldBody = ({
     const prepared = prepareEditorValue(value);
     setValueError(prepared.error);
     const initial = prepared.data;
+    viewRef.current = initial || { blocks: [] };
     lastEmittedRef.current = contentKey(initial);
     lastEmittedRawRef.current = contentKey(initial);
     rememberBlocks(knownRef.current, initial || { blocks: [] });
@@ -727,6 +954,9 @@ const EditorFieldBody = ({
     let paste = null;
     let shortcuts = null;
     let mentionKeys = null;
+    let mathKeys = null;
+    let footnoteKeys = null;
+    let mentionTrigger = null;
     // Registered before Editor.js renders, so violations of the first render are seen.
     const cspGuard = createCspGuard(holderRef.current, {
       t,
@@ -743,6 +973,7 @@ const EditorFieldBody = ({
       uploadFile: (file) => upload(API.fileUpload, 'file', file),
       openMediaLibrary,
       onAiRequest,
+      onBlockAi: target.uid ? onBlockAiRequest : undefined,
       aiEnabled: Boolean(config.ai.enabled && permissions.ai && preset.ai),
       suggestAltText: altTextAllowed
         ? createAltTextSuggester({
@@ -759,6 +990,13 @@ const EditorFieldBody = ({
       placeholder,
       attachmentTypes: config.uploads.attachmentTypes,
       mountSynced,
+      onFootnoteEdit: (marker, info) => footnoteEditRef.current && footnoteEditRef.current(marker, info),
+      // 2.4: "Comment" in the inline toolbar for admins who may write comments.
+      onComment:
+        config.comments && config.comments.enabled && permissions.commentsWrite && target.uid
+          ? (request) => startRangeCommentRef.current && startRangeCommentRef.current(request)
+          : undefined,
+      commentsAvailable: () => commentsWritableRef.current,
     });
     const toolNames = new Set(Object.keys(tools));
     // User input is tracked before Editor.js renders the blocks: after the
@@ -809,8 +1047,10 @@ const EditorFieldBody = ({
           canUpload: Boolean(permissions.upload),
           uploadImageByUrl,
           uploadImageFile: (file) => upload(API.imageByFile, 'image', file),
+          uploadMediaByUrl,
           notify: ({ type, message }) => toggleNotification({ type, message }),
           onInserted: markTouched,
+          hasTool: (name) => toolNames.has(name),
         });
         shortcuts = createMarkdownShortcuts({
           holder: holderRef.current,
@@ -821,9 +1061,39 @@ const EditorFieldBody = ({
           onConverted: markTouched,
         });
         mentionKeys = createMentionKeys({ holder: holderRef.current });
+        // 2.4: inline math (Ctrl/Cmd+Shift+E, preview popover) and footnotes (Ctrl/Cmd+Alt+F).
+        const inlineAllowed = (tool) => !presetRef.current.inline || presetRef.current.inline.includes(tool);
+        mathKeys = createInlineMathKeys({
+          holder: holderRef.current,
+          t,
+          enabled: () => inlineAllowed('inlineMath'),
+        });
+        footnoteKeys = createFootnoteKeys({
+          holder: holderRef.current,
+          onEdit: (marker, info) => footnoteEditRef.current && footnoteEditRef.current(marker, info),
+          enabled: () => inlineAllowed('footnote'),
+          readOnly: () => Boolean(editor.readOnly && editor.readOnly.isEnabled),
+        });
+        // 2.4: `@` opens entry suggestions wherever the mention tool is offered (preset, link targets).
+        if (Object.values(tools).some((tool) => tool && tool.class === MentionTool))
+          mentionTrigger = createMentionTrigger({
+            holder: holderRef.current,
+            editor,
+            fetchClient: { get, post },
+            getLocale: () => contentLocaleRef.current,
+            t,
+          });
         setReady(true);
         // Edits made while Editor.js was starting are stored right away.
         if (userTouchedRef.current) scheduleSave(0);
+        else
+          editor
+            .save()
+            .then((data) => {
+              if (!destroyed && !userTouchedRef.current && data && Array.isArray(data.blocks))
+                viewRef.current = data;
+            })
+            .catch(() => null);
       },
     });
     return () => {
@@ -838,6 +1108,9 @@ const EditorFieldBody = ({
       if (paste) paste.destroy();
       if (shortcuts) shortcuts.destroy();
       if (mentionKeys) mentionKeys.destroy();
+      if (mathKeys) mathKeys.destroy();
+      if (footnoteKeys) footnoteKeys.destroy();
+      if (mentionTrigger) mentionTrigger.destroy();
       editorRef.current = null;
       editor.isReady.then(() => editor.destroy()).catch(() => {});
     };
@@ -1025,13 +1298,19 @@ const EditorFieldBody = ({
         Array.from(parsed.childNodes).forEach((node) =>
           fragment.appendChild(document.importNode(node, true))
         );
-        range.deleteContents();
-        range.insertNode(fragment);
-        range.collapse(false);
+        const start = range.commonAncestorContainer;
+        const editable = (start.nodeType === Node.ELEMENT_NODE ? start : start.parentElement)?.closest(
+          '[contenteditable="true"]'
+        );
+        if (editable) insertSuggestion(range, fragment, editable);
+        else {
+          range.deleteContents();
+          range.insertNode(fragment);
+          range.collapse(false);
+        }
         const selection = window.getSelection();
         selection.removeAllRanges();
         selection.addRange(range);
-        const editable = range.commonAncestorContainer.parentElement?.closest('[contenteditable="true"]');
         if (editable) editable.dispatchEvent(new Event('input', { bubbles: true }));
       } else if (editorRef.current) {
         const editor = editorRef.current;
@@ -1102,6 +1381,93 @@ const EditorFieldBody = ({
     }
   }, []);
 
+  /**
+   * Footnote marker by reading-order position, checked against its id
+   * (collaborators may have added or removed markers meanwhile).
+   * @param {number} index - Position.
+   * @param {string|null} [id] - Expected id.
+   * @returns {HTMLElement|null} Marker.
+   */
+  const footnoteMarker = useCallback((index, id = null) => {
+    const holder = holderRef.current;
+    if (!holder) return null;
+    const markers = Array.from(holder.querySelectorAll(FOOTNOTE_SELECTOR));
+    const at = markers[index];
+    if (at && (!id || at.getAttribute('data-mex-footnote') === id)) return at;
+    return id ? markers.find((marker) => marker.getAttribute('data-mex-footnote') === id) || null : null;
+  }, []);
+
+  /** Puts the caret after a marker and scrolls it into view. */
+  const caretAfter = useCallback((marker) => {
+    const editable = marker && marker.closest('[contenteditable="true"]');
+    if (!editable) return;
+    marker.scrollIntoView({ block: 'center' });
+    editable.focus();
+    const selection = window.getSelection();
+    if (!selection) return;
+    const range = document.createRange();
+    range.setStartAfter(marker);
+    range.collapse(true);
+    selection.removeAllRanges();
+    selection.addRange(range);
+  }, []);
+
+  /** Writes the note of the edited footnote (an empty new footnote is removed instead). */
+  const saveFootnote = useCallback(
+    (html) => {
+      const edit = footnoteEdit;
+      setFootnoteEdit(null);
+      if (!edit) return;
+      const marker = footnoteMarker(edit.index, edit.id);
+      if (!marker) {
+        toggleNotification({
+          type: 'warning',
+          message: t('editor.footnotes.gone', 'This footnote was removed meanwhile. The note was not saved.'),
+        });
+        return;
+      }
+      userTouchedRef.current = true;
+      releaseFootnote(marker);
+      if (html) marker.setAttribute('data-mex-note', html);
+      else marker.removeAttribute('data-mex-note');
+      notifyFootnoteInput(marker);
+      scheduleSave(40);
+      requestAnimationFrame(() => caretAfter(marker));
+    },
+    [footnoteEdit, footnoteMarker, caretAfter, scheduleSave, t, toggleNotification]
+  );
+
+  /** Closes the note dialog; a footnote that was just inserted and never got a note is removed. */
+  const closeFootnote = useCallback(() => {
+    const edit = footnoteEdit;
+    setFootnoteEdit(null);
+    if (!edit) return;
+    const marker = footnoteMarker(edit.index, edit.id);
+    if (!marker) return;
+    if (edit.isNew && !marker.getAttribute('data-mex-note')) {
+      const parent = marker.parentNode;
+      const next = marker.nextSibling;
+      releaseFootnote(marker).remove();
+      if (next && next.nodeType === Node.TEXT_NODE && next.data === '\u00a0') next.remove();
+      notifyFootnoteInput(parent);
+    }
+    // Otherwise the dialog returns focus to where it was opened from (editor or list button).
+  }, [footnoteEdit, footnoteMarker]);
+
+  /** Removes the n-th footnote (list action, confirmed). */
+  const removeFootnote = useCallback(
+    (index) => {
+      const marker = footnoteMarker(index);
+      if (!marker) return;
+      const parent = marker.parentNode;
+      userTouchedRef.current = true;
+      releaseFootnote(marker).remove();
+      notifyFootnoteInput(parent);
+      scheduleSave(40);
+    },
+    [footnoteMarker, scheduleSave]
+  );
+
   /** Restores one block of a version (sanitised like any remote content). */
   const restoreBlock = useCallback(
     async (block, position) => {
@@ -1151,8 +1517,8 @@ const EditorFieldBody = ({
   const closeFind = useCallback(() => {
     setFindOpen(false);
     clearHighlight();
-    window.requestAnimationFrame(() => findButtonRef.current && findButtonRef.current.focus());
-  }, []);
+    window.requestAnimationFrame(() => focusToolsMenu());
+  }, [focusToolsMenu]);
   /** Grammar check: writes one corrected string back into its block. */
   const applyGrammar = useCallback(
     async (blockId, path, html) => {
@@ -1183,8 +1549,8 @@ const EditorFieldBody = ({
   const closeGrammar = useCallback(() => {
     setGrammarOpen(false);
     clearHighlight('mex-grammar');
-    window.requestAnimationFrame(() => grammarButtonRef.current && grammarButtonRef.current.focus());
-  }, []);
+    window.requestAnimationFrame(() => focusToolsMenu());
+  }, [focusToolsMenu]);
   /** Whole-field AI: appends a summary as a paragraph (plain text, escaped). */
   const insertParagraph = useCallback(
     (text) => {
@@ -1200,8 +1566,12 @@ const EditorFieldBody = ({
 
   const closeQuality = useCallback(() => {
     setQualityOpen(false);
-    window.requestAnimationFrame(() => qualityButtonRef.current && qualityButtonRef.current.focus());
-  }, []);
+    window.requestAnimationFrame(() => focusToolsMenu());
+  }, [focusToolsMenu]);
+
+  // 2.4: block AI by keyboard. Ctrl/Cmd+Shift+G without a text selection opens it for the
+  // selected blocks or the block with the caret (with selected text the inline AI tool runs).
+  const blockAiByKey = Boolean(aiAllowed && target.uid && !readOnly);
 
   // Editor shortcuts: Ctrl/Cmd+Shift+F find and replace, Ctrl/Cmd+/ help.
   useEffect(() => {
@@ -1209,8 +1579,30 @@ const EditorFieldBody = ({
     const onKey = (event) => {
       const frame = frameRef.current;
       if (!frame || !frame.contains(document.activeElement)) return;
+      // Suggest mode has its own editor; the field's tools stay closed (2.4).
+      if (suggestModeRef.current) return;
       const mod = event.metaKey || event.ctrlKey;
       if (!mod || event.altKey) return;
+      if (event.shiftKey && (event.key === 'g' || event.key === 'G') && blockAiByKey) {
+        const selection = window.getSelection();
+        const holder = holderRef.current;
+        const editor = editorRef.current;
+        if (!holder || !editor || (selection && !selection.isCollapsed && selection.toString().trim()))
+          return;
+        let ids = Array.from(holder.querySelectorAll('.ce-block--selected'))
+          .map((node) => node.getAttribute('data-id'))
+          .filter(Boolean);
+        if (!ids.length) {
+          const index = editor.blocks.getCurrentBlockIndex();
+          const block = index >= 0 ? editor.blocks.getBlockByIndex(index) : null;
+          if (block && holder.contains(document.activeElement)) ids = [block.id];
+        }
+        if (!ids.length) return;
+        event.preventDefault();
+        event.stopPropagation();
+        onBlockAiRequest(ids);
+        return;
+      }
       if (event.shiftKey && (event.key === 'f' || event.key === 'F')) {
         event.preventDefault();
         event.stopPropagation();
@@ -1223,7 +1615,7 @@ const EditorFieldBody = ({
     };
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
-  }, [ready]);
+  }, [ready, blockAiByKey, onBlockAiRequest]);
 
   // Blocks of the current content for the comments panel, and open threads per block.
   const commentBlocks = useMemo(
@@ -1256,8 +1648,123 @@ const EditorFieldBody = ({
 
   const closeComments = useCallback(() => {
     setCommentsOpen(false);
-    window.requestAnimationFrame(() => commentsButtonRef.current && commentsButtonRef.current.focus());
+    window.requestAnimationFrame(() => focusToolsMenu());
+  }, [focusToolsMenu]);
+
+  // 2.4: range comment highlights (CSS Custom Highlight API) and where each thread's text is.
+  const commentOwner = useId();
+  const getCommentDoc = useCallback(() => {
+    const client = collabRef.current;
+    return client && client.getDoc ? client.getDoc() : null;
   }, []);
+  const [commentRevealThread, setCommentRevealThread] = useState(null);
+  /** Click on commented text: open the panel and show the thread, focus stays in the editor. */
+  const revealThread = useCallback(
+    (threadId) => {
+      setCommentsOpen(true);
+      setCommentRevealThread(threadId);
+    },
+    [setCommentRevealThread]
+  );
+  const anchors = useCommentAnchors({
+    owner: commentOwner,
+    holderRef,
+    threads: comments.threads,
+    enabled: Boolean(commentsEnabled && ready && !previewOpen),
+    version: contentVersion,
+    getDoc: getCommentDoc,
+    onOpen: revealThread,
+  });
+
+  /**
+   * Ctrl/Cmd+Alt+N: the next open thread after the caret (Shift: the previous one), in document order;
+   * its text is shown and the thread is focused in the panel.
+   * @param {number} direction - 1 or -1.
+   */
+  const goToComment = useCallback(
+    (direction) => {
+      const order = new Map(commentBlockIds.map((id, index) => [id, index]));
+      const ranges = anchors.ranges.current;
+      const open = comments.threads
+        .filter((thread) => thread.status === 'open' && order.has(thread.blockId))
+        .sort((a, b) => {
+          const block = order.get(a.blockId) - order.get(b.blockId);
+          if (block) return block;
+          const ra = ranges.get(a.id);
+          const rb = ranges.get(b.id);
+          if (ra && rb) return ra.compareBoundaryPoints(Range.START_TO_START, rb);
+          return ra ? 1 : rb ? -1 : 0;
+        });
+      if (!open.length) {
+        toggleNotification({
+          type: 'info',
+          message: t('editor.comments.noneOpen', 'There are no open comments.'),
+        });
+        return;
+      }
+      const current = open.findIndex((thread) => thread.id === anchors.activeId);
+      const next = open[(current + direction + open.length) % open.length] || open[0];
+      if (!anchors.selectRange(next.id)) selectBlock(next.blockId);
+      setCommentsOpen(true);
+      setCommentFocusThread(next.id);
+    },
+    [anchors, commentBlockIds, comments.threads, selectBlock, t, toggleNotification]
+  );
+
+  // Ctrl/Cmd+Alt+M (comment on the selection) and Ctrl/Cmd+Alt+N (next comment) while working in this field.
+  useEffect(() => {
+    if (!ready || !commentsEnabled) return undefined;
+    const onKey = (event) => {
+      if (!(event.metaKey || event.ctrlKey) || !event.altKey) return;
+      if (event.code !== 'KeyM' && event.code !== 'KeyN') return;
+      const frame = frameRef.current;
+      const holder = holderRef.current;
+      const selection = window.getSelection();
+      const selectionHere = Boolean(
+        selection && selection.rangeCount && holder && holder.contains(selection.anchorNode)
+      );
+      if (!frame || !(frame.contains(document.activeElement) || selectionHere)) return;
+      if (event.code === 'KeyN') {
+        event.preventDefault();
+        event.stopPropagation();
+        goToComment(event.shiftKey ? -1 : 1);
+        return;
+      }
+      if (event.shiftKey || !selectionHere || selection.isCollapsed || !commentsWritableRef.current) return;
+      event.preventDefault();
+      event.stopPropagation();
+      startRangeCommentRef.current({ range: selection.getRangeAt(0).cloneRange() });
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [ready, commentsEnabled, goToComment]);
+
+  // 2.4: a link from a notification (`?mexThread=<id>`) opens the field's thread once.
+  const location = useLocation();
+  const linkedThread = new URLSearchParams(location.search).get('mexThread');
+  const [handledLink, setHandledLink] = useState(null);
+  if (
+    linkedThread &&
+    linkedThread !== handledLink &&
+    comments.loaded &&
+    comments.threads.some((item) => item.id === linkedThread)
+  ) {
+    setHandledLink(linkedThread);
+    setCommentsOpen(true);
+    setCommentFocusThread(linkedThread);
+  }
+  const markThreadsRead = comments.actions.markThreadsRead;
+  const linkedNotified = Boolean(
+    handledLink && comments.notifications.some((note) => note.threadId === handledLink)
+  );
+  useEffect(() => {
+    if (!handledLink) return;
+    if (frameRef.current) frameRef.current.scrollIntoView({ block: 'start' });
+  }, [handledLink]);
+  useEffect(() => {
+    if (handledLink && linkedNotified) markThreadsRead([handledLink]).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- markThreadsRead changes every render
+  }, [handledLink, linkedNotified]);
 
   /** Marker click: open the panel on the block's first open thread. */
   const openBlockComments = useCallback(
@@ -1268,6 +1775,142 @@ const EditorFieldBody = ({
     },
     [comments.threads]
   );
+
+  // Block suggestions (2.4) -------------------------------------------------
+  const suggestionCounts = useMemo(
+    () => (suggestionsEnabled ? openSuggestionsByBlock(suggestions.suggestions, commentBlockIds) : new Map()),
+    [suggestionsEnabled, suggestions.suggestions, commentBlockIds]
+  );
+  const suggestionsOpenCount = suggestionsEnabled ? suggestions.counts.open : 0;
+  // Marker columns at the inline end: two only while a block has both a comment and a suggestion marker.
+  const markerColumns =
+    commentsEnabled || suggestionsEnabled
+      ? Array.from(suggestionCounts.keys()).some((id) => commentsEnabled && commentCounts.has(id))
+        ? 2
+        : 1
+      : 0;
+
+  /** Starts suggest mode on a copy of what the editor shows now. */
+  const startSuggest = useCallback(async () => {
+    const editor = editorRef.current;
+    if (!editor || !canSuggest) return;
+    // Read-only editors (no update right) cannot be saved by every tool; the field keeps what it shows.
+    const saved = editor.readOnly && editor.readOnly.isEnabled ? null : await editor.save().catch(() => null);
+    const base = prepareEditorValue(saved || currentDataRef.current).data || {
+      time: Date.now(),
+      version: '2.31.7',
+      blocks: [],
+    };
+    setFindOpen(false);
+    setQualityOpen(false);
+    setGrammarOpen(false);
+    setCommentsOpen(false);
+    setSuggestionsOpen(false);
+    setPreviewOpen(false);
+    setFocusMode(false);
+    clearHighlight();
+    setSuggestSession({ base, key: Date.now() });
+  }, [canSuggest]);
+
+  /** Leaves suggest mode (unsent changes are dropped; the bar asks first). */
+  const exitSuggest = useCallback(() => {
+    setSuggestSession(null);
+    window.requestAnimationFrame(() => moreButtonRef.current && moreButtonRef.current.focus());
+  }, []);
+
+  /** Sends the planned suggestions; afterwards the panel lists them. */
+  const sendSuggestions = useCallback(
+    async (list, note) => {
+      try {
+        const result = await suggestions.actions.send(list, note);
+        const meta = (result && result.meta) || {};
+        toggleNotification({
+          type: 'success',
+          message: t(
+            'editor.suggest.sent',
+            '{count, plural, one {# suggestion sent} other {# suggestions sent}} for review.',
+            { count: (meta.created || 0) + (meta.updated || 0) || list.length }
+          ),
+        });
+        setSuggestSession(null);
+        setSuggestionsOpen(true);
+        return true;
+      } catch (requestError) {
+        const code = requestError && requestError.code;
+        let message = t('editor.suggest.failed', 'The suggestions could not be sent. Try again.');
+        if (requestError && requestError.status === 429)
+          message = t('editor.suggest.rateLimited', 'Too many suggestions. Try again in a minute.');
+        else if (code === 'PRESET_VIOLATION')
+          message = t(
+            'editor.suggest.presetViolation',
+            'A changed block does not match the settings of this field. Fix it and send again.'
+          );
+        else if (code === 'TOO_MANY_SUGGESTIONS')
+          message = t(
+            'editor.suggest.tooMany',
+            'This field has too many open suggestions. Ask a reviewer to decide some first.'
+          );
+        toggleNotification({ type: 'danger', message });
+        return false;
+      }
+    },
+    [suggestions.actions, t, toggleNotification]
+  );
+
+  /**
+   * Accepts suggestions: the server marks each accepted first (only one reviewer wins), then the
+   * proposed blocks are applied through the normal whole-document path (shared document, one undo
+   * step, the form becomes dirty; the normal save stores them).
+   * @param {Array<{ suggestion: object, outdated: boolean }>} items - Suggestions in document order.
+   * @returns {Promise<number>} Suggestions applied.
+   */
+  const acceptSuggestions = useCallback(
+    async (items) => {
+      const editor = editorRef.current;
+      if (!editor || readOnly) return 0;
+      const decided = [];
+      let failure = null;
+      for (const { suggestion, outdated } of items) {
+        try {
+          const result = await suggestions.actions.accept(suggestion.id, outdated, { again: false });
+          if (result && result.data) decided.push(result.data);
+        } catch (requestError) {
+          failure = requestError;
+          break;
+        }
+      }
+      let applied = 0;
+      if (decided.length) {
+        const saved = await editor.save().catch(() => null);
+        const prepared = prepareEditorValue(saved).data || {
+          time: Date.now(),
+          version: '2.31.7',
+          blocks: [],
+        };
+        const done = new Set(decided.map((item) => item.id));
+        const others = suggestions.suggestions.filter((item) => item.status === 'open' && !done.has(item.id));
+        const result = applySuggestions(prepared, decided, { pendingInserts: pendingInsertsOf(others) });
+        applied = result.applied.length;
+        const next = prepareEditorValue(result.data).data;
+        if (applied && next) await replaceContent(next);
+      }
+      suggestions.refresh();
+      if (failure) throw failure;
+      return applied;
+    },
+    [readOnly, replaceContent, suggestions]
+  );
+
+  const closeSuggestions = useCallback(() => {
+    setSuggestionsOpen(false);
+    window.requestAnimationFrame(() => moreButtonRef.current && moreButtonRef.current.focus());
+  }, []);
+
+  /** Marker click: open the panel on the block's first suggestion. */
+  const openBlockSuggestions = useCallback((blockId) => {
+    setSuggestionFocusBlock(blockId);
+    setSuggestionsOpen(true);
+  }, []);
 
   // Templates (2.3): the block the user worked on last is where a pattern goes.
   useEffect(() => {
@@ -1515,10 +2158,10 @@ const EditorFieldBody = ({
 
   const closeTemplates = useCallback(() => {
     setTemplatesOpen(false);
-    window.requestAnimationFrame(() => templatesButtonRef.current && templatesButtonRef.current.focus());
-  }, []);
+    window.requestAnimationFrame(() => focusToolsMenu());
+  }, [focusToolsMenu]);
 
-  /** Preview on: focus the rendered region. Off: back to the editor (shortcut) or the toggle (button). */
+  /** Preview on: focus the rendered region. Off: back to the editor (shortcut, "Back to editing") or the tools menu. */
   const togglePreview = useCallback(
     (fromShortcut = false) => {
       const next = !previewOpen;
@@ -1536,10 +2179,10 @@ const EditorFieldBody = ({
             // fall back to the toggle
           }
         }
-        if (previewButtonRef.current) previewButtonRef.current.focus();
+        focusToolsMenu();
       });
     },
-    [previewOpen]
+    [previewOpen, focusToolsMenu]
   );
 
   // Ctrl/Cmd+Alt+P toggles the preview while focus is in the field (key code: Alt changes the character on macOS).
@@ -1548,6 +2191,7 @@ const EditorFieldBody = ({
     const onKey = (event) => {
       const frame = frameRef.current;
       if (!frame || !frame.contains(document.activeElement)) return;
+      if (suggestModeRef.current) return;
       if (!(event.metaKey || event.ctrlKey) || !event.altKey || event.shiftKey || event.code !== 'KeyP')
         return;
       event.preventDefault();
@@ -1557,6 +2201,158 @@ const EditorFieldBody = ({
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
   }, [ready, togglePreview]);
+
+  // Field tool registry (2.4, editor/field-tools.mjs): every secondary tool is one entry of the
+  // "More tools" menu. A new tool adds one entry here; `visible` hides it where it cannot work.
+  const fieldTools = [
+    {
+      id: 'comments',
+      group: 'review',
+      label: t('editor.toolbar.comments', 'Comments'),
+      icon: <Discuss />,
+      badge: {
+        count: comments.counts.open,
+        tone: 'primary',
+        label: t(
+          'editor.toolbar.commentsCount',
+          'Comments ({count, plural, one {# open thread} other {# open threads}})',
+          { count: comments.counts.open }
+        ),
+      },
+      pressed: commentsOpen,
+      movesFocus: true,
+      visible: commentsEnabled,
+      onSelect: () => (commentsOpen ? closeComments() : setCommentsOpen(true)),
+    },
+    {
+      id: 'history',
+      group: 'review',
+      label: t('editor.toolbar.history', 'Version history'),
+      icon: <ClockCounterClockwise />,
+      movesFocus: true,
+      visible: Boolean(target.uid && target.documentId && identityReady),
+      onSelect: () => setHistoryOpen(true),
+    },
+    {
+      id: 'suggestions',
+      group: 'review',
+      label: t('editor.toolbar.suggestions', 'Suggestions'),
+      icon: <Lightbulb />,
+      badge: {
+        count: suggestionsOpenCount,
+        tone: 'primary',
+        label: t(
+          'editor.toolbar.suggestionsCount',
+          'Suggestions ({count, plural, one {# open} other {# open}})',
+          { count: suggestionsOpenCount }
+        ),
+      },
+      pressed: suggestionsOpen,
+      movesFocus: true,
+      visible: suggestionsEnabled,
+      onSelect: () => (suggestionsOpen ? closeSuggestions() : setSuggestionsOpen(true)),
+    },
+    {
+      id: 'suggest',
+      group: 'write',
+      label: t('editor.toolbar.suggest', 'Suggest changes'),
+      icon: <Pencil />,
+      movesFocus: true,
+      visible: Boolean(canSuggest),
+      disabled: !ready,
+      onSelect: () => startSuggest(),
+    },
+    {
+      id: 'quality',
+      group: 'review',
+      label: t('editor.toolbar.quality', 'Quality checks'),
+      icon: <SealCheck />,
+      badge: {
+        count: qualityCount.total,
+        tone: qualityCount.errors ? 'danger' : 'warning',
+        label: t(
+          'editor.toolbar.qualityCount',
+          'Quality checks ({count, plural, one {# problem} other {# problems}})',
+          { count: qualityCount.total }
+        ),
+      },
+      pressed: qualityOpen,
+      movesFocus: true,
+      onSelect: () => (qualityOpen ? closeQuality() : setQualityOpen(true)),
+    },
+    {
+      id: 'fieldAi',
+      group: 'write',
+      label: t('editor.toolbar.fieldAi', 'AI for the whole field'),
+      icon: <Sparkle />,
+      movesFocus: true,
+      visible: fieldAiAllowed,
+      onSelect: () => setFieldAiOpen(true),
+    },
+    {
+      id: 'grammar',
+      group: 'write',
+      label: t('editor.toolbar.grammar', 'Check grammar'),
+      icon: <Feather />,
+      pressed: grammarOpen,
+      movesFocus: true,
+      visible: grammarAllowed,
+      onSelect: () => (grammarOpen ? closeGrammar() : setGrammarOpen(true)),
+    },
+    {
+      id: 'find',
+      group: 'write',
+      label: t('editor.toolbar.find', 'Find and replace'),
+      icon: <Search />,
+      shortcut: 'CMD+SHIFT+F',
+      pressed: findOpen,
+      movesFocus: true,
+      onSelect: () => (findOpen ? closeFind() : setFindOpen(true)),
+    },
+    {
+      id: 'templates',
+      group: 'write',
+      label: t('editor.toolbar.templates', 'Insert template'),
+      icon: <Layout />,
+      movesFocus: true,
+      visible: Boolean(target.uid) && !readOnly,
+      disabled: previewOpen,
+      onSelect: () => setTemplatesOpen(true),
+    },
+    {
+      id: 'preview',
+      group: 'view',
+      label: t('editor.toolbar.preview', 'Preview'),
+      icon: <Monitor />,
+      shortcut: 'CMD+ALT+P',
+      pressed: previewOpen,
+      exitLabel: t('editor.toolbar.previewOff', 'Back to editing'),
+      movesFocus: true,
+      onSelect: () => togglePreview(true),
+    },
+    {
+      id: 'focus',
+      group: 'view',
+      label: t('editor.toolbar.focusOn', 'Focus mode'),
+      icon: <Eye />,
+      pressed: focusMode,
+      exitLabel: t('editor.toolbar.focusOff', 'Leave focus mode'),
+      onSelect: () =>
+        setFocusMode((value) => {
+          if (!value) setFullscreen(true);
+          return !value;
+        }),
+    },
+    {
+      id: 'shortcuts',
+      group: 'view',
+      label: t('editor.toolbar.shortcuts', 'Keyboard shortcuts'),
+      icon: <Command />,
+      shortcut: 'CMD+/',
+      movesFocus: true,
+      onSelect: () => setShortcutsOpen(true),
+    },
+  ];
 
   const fieldHint = valueError
     ? t('editor.value.invalid', 'The stored content could not be read. It is kept until you edit this field.')
@@ -1575,7 +2371,39 @@ const EditorFieldBody = ({
           aria-modal={fullscreen ? true : undefined}
           aria-label={fullscreen ? label : undefined}
         >
+          {suggestSession ? (
+            <SuggestEditor
+              key={suggestSession.key}
+              t={t}
+              base={suggestSession.base}
+              toolOptions={{
+                t,
+                locale: adminLocale,
+                fetchClient: { get, post },
+                getContentLocale: () => contentLocaleRef.current,
+                uploadImage: async () => ({ success: 0 }),
+                uploadImageByUrl: async () => ({ success: 0 }),
+                uploadFile: async () => ({ success: 0 }),
+                linkPreview: config && config.linkPreview,
+                customBlocks,
+                placeholder,
+                attachmentTypes: config && config.uploads.attachmentTypes,
+                mountSynced,
+              }}
+              preset={preset}
+              direction={direction}
+              lang={target.locale || undefined}
+              minHeight={minHeight}
+              placeholder={
+                placeholder || t('editor.placeholder', 'Write something, or type / to choose a block')
+              }
+              fullscreen={fullscreen}
+              onSend={sendSuggestions}
+              onExit={exitSuggest}
+            />
+          ) : null}
           <EditorToolbar
+            hidden={suggestMode}
             t={t}
             ready={ready}
             readOnly={readOnly}
@@ -1588,49 +2416,37 @@ const EditorFieldBody = ({
             canRedo={collabUndo ? collaboration.canRedo : undoState.canRedo}
             onUndo={() => undoRef.current && undoRef.current.undo()}
             onRedo={() => undoRef.current && undoRef.current.redo()}
-            historyAvailable={Boolean(
-              target.uid && target.documentId && !isPositionalFieldPath(target.field)
-            )}
-            onOpenHistory={() => setHistoryOpen(true)}
-            historyButtonRef={historyButtonRef}
+            identityHint={
+              target.uid && target.documentId && !identityReady
+                ? t(
+                    'editor.identity.saveHint',
+                    'Save the entry once to turn on history and comments for this section.'
+                  )
+                : null
+            }
             collaboration={collaboration}
             stats={stats}
             limits={{ maxBlocks: preset.maxBlocks, maxCharacters: preset.maxCharacters }}
-            findOpen={findOpen}
-            onToggleFind={() => (findOpen ? closeFind() : setFindOpen(true))}
-            findButtonRef={findButtonRef}
-            qualityOpen={qualityOpen}
-            onToggleQuality={() => (qualityOpen ? closeQuality() : setQualityOpen(true))}
-            qualityCount={qualityCount}
-            qualityButtonRef={qualityButtonRef}
-            focusMode={focusMode}
-            onToggleFocus={() =>
-              setFocusMode((value) => {
-                if (!value) setFullscreen(true);
-                return !value;
-              })
-            }
-            onOpenShortcuts={() => setShortcutsOpen(true)}
-            commentsAvailable={commentsEnabled}
-            commentsOpen={commentsOpen}
-            onToggleComments={() => (commentsOpen ? closeComments() : setCommentsOpen(true))}
-            commentsCount={comments.counts.open}
-            commentsButtonRef={commentsButtonRef}
-            grammarOpen={grammarOpen}
-            onToggleGrammar={
-              grammarAllowed ? () => (grammarOpen ? closeGrammar() : setGrammarOpen(true)) : undefined
-            }
-            grammarButtonRef={grammarButtonRef}
-            onOpenFieldAi={fieldAiAllowed ? () => setFieldAiOpen(true) : undefined}
+            tools={fieldTools}
             moreButtonRef={moreButtonRef}
-            onOpenTemplates={target.uid ? () => setTemplatesOpen(true) : undefined}
-            templatesButtonRef={templatesButtonRef}
-            previewOpen={previewOpen}
-            onTogglePreview={() => togglePreview(false)}
-            previewButtonRef={previewButtonRef}
-            previewId={`${name}-mex-preview`}
           />
-          {grammarOpen && grammarAllowed && ready ? (
+          {suggestionsOpen && suggestionsEnabled && ready && !suggestMode ? (
+            <PanelSlot padding={2} $fullscreen={fullscreen}>
+              <SuggestionsPanel
+                t={t}
+                suggestions={suggestions}
+                current={currentData}
+                canDecide={Boolean(suggestions.canReview && !readOnly)}
+                onAccept={acceptSuggestions}
+                onSelectBlock={selectBlock}
+                onClose={closeSuggestions}
+                focusBlockId={suggestionFocusBlock}
+                onFocusHandled={() => setSuggestionFocusBlock(null)}
+                fail={(message) => toggleNotification({ type: 'danger', message })}
+              />
+            </PanelSlot>
+          ) : null}
+          {grammarOpen && grammarAllowed && ready && !suggestMode ? (
             <PanelSlot padding={2} $fullscreen={fullscreen}>
               <GrammarPanel
                 t={t}
@@ -1644,7 +2460,7 @@ const EditorFieldBody = ({
               />
             </PanelSlot>
           ) : null}
-          {findOpen && ready ? (
+          {findOpen && ready && !suggestMode ? (
             <PanelSlot padding={2} $fullscreen={fullscreen}>
               <FindReplacePanel
                 t={t}
@@ -1657,7 +2473,7 @@ const EditorFieldBody = ({
               />
             </PanelSlot>
           ) : null}
-          {qualityOpen && ready ? (
+          {qualityOpen && ready && !suggestMode ? (
             <PanelSlot padding={2} $fullscreen={fullscreen}>
               <QualityPanel
                 t={t}
@@ -1666,7 +2482,7 @@ const EditorFieldBody = ({
                 fetchClient={qualityFetch}
                 externalEnabled={Boolean(config && config.quality && config.quality.externalLinks)}
                 scheduledEnabled={Boolean(config && config.quality && config.quality.scheduledLinks)}
-                target={target}
+                target={fieldTarget}
                 onSelectBlock={selectBlock}
                 onClose={closeQuality}
                 violations={violations}
@@ -1674,7 +2490,7 @@ const EditorFieldBody = ({
               />
             </PanelSlot>
           ) : null}
-          {commentsOpen && commentsEnabled && ready ? (
+          {commentsOpen && commentsEnabled && ready && !suggestMode ? (
             <PanelSlot padding={2} $fullscreen={fullscreen}>
               <CommentsPanel
                 t={t}
@@ -1686,6 +2502,13 @@ const EditorFieldBody = ({
                 focusThreadId={commentFocusThread}
                 onFocusHandled={() => setCommentFocusThread(null)}
                 fail={(message) => toggleNotification({ type: 'danger', message })}
+                rangeDraft={rangeDraft}
+                onRangeDraftHandled={() => setRangeDraft(null)}
+                anchorStatuses={anchors.statuses}
+                onShowRange={anchors.selectRange}
+                activeThreadId={anchors.activeId}
+                revealThreadId={commentRevealThread}
+                onRevealHandled={() => setCommentRevealThread(null)}
               />
             </PanelSlot>
           ) : null}
@@ -1720,10 +2543,10 @@ const EditorFieldBody = ({
           ) : null}
           <EditorArea
             ref={areaRef}
-            $fullscreen={fullscreen && !previewOpen}
-            $concealed={previewOpen}
-            aria-hidden={previewOpen ? true : undefined}
-            inert={previewOpen ? '' : undefined}
+            $fullscreen={fullscreen && !previewOpen && !suggestMode}
+            $concealed={previewOpen || suggestMode}
+            aria-hidden={previewOpen || suggestMode ? true : undefined}
+            inert={previewOpen || suggestMode ? '' : undefined}
           >
             <BlockSelectionBar
               t={t}
@@ -1738,6 +2561,7 @@ const EditorFieldBody = ({
               }}
               notify={(message) => toggleNotification({ type: 'success', message })}
               onSaveSelection={canManageTemplates ? saveSelection : undefined}
+              onAi={aiAllowed && target.uid ? onBlockAiRequest : undefined}
             />
             <Holder
               ref={holderRef}
@@ -1747,11 +2571,19 @@ const EditorFieldBody = ({
               $minHeight={minHeight}
               $fullscreen={fullscreen}
               $focus={focusMode}
-              $gutter={commentsEnabled}
+              $gutter={markerColumns}
               data-testid="magic-editor-x"
               aria-busy={!ready}
               aria-describedby={`${name}-mex-keyboard`}
             />
+            {commentsWritable && readOnly && ready && !previewOpen ? (
+              <SelectionCommentButton
+                containerRef={areaRef}
+                holderRef={holderRef}
+                onComment={(range) => startRangeCommentRef.current({ range })}
+                t={t}
+              />
+            ) : null}
             {commentsEnabled && ready && !previewOpen ? (
               <CommentMarkers
                 containerRef={areaRef}
@@ -1760,6 +2592,18 @@ const EditorFieldBody = ({
                 blockIds={commentBlockIds}
                 version={contentVersion}
                 onOpen={openBlockComments}
+                t={t}
+              />
+            ) : null}
+            {suggestionsEnabled && ready && !previewOpen && !suggestMode && suggestionCounts.size ? (
+              <SuggestionMarkers
+                containerRef={areaRef}
+                holderRef={holderRef}
+                counts={suggestionCounts}
+                beside={commentsEnabled ? commentCounts : undefined}
+                blockIds={commentBlockIds}
+                version={contentVersion}
+                onOpen={openBlockSuggestions}
                 t={t}
               />
             ) : null}
@@ -1773,6 +2617,21 @@ const EditorFieldBody = ({
               />
             ) : null}
           </EditorArea>
+          {!previewOpen && !suggestMode ? (
+            <FootnotesPanel
+              t={t}
+              id={`${name}-mex`}
+              holderRef={holderRef}
+              ready={ready}
+              readOnly={readOnly}
+              onEdit={(index) => {
+                const marker = footnoteMarker(index);
+                if (marker) onFootnoteEdit(marker);
+              }}
+              onGoTo={(index) => caretAfter(footnoteMarker(index))}
+              onRemove={removeFootnote}
+            />
+          ) : null}
           <VisuallyHidden aria-live="polite" aria-atomic="true">
             {announcement}
           </VisuallyHidden>
@@ -1783,6 +2642,52 @@ const EditorFieldBody = ({
             )}
           </VisuallyHidden>
         </Frame>
+        {suggestionsEnabled && !suggestMode && (suggestionsOpenCount > 0 || (canSuggest && disabled)) ? (
+          <Flex gap={2} wrap="wrap" alignItems="center" data-testid="mex-suggestions-notice">
+            {canSuggest && disabled ? (
+              <>
+                <Typography variant="pi" textColor="neutral600">
+                  {t(
+                    'editor.suggest.readOnlyHint',
+                    'You cannot edit this field, but you can suggest changes.'
+                  )}
+                </Typography>
+                <Button
+                  variant="ghost"
+                  size="S"
+                  startIcon={<Pencil />}
+                  onClick={startSuggest}
+                  disabled={!ready}
+                  data-testid="mex-suggest-start"
+                >
+                  {t('editor.suggest.start', 'Suggest changes')}
+                </Button>
+              </>
+            ) : null}
+            {suggestionsOpenCount > 0 && !suggestionsOpen ? (
+              <>
+                <Typography variant="pi" textColor="neutral600">
+                  {t(
+                    'editor.suggestions.notice',
+                    '{count, plural, one {# open suggestion} other {# open suggestions}}',
+                    { count: suggestionsOpenCount }
+                  )}
+                </Typography>
+                <Button
+                  variant="ghost"
+                  size="S"
+                  startIcon={<Lightbulb />}
+                  onClick={() => setSuggestionsOpen(true)}
+                  data-testid="mex-suggestions-show"
+                >
+                  {suggestions.canReview && editableOutsideSuggest
+                    ? t('editor.suggestions.review', 'Review suggestions')
+                    : t('editor.suggestions.showAll', 'Show suggestions')}
+                </Button>
+              </>
+            ) : null}
+          </Flex>
+        ) : null}
         {violations.length ? (
           <Flex gap={2} wrap="wrap" alignItems="center" data-testid="mex-preset-violations">
             <Typography variant="pi" textColor="danger600">
@@ -1803,15 +2708,18 @@ const EditorFieldBody = ({
       {historyOpen ? (
         <HistoryModal
           t={t}
-          target={target}
+          target={fieldTarget}
           readContent={readContent}
           onRestore={restoreSnapshot}
           onRestoreBlock={readOnly ? undefined : restoreBlock}
           onClose={() => {
             setHistoryOpen(false);
-            window.requestAnimationFrame(() => historyButtonRef.current && historyButtonRef.current.focus());
+            window.requestAnimationFrame(() => focusToolsMenu());
           }}
           canEdit={!readOnly}
+          canReadActivity={Boolean(
+            permissions.auditRead && !(config && config.audit && config.audit.enabled === false)
+          )}
         />
       ) : null}
       {aiRequest ? (
@@ -1827,6 +2735,29 @@ const EditorFieldBody = ({
           onClose={() => setAiRequest(null)}
         />
       ) : null}
+      {blockAiRequest && aiAllowed && target.uid && !readOnly ? (
+        <BlockAiDialog
+          t={t}
+          config={config.ai}
+          target={{ uid: target.uid, field: target.field }}
+          blockIds={blockAiRequest.ids}
+          preset={preset}
+          getData={readForFind}
+          onApply={async (data, count) => {
+            await replaceContent(data);
+            toggleNotification({
+              type: 'success',
+              message: t(
+                'editor.aiBlocks.applied',
+                '{count, plural, one {# block updated} other {# blocks updated}}',
+                { count }
+              ),
+            });
+          }}
+          onClose={() => setBlockAiRequest(null)}
+          returnFocus={() => selectBlock(blockAiRequest.ids[0])}
+        />
+      ) : null}
       {fieldAiOpen && fieldAiAllowed ? (
         <FieldAiDialog
           t={t}
@@ -1837,7 +2768,7 @@ const EditorFieldBody = ({
           onInsertParagraph={insertParagraph}
           onClose={() => setFieldAiOpen(false)}
           readOnly={readOnly}
-          returnFocus={() => moreButtonRef.current && moreButtonRef.current.focus()}
+          returnFocus={focusToolsMenu}
         />
       ) : null}
       {shortcutsOpen ? (
@@ -1845,7 +2776,9 @@ const EditorFieldBody = ({
           t={t}
           tools={toolShortcuts}
           hasBlock={(type) => isBlockAllowed(preset, type)}
+          hasInline={(tool) => !readOnly && (!preset.inline || preset.inline.includes(tool))}
           onClose={() => setShortcutsOpen(false)}
+          comments={commentsEnabled}
         />
       ) : null}
       {[...syncedMounts].map(([key, mount]) =>
@@ -1875,6 +2808,18 @@ const EditorFieldBody = ({
           onSaveCurrent={canManageTemplates ? saveWholeContent : null}
           onClose={closeTemplates}
           allowRaw={allowRawPreview}
+        />
+      ) : null}
+      {footnoteEdit ? (
+        <FootnoteDialog
+          t={t}
+          number={footnoteEdit.index + 1}
+          html={footnoteEdit.html}
+          readOnly={readOnly}
+          allowedTags={allowedInlineTags(preset)}
+          onSave={saveFootnote}
+          onClose={closeFootnote}
+          returnFocusTo={footnoteEdit.returnTo}
         />
       ) : null}
       {saveTemplate ? (

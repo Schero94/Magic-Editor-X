@@ -46,6 +46,15 @@ module.exports = {
         /** 1.x Yjs state (base64). Read once by the 2.0 migration, never written again. */
         yjsSnapshot: { type: 'text' },
         createdBy: { type: 'relation', relation: 'oneToOne', target: 'admin::user' },
+        /**
+         * Synced source versions (2.4, `contentType` = `plugin::magic-editor-x.template`,
+         * `fieldName` = `blocks`, `entryLocale` null): the source name at that version, and the
+         * author as admin id + name snapshot (both cleared when the admin is deleted; the id is
+         * never returned). Null on field versions.
+         */
+        sourceName: { type: 'string', maxLength: 100 },
+        authorId: { type: 'integer' },
+        authorName: { type: 'string', maxLength: 200 },
       },
     },
   },
@@ -97,6 +106,108 @@ module.exports = {
         resolvedAt: { type: 'datetime' },
         resolvedById: { type: 'integer' },
         resolvedByName: { type: 'string', maxLength: 200 },
+        /**
+         * 2.4 range comments (root only): `{ path, start, end, quote: { exact, prefix, suffix } }`
+         * (shared/comment-anchor.mjs `cleanAnchor`). Null for block comments and rows written before 2.4.
+         */
+        anchor: { type: 'json' },
+        /** 2.4 @mentions: admin ids of the people this comment mentions (max 20). Never returned. */
+        mentions: { type: 'json' },
+      },
+    },
+  },
+
+  /**
+   * In-admin notifications of comment mentions and replies (2.4). One row per
+   * recipient and comment (`kind` mention wins over reply). Rows follow the
+   * comment: deleted with the comment, its thread or its entry, and when the
+   * recipient admin is deleted. The text is never copied here; listings read
+   * the comment and check the recipient's access again.
+   */
+  'comment-notification': {
+    schema: {
+      kind: 'collectionType',
+      collectionName: 'magic_editor_comment_notifications',
+      info: {
+        singularName: 'comment-notification',
+        pluralName: 'comment-notifications',
+        displayName: 'Editor comment notification',
+        description: 'Mentions and replies in Magic Editor X comments',
+      },
+      options: { draftAndPublish: false },
+      pluginOptions: hidden,
+      indexes: [
+        { name: 'mex_comment_notes_recipient_idx', columns: ['recipient_id', 'read_at'] },
+        { name: 'mex_comment_notes_comment_idx', columns: ['comment_id'] },
+        { name: 'mex_comment_notes_thread_idx', columns: ['thread_id'] },
+      ],
+      attributes: {
+        /** Admin id of the person notified. */
+        recipientId: { type: 'integer', required: true },
+        /** mention | reply */
+        kind: { type: 'enumeration', enum: ['mention', 'reply'], required: true, default: 'mention' },
+        /** documentId of the comment that caused it, and of its thread's root. */
+        commentId: { type: 'string', required: true },
+        threadId: { type: 'string', required: true },
+        contentType: { type: 'string', required: true },
+        entryId: { type: 'string', required: true },
+        entryLocale: { type: 'string' },
+        fieldName: { type: 'string', required: true },
+        blockId: { type: 'string', maxLength: 64 },
+        readAt: { type: 'datetime' },
+        emailedAt: { type: 'datetime' },
+      },
+    },
+  },
+
+  /**
+   * Block suggestions (2.4). One row per proposed change to one block of one
+   * editor field of one document locale, keyed like comments (`fieldName` is
+   * the field identity of `access.checkField`). `proposed` is a single block,
+   * normalised, sanitised and checked against the field preset on write.
+   * Author and decider are admin id + name snapshots, cleared when the admin
+   * user is deleted. Plain-text `note`.
+   */
+  suggestion: {
+    schema: {
+      kind: 'collectionType',
+      collectionName: 'magic_editor_suggestions',
+      info: {
+        singularName: 'suggestion',
+        pluralName: 'suggestions',
+        displayName: 'Editor suggestion',
+        description: 'Block suggestions of Magic Editor X fields',
+      },
+      options: { draftAndPublish: false },
+      pluginOptions: hidden,
+      indexes: [{ name: 'mex_suggestions_target_idx', columns: ['entry_id', 'field_name', 'content_type'] }],
+      attributes: {
+        contentType: { type: 'string', required: true },
+        entryId: { type: 'string', required: true },
+        entryLocale: { type: 'string' },
+        fieldName: { type: 'string', required: true },
+        /** Editor.js id of the block changed or deleted, or of the inserted block. */
+        blockId: { type: 'string', required: true, maxLength: 64 },
+        op: { type: 'enumeration', enum: ['update', 'insert', 'delete'], required: true },
+        /** Inserts: id of the block the new block goes after (null: at the start). */
+        afterBlockId: { type: 'string', maxLength: 64 },
+        /** Proposed block `{ id, type, data, tunes? }` (null for deletes). */
+        proposed: { type: 'json' },
+        /** Hash of the block when the change was suggested (`shared/suggestions.mjs` blockHash). */
+        baseHash: { type: 'string', maxLength: 32 },
+        /** Optional plain-text note of the author. */
+        note: { type: 'text' },
+        status: {
+          type: 'enumeration',
+          enum: ['open', 'accepted', 'rejected'],
+          required: true,
+          default: 'open',
+        },
+        authorId: { type: 'integer' },
+        authorName: { type: 'string', maxLength: 200 },
+        decidedAt: { type: 'datetime' },
+        decidedById: { type: 'integer' },
+        decidedByName: { type: 'string', maxLength: 200 },
       },
     },
   },

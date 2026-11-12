@@ -12,6 +12,7 @@ const {
   INTERNAL_LINK_ATTRIBUTES,
   cleanInternalLinkAttributes,
 } = require('../../../shared/sanitize-policy.mjs');
+const { canonicalInlineExtras } = require('../../../shared/render/inline.mjs');
 
 /**
  * Adds rel="noopener noreferrer" to links that open a new tab, drops invalid
@@ -100,7 +101,7 @@ const RAW_OPTIONS = Object.freeze({
  * @param {string} html - Untrusted HTML.
  * @returns {string} Safe HTML.
  */
-const sanitizeInlineHtml = (html) => sanitizeHtml(String(html), INLINE_OPTIONS);
+const sanitizeInlineHtml = (html) => canonicalInlineExtras(sanitizeHtml(String(html), INLINE_OPTIONS));
 
 /**
  * Sanitises Raw HTML block content.
@@ -128,7 +129,13 @@ const inlineSanitizerFor = (tags) => {
       if (INLINE_CLASSES[tag]) allowedClasses[tag] = INLINE_CLASSES[tag];
     }
     const options = { ...INLINE_OPTIONS, allowedTags: allowed, allowedAttributes, allowedClasses };
-    restrictedInline.set(key, (html) => sanitizeHtml(String(html), options));
+    // 2.4: without `sup` (no footnote tool) markers go with their notes instead of leaving their number as text.
+    const footnotes = allowed.includes('sup');
+    restrictedInline.set(key, (html) =>
+      canonicalInlineExtras(sanitizeHtml(canonicalInlineExtras(String(html), { footnotes }), options), {
+        footnotes,
+      })
+    );
   }
   return restrictedInline.get(key);
 };
@@ -152,4 +159,4 @@ const cleanEditorValue = (value, options = {}) => {
   });
 };
 
-module.exports = { sanitizeInlineHtml, sanitizeRawHtml, cleanEditorValue };
+module.exports = { sanitizeInlineHtml, sanitizeRawHtml, cleanEditorValue, inlineSanitizerFor };

@@ -38,6 +38,9 @@ const ports = String(process.env.MEX_CLUSTER_PORTS).split(',').map(Number);
 const BALANCER = `http://127.0.0.1:${balancerPort}`;
 const DURATION_MS = Number(process.env.MEX_CLUSTER_DURATION_S || 150) * 1000;
 const CLIENTS = Number(process.env.MEX_CLUSTER_CLIENTS || 12);
+// Extra render time of every second simulated editor (a slow browser under load next to fast
+// ones, as on a loaded machine); 0 by default.
+const RENDER_DELAY_MS = Number(process.env.MEX_CLUSTER_RENDER_DELAY_MS || 0);
 const PERMISSION_SLA_MS = 5000;
 const url = (port) => `http://127.0.0.1:${port}`;
 const results = [];
@@ -138,6 +141,7 @@ for (let i = 0; i < CLIENTS; i += 1) {
     createCollabClient,
     url: BALANCER,
     requestSession: session(token, BALANCER, () => net.online),
+    renderDelayMs: i % 2 === 1 ? RENDER_DELAY_MS : 0,
     onSocket: (socket) => {
       net.sockets.push(socket);
       socket.on('disconnect', () => {
@@ -207,9 +211,13 @@ const editing = (async () => {
   }
 })();
 const chaos = (async () => {
+  // The first three events are one of each kind, so every run has kills, partitions and
+  // offline clients (a random kind only could miss one, as in 1 of about 100 runs).
+  let event = 0;
   while (Date.now() < chaosEnd - 20000) {
     await sleep(8000 + rnd(6000));
-    const kind = rnd(3);
+    const kind = event < 3 ? event : rnd(3);
+    event += 1;
     if (kind === 0 && down.size < 2) {
       const port = ports[1 + rnd(ports.length - 1)];
       if (down.has(port)) continue;
@@ -260,7 +268,16 @@ const lost = markers.filter((marker) => !finalText.includes(marker));
 record(
   'zero lost edits',
   lost.length === 0,
-  `${markers.length - lost.length}/${markers.length} edits present${lost.length ? `; lost ${lost.slice(0, 5).join(',')}` : ''}`
+  `${markers.length - lost.length}/${markers.length} edits present${lost.length ? `; lost ${lost.slice(0, 5).join(',')}` : ''}; ${clients.reduce((sum, sim) => sum + sim.editsBeforeFirstRender, 0)} edits made before the editor first rendered the room${RENDER_DELAY_MS ? ` (render delay ${RENDER_DELAY_MS} ms)` : ''}`
+);
+// Nobody deletes blocks in the chaos phase: every seed block must still be there.
+const seedKept = seed.blocks.filter((block) =>
+  clients[0].client.getData().blocks.some((item) => item.id === block.id)
+).length;
+record(
+  'no block deleted by an editor that had not rendered it',
+  seedKept === seed.blocks.length,
+  `seed blocks kept: ${seedKept}/${seed.blocks.length}`
 );
 const dupes = markers.filter((marker) => finalText.split(marker).length > 2);
 record('no duplicated edits', dupes.length === 0, `${dupes.length} duplicates`);
@@ -531,6 +548,99 @@ if (process.env.MEX_COMPACT_IDLE_S) {
       `save refused ${saves}/${ports.length}, live heading refused ${live}/${ports.length}, paragraph accepted ${accepted}/${ports.length}`
     );
   }
+}
+
+// --- 2.4: a field in a repeatable component is one room per entry -----------------
+// Entry B is moved on one process; a session by its key on another process and a
+// session by its new index on a third share the room, and an edit crosses processes.
+{
+  const CM = '/content-manager/collection-types/api::article.article';
+  const para = (id, text) => ({
+    time: 1,
+    version: '2.31.7',
+    blocks: [{ id, type: 'paragraph', data: { text } }],
+  });
+  const made = await call(BALANCER, 'POST', CM, {
+    token,
+    body: {
+      title: 'Cluster sections',
+      sections: [
+        { heading: 'A', body: para('secA000001', 'Entry A') },
+        { heading: 'B', body: para('secB000001', 'Entry B') },
+      ],
+    },
+  });
+  const docId = made.body.data.documentId;
+  const stored = (await call(url(ports[0]), 'GET', `${CM}/${docId}?locale=en`, { token })).body.data.sections;
+  const keyB = stored[1].body.fieldKey;
+  await call(url(ports[1]), 'PUT', `${CM}/${docId}?locale=en`, {
+    token,
+    body: { sections: [stored[1], stored[0]].map(({ id, heading, body }) => ({ id, heading, body })) },
+  });
+  const join = async (port, extra) => {
+    const sess = await call(url(port), 'POST', '/magic-editor-x/collaboration/session', {
+      token,
+      body: { uid: 'api::article.article', documentId: docId, locale: 'en', ...extra },
+    });
+    const ydoc = new Y.Doc();
+    const socket = io(url(port), {
+      path: sess.body.data.path,
+      transports: ['websocket'],
+      auth: { token: sess.body.data.token, protocol: 3 },
+      reconnection: false,
+    });
+    socket.on('mx:update', (update) => Y.applyUpdate(ydoc, new Uint8Array(update)));
+    await new Promise((resolve) => {
+      socket.on('mx:sync', ({ update }) => {
+        Y.applyUpdate(ydoc, new Uint8Array(update));
+        resolve();
+      });
+      setTimeout(resolve, 5000);
+    });
+    return { ydoc, socket };
+  };
+  const one = await join(ports[2 % ports.length], { field: 'sections.1.body', fieldKey: keyB });
+  const two = await join(ports[5 % ports.length], { field: 'sections.0.body' });
+  const textOf = (ydoc) => JSON.stringify(ydoc.getMap('blocks').toJSON());
+  const sameRoom = textOf(one.ydoc) === textOf(two.ydoc) && textOf(one.ydoc).includes('Entry B');
+  const scratch = new Y.Doc();
+  Y.applyUpdate(scratch, Y.encodeStateAsUpdate(one.ydoc));
+  const before = Y.encodeStateVector(scratch);
+  applyEditorDataToDoc(scratch, {
+    time: 2,
+    version: '2.31.7',
+    blocks: [
+      { id: 'secB000001', type: 'paragraph', data: { text: 'Entry B' } },
+      { id: 'secB000002', type: 'paragraph', data: { text: 'across processes' } },
+    ],
+  });
+  await new Promise((resolve) =>
+    one.socket.timeout(5000).emit('mx:update', Y.encodeStateAsUpdate(scratch, before), () => resolve())
+  );
+  const start = Date.now();
+  while (Date.now() - start < 10000 && !textOf(two.ydoc).includes('across processes')) await sleep(100);
+  const crossed = textOf(two.ydoc).includes('across processes');
+  const rooms = new pg.Client({ connectionString: process.env.MEX_CLUSTER_PG_URL });
+  await rooms.connect();
+  const keyed = (
+    await rooms.query(
+      'select count(distinct room) as n from magic_editor_x_collab_updates where room like $1',
+      [`api::article.article|${docId}|en|%`]
+    )
+  ).rows[0];
+  const identity = (
+    await rooms.query('select count(*) as n from magic_editor_x_collab_updates where room = $1', [
+      `api::article.article|${docId}|en|sections.body#${keyB}`,
+    ])
+  ).rows[0];
+  await rooms.end();
+  one.socket.disconnect();
+  two.socket.disconnect();
+  record(
+    'a field in a repeatable component has one room per entry across processes (2.4)',
+    sameRoom && crossed && Number(keyed.n) === 1 && Number(identity.n) > 0,
+    `same room ${sameRoom}, edit crossed ${crossed}, rooms ${keyed.n}, keyed rows ${identity.n}`
+  );
 }
 
 // --- permission revocation across processes ------------------------------------

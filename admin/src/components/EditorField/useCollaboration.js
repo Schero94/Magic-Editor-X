@@ -20,32 +20,52 @@ const INITIAL = {
  * Session tokens are requested through the admin fetch client, so an
  * expired admin access token is refreshed by Strapi before a reconnect.
  * @param {object} options - Options.
- * @param {{ uid: string, documentId: string, locale: string|null, field: string }|null} options.target - Field, or null when collaboration is off.
+ * @param {{ uid: string, documentId: string, locale: string|null, field: string, fieldKey?: string }|null} options.target - Field, or
+ *   null when collaboration is off (`fieldKey` for fields inside a repeatable component or dynamic zone, 2.4).
  * @param {() => object|null} options.getLocalData - Current field content (seeds a new room).
  * @param {boolean} options.ready - True once the editor is ready.
  * @param {() => void} options.onRemoteData - Shows the shared document in the editor.
  * @param {(seeded: boolean, client: object) => Promise<void>} [options.onFirstSync] - First sync hook.
+ * @param {() => object|null} [options.getInitialView] - What the editor shows before it rendered the room.
  * @returns {{ active: boolean, status: string, canEdit: boolean, peers: object[], error: string|null, pending: boolean, canUndo: boolean, canRedo: boolean, client: object|null }} State.
  */
-export const useCollaboration = ({ target, getLocalData, ready, onRemoteData, onFirstSync }) => {
+export const useCollaboration = ({
+  target,
+  getLocalData,
+  ready,
+  onRemoteData,
+  onFirstSync,
+  getInitialView,
+}) => {
   const { post } = useFetchClient();
   const [state, setState] = useState(INITIAL);
   const [client, setClient] = useState(null);
   const getLocalRef = useRef(getLocalData);
   const onRemoteRef = useRef(onRemoteData);
   const onFirstSyncRef = useRef(onFirstSync);
+  const getInitialViewRef = useRef(getInitialView);
   useEffect(() => {
+    getInitialViewRef.current = getInitialView;
     getLocalRef.current = getLocalData;
     onRemoteRef.current = onRemoteData;
     onFirstSyncRef.current = onFirstSync;
   });
 
+  // 2.4: a field inside a repeatable component or dynamic zone is identified by its key, so moving
+  // the entry (its path changes from `sections.0.body` to `sections.1.body`) keeps the same room.
+  const fieldRef = useRef(target ? target.field : null);
+  useEffect(() => {
+    if (target) fieldRef.current = target.field;
+  });
   const key =
-    target && ready ? `${target.uid}|${target.documentId}|${target.locale || ''}|${target.field}` : null;
+    target && ready
+      ? `${target.uid}|${target.documentId}|${target.locale || ''}|${target.fieldKey ? `#${target.fieldKey}` : target.field}`
+      : null;
 
   useEffect(() => {
     if (!key) return undefined;
-    const [uid, documentId, locale, field] = key.split('|');
+    const [uid, documentId, locale, identity] = key.split('|');
+    const fieldKey = identity.startsWith('#') ? identity.slice(1) : null;
     const instance = createCollabClient({
       url: window.strapi.backendURL,
       requestSession: async () => {
@@ -53,12 +73,14 @@ export const useCollaboration = ({ target, getLocalData, ready, onRemoteData, on
           uid,
           documentId,
           locale: locale || null,
-          field,
+          field: fieldKey ? fieldRef.current : identity,
+          ...(fieldKey ? { fieldKey } : {}),
           initialValue: getLocalRef.current(),
         });
         return data.data;
       },
       onRemoteData: () => onRemoteRef.current(),
+      getInitialView: () => (getInitialViewRef.current ? getInitialViewRef.current() : null),
       onFirstSync: (seeded) => (onFirstSyncRef.current ? onFirstSyncRef.current(seeded, instance) : null),
       onState: (next) => setState((previous) => ({ ...previous, ...next })),
       onUndoState: (undo) => setState((previous) => ({ ...previous, ...undo })),

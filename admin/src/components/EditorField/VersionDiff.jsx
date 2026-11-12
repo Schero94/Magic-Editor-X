@@ -124,10 +124,11 @@ export const neighboursOf = (entries, index) => {
 };
 
 /**
+ * Inline word diff (also used by the 2.4 AI block preview).
  * @param {{ ops: Array<{ op: string, text: string }>, t: Function }} props - Text ops.
  * @returns {JSX.Element} Inline diff.
  */
-const TextOps = ({ ops, t }) => (
+export const TextOps = ({ ops, t }) => (
   <Text tag="p" variant="pi" textColor="neutral800">
     {ops.map((op, index) => {
       if (op.op === 'insert')

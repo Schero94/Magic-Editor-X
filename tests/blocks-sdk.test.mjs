@@ -19,6 +19,7 @@ import {
   blockJsonSchema,
   BlockDefinitionError,
   RESERVED_BLOCK_NAMES,
+  SDK_COMPATIBLE_NAMES,
   BLOCK_LIMITS,
 } from '../shared/blocks/index.mjs';
 import { compileBlock } from '../shared/blocks/define.mjs';
@@ -119,8 +120,13 @@ test('reserved names cover every built-in block, tool and tune name', () => {
     ...BUILTIN_BLOCKS,
     ...RESERVED_NAMES,
     ...LEGACY_BUILT_IN_NAMES,
-  ])
+  ].filter((name) => !SDK_COMPATIBLE_NAMES.includes(name)))
     assert.ok(reserved.has(name.toLowerCase()), name);
+  // 2.4: `math` became a built-in after the SDK shipped; a 2.3 host may have registered it in code.
+  for (const name of SDK_COMPATIBLE_NAMES) {
+    assert.equal(reserved.has(name.toLowerCase()), false, name);
+    assert.equal(defineBlock({ name, schema: { formula: { type: 'text' } } }).name, name);
+  }
   for (const name of ['gallery', 'VIDEO', 'audio', 'mediaLib'])
     assert.throws(() => defineBlock({ name, schema: { a: { type: 'text' } } }), { code: 'RESERVED_NAME' });
 });
@@ -639,4 +645,24 @@ test('admin helpers: localized titles, Editor.js sanitize rules from the schema,
       ['serverOnly', 'serverOnly', true, false],
     ]
   );
+});
+
+test('2.4: a code block named math (registered with 2.3) keeps its data; built-in math stays built-in', () => {
+  const legacy = compileBlock(defineBlock({ name: 'math', schema: { formula: { type: 'text' } } }));
+  const value = {
+    time: 1,
+    version: '2.31.7',
+    blocks: [
+      { id: 'sdk1', type: 'math', data: { formula: 'E = mc^2', extra: 'dropped' } },
+      { id: 'mex1', type: 'math', data: { tex: 'a^2', display: true, _mex: 1 } },
+    ],
+  };
+  const clean = sanitizeEditorData(value, {
+    sanitizeInlineHtml: (s) => s,
+    sanitizeRawHtml: (s) => s,
+    blocks: new Map([['math', legacy]]),
+  });
+  assert.deepEqual(clean.blocks[0].data, { formula: 'E = mc^2' });
+  assert.equal(clean.blocks[1].data.tex, 'a^2');
+  assert.equal(clean.blocks[1].data._mex, 1);
 });

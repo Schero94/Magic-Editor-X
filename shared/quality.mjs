@@ -8,10 +8,17 @@
  */
 
 import { isPlainObject, normalizeEditorDataSafe } from './editor-data.mjs';
-import { parseInline, nodesToText } from './render/inline.mjs';
+import {
+  parseInline,
+  nodesToText,
+  walkInlineElements,
+  isMathNode,
+  isFootnoteNode,
+} from './render/inline.mjs';
 import { sanitizeUrl, isBuiltInBlock, registeredBlockOf } from './sanitize-policy.mjs';
 import { mediaSlots } from './resolve-references.mjs';
 import { tocRange } from './toc.mjs';
+import { normalizeMerges, tableLayout } from './table.mjs';
 
 /** Rule ids and their default severity. */
 export const QUALITY_RULES = Object.freeze({
@@ -22,10 +29,39 @@ export const QUALITY_RULES = Object.freeze({
   'empty-link': 'error',
   'ambiguous-link-text': 'warning',
   'table-no-header': 'warning',
+  'table-empty-header': 'warning',
   'low-contrast': 'warning',
   'video-no-captions': 'warning',
   'toc-no-headings': 'warning',
+  'math-invalid': 'warning',
+  'footnote-empty': 'warning',
 });
+
+/**
+ * Header cells without text in a table (2.4). Covered cells of a merge are
+ * not counted; a table with only one row (or only one column with a header
+ * column) is a layout, not checked, and the corner cell of a table with both
+ * header kinds may stay empty.
+ * @param {object} d - Table data.
+ * @returns {number} Count.
+ */
+const emptyHeaderCells = (d) => {
+  if (!Array.isArray(d.content) || !d.content.every(Array.isArray)) return 0;
+  if (d.withHeadings !== true && d.headerColumn !== true) return 0;
+  const rows = d.content.length;
+  const cols = d.content.reduce((width, row) => Math.max(width, row.length), 0);
+  const merges = normalizeMerges(d.merges, rows, cols, { headerRow: d.withHeadings === true });
+  let count = 0;
+  for (const row of tableLayout({ ...d, merges }))
+    for (const cell of row) {
+      if (!cell.header) continue;
+      if (cell.header === 'col' ? rows < 2 : cols < 2) continue;
+      // The corner cell of a table with both header kinds is often empty on purpose.
+      if (cell.row === 0 && cell.col === 0 && d.withHeadings === true && d.headerColumn === true) continue;
+      if (!textOf(typeof cell.html === 'string' ? cell.html : '')) count += 1;
+    }
+  return count;
+};
 
 /** Most links returned by `extractLinks` per kind. */
 export const MAX_EXTRACTED_LINKS = 200;
@@ -269,12 +305,28 @@ const inlineStrings = (block) => {
  * @returns {Array<{ attrs: Record<string, string>, text: string }>} Links.
  */
 const findLinks = (nodes, out = []) => {
-  for (const node of nodes) {
-    if (node.type !== 'element') continue;
+  // Links inside footnote notes (2.4) are links of the content too.
+  walkInlineElements(nodes, (node) => {
     if (node.tag === 'a') out.push({ attrs: node.attrs, text: nodesToText(node.children) });
-    else findLinks(node.children, out);
-  }
+  });
   return out;
+};
+
+/**
+ * Result of the optional TeX check (`options.checkMath`): false when it says the TeX does not parse.
+ * @param {unknown} check - `options.checkMath`.
+ * @param {string} tex - TeX source.
+ * @param {boolean} display - Display style.
+ * @returns {boolean} True when the TeX is valid or cannot be checked.
+ */
+const mathIsValid = (check, tex, display) => {
+  if (typeof check !== 'function' || !tex.trim()) return true;
+  try {
+    const result = check(tex, { display });
+    return !(result === false || (result && typeof result === 'object' && result.ok === false));
+  } catch {
+    return true;
+  }
 };
 
 /**
@@ -324,7 +376,7 @@ const customImages = (value, path, out, depth = 0) => {
 /**
  * Lints a document for accessibility problems.
  * @param {unknown} value - Stored or editor value (normalised internally).
- * @param {{ requireAlt?: boolean, locale?: string }} [options] - `requireAlt` makes missing alt texts errors (field preset).
+ * @param {{ requireAlt?: boolean, locale?: string, checkMath?: (tex: string, options: { display: boolean }) => boolean | { ok: boolean } }} [options] - `requireAlt` makes missing alt texts errors (field preset); `checkMath` (2.4, e.g. `checkMath` of `magic-editor-x/math`) enables `math-invalid`.
  * @returns {{ issues: Array<{ rule: string, severity: 'error'|'warning', blockId: string, blockIndex: number, path?: string, params?: object }>, stats: { errors: number, warnings: number, blocks: number, links: number, images: number } }} Issues in document order.
  */
 export const lintDocument = (value, options = {}) => {
@@ -412,14 +464,39 @@ export const lintDocument = (value, options = {}) => {
 
     if (block.type === 'toc' && isBuiltInBlock(block)) tocs.push({ block, index, range: tocRange(d) });
 
+    if (
+      block.type === 'math' &&
+      isBuiltInBlock(block) &&
+      typeof d.tex === 'string' &&
+      !mathIsValid(options.checkMath, d.tex, d.display !== false)
+    )
+      push('math-invalid', block, index, { path: 'tex' });
+
     if (block.type === 'table') {
       const rows = Array.isArray(d.content) ? d.content : [];
-      if (rows.length > 1 && d.withHeadings !== true) push('table-no-header', block, index);
+      // 2.4: a header row or a header column labels the data cells.
+      if (rows.length > 1 && d.withHeadings !== true && d.headerColumn !== true)
+        push('table-no-header', block, index);
+      const empty = emptyHeaderCells(d);
+      if (empty) push('table-empty-header', block, index, { params: { count: empty } });
     }
 
     for (const { path, html } of inlineStrings(block)) {
       if (!html.includes('<')) continue;
-      for (const link of findLinks(parseInline(html))) {
+      const parsed = parseInline(html);
+      // 2.4: inline math that does not parse, footnotes without text.
+      walkInlineElements(parsed, (node) => {
+        if (isMathNode(node) && !mathIsValid(options.checkMath, nodesToText(node.children), false))
+          push('math-invalid', block, index, { path });
+        else if (
+          isFootnoteNode(node) &&
+          !nodesToText(node.note || [])
+            .replace(/\u00a0/g, ' ')
+            .trim()
+        )
+          push('footnote-empty', block, index, { path });
+      });
+      for (const link of findLinks(parsed)) {
         links += 1;
         const text = link.text.replace(/\u00a0/g, ' ').trim();
         if (!text || !link.attrs.href) push('empty-link', block, index, { path });

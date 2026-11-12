@@ -1,6 +1,7 @@
 'use strict';
 
-const { service } = require('./helpers');
+const { service, recordAudit } = require('./helpers');
+const { fieldIdentity } = require('../../../shared/audit.mjs');
 const { z, parseOrThrow, uidSchema, fieldPathSchema, localeSchema, errors } = require('../utils/validation');
 const {
   BLOCK_ID_PATTERN,
@@ -9,7 +10,7 @@ const {
   MAX_SEGMENT_HTML,
 } = require('../../../shared/ai-fields.mjs');
 const { resolveEditorField } = require('../utils/editor-fields');
-const { resolveFieldPreset } = require('../../../shared/presets.mjs');
+const { resolveFieldPreset, allowedInlineTags } = require('../../../shared/presets.mjs');
 
 const bodySchema = z.strictObject({
   text: z.string().min(1).max(60000),
@@ -21,25 +22,43 @@ const bodySchema = z.strictObject({
 
 const targetSchema = z.strictObject({ uid: uidSchema, field: fieldPathSchema });
 
+const segmentSchema = z.strictObject({
+  blockId: z.string().regex(BLOCK_ID_PATTERN),
+  path: z.string().max(200).regex(SEGMENT_PATH_PATTERN),
+  html: z.string().max(MAX_SEGMENT_HTML),
+});
+
+/**
+ * Segment list with each block path once.
+ * @param {number} max - Most segments.
+ * @returns {import('zod').ZodType} Schema.
+ */
+const segmentListSchema = (max) =>
+  z
+    .array(segmentSchema)
+    .min(1)
+    .max(max)
+    .refine((list) => new Set(list.map((item) => `${item.blockId}|${item.path}`)).size === list.length, {
+      message: 'Each block path may appear once',
+    });
+
 /** Inline text strings of a field (2.3 whole-field actions and the grammar check). */
-const segmentsSchema = z
-  .array(
-    z.strictObject({
-      blockId: z.string().regex(BLOCK_ID_PATTERN),
-      path: z.string().max(200).regex(SEGMENT_PATH_PATTERN),
-      html: z.string().max(MAX_SEGMENT_HTML),
-    })
-  )
-  .min(1)
-  .max(MAX_SEGMENTS)
-  .refine((list) => new Set(list.map((item) => `${item.blockId}|${item.path}`)).size === list.length, {
-    message: 'Each block path may appear once',
-  });
+const segmentsSchema = segmentListSchema(MAX_SEGMENTS);
+
+/** Most segments of one block action (2.4). */
+const MAX_BLOCK_SEGMENTS = 200;
 
 const altTextSchema = z.strictObject({
   target: targetSchema,
   fileId: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
   locale: localeSchema.nullish(),
+});
+
+const blockActionSchema = z.strictObject({
+  target: targetSchema,
+  segments: segmentListSchema(MAX_BLOCK_SEGMENTS),
+  language: z.string().max(40).optional(),
+  tone: z.string().max(40).optional(),
 });
 
 const fieldActionSchema = z.strictObject({
@@ -114,7 +133,8 @@ module.exports = ({ strapi }) => {
     /**
      * @route POST /magic-editor-x/ai/:action { text, language?, tone?, target: { uid, field } }
      * @auth admin; plugin::magic-editor-x.access + plugin::magic-editor-x.ai.use
-     * @returns {{ data: { text: string } }} Suggested replacement (sanitised inline HTML).
+     * @returns {{ data: { text: string } }} Suggested replacement (sanitised inline HTML; 2.4: only the field
+     *   preset's inline tags and no links the selection did not hold).
      * @throws {errors.NotFoundError} Unknown content type or field (404).
      * @throws {errors.ForbiddenError} The field's options turn the assistant off (403).
      * @sideeffect Sends the text to the owner's AI provider. Text is never logged.
@@ -122,13 +142,18 @@ module.exports = ({ strapi }) => {
     async run(ctx) {
       const action = String(ctx.params.action || '');
       const { target, ...body } = parseOrThrow(bodySchema, ctx.request.body || {});
-      const contentType = strapi.contentType(target.uid);
-      const resolved = contentType ? resolveEditorField(strapi, contentType, target.field) : null;
-      if (!resolved) throw new errors.NotFoundError('Not found');
-      if (!resolveFieldPreset(resolved.attribute.options).ai)
-        throw new errors.ForbiddenError('The AI assistant is turned off for this field');
+      const resolved = resolveAiField(strapi, target);
+      const inlineTags = allowedInlineTags(resolveFieldPreset(resolved.attribute.options));
       try {
-        ctx.body = { data: await service(strapi, 'ai').run({ action, ...body }, ctx.state.user) };
+        ctx.body = {
+          data: await service(strapi, 'ai').run({ action, ...body, inlineTags }, ctx.state.user),
+        };
+        await recordAudit(strapi, {
+          event: 'ai.action',
+          target: { uid: target.uid, field: fieldIdentity(target.field) },
+          counts: { segments: 1 },
+          meta: { action },
+        });
       } catch (error) {
         if (!sendProviderError(ctx, error)) throw error;
       }
@@ -152,6 +177,12 @@ module.exports = ({ strapi }) => {
             ctx.state.user
           ),
         };
+        await recordAudit(strapi, {
+          event: 'ai.action',
+          target: { uid: input.target.uid, field: fieldIdentity(input.target.field) },
+          counts: { images: 1 },
+          meta: { action: 'alt-text' },
+        });
       } catch (error) {
         if (!sendProviderError(ctx, error)) throw error;
       }
@@ -177,6 +208,51 @@ module.exports = ({ strapi }) => {
             ctx.state.user
           ),
         };
+        await recordAudit(strapi, {
+          event: 'ai.action',
+          target: { uid: input.target.uid, field: fieldIdentity(input.target.field) },
+          counts: { segments: input.segments.length },
+          meta: { action: `field-${action}` },
+        });
+      } catch (error) {
+        if (!sendProviderError(ctx, error)) throw error;
+      }
+    },
+
+    /**
+     * @route POST /magic-editor-x/ai/blocks/:action { target, segments: [{ blockId, path, html }] (1-200), language?, tone? } (action: improve | shorten | translate | tone)
+     * @auth admin; plugin::magic-editor-x.access + plugin::magic-editor-x.ai.use
+     * @returns {{ data: { segments: Array<{ blockId, path, html }> } }} The same segments, rewritten; sanitised for the
+     *   field preset's inline tags, links the original string did not hold unwrapped.
+     * @throws {errors.NotFoundError} Unknown action or field (404).
+     * @throws {errors.ForbiddenError} The field's options turn the assistant off (403).
+     * @throws {errors.PayloadTooLargeError} Text over `maxInputChars` (413).
+     * @sideeffect Sends the inline text strings of the chosen blocks to the owner's AI provider. Content is never logged.
+     */
+    async blocks(ctx) {
+      const action = String(ctx.params.action || '');
+      const input = parseOrThrow(blockActionSchema, ctx.request.body || {});
+      const resolved = resolveAiField(strapi, input.target);
+      try {
+        ctx.body = {
+          data: await service(strapi, 'ai').blockAction(
+            {
+              action,
+              segments: input.segments,
+              language: input.language,
+              tone: input.tone,
+              inlineTags: allowedInlineTags(resolveFieldPreset(resolved.attribute.options)),
+            },
+            ctx.state.user
+          ),
+        };
+        await recordAudit(strapi, {
+          event: 'ai.action',
+          target: { uid: input.target.uid, field: fieldIdentity(input.target.field) },
+          counts: { segments: input.segments.length },
+          blockIds: [...new Set(input.segments.map((segment) => segment.blockId))],
+          meta: { action },
+        });
       } catch (error) {
         if (!sendProviderError(ctx, error)) throw error;
       }
@@ -185,5 +261,6 @@ module.exports = ({ strapi }) => {
 };
 
 module.exports.sendProviderError = sendProviderError;
+module.exports.blockActionSchema = blockActionSchema;
 module.exports.segmentsSchema = segmentsSchema;
 module.exports.targetSchema = targetSchema;

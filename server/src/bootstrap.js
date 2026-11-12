@@ -3,6 +3,8 @@
 const { createLogger } = require('./utils/logger');
 const { registerPermissions } = require('./permissions');
 const { subscribeCommentAuthorCleanup } = require('./utils/comment-retention');
+const { subscribeAuditActorCleanup } = require('./utils/audit-trail');
+const { wrapAiLocalizations } = require('./utils/ai-localization-guard');
 
 /**
  * Bootstrap: RBAC actions, plugin tables, migrations, the response parser
@@ -51,6 +53,14 @@ module.exports = async ({ strapi }) => {
     logger.error('the admin Content Security Policy could not be inspected', error);
   }
 
+  // Strapi i18n AI translations (2.4): only text strings of editor fields reach the provider,
+  // and the answer is rebuilt from the source locale (utils/ai-localization-guard.js).
+  try {
+    wrapAiLocalizations(strapi);
+  } catch (error) {
+    logger.error('Strapi AI translations could not be guarded', error);
+  }
+
   // Opt-in output transform (`?mex=`); registered first so it runs after the 1.x string parser below.
   strapi.server.use(plugin.middleware('render-output')({}, { strapi }));
 
@@ -91,4 +101,13 @@ module.exports = async ({ strapi }) => {
 
   // Block comments: clear the author snapshot of deleted admin users.
   subscribeCommentAuthorCleanup(strapi);
+
+  // Audit trail (2.4): hourly retention pruning, Enterprise Audit Logs when available,
+  // anonymised actors of deleted admin users.
+  try {
+    plugin.service('audit').start();
+  } catch (error) {
+    logger.error('the audit trail could not start', error);
+  }
+  subscribeAuditActorCleanup(strapi);
 };

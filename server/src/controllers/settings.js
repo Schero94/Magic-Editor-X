@@ -1,6 +1,6 @@
 'use strict';
 
-const { service } = require('./helpers');
+const { service, recordAudit } = require('./helpers');
 const { sendProviderError } = require('./ai');
 const { sendGrammarError } = require('./grammar');
 
@@ -22,7 +22,17 @@ module.exports = ({ strapi }) => ({
    */
   async update(ctx) {
     ctx.set('Cache-Control', 'no-store');
-    ctx.body = { data: await service(strapi, 'settings').update(ctx.request.body || {}) };
+    const body = ctx.request.body || {};
+    ctx.body = { data: await service(strapi, 'settings').update(body) };
+    // Audit trail: which top-level keys were submitted, never their values.
+    await recordAudit(strapi, {
+      event: 'settings.update',
+      meta: {
+        keys: Object.keys(body && typeof body === 'object' ? body : {})
+          .filter((key) => /^[A-Za-z]{1,32}$/.test(key))
+          .slice(0, 10),
+      },
+    });
   },
 
   /**

@@ -20,6 +20,10 @@ import {
   sanitizeTarget,
   cleanInternalLinkAttributes,
   isMentionLink,
+  MATH_ATTRIBUTE,
+  FOOTNOTE_ID,
+  MAX_INLINE_TEX,
+  MAX_FOOTNOTE_NOTE,
 } from '../sanitize-policy.mjs';
 import { escapeHtml, serializeNodes } from './nodes.mjs';
 
@@ -147,9 +151,10 @@ const findTagEnd = (html, from) => {
  * Keeps the allowed attributes of an allowed tag.
  * @param {string} tag - Tag name.
  * @param {Record<string, string>} attribs - Parsed attributes.
+ * @param {{ inNote?: boolean }} [options] - Parse options.
  * @returns {Record<string, string>} Clean attributes.
  */
-const cleanAttributes = (tag, attribs) => {
+const cleanAttributes = (tag, attribs, options = {}) => {
   const allowed = INLINE_ATTRIBUTES[tag] || [];
   const out = {};
   for (const name of allowed) {
@@ -175,25 +180,102 @@ const cleanAttributes = (tag, attribs) => {
       out[name] = String(value).slice(0, 2000);
     }
   }
-  if (tag === 'a') Object.assign(out, cleanInternalLinkAttributes(attribs));
+  // Notes of footnotes never carry entry references (API output resolves only the field's own links).
+  if (tag === 'a' && !options.inNote) Object.assign(out, cleanInternalLinkAttributes(attribs));
   return out;
 };
 
 /**
  * @typedef {{ type: 'text', value: string }} InlineText
- * @typedef {{ type: 'element', tag: string, attrs: Record<string, string>, children: InlineNode[] }} InlineElement
+ * @typedef {{ type: 'element', tag: string, attrs: Record<string, string>, children: InlineNode[], note?: InlineNode[] }} InlineElement
  * @typedef {InlineText | InlineElement} InlineNode
  */
+
+/** Longest placeholder text of a footnote marker (the number is computed when rendering). */
+const MAX_MARKER_TEXT = 16;
+
+/**
+ * True for an element that holds inline math (`<span data-mex-math>`).
+ * @param {InlineNode} node - Parsed node.
+ * @returns {boolean} Result.
+ */
+export const isMathNode = (node) =>
+  node.type === 'element' && node.tag === 'span' && node.attrs[MATH_ATTRIBUTE] === 'true';
+
+/**
+ * True for a footnote marker (`<sup data-mex-footnote>`).
+ * @param {InlineNode} node - Parsed node.
+ * @returns {boolean} Result.
+ */
+export const isFootnoteNode = (node) =>
+  node.type === 'element' && node.tag === 'sup' && typeof node.attrs['data-mex-footnote'] === 'string';
+
+/**
+ * Special inline elements (2.4): inline math keeps only its text (the TeX
+ * source, bounded) and footnote markers keep a short placeholder text plus
+ * their parsed note. Runs after parsing so nested markup inside these
+ * elements is flattened instead of kept.
+ * @param {InlineNode[]} nodes - Parsed nodes.
+ * @param {number} [depth=0] - Depth.
+ * @returns {InlineNode[]} The same nodes.
+ */
+const finalizeSpecial = (nodes, depth = 0) => {
+  for (const node of nodes) {
+    if (node.type !== 'element') continue;
+    if (isMathNode(node)) {
+      // The editor keeps a zero-width space in an empty formula for the caret; it is not TeX.
+      const tex = nodesToText(node.children, { raw: true })
+        .replace(/\u200b/g, '')
+        .slice(0, MAX_INLINE_TEX);
+      node.children = tex ? [{ type: 'text', value: tex }] : [];
+    } else if (isFootnoteNode(node)) {
+      const text = nodesToText(node.children, { raw: true }).slice(0, MAX_MARKER_TEXT);
+      node.children = text ? [{ type: 'text', value: text }] : [];
+    } else if (depth < MAX_DEPTH) finalizeSpecial(node.children, depth + 1);
+  }
+  return nodes;
+};
+
+/**
+ * Attributes of an inline math span or a footnote marker, or null when the
+ * element is an ordinary span/sup. Inside a footnote note, footnote markers
+ * are ordinary `<sup>` elements (no nested notes).
+ * @param {string} tag - Tag name.
+ * @param {Record<string, string>} attribs - Parsed attributes.
+ * @param {{ inNote?: boolean }} options - Parse options.
+ * @returns {{ attrs: Record<string, string>, note?: InlineNode[] } | null} Special element data.
+ */
+const specialElement = (tag, attribs, options) => {
+  if (tag === 'span' && Object.prototype.hasOwnProperty.call(attribs, MATH_ATTRIBUTE)) {
+    // Boolean flag like `data-mex-mention`: `""` and `"true"` are accepted and normalised.
+    if (!/^(?:|true)$/.test(attribs[MATH_ATTRIBUTE])) return null;
+    return { attrs: { [MATH_ATTRIBUTE]: 'true' } };
+  }
+  if (tag === 'sup' && !options.inNote) {
+    const id = attribs['data-mex-footnote'];
+    if (typeof id !== 'string' || !FOOTNOTE_ID.test(id)) return null;
+    const source = typeof attribs['data-mex-note'] === 'string' ? attribs['data-mex-note'] : '';
+    const note = parseInline(source.slice(0, MAX_FOOTNOTE_NOTE), { inNote: true });
+    return { attrs: { 'data-mex-footnote': id }, note };
+  }
+  return null;
+};
 
 /**
  * Parses untrusted inline HTML into a tree of allowed elements and text.
  * Comments, CDATA, processing instructions and doctype are dropped; dangerous
  * containers (script, style, svg, iframe, ...) are dropped with their content;
  * other unknown tags are removed and their text kept.
+ *
+ * 2.4: `<span data-mex-math>` keeps only its text (TeX source) and
+ * `<sup data-mex-footnote="id" data-mex-note="…">` gets its note parsed into
+ * `note` (same rules, no nested footnotes; internal-link attributes are not
+ * kept inside notes, so notes never carry entry references).
  * @param {unknown} input - Inline HTML.
+ * @param {{ inNote?: boolean }} [options] - Internal: parsing a footnote note.
  * @returns {InlineNode[]} Tree.
  */
-export const parseInline = (input) => {
+export const parseInline = (input, options = {}) => {
   const html = typeof input === 'string' ? input.slice(0, MAX_INPUT) : '';
   const root = { type: 'element', tag: '#root', attrs: {}, children: [] };
   const stack = [root];
@@ -275,18 +357,21 @@ export const parseInline = (input) => {
       continue;
     }
     if (!ALLOWED.has(tag) || nodes >= MAX_NODES) continue;
+    const attribs = parseAttributes(body);
+    const special = specialElement(tag, attribs, options);
     const element = {
       type: 'element',
       tag,
-      attrs: cleanAttributes(tag, parseAttributes(body)),
+      attrs: special ? special.attrs : cleanAttributes(tag, attribs, options),
       children: [],
     };
+    if (special && special.note) element.note = special.note;
     stack[stack.length - 1].children.push(element);
     nodes += 1;
     if (!VOID.has(tag) && stack.length < MAX_DEPTH) stack.push(element);
   }
   flush();
-  return root.children;
+  return finalizeSpecial(root.children);
 };
 
 /**
@@ -329,7 +414,24 @@ const ATTRIBUTE_ORDER = [
   'data-mex-document-id',
   'data-mex-locale',
   'data-mex-mention',
+  MATH_ATTRIBUTE,
+  'data-mex-footnote',
+  'data-mex-note',
 ];
+
+/**
+ * Key of the per-render state (math renderer, footnote collector) that the
+ * tree builder puts on its options. Without it, math and footnotes are
+ * written in their stored form (re-serialising stored values).
+ */
+export const RENDER_STATE = Symbol.for('magic-editor-x.render-state');
+
+/**
+ * Stored form of a footnote note (canonical inline HTML).
+ * @param {InlineNode[]|undefined} note - Parsed note.
+ * @returns {string} HTML.
+ */
+const storedNote = (note) => serializeNodes(inlineNodesToRender(note || [], { storage: true }));
 
 /** Class the renderers add to mentions (`<a data-mex-mention>`); never stored. */
 export const MENTION_CLASS = 'mex-mention';
@@ -348,6 +450,7 @@ export const MENTION_CLASS = 'mex-mention';
 export const inlineNodesToRender = (nodes, options = {}) => {
   /** @type {import('./nodes.mjs').RenderNode[]} */
   const out = [];
+  const state = options[RENDER_STATE];
   for (const node of nodes) {
     if (node.type === 'text') {
       out.push({ type: 'text', value: node.value });
@@ -355,6 +458,32 @@ export const inlineNodesToRender = (nodes, options = {}) => {
     }
     if (node.tag === 'br') {
       out.push({ type: 'element', tag: 'br', attrs: {}, children: [] });
+      continue;
+    }
+    if (isMathNode(node)) {
+      const tex = nodesToText(node.children);
+      if (state && !options.storage) {
+        // An empty formula renders nothing.
+        if (tex.trim()) out.push(state.math(tex, false));
+        continue;
+      }
+      out.push({
+        type: 'element',
+        tag: 'span',
+        attrs: { [MATH_ATTRIBUTE]: 'true' },
+        children: tex ? [{ type: 'text', value: tex }] : [],
+      });
+      continue;
+    }
+    if (isFootnoteNode(node)) {
+      if (state && !options.storage) {
+        out.push(state.footnote(node));
+        continue;
+      }
+      const attrs = { 'data-mex-footnote': node.attrs['data-mex-footnote'] };
+      const note = storedNote(node.note);
+      if (note) attrs['data-mex-note'] = note;
+      out.push({ type: 'element', tag: 'sup', attrs, children: inlineNodesToRender(node.children, options) });
       continue;
     }
     let attrs = node.attrs;
@@ -408,16 +537,21 @@ export const inlineToNodes = (html, options) => inlineNodesToRender(parseInline(
 export const nodesToHtml = (nodes, options = {}) => serializeNodes(inlineNodesToRender(nodes, options));
 
 /**
- * Plain text of a parsed tree (`<br>` becomes a line break).
+ * Plain text of a parsed tree (`<br>` becomes a line break). Inline math
+ * contributes its TeX source; footnote markers contribute nothing (their
+ * text is a placeholder) unless `footnote` returns a text for them.
  * @param {InlineNode[]} nodes - Parsed nodes.
+ * @param {{ raw?: boolean, footnote?: (node: InlineElement) => string }} [options] - `raw`: every text as it is (internal); `footnote`: text of a marker.
  * @returns {string} Text.
  */
-export const nodesToText = (nodes) =>
+export const nodesToText = (nodes, options = {}) =>
   nodes
     .map((node) => {
       if (node.type === 'text') return node.value;
       if (node.tag === 'br') return '\n';
-      return nodesToText(node.children);
+      if (!options.raw && isFootnoteNode(node))
+        return typeof options.footnote === 'function' ? options.footnote(node) : '';
+      return nodesToText(node.children, options);
     })
     .join('');
 
@@ -432,6 +566,86 @@ export const inlineToHtml = (html, options) => nodesToHtml(parseInline(html), op
 /**
  * Plain text of inline HTML, with non-breaking spaces turned into spaces.
  * @param {unknown} html - Inline HTML.
+ * @param {{ footnote?: (node: InlineElement) => string }} [options] - Text of footnote markers (default none).
  * @returns {string} Text.
  */
-export const inlineToText = (html) => nodesToText(parseInline(html)).replace(/\u00a0/g, ' ');
+export const inlineToText = (html, options) =>
+  nodesToText(parseInline(html), options).replace(/\u00a0/g, ' ');
+
+/**
+ * Applies `fn` to the note of every footnote marker in inline HTML (stored
+ * form in, stored form out). Used where code rewrites inline HTML with
+ * string or regular-expression rules that cannot see into the note
+ * attribute (preset fixes).
+ * @param {string} html - Inline HTML.
+ * @param {(note: string) => string} fn - Note rewrite (stored HTML in and out).
+ * @returns {string} HTML (unchanged when there is no footnote).
+ */
+export const mapFootnoteNotes = (html, fn) => {
+  if (typeof html !== 'string' || !html.includes('data-mex-footnote')) return html;
+  let changed = false;
+  const visit = (nodes, depth = 0) => {
+    if (depth > MAX_DEPTH) return;
+    for (const node of nodes) {
+      if (node.type !== 'element') continue;
+      if (isFootnoteNode(node)) {
+        const before = storedNote(node.note);
+        const after = fn(before);
+        if (after !== before) {
+          node.note = parseInline(String(after || ''), { inNote: true });
+          changed = true;
+        }
+      } else visit(node.children, depth + 1);
+    }
+  };
+  const nodes = parseInline(html);
+  visit(nodes);
+  return changed ? nodesToHtml(nodes, { storage: true }) : html;
+};
+
+/**
+ * Canonical stored form of inline math and footnotes (2.4), applied by the
+ * server and admin sanitisers after their own HTML sanitiser: math keeps only
+ * its TeX text, footnote notes are cleaned with the inline rules (no nested
+ * footnotes, no entry references). With `footnotes: false` (a field preset
+ * without the footnote tool) markers are removed together with their notes.
+ * Strings without these elements are returned unchanged.
+ * @param {string} html - Sanitised inline HTML.
+ * @param {{ footnotes?: boolean }} [options] - `footnotes: false` removes footnote markers.
+ * @returns {string} HTML.
+ */
+export const canonicalInlineExtras = (html, options = {}) => {
+  if (typeof html !== 'string') return '';
+  const math = html.includes(MATH_ATTRIBUTE);
+  const notes = html.includes('data-mex-footnote');
+  if (!math && !notes) return html;
+  const nodes = parseInline(html);
+  if (options.footnotes === false && notes) {
+    const strip = (list, depth = 0) =>
+      list.filter((node) => {
+        if (node.type !== 'element') return true;
+        if (isFootnoteNode(node)) return false;
+        if (depth < MAX_DEPTH) node.children = strip(node.children, depth + 1);
+        return true;
+      });
+    return nodesToHtml(strip(nodes), { storage: true });
+  }
+  return nodesToHtml(nodes, { storage: true });
+};
+
+/**
+ * Walks parsed inline nodes including the notes of footnote markers.
+ * @param {InlineNode[]} nodes - Parsed nodes.
+ * @param {(node: InlineElement, inNote: boolean) => void} fn - Called for every element.
+ * @param {boolean} [inNote=false] - Internal.
+ * @param {number} [depth=0] - Internal.
+ */
+export const walkInlineElements = (nodes, fn, inNote = false, depth = 0) => {
+  if (depth > MAX_DEPTH) return;
+  for (const node of nodes) {
+    if (node.type !== 'element') continue;
+    fn(node, inNote);
+    walkInlineElements(node.children, fn, inNote, depth + 1);
+    if (node.note) walkInlineElements(node.note, fn, true, depth + 1);
+  }
+};

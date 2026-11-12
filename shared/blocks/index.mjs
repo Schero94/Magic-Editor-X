@@ -17,4 +17,5 @@ export {
   BLOCK_LIMITS,
   BLOCK_PRESETS,
   RESERVED_BLOCK_NAMES,
+  SDK_COMPATIBLE_NAMES,
 } from './define.mjs';

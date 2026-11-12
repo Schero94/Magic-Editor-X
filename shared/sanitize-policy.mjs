@@ -11,6 +11,7 @@
 
 import { isPlainObject } from './editor-data.mjs';
 import { activeBlock } from './blocks/active.mjs';
+import { TABLE_LIMITS, cleanTableExtras } from './table.mjs';
 import {
   BUILT_IN_MARKER,
   BUILT_IN_MARKER_VERSION,
@@ -90,10 +91,37 @@ export const isMentionLink = (attrs) =>
     attrs && attrs['data-mex-mention'] === 'true' && attrs['data-mex-uid'] && attrs['data-mex-document-id']
   );
 
+/**
+ * Inline math (2.4): `<span data-mex-math="true">TeX source</span>`. Only the
+ * TeX source is stored (the text content), never rendered markup; the
+ * renderers turn it into MathML (`options.math`) or a delimited fallback.
+ */
+export const MATH_ATTRIBUTE = 'data-mex-math';
+
+/**
+ * Footnote marker (2.4): `<sup data-mex-footnote="<id>" data-mex-note="<inline HTML>">n</sup>`.
+ * The note travels with its marker (copy/paste, undo, collaboration, synced
+ * blocks, templates), so a note can never lose its reference. The text of
+ * the marker is a placeholder; numbers follow the reading order when the
+ * content is rendered.
+ */
+export const FOOTNOTE_ATTRIBUTES = Object.freeze(['data-mex-footnote', 'data-mex-note']);
+
+/** Footnote id: letters, digits, `_` and `-`, 1 to 64 characters. */
+export const FOOTNOTE_ID = /^[A-Za-z0-9_-]{1,64}$/;
+
+/** Longest TeX source of a math block. */
+export const MAX_MATH_TEX = 10000;
+/** Longest TeX source of inline math (longer text is cut). */
+export const MAX_INLINE_TEX = 2000;
+/** Longest note of a footnote (inline HTML, before cleaning; longer input is cut). */
+export const MAX_FOOTNOTE_NOTE = 4000;
+
 /** Attributes allowed per inline tag. */
 export const INLINE_ATTRIBUTES = Object.freeze({
   a: ['href', 'target', 'rel', 'title', ...INTERNAL_LINK_ATTRIBUTES],
-  span: ['class', 'data-tooltip'],
+  span: ['class', 'data-tooltip', MATH_ATTRIBUTE],
+  sup: [...FOOTNOTE_ATTRIBUTES],
   mark: ['class'],
   u: ['class'],
   s: ['class'],
@@ -320,6 +348,37 @@ const listItems = (items, inline, depth = 0) => {
  * only ever contains what the tool itself writes.
  * @type {Record<string, (data: object, inline: (html: string) => string, ctx: { rawHtml: string, rawSanitizer: (html: string) => string }) => object>}
  */
+/** Longest file name label of a code block (2.4). */
+export const MAX_CODE_FILENAME = 200;
+
+/** C0/C1 controls, DEL, bidi overrides, zero-width marks and line/paragraph separators. */
+const FILENAME_STRIP =
+  // eslint-disable-next-line no-control-regex -- the point is to remove control characters
+  /[\u0000-\u001f\u007f-\u009f\u061c\u200b-\u200f\u2028-\u202e\u2060\u2066-\u2069\ufeff]/g;
+
+/**
+ * Cleans the file name label of a code block (`codeFlask.filename`, 2.4).
+ * It is plain text shown above the code, never a path the plugin opens:
+ * control, bidi and zero-width characters are removed, white space is
+ * collapsed, the result is trimmed and cut to 200 characters.
+ * @param {unknown} value - Candidate.
+ * @returns {string} Clean label ('' when nothing usable remains).
+ */
+export const cleanCodeFilename = (value) => {
+  if (typeof value !== 'string') return '';
+  return Array.from(
+    value
+      .slice(0, 4 * MAX_CODE_FILENAME)
+      .replace(/[\t\n\r\f\v]/g, ' ')
+      .replace(FILENAME_STRIP, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+  )
+    .slice(0, MAX_CODE_FILENAME)
+    .join('')
+    .trim();
+};
+
 export const BLOCK_POLICIES = {
   paragraph: (d, inline) => ({ text: inline(d.text) }),
   header: (d, inline) => ({ text: inline(d.text), level: int(d.level, 1, 6, 2) }),
@@ -379,6 +438,9 @@ export const BLOCK_POLICIES = {
         typeof d.language === 'string' && /^[a-z0-9+#-]{1,32}$/i.test(d.language) ? d.language : 'plaintext',
     };
     if (typeof d.showlinenumbers === 'boolean') out.showlinenumbers = d.showlinenumbers;
+    // 2.4: optional file name label; omitted when empty so older data stays unchanged.
+    const filename = cleanCodeFilename(d.filename);
+    if (filename) out.filename = filename;
     return out;
   },
   raw: (d, _inline, ctx) => {
@@ -387,15 +449,23 @@ export const BLOCK_POLICIES = {
     if (ctx.rawHtml === 'disable') return { html: '' };
     return { html: ctx.rawSanitizer(html) };
   },
-  table: (d, inline) => ({
-    withHeadings: bool(d.withHeadings),
-    stretched: bool(d.stretched),
-    content: Array.isArray(d.content)
-      ? d.content
-          .slice(0, 500)
-          .map((row) => (Array.isArray(row) ? row.slice(0, 100).map((cell) => inline(cell)) : []))
-      : [],
-  }),
+  // 2.4: optional header column, column alignment, merged cells and caption (shared/table.mjs).
+  table: (d, inline) =>
+    cleanTableExtras(
+      {
+        withHeadings: bool(d.withHeadings),
+        stretched: bool(d.stretched),
+        content: Array.isArray(d.content)
+          ? d.content
+              .slice(0, TABLE_LIMITS.rows)
+              .map((row) =>
+                Array.isArray(row) ? row.slice(0, TABLE_LIMITS.cols).map((cell) => inline(cell)) : []
+              )
+          : [],
+      },
+      d,
+      inline
+    ),
   image: (d, inline) => {
     const file = isPlainObject(d.file) ? d.file : {};
     const cleanFile = { url: sanitizeUrl(file.url, { schemes: ['http', 'https'] }) };
@@ -522,6 +592,12 @@ export const BLOCK_POLICIES = {
     ref: typeof d.ref === 'string' && /^[a-z0-9]{1,64}$/.test(d.ref) ? d.ref : '',
     _mex: BUILT_IN_MARKER_VERSION,
   }),
+  // Math block (2.4): only the TeX source is stored; `display: false` renders it in text style.
+  math: (d) => ({
+    tex: plain(d.tex, MAX_MATH_TEX),
+    display: d.display !== false,
+    _mex: BUILT_IN_MARKER_VERSION,
+  }),
   toc: (d) => {
     const minLevel = int(d.minLevel, 1, 6, 2);
     const maxLevel = int(d.maxLevel, 1, 6, 4);
@@ -613,7 +689,10 @@ export const sanitizeEditorData = (data, options) => {
     if (tunes) out.tunes = tunes;
     return out;
   });
-  return { time: data.time, blocks, version: data.version };
+  const out = { time: data.time, blocks, version: data.version };
+  // 2.4: the field key (identity of a positional field) is kept as normalised.
+  if (typeof data.fieldKey === 'string') out.fieldKey = data.fieldKey;
+  return out;
 };
 
 /**

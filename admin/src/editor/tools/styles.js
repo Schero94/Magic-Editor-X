@@ -477,6 +477,20 @@ export const editorStyles = css`
       color: ${c('neutral800')};
     }
 
+    /* 2.4 range comments: commented text, and the thread the caret is in. */
+    ::highlight(mex-comment) {
+      background-color: ${c('secondary100')};
+      text-decoration: underline 2px ${c('secondary500')};
+      text-underline-offset: 3px;
+    }
+
+    ::highlight(mex-comment-active) {
+      background-color: ${c('secondary200')};
+      text-decoration: underline 2px ${c('secondary700')};
+      text-underline-offset: 3px;
+      color: ${c('neutral800')};
+    }
+
     .mex-tool__caption {
       color: ${c('neutral600')};
       font-size: ${f(1)};
@@ -705,33 +719,149 @@ export const editorStyles = css`
       color: ${c('buttonNeutral0')};
     }
 
-    .tc-wrap {
-      --color-background: ${c('neutral100')};
-      --color-text-secondary: ${c('neutral600')};
-      --color-border: ${c('neutral200')};
-      --cell-size: 34px;
-      --toolbox-icon-size: 18px;
-      --toolbox-padding: 6px;
-      --toolbox-aiming-field-size: calc(var(--toolbox-icon-size) + 2 * var(--toolbox-padding));
+    /* Table (2.4, tools/table.js): a real table with its own scroll region. */
+    .mex-table-tool {
+      display: flex;
+      flex-direction: column;
+      gap: ${s(2)};
+      min-width: 0;
+      max-width: 100%;
     }
 
-    .tc-table {
+    /* Below the medium breakpoint the Editor.js block actions (plus, drag) sit over the
+       start of the block: the first toolbar buttons start after them. */
+    .mex-table-tool__toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: ${s(1)};
+      padding: ${s(1)};
+      padding-inline-start: ${s(10)};
+      border: 1px solid ${c('neutral200')};
+      border-radius: ${radius};
+      background: ${c('neutral100')};
+    }
+
+    .mex-table-tool__separator {
+      align-self: stretch;
+      width: 1px;
+      margin: 0 ${s(1)};
+      background: ${c('neutral200')};
+    }
+
+    .mex-table-tool__button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      padding: 0;
+      border: none;
+      border-radius: ${radius};
+      background: transparent;
       color: ${c('neutral800')};
+      cursor: pointer;
+
+      &:hover:not(:disabled) {
+        background: ${c('neutral150')};
+      }
+
+      &[aria-pressed='true'] {
+        background: ${c('primary100')};
+        color: ${c('primary700')};
+      }
+
+      /* Toolbar buttons get focus only from the keyboard (a mouse press keeps it in the cell). */
+      &:focus,
+      &:focus-visible {
+        outline: 2px solid ${c('primary600')};
+        outline-offset: 1px;
+      }
+
+      &:disabled {
+        color: ${c('neutral500')};
+        cursor: not-allowed;
+        opacity: 0.6;
+      }
+
+      svg {
+        width: 18px;
+        height: 18px;
+      }
     }
 
-    .tc-row--selected,
-    .tc-cell--selected {
+    .mex-table-tool__scroll {
+      max-width: 100%;
+      overflow-x: auto;
+    }
+
+    .mex-table-tool__table {
+      width: 100%;
+      border-collapse: collapse;
+      color: ${c('neutral800')};
+      font-size: ${f(2)};
+    }
+
+    .mex-table-tool__cell {
+      min-width: 9.6rem;
+      padding: 0;
+      border: 1px solid ${c('neutral200')};
+      background: ${c('neutral0')};
+      text-align: start;
+      vertical-align: top;
+
+      &:focus-within {
+        box-shadow: inset 0 0 0 2px ${c('primary600')};
+      }
+
+      &.mex-align-left {
+        text-align: left;
+      }
+
+      &.mex-align-center {
+        text-align: center;
+      }
+
+      &.mex-align-right {
+        text-align: right;
+      }
+    }
+
+    th.mex-table-tool__cell {
+      background: ${c('neutral100')};
+      font-weight: 600;
+    }
+
+    .mex-table-tool__cell--selected,
+    th.mex-table-tool__cell--selected {
       background: ${c('primary100')};
     }
 
-    .tc-popover {
-      --color-border: ${c('neutral150')};
-      --color-background: ${c('neutral0')};
-      --color-background-hover: ${c('neutral100')};
-      --color-background-confirm: ${c('danger600')};
-      --color-background-confirm-hover: ${c('danger700')};
-      --color-text-confirm: ${c('buttonNeutral0')};
-      color: ${c('neutral800')};
+    .mex-table-tool__input {
+      min-height: 3.6rem;
+      padding: ${s(2)} ${s(3)};
+      overflow-wrap: anywhere;
+      outline: none;
+    }
+
+    .mex-table-tool__caption {
+      padding: ${s(1)} ${s(2)};
+      border-radius: ${radius};
+      color: ${c('neutral600')};
+      font-size: ${f(1)};
+
+      &:focus {
+        box-shadow: 0 0 0 2px ${c('primary600')};
+      }
+    }
+
+    .mex-table-tool__status {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      white-space: nowrap;
     }
 
     .cdx-attaches {
@@ -911,6 +1041,94 @@ export const editorStyles = css`
       }
     }
 
+    /* Inline math (2.4): the TeX source is editable text in a chip. */
+    .ce-block span[data-mex-math] {
+      font-family: 'SFMono-Regular', Menlo, Consolas, monospace;
+      font-size: 0.92em;
+      color: ${c('neutral800')};
+      background: ${c('secondary100')};
+      border: 1px solid ${c('secondary200')};
+      border-radius: ${radius};
+      padding: 0 ${s(1)};
+      overflow-wrap: anywhere;
+      box-decoration-break: clone;
+      -webkit-box-decoration-break: clone;
+    }
+
+    /* Footnote markers (2.4): numbered in reading order with a CSS counter. */
+    .codex-editor__redactor {
+      counter-reset: mex-footnote;
+    }
+
+    .ce-block sup[data-mex-footnote] {
+      counter-increment: mex-footnote;
+      display: inline-block;
+      min-width: 1.6em;
+      font-size: 0;
+      line-height: 1;
+      vertical-align: super;
+      text-align: center;
+      cursor: pointer;
+      user-select: all;
+      color: ${c('primary700')};
+      background: ${c('primary100')};
+      border: 1px solid ${c('primary200')};
+      border-radius: ${radius};
+
+      &::before {
+        content: counter(mex-footnote);
+        font-size: ${f(0)};
+        font-weight: 600;
+        padding: 0 ${s(1)};
+      }
+
+      &:hover {
+        background: ${c('primary200')};
+      }
+    }
+
+    /* Math block (2.4) */
+    .mex-math-tool {
+      display: flex;
+      flex-direction: column;
+      gap: ${s(2)};
+      padding: ${s(3)};
+      border: 1px solid ${c('neutral200')};
+      border-radius: ${radius};
+      background: ${c('neutral0')};
+    }
+
+    .mex-math-tool__input {
+      font-family: 'SFMono-Regular', Menlo, Consolas, monospace;
+      min-height: 4.4rem;
+      resize: vertical;
+      width: 100%;
+      box-sizing: border-box;
+
+      &[aria-invalid='true'] {
+        border-color: ${c('danger600')};
+      }
+    }
+
+    .mex-math-tool__preview {
+      min-height: 3.2rem;
+      overflow-x: auto;
+      color: ${c('neutral800')};
+      font-size: ${f(3)};
+      padding: ${s(2)} 0;
+    }
+
+    .mex-math-tool__preview--display {
+      text-align: center;
+    }
+
+    .mex-math-tool__error {
+      margin: 0;
+      color: ${c('danger600')};
+      font-size: ${f(1)};
+      overflow-wrap: anywhere;
+    }
+
     /* Toggle */
     .mex-toggle {
       display: flex;
@@ -987,9 +1205,32 @@ export const editorStyles = css`
 
     .mex-code__header {
       display: flex;
+      flex-wrap: wrap;
+      align-items: center;
       justify-content: flex-end;
+      gap: ${s(2)};
       padding: ${s(2)};
       border-bottom: 1px solid ${c('neutral200')};
+
+      /* 2.4: file name label (input while editing, text when read-only) on the inline start. */
+      .mex-code__filename {
+        flex: 1 1 16rem;
+        min-width: 0;
+        width: auto;
+        padding-block: ${s(1)};
+        padding-inline: ${s(2)};
+        font-family: 'SFMono-Regular', Menlo, Consolas, monospace;
+        font-size: ${f(1)};
+      }
+
+      .mex-code__filename-text {
+        flex: 1 1 auto;
+        min-width: 0;
+        overflow-wrap: anywhere;
+        font-family: 'SFMono-Regular', Menlo, Consolas, monospace;
+        font-size: ${f(1)};
+        color: ${c('neutral800')};
+      }
 
       /* Compact like the DS SingleSelect size S; the inline end keeps room for the caret. */
       .mex-tool__select {
@@ -1069,6 +1310,25 @@ export const editorStyles = css`
       &::placeholder {
         color: ${c('neutral600')};
       }
+    }
+
+    /* Strapi's Blocks field loads a Prism theme globally (prism-solarizedlight): every token
+       gets a colour here first, so that theme never decides the contrast of a code block. */
+    .mex-code__pre .mex-code__code .token {
+      color: ${c('neutral800')};
+      background: none;
+      opacity: 1;
+    }
+
+    .mex-code__pre .mex-code__code .token.builtin,
+    .mex-code__pre .mex-code__code .token.url {
+      color: ${c('success700')};
+    }
+
+    .mex-code__pre .mex-code__code .token.entity,
+    .mex-code__pre .mex-code__code .token.namespace {
+      color: ${c('neutral800')};
+      cursor: inherit;
     }
 
     .mex-code__code .token.comment,
@@ -1737,6 +1997,191 @@ export const editorStyles = css`
       .ce-block__content {
         padding-inline-start: ${s(10)};
       }
+
+      .mex-table-tool__toolbar {
+        padding-inline-start: ${s(1)};
+      }
+    }
+  }
+
+  /* Inline math preview (2.4), next to the editor holder. */
+  .mex-math-popover {
+    position: absolute;
+    z-index: 3;
+    max-width: min(36rem, calc(100% - ${s(4)}));
+    box-sizing: border-box;
+    padding: ${s(2)} ${s(3)};
+    background: ${c('neutral0')};
+    color: ${c('neutral800')};
+    border: 1px solid ${c('neutral200')};
+    border-radius: ${radius};
+    box-shadow: ${({ theme }) => theme.shadows.filterShadow};
+    overflow-x: auto;
+    font-size: ${f(3)};
+  }
+
+  .mex-math-popover__error {
+    margin: 0;
+    font-size: ${f(1)};
+    color: ${c('neutral600')};
+    overflow-wrap: anywhere;
+
+    &:empty {
+      display: none;
+    }
+  }
+
+  .mex-math-popover__error--invalid {
+    color: ${c('danger600')};
+  }
+
+  /*
+   * 2.4: suggestions of the \`@\` mention trigger. The popup is a sibling of
+   * the editor holder (outside \`.mex-editor\`), positioned at the caret.
+   */
+  .mex-mention-popup {
+    position: fixed;
+    z-index: ${({ theme }) => theme.zIndices.popover};
+    display: flex;
+    flex-direction: column;
+    gap: ${s(2)};
+    box-sizing: border-box;
+    width: 32rem;
+    max-width: calc(100vw - 16px);
+    max-height: min(36rem, calc(100vh - 16px));
+    padding: ${s(2)};
+    border: 1px solid ${c('neutral150')};
+    border-radius: ${radius};
+    background: ${c('neutral0')};
+    color: ${c('neutral800')};
+    box-shadow: ${({ theme }) => theme.shadows.popupShadow};
+    font-size: ${f(2)};
+    line-height: 1.43;
+
+    &[hidden],
+    [hidden] {
+      display: none;
+    }
+
+    .mex-mention-popup__type {
+      display: flex;
+      align-items: center;
+      gap: ${s(2)};
+      min-width: 0;
+    }
+
+    .mex-mention-popup__label {
+      flex: 0 0 auto;
+      font-size: ${f(1)};
+      font-weight: 600;
+      color: ${c('neutral800')};
+    }
+
+    .mex-mention-popup__select {
+      flex: 1 1 auto;
+      min-width: 0;
+      appearance: none;
+      cursor: pointer;
+      color-scheme: ${({ theme }) => theme.colorScheme};
+      border: 1px solid ${c('neutral200')};
+      border-radius: ${radius};
+      background-color: ${c('neutral0')};
+      color: ${c('neutral800')};
+      font-size: ${f(1)};
+      padding-block: ${s(1)};
+      padding-inline: ${s(2)} calc(${s(3)} + ${SELECT_CARET} * 2 + ${s(2)});
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      overflow: hidden;
+      ${selectCaret}
+
+      &:focus,
+      &:focus-visible {
+        outline: none;
+        border-color: ${c('primary600')};
+        box-shadow: ${c('primary600')} 0 0 0 2px;
+      }
+
+      &:dir(rtl) {
+        background-position:
+          left ${s(3)} center,
+          left calc(${s(3)} + ${SELECT_CARET}) center;
+      }
+
+      option {
+        background: ${c('neutral0')};
+        color: ${c('neutral800')};
+      }
+    }
+
+    .mex-mention-popup__results {
+      position: relative;
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: ${s(1)};
+      min-height: 0;
+      overflow: auto;
+
+      &:empty {
+        display: none;
+      }
+    }
+
+    .mex-mention-popup__option {
+      display: flex;
+      flex-direction: column;
+      gap: ${s(1)};
+      border: 1px solid ${c('neutral150')};
+      border-radius: ${radius};
+      background: ${c('neutral0')};
+      color: ${c('neutral800')};
+      padding: ${s(2)} ${s(3)};
+      cursor: pointer;
+
+      &:hover,
+      &[aria-selected='true'] {
+        background: ${c('primary100')};
+        border-color: ${c('primary600')};
+      }
+
+      &[aria-disabled='true'] {
+        cursor: not-allowed;
+        color: ${c('neutral600')};
+      }
+
+      .mex-link-picker__title {
+        overflow-wrap: anywhere;
+      }
+
+      .mex-link-picker__meta {
+        color: ${c('neutral600')};
+        font-size: ${f(1)};
+      }
+    }
+
+    .mex-mention-popup__status {
+      margin: 0;
+      color: ${c('neutral600')};
+      font-size: ${f(1)};
+
+      &:empty {
+        display: none;
+      }
+    }
+
+    .mex-mention-popup__status--error {
+      color: ${c('danger600')};
+    }
+
+    .mex-mention-popup__hint {
+      margin: 0;
+      padding-top: ${s(1)};
+      border-top: 1px solid ${c('neutral150')};
+      color: ${c('neutral600')};
+      font-size: ${f(1)};
     }
   }
 `;
