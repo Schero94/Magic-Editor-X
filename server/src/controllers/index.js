@@ -13,6 +13,7 @@ module.exports = {
   quality: require('./quality'),
   comments: require('./comments'),
   notifications: require('./notifications'),
+  suggestions: require('./suggestions'),
   templates: require('./templates'),
   audit: require('./audit'),
 };

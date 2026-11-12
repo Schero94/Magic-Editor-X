@@ -23,6 +23,8 @@ const ACTIONS = Object.freeze({
   grammar: `plugin::${PLUGIN}.grammar.use`,
   templatesManage: `plugin::${PLUGIN}.templates.manage`,
   auditRead: `plugin::${PLUGIN}.audit.read`,
+  suggestionsCreate: `plugin::${PLUGIN}.suggestions.create`,
+  suggestionsReview: `plugin::${PLUGIN}.suggestions.review`,
 });
 
 const ACTION_DEFINITIONS = [
@@ -41,6 +43,14 @@ const ACTION_DEFINITIONS = [
   { uid: 'grammar.use', displayName: 'Use the grammar check (LanguageTool)' },
   { uid: 'templates.manage', displayName: 'Manage templates and block patterns' },
   { uid: 'audit.read', displayName: 'Read the audit trail (who changed what and when)' },
+  {
+    uid: 'suggestions.create',
+    displayName: 'Suggest block changes (read access to the entry is enough; withdraw own)',
+  },
+  {
+    uid: 'suggestions.review',
+    displayName: 'Review block suggestions (accept or reject; needs update access to the entry)',
+  },
 ];
 
 /**

@@ -140,7 +140,12 @@ test('audit: Content Manager saves, publish and delete are recorded per field wi
   assert.equal(body[1].counts.moved, 1);
   assert.deepEqual(body[1].blockIds, ['a1', 'a3']);
   assert.equal(body[2].counts.added, 3);
-  assert.ok(rows.some((row) => row.event === 'entry.create' && row.target.field === 'sections.0.body'));
+  // Fields inside a repeatable component are recorded by their identity (2.4 field keys).
+  assert.ok(
+    rows.some(
+      (row) => row.event === 'entry.create' && /^sections\.body#[A-Za-z0-9_-]{16,32}$/.test(row.target.field)
+    )
+  );
   for (const row of rows) {
     assert.equal(row.target.locale, 'en');
     assert.equal(row.actor.kind, 'admin');

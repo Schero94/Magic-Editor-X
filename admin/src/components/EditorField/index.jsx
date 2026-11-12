@@ -26,6 +26,7 @@ import {
   Sparkle,
 } from '@strapi/icons';
 import { useFetchClient, useNotification, useStrapiApp } from '@strapi/strapi/admin';
+import { Lightbulb, Pencil } from '@strapi/icons';
 import styled, { createGlobalStyle } from 'styled-components';
 import { buildTools, editorI18n, createUndoManager, createDragDrop } from '../../editor/tools';
 import { editorStyles } from '../../editor/tools/styles';
@@ -57,6 +58,15 @@ import { SelectionCommentButton } from './SelectionCommentButton';
 import { anchorFromSelection } from '../../editor/comment-anchor-dom';
 import { blockExcerpt, openThreadsByBlock } from '../../../../shared/comments.mjs';
 import { FieldPreview } from './FieldPreview';
+import { useSuggestions } from './useSuggestions';
+import { SuggestEditor } from './SuggestEditor';
+import { SuggestionsPanel } from './SuggestionsPanel';
+import { SuggestionMarkers } from './SuggestionMarkers';
+import {
+  applySuggestions,
+  openSuggestionsByBlock,
+  pendingInsertsOf,
+} from '../../../../shared/suggestions.mjs';
 import { TemplateDialog } from './TemplateDialog';
 import { SaveTemplateDialog } from './SaveTemplateDialog';
 import {
@@ -256,8 +266,11 @@ const Holder = styled.div`
   }
   min-height: ${({ $minHeight }) => `${$minHeight}px`};
   ${({ $fullscreen }) => ($fullscreen ? 'flex: 1 1 auto; overflow: auto;' : '')}
-  /* Room for the block comment markers at the inline end (they sit outside the holder). */
-  ${({ $gutter, theme }) => ($gutter ? `&& { padding-inline-end: ${theme.spaces[8]}; }` : '')}
+  /* Room for the block comment and suggestion markers at the inline end (they sit outside the holder). */
+  ${({ $gutter, theme }) =>
+    $gutter
+      ? `&& { padding-inline-end: ${$gutter === 2 ? `calc(${theme.spaces[8]} + 3.6rem)` : theme.spaces[8]}; }`
+      : ''}
   ${({ $focus, theme }) =>
     $focus
       ? `
@@ -370,6 +383,10 @@ const EditorFieldBody = ({
   const [undoState, setUndoState] = useState({ canUndo: false, canRedo: false });
   const [valueError, setValueError] = useState(null);
   const [currentData, setCurrentData] = useState(null);
+  const currentDataRef = useRef(null);
+  useEffect(() => {
+    currentDataRef.current = currentData;
+  }, [currentData]);
   const [findOpen, setFindOpen] = useState(false);
   const [qualityOpen, setQualityOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
@@ -387,6 +404,15 @@ const EditorFieldBody = ({
   const focusToolsMenu = useCallback(() => {
     if (moreButtonRef.current) moreButtonRef.current.focus();
   }, []);
+  // 2.4 block suggestions: suggest mode (a local copy, see SuggestEditor) and the review panel.
+  const [suggestSession, setSuggestSession] = useState(null);
+  const suggestMode = Boolean(suggestSession);
+  const suggestModeRef = useRef(false);
+  useEffect(() => {
+    suggestModeRef.current = suggestMode;
+  }, [suggestMode]);
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false);
+  const [suggestionFocusBlock, setSuggestionFocusBlock] = useState(null);
   const targetRef = useRef(target);
   useEffect(() => {
     targetRef.current = target;
@@ -720,7 +746,10 @@ const EditorFieldBody = ({
     collabRef.current = collaboration.client;
   }, [collaboration.client]);
 
-  const readOnly = Boolean(disabled) || (collaboration.status === 'live' && !collaboration.canEdit);
+  // In suggest mode the field's own editor is read-only and hidden: edits go to a separate local copy.
+  const readOnly =
+    Boolean(disabled) || (collaboration.status === 'live' && !collaboration.canEdit) || suggestMode;
+  const editableOutsideSuggest = !disabled && !(collaboration.status === 'live' && !collaboration.canEdit);
   const collabUndo = collaboration.active && collaboration.client && collaboration.canEdit;
 
   // Undo/redo during live collaboration only revert the user's own changes.
@@ -805,6 +834,23 @@ const EditorFieldBody = ({
   useEffect(() => {
     startRangeCommentRef.current = startRangeComment;
   });
+  // Block suggestions (2.4): for admins who may suggest or review; stored apart from the value.
+  const suggestionsEnabled = Boolean(
+    config &&
+    config.suggestions &&
+    config.suggestions.enabled &&
+    (permissions.suggestionsCreate || permissions.suggestionsReview) &&
+    target.uid &&
+    target.documentId &&
+    identityReady
+  );
+  const suggestions = useSuggestions({
+    target: fieldTarget,
+    enabled: suggestionsEnabled,
+    panelOpen: suggestionsOpen,
+    elementRef: frameRef,
+  });
+  const canSuggest = Boolean(suggestionsEnabled && permissions.suggestionsCreate && suggestions.canCreate);
 
   // Upload helpers (multipart through the admin fetch client).
   const upload = useCallback(
@@ -1533,6 +1579,8 @@ const EditorFieldBody = ({
     const onKey = (event) => {
       const frame = frameRef.current;
       if (!frame || !frame.contains(document.activeElement)) return;
+      // Suggest mode has its own editor; the field's tools stay closed (2.4).
+      if (suggestModeRef.current) return;
       const mod = event.metaKey || event.ctrlKey;
       if (!mod || event.altKey) return;
       if (event.shiftKey && (event.key === 'g' || event.key === 'G') && blockAiByKey) {
@@ -1611,10 +1659,13 @@ const EditorFieldBody = ({
   }, []);
   const [commentRevealThread, setCommentRevealThread] = useState(null);
   /** Click on commented text: open the panel and show the thread, focus stays in the editor. */
-  const revealThread = useCallback((threadId) => {
-    setCommentsOpen(true);
-    setCommentRevealThread(threadId);
-  }, []);
+  const revealThread = useCallback(
+    (threadId) => {
+      setCommentsOpen(true);
+      setCommentRevealThread(threadId);
+    },
+    [setCommentRevealThread]
+  );
   const anchors = useCommentAnchors({
     owner: commentOwner,
     holderRef,
@@ -1724,6 +1775,142 @@ const EditorFieldBody = ({
     },
     [comments.threads]
   );
+
+  // Block suggestions (2.4) -------------------------------------------------
+  const suggestionCounts = useMemo(
+    () => (suggestionsEnabled ? openSuggestionsByBlock(suggestions.suggestions, commentBlockIds) : new Map()),
+    [suggestionsEnabled, suggestions.suggestions, commentBlockIds]
+  );
+  const suggestionsOpenCount = suggestionsEnabled ? suggestions.counts.open : 0;
+  // Marker columns at the inline end: two only while a block has both a comment and a suggestion marker.
+  const markerColumns =
+    commentsEnabled || suggestionsEnabled
+      ? Array.from(suggestionCounts.keys()).some((id) => commentsEnabled && commentCounts.has(id))
+        ? 2
+        : 1
+      : 0;
+
+  /** Starts suggest mode on a copy of what the editor shows now. */
+  const startSuggest = useCallback(async () => {
+    const editor = editorRef.current;
+    if (!editor || !canSuggest) return;
+    // Read-only editors (no update right) cannot be saved by every tool; the field keeps what it shows.
+    const saved = editor.readOnly && editor.readOnly.isEnabled ? null : await editor.save().catch(() => null);
+    const base = prepareEditorValue(saved || currentDataRef.current).data || {
+      time: Date.now(),
+      version: '2.31.7',
+      blocks: [],
+    };
+    setFindOpen(false);
+    setQualityOpen(false);
+    setGrammarOpen(false);
+    setCommentsOpen(false);
+    setSuggestionsOpen(false);
+    setPreviewOpen(false);
+    setFocusMode(false);
+    clearHighlight();
+    setSuggestSession({ base, key: Date.now() });
+  }, [canSuggest]);
+
+  /** Leaves suggest mode (unsent changes are dropped; the bar asks first). */
+  const exitSuggest = useCallback(() => {
+    setSuggestSession(null);
+    window.requestAnimationFrame(() => moreButtonRef.current && moreButtonRef.current.focus());
+  }, []);
+
+  /** Sends the planned suggestions; afterwards the panel lists them. */
+  const sendSuggestions = useCallback(
+    async (list, note) => {
+      try {
+        const result = await suggestions.actions.send(list, note);
+        const meta = (result && result.meta) || {};
+        toggleNotification({
+          type: 'success',
+          message: t(
+            'editor.suggest.sent',
+            '{count, plural, one {# suggestion sent} other {# suggestions sent}} for review.',
+            { count: (meta.created || 0) + (meta.updated || 0) || list.length }
+          ),
+        });
+        setSuggestSession(null);
+        setSuggestionsOpen(true);
+        return true;
+      } catch (requestError) {
+        const code = requestError && requestError.code;
+        let message = t('editor.suggest.failed', 'The suggestions could not be sent. Try again.');
+        if (requestError && requestError.status === 429)
+          message = t('editor.suggest.rateLimited', 'Too many suggestions. Try again in a minute.');
+        else if (code === 'PRESET_VIOLATION')
+          message = t(
+            'editor.suggest.presetViolation',
+            'A changed block does not match the settings of this field. Fix it and send again.'
+          );
+        else if (code === 'TOO_MANY_SUGGESTIONS')
+          message = t(
+            'editor.suggest.tooMany',
+            'This field has too many open suggestions. Ask a reviewer to decide some first.'
+          );
+        toggleNotification({ type: 'danger', message });
+        return false;
+      }
+    },
+    [suggestions.actions, t, toggleNotification]
+  );
+
+  /**
+   * Accepts suggestions: the server marks each accepted first (only one reviewer wins), then the
+   * proposed blocks are applied through the normal whole-document path (shared document, one undo
+   * step, the form becomes dirty; the normal save stores them).
+   * @param {Array<{ suggestion: object, outdated: boolean }>} items - Suggestions in document order.
+   * @returns {Promise<number>} Suggestions applied.
+   */
+  const acceptSuggestions = useCallback(
+    async (items) => {
+      const editor = editorRef.current;
+      if (!editor || readOnly) return 0;
+      const decided = [];
+      let failure = null;
+      for (const { suggestion, outdated } of items) {
+        try {
+          const result = await suggestions.actions.accept(suggestion.id, outdated, { again: false });
+          if (result && result.data) decided.push(result.data);
+        } catch (requestError) {
+          failure = requestError;
+          break;
+        }
+      }
+      let applied = 0;
+      if (decided.length) {
+        const saved = await editor.save().catch(() => null);
+        const prepared = prepareEditorValue(saved).data || {
+          time: Date.now(),
+          version: '2.31.7',
+          blocks: [],
+        };
+        const done = new Set(decided.map((item) => item.id));
+        const others = suggestions.suggestions.filter((item) => item.status === 'open' && !done.has(item.id));
+        const result = applySuggestions(prepared, decided, { pendingInserts: pendingInsertsOf(others) });
+        applied = result.applied.length;
+        const next = prepareEditorValue(result.data).data;
+        if (applied && next) await replaceContent(next);
+      }
+      suggestions.refresh();
+      if (failure) throw failure;
+      return applied;
+    },
+    [readOnly, replaceContent, suggestions]
+  );
+
+  const closeSuggestions = useCallback(() => {
+    setSuggestionsOpen(false);
+    window.requestAnimationFrame(() => moreButtonRef.current && moreButtonRef.current.focus());
+  }, []);
+
+  /** Marker click: open the panel on the block's first suggestion. */
+  const openBlockSuggestions = useCallback((blockId) => {
+    setSuggestionFocusBlock(blockId);
+    setSuggestionsOpen(true);
+  }, []);
 
   // Templates (2.3): the block the user worked on last is where a pattern goes.
   useEffect(() => {
@@ -2004,6 +2191,7 @@ const EditorFieldBody = ({
     const onKey = (event) => {
       const frame = frameRef.current;
       if (!frame || !frame.contains(document.activeElement)) return;
+      if (suggestModeRef.current) return;
       if (!(event.metaKey || event.ctrlKey) || !event.altKey || event.shiftKey || event.code !== 'KeyP')
         return;
       event.preventDefault();
@@ -2044,6 +2232,35 @@ const EditorFieldBody = ({
       movesFocus: true,
       visible: Boolean(target.uid && target.documentId && identityReady),
       onSelect: () => setHistoryOpen(true),
+    },
+    {
+      id: 'suggestions',
+      group: 'review',
+      label: t('editor.toolbar.suggestions', 'Suggestions'),
+      icon: <Lightbulb />,
+      badge: {
+        count: suggestionsOpenCount,
+        tone: 'primary',
+        label: t(
+          'editor.toolbar.suggestionsCount',
+          'Suggestions ({count, plural, one {# open} other {# open}})',
+          { count: suggestionsOpenCount }
+        ),
+      },
+      pressed: suggestionsOpen,
+      movesFocus: true,
+      visible: suggestionsEnabled,
+      onSelect: () => (suggestionsOpen ? closeSuggestions() : setSuggestionsOpen(true)),
+    },
+    {
+      id: 'suggest',
+      group: 'write',
+      label: t('editor.toolbar.suggest', 'Suggest changes'),
+      icon: <Pencil />,
+      movesFocus: true,
+      visible: Boolean(canSuggest),
+      disabled: !ready,
+      onSelect: () => startSuggest(),
     },
     {
       id: 'quality',
@@ -2154,7 +2371,39 @@ const EditorFieldBody = ({
           aria-modal={fullscreen ? true : undefined}
           aria-label={fullscreen ? label : undefined}
         >
+          {suggestSession ? (
+            <SuggestEditor
+              key={suggestSession.key}
+              t={t}
+              base={suggestSession.base}
+              toolOptions={{
+                t,
+                locale: adminLocale,
+                fetchClient: { get, post },
+                getContentLocale: () => contentLocaleRef.current,
+                uploadImage: async () => ({ success: 0 }),
+                uploadImageByUrl: async () => ({ success: 0 }),
+                uploadFile: async () => ({ success: 0 }),
+                linkPreview: config && config.linkPreview,
+                customBlocks,
+                placeholder,
+                attachmentTypes: config && config.uploads.attachmentTypes,
+                mountSynced,
+              }}
+              preset={preset}
+              direction={direction}
+              lang={target.locale || undefined}
+              minHeight={minHeight}
+              placeholder={
+                placeholder || t('editor.placeholder', 'Write something, or type / to choose a block')
+              }
+              fullscreen={fullscreen}
+              onSend={sendSuggestions}
+              onExit={exitSuggest}
+            />
+          ) : null}
           <EditorToolbar
+            hidden={suggestMode}
             t={t}
             ready={ready}
             readOnly={readOnly}
@@ -2181,7 +2430,23 @@ const EditorFieldBody = ({
             tools={fieldTools}
             moreButtonRef={moreButtonRef}
           />
-          {grammarOpen && grammarAllowed && ready ? (
+          {suggestionsOpen && suggestionsEnabled && ready && !suggestMode ? (
+            <PanelSlot padding={2} $fullscreen={fullscreen}>
+              <SuggestionsPanel
+                t={t}
+                suggestions={suggestions}
+                current={currentData}
+                canDecide={Boolean(suggestions.canReview && !readOnly)}
+                onAccept={acceptSuggestions}
+                onSelectBlock={selectBlock}
+                onClose={closeSuggestions}
+                focusBlockId={suggestionFocusBlock}
+                onFocusHandled={() => setSuggestionFocusBlock(null)}
+                fail={(message) => toggleNotification({ type: 'danger', message })}
+              />
+            </PanelSlot>
+          ) : null}
+          {grammarOpen && grammarAllowed && ready && !suggestMode ? (
             <PanelSlot padding={2} $fullscreen={fullscreen}>
               <GrammarPanel
                 t={t}
@@ -2195,7 +2460,7 @@ const EditorFieldBody = ({
               />
             </PanelSlot>
           ) : null}
-          {findOpen && ready ? (
+          {findOpen && ready && !suggestMode ? (
             <PanelSlot padding={2} $fullscreen={fullscreen}>
               <FindReplacePanel
                 t={t}
@@ -2208,7 +2473,7 @@ const EditorFieldBody = ({
               />
             </PanelSlot>
           ) : null}
-          {qualityOpen && ready ? (
+          {qualityOpen && ready && !suggestMode ? (
             <PanelSlot padding={2} $fullscreen={fullscreen}>
               <QualityPanel
                 t={t}
@@ -2225,7 +2490,7 @@ const EditorFieldBody = ({
               />
             </PanelSlot>
           ) : null}
-          {commentsOpen && commentsEnabled && ready ? (
+          {commentsOpen && commentsEnabled && ready && !suggestMode ? (
             <PanelSlot padding={2} $fullscreen={fullscreen}>
               <CommentsPanel
                 t={t}
@@ -2278,10 +2543,10 @@ const EditorFieldBody = ({
           ) : null}
           <EditorArea
             ref={areaRef}
-            $fullscreen={fullscreen && !previewOpen}
-            $concealed={previewOpen}
-            aria-hidden={previewOpen ? true : undefined}
-            inert={previewOpen ? '' : undefined}
+            $fullscreen={fullscreen && !previewOpen && !suggestMode}
+            $concealed={previewOpen || suggestMode}
+            aria-hidden={previewOpen || suggestMode ? true : undefined}
+            inert={previewOpen || suggestMode ? '' : undefined}
           >
             <BlockSelectionBar
               t={t}
@@ -2306,7 +2571,7 @@ const EditorFieldBody = ({
               $minHeight={minHeight}
               $fullscreen={fullscreen}
               $focus={focusMode}
-              $gutter={commentsEnabled}
+              $gutter={markerColumns}
               data-testid="magic-editor-x"
               aria-busy={!ready}
               aria-describedby={`${name}-mex-keyboard`}
@@ -2330,6 +2595,18 @@ const EditorFieldBody = ({
                 t={t}
               />
             ) : null}
+            {suggestionsEnabled && ready && !previewOpen && !suggestMode && suggestionCounts.size ? (
+              <SuggestionMarkers
+                containerRef={areaRef}
+                holderRef={holderRef}
+                counts={suggestionCounts}
+                beside={commentsEnabled ? commentCounts : undefined}
+                blockIds={commentBlockIds}
+                version={contentVersion}
+                onOpen={openBlockSuggestions}
+                t={t}
+              />
+            ) : null}
             {collaboration.active && collaboration.peers.length > 0 && !previewOpen ? (
               <RemoteCarets
                 containerRef={areaRef}
@@ -2340,7 +2617,7 @@ const EditorFieldBody = ({
               />
             ) : null}
           </EditorArea>
-          {!previewOpen ? (
+          {!previewOpen && !suggestMode ? (
             <FootnotesPanel
               t={t}
               id={`${name}-mex`}
@@ -2365,6 +2642,52 @@ const EditorFieldBody = ({
             )}
           </VisuallyHidden>
         </Frame>
+        {suggestionsEnabled && !suggestMode && (suggestionsOpenCount > 0 || (canSuggest && disabled)) ? (
+          <Flex gap={2} wrap="wrap" alignItems="center" data-testid="mex-suggestions-notice">
+            {canSuggest && disabled ? (
+              <>
+                <Typography variant="pi" textColor="neutral600">
+                  {t(
+                    'editor.suggest.readOnlyHint',
+                    'You cannot edit this field, but you can suggest changes.'
+                  )}
+                </Typography>
+                <Button
+                  variant="ghost"
+                  size="S"
+                  startIcon={<Pencil />}
+                  onClick={startSuggest}
+                  disabled={!ready}
+                  data-testid="mex-suggest-start"
+                >
+                  {t('editor.suggest.start', 'Suggest changes')}
+                </Button>
+              </>
+            ) : null}
+            {suggestionsOpenCount > 0 && !suggestionsOpen ? (
+              <>
+                <Typography variant="pi" textColor="neutral600">
+                  {t(
+                    'editor.suggestions.notice',
+                    '{count, plural, one {# open suggestion} other {# open suggestions}}',
+                    { count: suggestionsOpenCount }
+                  )}
+                </Typography>
+                <Button
+                  variant="ghost"
+                  size="S"
+                  startIcon={<Lightbulb />}
+                  onClick={() => setSuggestionsOpen(true)}
+                  data-testid="mex-suggestions-show"
+                >
+                  {suggestions.canReview && editableOutsideSuggest
+                    ? t('editor.suggestions.review', 'Review suggestions')
+                    : t('editor.suggestions.showAll', 'Show suggestions')}
+                </Button>
+              </>
+            ) : null}
+          </Flex>
+        ) : null}
         {violations.length ? (
           <Flex gap={2} wrap="wrap" alignItems="center" data-testid="mex-preset-violations">
             <Typography variant="pi" textColor="danger600">

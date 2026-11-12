@@ -518,5 +518,10 @@
   "settings.csp.copy": "Copiar el fragmento",
   "settings.csp.copied": "Fragmento copiado al portapapeles.",
   "settings.csp.copyFailed": "El navegador no permitió copiar. El fragmento está seleccionado; cópielo con Ctrl+C o Cmd+C.",
-  "settings.csp.mergeHint": "Conserve sus otras directivas (por ejemplo, los hosts de su proveedor de subida) y reinicie Strapi después del cambio."
+  "settings.csp.mergeHint": "Conserve sus otras directivas (por ejemplo, los hosts de su proveedor de subida) y reinicie Strapi después del cambio.",
+  "settings.audit.event.suggestionCreate": "Cambios sugeridos",
+  "settings.audit.event.suggestionAccept": "Sugerencia aceptada",
+  "settings.audit.event.suggestionReject": "Sugerencia rechazada",
+  "settings.audit.event.suggestionWithdraw": "Sugerencia retirada",
+  "settings.audit.counts.outdated": "Se reemplazó una versión más reciente del bloque"
 }

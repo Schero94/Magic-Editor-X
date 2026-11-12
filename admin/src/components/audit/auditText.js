@@ -31,6 +31,11 @@ export const EVENT_LABELS = {
   'settings.update': { key: 'settings.audit.event.settingsUpdate', text: 'Settings changed' },
   'linkcheck.run': { key: 'settings.audit.event.linkcheckRun', text: 'Link check run' },
   'ai.localize': { key: 'settings.audit.event.aiLocalize', text: 'Strapi AI translation checked' },
+  // 2.4 block suggestions
+  'suggestion.create': { key: 'settings.audit.event.suggestionCreate', text: 'Changes suggested' },
+  'suggestion.accept': { key: 'settings.audit.event.suggestionAccept', text: 'Suggestion accepted' },
+  'suggestion.reject': { key: 'settings.audit.event.suggestionReject', text: 'Suggestion rejected' },
+  'suggestion.withdraw': { key: 'settings.audit.event.suggestionWithdraw', text: 'Suggestion withdrawn' },
 };
 
 /**
@@ -114,5 +119,13 @@ export const changeSummary = (t, item) => {
         count: counts.blocks,
       })
     );
+  if (item.event === 'suggestion.create' && Number.isInteger(counts.suggestions))
+    parts.push(
+      t('settings.audit.counts.blocks', '{count, plural, one {# block} other {# blocks}}', {
+        count: counts.suggestions,
+      })
+    );
+  if (item.event === 'suggestion.accept' && counts.outdated)
+    parts.push(t('settings.audit.counts.outdated', 'Replaced a newer version of the block'));
   return parts.join(' · ');
 };
