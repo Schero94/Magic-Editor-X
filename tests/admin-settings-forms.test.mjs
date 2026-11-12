@@ -17,6 +17,7 @@ import {
 } from '../admin/src/pages/ConfigurationPage/configForm.mjs';
 import {
   RESERVED_NAMES,
+  LEGACY_NAMES,
   deriveName,
   emptyField,
   emptyValues,
@@ -138,7 +139,11 @@ test('server adjustments and field errors are reported', () => {
 });
 
 test('reserved block names match the server list', () => {
-  assert.deepEqual([...RESERVED_NAMES].sort(), [...server.RESERVED_NAMES].sort());
+  assert.deepEqual(
+    [...RESERVED_NAMES].sort(),
+    [...server.RESERVED_NAMES, ...server.LEGACY_BUILT_IN_NAMES].sort()
+  );
+  assert.deepEqual([...LEGACY_NAMES].sort(), [...server.LEGACY_BUILT_IN_NAMES].sort());
 });
 
 test('block names are derived from labels', () => {

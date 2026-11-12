@@ -26,7 +26,7 @@
   "$defs": {
     "inlineHtml": {
       "type": "string",
-      "description": "Inline HTML limited to b, strong, i, em, u, s, mark, code, a, br, span, sub, sup with the attributes of the sanitising policy."
+      "description": "Inline HTML limited to b, strong, i, em, u, s, mark, code, a, br, span, sub, sup with the attributes of the sanitising policy. Internal links carry data-mex-uid, data-mex-document-id and data-mex-locale; mentions (inline entry references) also data-mex-mention=\"true\"."
     },
     "url": {
       "type": "string",
@@ -47,6 +47,152 @@
         }
       },
       "additionalProperties": true
+    },
+    "focalPoint": {
+      "type": "object",
+      "description": "Focal point of the image (0..1). Media Library formats are resized, not cropped, so it applies to every format.",
+      "properties": {
+        "x": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "From the left edge, two decimals."
+        },
+        "y": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "From the top edge, two decimals."
+        }
+      },
+      "required": ["x", "y"],
+      "additionalProperties": false
+    },
+    "mediaFile": {
+      "type": "object",
+      "description": "Media Library file (video, audio or WebVTT track).",
+      "properties": {
+        "url": {
+          "$ref": "#/$defs/url"
+        },
+        "id": {
+          "type": ["integer", "string"],
+          "description": "Media Library file id."
+        },
+        "documentId": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "mime": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "hash": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "ext": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "width": {
+          "type": "number"
+        },
+        "height": {
+          "type": "number"
+        },
+        "size": {
+          "type": "number"
+        }
+      },
+      "required": ["url"],
+      "additionalProperties": false
+    },
+    "imageFile": {
+      "type": "object",
+      "description": "Media Library image file.",
+      "properties": {
+        "url": {
+          "$ref": "#/$defs/url"
+        },
+        "id": {
+          "type": ["integer", "string"],
+          "description": "Media Library file id."
+        },
+        "documentId": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "alt": {
+          "type": "string",
+          "maxLength": 500,
+          "description": "Alternative text."
+        },
+        "mime": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "hash": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "ext": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "width": {
+          "type": "number"
+        },
+        "height": {
+          "type": "number"
+        },
+        "size": {
+          "type": "number"
+        },
+        "formats": {
+          "type": "object",
+          "description": "Media Library formats (thumbnail, small, medium, large) for responsive images.",
+          "additionalProperties": {
+            "$ref": "#/$defs/mediaFormat"
+          }
+        }
+      },
+      "required": ["url"],
+      "additionalProperties": false
+    },
+    "mediaTrack": {
+      "type": "object",
+      "description": "WebVTT text track from the Media Library.",
+      "properties": {
+        "file": {
+          "$ref": "#/$defs/mediaFile"
+        },
+        "kind": {
+          "type": "string",
+          "enum": ["captions", "subtitles", "descriptions", "chapters"]
+        },
+        "srclang": {
+          "type": "string",
+          "pattern": "^([A-Za-z]{2,3}(-[A-Za-z0-9]{1,8}){0,3})?$"
+        },
+        "label": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "default": {
+          "type": "boolean"
+        }
+      },
+      "required": ["file", "kind", "srclang", "label"],
+      "additionalProperties": false
     },
     "listItem": {
       "anyOf": [
@@ -386,6 +532,142 @@
           "if": {
             "properties": {
               "type": {
+                "const": "gallery"
+              },
+              "data": {
+                "type": "object",
+                "anyOf": [
+                  {
+                    "required": ["_mex"],
+                    "properties": {
+                      "_mex": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Built-in block marker (2.3: 1). Tells the built-in block apart from a custom block created before 2.3 under the same name."
+                      }
+                    }
+                  },
+                  {
+                    "properties": {
+                      "images": {
+                        "type": "array"
+                      },
+                      "layout": {},
+                      "columns": {},
+                      "caption": {}
+                    },
+                    "additionalProperties": false,
+                    "required": ["images"]
+                  }
+                ]
+              }
+            },
+            "required": ["type", "data"]
+          },
+          "then": {
+            "properties": {
+              "data": {
+                "$ref": "#/$defs/data_gallery"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "video"
+              },
+              "data": {
+                "type": "object",
+                "anyOf": [
+                  {
+                    "required": ["_mex"],
+                    "properties": {
+                      "_mex": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Built-in block marker (2.3: 1). Tells the built-in block apart from a custom block created before 2.3 under the same name."
+                      }
+                    }
+                  },
+                  {
+                    "properties": {
+                      "file": {
+                        "type": "object"
+                      },
+                      "poster": {},
+                      "title": {},
+                      "caption": {},
+                      "loop": {},
+                      "muted": {},
+                      "tracks": {}
+                    },
+                    "additionalProperties": false,
+                    "required": ["file"]
+                  }
+                ]
+              }
+            },
+            "required": ["type", "data"]
+          },
+          "then": {
+            "properties": {
+              "data": {
+                "$ref": "#/$defs/data_video"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "audio"
+              },
+              "data": {
+                "type": "object",
+                "anyOf": [
+                  {
+                    "required": ["_mex"],
+                    "properties": {
+                      "_mex": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Built-in block marker (2.3: 1). Tells the built-in block apart from a custom block created before 2.3 under the same name."
+                      }
+                    }
+                  },
+                  {
+                    "properties": {
+                      "file": {
+                        "type": "object"
+                      },
+                      "title": {},
+                      "caption": {},
+                      "loop": {},
+                      "tracks": {}
+                    },
+                    "additionalProperties": false,
+                    "required": ["file"]
+                  }
+                ]
+              }
+            },
+            "required": ["type", "data"]
+          },
+          "then": {
+            "properties": {
+              "data": {
+                "$ref": "#/$defs/data_audio"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
                 "const": "linkTool"
               }
             },
@@ -480,6 +762,88 @@
             "properties": {
               "data": {
                 "$ref": "#/$defs/data_delimiter"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "toc"
+              },
+              "data": {
+                "type": "object",
+                "anyOf": [
+                  {
+                    "required": ["_mex"],
+                    "properties": {
+                      "_mex": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Built-in block marker (2.3: 1). Tells the built-in block apart from a custom block created before 2.3 under the same name."
+                      }
+                    }
+                  },
+                  {
+                    "properties": {
+                      "title": {},
+                      "minLevel": {},
+                      "maxLevel": {},
+                      "style": {}
+                    },
+                    "additionalProperties": false
+                  }
+                ]
+              }
+            },
+            "required": ["type", "data"]
+          },
+          "then": {
+            "properties": {
+              "data": {
+                "$ref": "#/$defs/data_toc"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "synced"
+              },
+              "data": {
+                "type": "object",
+                "anyOf": [
+                  {
+                    "required": ["_mex"],
+                    "properties": {
+                      "_mex": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Built-in block marker (2.3: 1). Tells the built-in block apart from a custom block created before 2.3 under the same name."
+                      }
+                    }
+                  },
+                  {
+                    "properties": {
+                      "ref": {
+                        "type": "string"
+                      }
+                    },
+                    "additionalProperties": false,
+                    "required": ["ref"]
+                  }
+                ]
+              }
+            },
+            "required": ["type", "data"]
+          },
+          "then": {
+            "properties": {
+              "data": {
+                "$ref": "#/$defs/data_synced"
               }
             }
           }
@@ -776,6 +1140,9 @@
         "decorative": {
           "type": "boolean",
           "description": "True when the image is decorative (rendered with an empty alt)."
+        },
+        "focalPoint": {
+          "$ref": "#/$defs/focalPoint"
         }
       },
       "required": ["file", "caption", "withBorder", "withBackground", "stretched"],
@@ -809,6 +1176,126 @@
         }
       },
       "required": ["url", "caption", "withBorder", "withBackground", "stretched"],
+      "additionalProperties": false
+    },
+    "data_gallery": {
+      "type": "object",
+      "properties": {
+        "images": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "object",
+            "properties": {
+              "file": {
+                "$ref": "#/$defs/imageFile"
+              },
+              "caption": {
+                "$ref": "#/$defs/inlineHtml"
+              },
+              "decorative": {
+                "type": "boolean",
+                "description": "True when the image is decorative (rendered with an empty alt)."
+              },
+              "focalPoint": {
+                "$ref": "#/$defs/focalPoint"
+              }
+            },
+            "required": ["file", "caption"],
+            "additionalProperties": false
+          }
+        },
+        "layout": {
+          "type": "string",
+          "enum": ["grid", "carousel"],
+          "description": "Layout hint for frontends."
+        },
+        "columns": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 6,
+          "description": "Columns of the grid layout (hint)."
+        },
+        "caption": {
+          "$ref": "#/$defs/inlineHtml"
+        },
+        "_mex": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Built-in block marker (2.3: 1). Tells the built-in block apart from a custom block created before 2.3 under the same name."
+        }
+      },
+      "required": ["images", "layout", "columns", "caption", "_mex"],
+      "additionalProperties": false
+    },
+    "data_video": {
+      "type": "object",
+      "properties": {
+        "file": {
+          "$ref": "#/$defs/mediaFile"
+        },
+        "poster": {
+          "$ref": "#/$defs/imageFile"
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "caption": {
+          "$ref": "#/$defs/inlineHtml"
+        },
+        "loop": {
+          "type": "boolean"
+        },
+        "muted": {
+          "type": "boolean"
+        },
+        "tracks": {
+          "type": "array",
+          "maxItems": 8,
+          "items": {
+            "$ref": "#/$defs/mediaTrack"
+          }
+        },
+        "_mex": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Built-in block marker (2.3: 1). Tells the built-in block apart from a custom block created before 2.3 under the same name."
+        }
+      },
+      "required": ["file", "title", "caption", "loop", "muted", "tracks", "_mex"],
+      "additionalProperties": false
+    },
+    "data_audio": {
+      "type": "object",
+      "properties": {
+        "file": {
+          "$ref": "#/$defs/mediaFile"
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "caption": {
+          "$ref": "#/$defs/inlineHtml"
+        },
+        "loop": {
+          "type": "boolean"
+        },
+        "tracks": {
+          "type": "array",
+          "maxItems": 8,
+          "items": {
+            "$ref": "#/$defs/mediaTrack"
+          }
+        },
+        "_mex": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Built-in block marker (2.3: 1). Tells the built-in block apart from a custom block created before 2.3 under the same name."
+        }
+      },
+      "required": ["file", "title", "caption", "loop", "tracks", "_mex"],
       "additionalProperties": false
     },
     "data_linkTool": {
@@ -961,6 +1448,58 @@
     "data_delimiter": {
       "type": "object",
       "properties": {},
+      "additionalProperties": false
+    },
+    "data_toc": {
+      "type": "object",
+      "description": "Table of contents. The entries are built from the headings when the content is rendered.",
+      "properties": {
+        "title": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "Plain-text title; empty for none."
+        },
+        "minLevel": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 6,
+          "description": "Lowest heading level listed (at most maxLevel)."
+        },
+        "maxLevel": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 6,
+          "description": "Highest heading level listed."
+        },
+        "style": {
+          "type": "string",
+          "enum": ["ordered", "unordered"]
+        },
+        "_mex": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Built-in block marker (2.3: 1). Tells the built-in block apart from a custom block created before 2.3 under the same name."
+        }
+      },
+      "required": ["title", "minLevel", "maxLevel", "style", "_mex"],
+      "additionalProperties": false
+    },
+    "data_synced": {
+      "type": "object",
+      "description": "Synced block: a reference to shared content that is edited in one place.",
+      "properties": {
+        "ref": {
+          "type": "string",
+          "pattern": "^([a-z0-9]{1,64})?$",
+          "description": "documentId of the synced block source (Settings > Templates). Only the reference is stored; `?mex=` output and the renderers (`options.synced`) expand it. Empty when invalid."
+        },
+        "_mex": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Built-in block marker (2.3: 1). Tells the built-in block apart from a custom block created before 2.3 under the same name."
+        }
+      },
+      "required": ["ref", "_mex"],
       "additionalProperties": false
     }
   }

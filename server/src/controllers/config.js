@@ -39,15 +39,25 @@ module.exports = ({ strapi }) => ({
           languages: ai.LANGUAGES,
           tones: ai.TONES,
           maxInputChars: settings.ai.maxInputChars,
+          // 2.3 owner switches (the server checks them again on every request).
+          altText: settings.ai.allowImages === true,
+          fieldActions: settings.ai.allowFieldActions === true,
         },
+        grammar: { enabled: Boolean(settings.languageTool.enabled && settings.languageTool.baseUrl) },
         uploads: {
           maxImageBytes: conf('uploads.maxImageBytes', 10 * 1024 * 1024),
           maxFileBytes: conf('uploads.maxFileBytes', 20 * 1024 * 1024),
           attachmentTypes: service(strapi, 'editor').attachmentTypes(),
         },
         linkPreview: conf('linkPreview.enabled', true) !== false,
-        quality: { externalLinks: conf('qualityChecks.externalLinks.enabled', false) === true },
+        quality: {
+          externalLinks: conf('qualityChecks.externalLinks.enabled', false) === true,
+          scheduledLinks: service(strapi, 'link-schedule').settings().enabled,
+        },
+        comments: { enabled: conf('comments.enabled', true) !== false },
         rawHtml: conf('rawHtml', 'sanitize'),
+        // 2.3: code-registered blocks (custom block SDK): names and field types only.
+        codeBlocks: service(strapi, 'blocks').summaries(),
         permissions: {
           collaborate: can(ACTIONS.collaborate),
           ai: can(ACTIONS.ai),
@@ -55,6 +65,11 @@ module.exports = ({ strapi }) => ({
           mediaLibrary: can('plugin::upload.read'),
           customBlocksManage: can(ACTIONS.customBlocksManage),
           settingsRead: can(ACTIONS.settingsRead),
+          commentsRead: can(ACTIONS.commentsRead),
+          commentsWrite: can(ACTIONS.commentsWrite),
+          commentsModerate: can(ACTIONS.commentsModerate),
+          grammar: can(ACTIONS.grammar),
+          templatesManage: can(ACTIONS.templatesManage),
         },
       },
     };

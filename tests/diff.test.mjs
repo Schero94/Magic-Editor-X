@@ -1,6 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { diffDocuments, summarizeDiff, diffText, blockText } from '../shared/diff.mjs';
+import {
+  diffDocuments,
+  summarizeDiff,
+  diffText,
+  blockText,
+  diffTunes,
+  canonicalEqual,
+} from '../shared/diff.mjs';
 
 const p = (id, text) => ({ id, type: 'paragraph', data: { text } });
 const doc = (...blocks) => ({ time: 1, blocks, version: '2.31.7' });
@@ -95,9 +102,61 @@ test('value changes (heading level, tunes, type) are value fields', () => {
     entry.fields.map((field) => [field.path, field.kind, field.before, field.after]),
     [
       ['level', 'value', 2, 3],
-      ['tunes', 'value', null, { alignmentTune: { alignment: 'center' } }],
+      ['tunes', 'tunes', undefined, undefined],
     ]
   );
+  assert.deepEqual(entry.fields[1].changes, [
+    { tune: 'alignmentTune', before: 'left', after: 'center', known: true },
+  ]);
+});
+
+test('tunes that differ only in key order are not a change (history regression)', () => {
+  const tunesA = {
+    indentTune: { indentLevel: 1 },
+    textVariant: 'citation',
+    alignmentTune: { alignment: 'center' },
+  };
+  const tunesB = {
+    alignmentTune: { alignment: 'center' },
+    textVariant: 'citation',
+    indentTune: { indentLevel: 1 },
+  };
+  const before = doc({ id: 'a', type: 'paragraph', data: { text: 'Same' }, tunes: tunesA });
+  const after = doc({ id: 'a', type: 'paragraph', data: { text: 'Same' }, tunes: tunesB });
+  assert.deepEqual(ops(diffDocuments(before, after)), ['equal:a']);
+  assert.deepEqual(diffTunes(tunesA, tunesB), []);
+});
+
+test('default tune values equal missing tunes', () => {
+  const stored = doc(p('a', 'Text'));
+  const fromEditor = doc({
+    id: 'a',
+    type: 'paragraph',
+    data: { text: 'Text' },
+    tunes: { textVariant: '', alignmentTune: { alignment: 'left' }, indentTune: { indentLevel: 0 } },
+  });
+  assert.deepEqual(ops(diffDocuments(stored, fromEditor)), ['equal:a']);
+});
+
+test('real tune changes are listed per tune with readable values', () => {
+  const changes = diffTunes(
+    { alignmentTune: { alignment: 'left' }, indentTune: { indentLevel: 0 }, textVariant: '' },
+    { indentTune: { indentLevel: 1 }, alignmentTune: { alignment: 'center' }, textVariant: 'call-out' }
+  );
+  assert.deepEqual(changes, [
+    { tune: 'alignmentTune', before: 'left', after: 'center', known: true },
+    { tune: 'indentTune', before: 0, after: 1, known: true },
+    { tune: 'textVariant', before: '', after: 'call-out', known: true },
+  ]);
+});
+
+test('unknown tunes compare canonically and are reported as JSON text', () => {
+  assert.deepEqual(diffTunes({ myTune: { b: 1, a: 2 } }, { myTune: { a: 2, b: 1 } }), []);
+  assert.deepEqual(diffTunes({}, { myTune: { b: 1, a: 2 } }), [
+    { tune: 'myTune', before: null, after: '{"a":2,"b":1}', known: false },
+  ]);
+  assert.ok(canonicalEqual({ x: [{ b: 1, a: 2 }] }, { x: [{ a: 2, b: 1 }] }));
+  assert.ok(!canonicalEqual([1, 2], [2, 1]));
 });
 
 test('blocks re-created with a new id are paired by similarity', () => {

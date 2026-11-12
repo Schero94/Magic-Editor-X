@@ -1,5 +1,7 @@
 import ImageTool from '@editorjs/image';
 import { el, field, input } from './dom';
+import { createFocalControl } from './focal-point';
+import { createAltSuggestion, mediaFileId } from '../ai-alt-text';
 
 /**
  * Alternative text for image blocks: a labelled input plus a "decorative
@@ -21,8 +23,8 @@ const OWN_KEYS = new Set([
 
 /**
  * Creates the alternative text controls.
- * @param {{ t: Function, alt?: string, decorative?: boolean, required?: boolean, readOnly?: boolean, onChange: (value: { alt: string, decorative: boolean }) => void }} options - Options.
- * @returns {{ element: HTMLElement, setAlt: (alt: string) => void, read: () => { alt: string, decorative: boolean } }} Control.
+ * @param {{ t: Function, alt?: string, decorative?: boolean, required?: boolean, readOnly?: boolean, onChange: (value: { alt: string, decorative: boolean }) => void, suggest?: Function, getFileId?: () => number|null }} options - Options (`suggest` from `createAltTextSuggester` adds the AI suggestion, 2.3).
+ * @returns {{ element: HTMLElement, setAlt: (alt: string) => void, read: () => { alt: string, decorative: boolean }, refresh: () => void }} Control.
  */
 export const createAltControl = ({
   t,
@@ -31,6 +33,8 @@ export const createAltControl = ({
   required = false,
   readOnly = false,
   onChange,
+  suggest,
+  getFileId,
 }) => {
   const label = required
     ? t('tools.image.altRequired', 'Alternative text (required)')
@@ -55,6 +59,7 @@ export const createAltControl = ({
   });
   const row = field(label, text);
   const wrapper = el('div', { className: 'mex-alt', children: [row, check, error] });
+  let suggestion = null;
 
   const read = () => ({ alt: box.checked ? '' : text.value.trim().slice(0, 500), decorative: box.checked });
   const validate = () => {
@@ -84,9 +89,24 @@ export const createAltControl = ({
     sync();
     onChange(read());
   });
+  if (typeof suggest === 'function' && typeof getFileId === 'function' && !readOnly) {
+    suggestion = createAltSuggestion({
+      t,
+      getFileId,
+      suggest,
+      onUse: (value) => {
+        box.checked = false;
+        text.value = value.slice(0, 500);
+        sync();
+        onChange(read());
+      },
+    });
+    wrapper.insertBefore(suggestion.element, check);
+  }
   sync();
   return {
     element: wrapper,
+    refresh: () => suggestion && suggestion.refresh(),
     read,
     setAlt: (value) => {
       if (text.value.trim() || box.checked) return;
@@ -99,7 +119,8 @@ export const createAltControl = ({
 /**
  * The official image tool plus the alternative text controls. Stored data
  * stays `{ file: { url, alt, ... }, caption, withBorder, withBackground,
- * stretched }` and gains `decorative: true` for decorative images.
+ * stretched }` and gains `decorative: true` for decorative images and
+ * `focalPoint: { x, y }` (0..1) when a focal point is set.
  */
 export class MexImageTool extends ImageTool {
   /**
@@ -115,12 +136,25 @@ export class MexImageTool extends ImageTool {
       decorative: data.decorative === true,
       required: config.requireAlt === true,
       readOnly: Boolean(options && options.readOnly),
+      suggest: typeof config.suggestAltText === 'function' ? config.suggestAltText : undefined,
+      getFileId: () => mediaFileId(this.data && this.data.file),
       onChange: () => {
         if (options && options.block && typeof options.block.dispatchChange === 'function')
           options.block.dispatchChange();
       },
     });
     this.mexAlt.element.classList.add('mex-alt--image');
+    const translate = typeof config.t === 'function' ? config.t : (_id, fallback) => fallback;
+    this.mexFocal = createFocalControl({
+      t: translate,
+      url: (data.file && typeof data.file.url === 'string' && data.file.url) || '',
+      point: data.focalPoint,
+      readOnly: Boolean(options && options.readOnly),
+      onChange: () => {
+        if (options && options.block && typeof options.block.dispatchChange === 'function')
+          options.block.dispatchChange();
+      },
+    });
     // A new upload or Media Library file brings its own alternative text.
     const ui = this.ui;
     if (ui && typeof ui.fillImage === 'function') {
@@ -129,6 +163,8 @@ export class MexImageTool extends ImageTool {
         fill(url);
         const file = this.data && this.data.file;
         if (file && typeof file.alt === 'string') this.mexAlt.setAlt(file.alt);
+        this.mexFocal.setUrl(typeof url === 'string' ? url : '');
+        this.mexAlt.refresh();
       };
     }
   }
@@ -142,8 +178,10 @@ export class MexImageTool extends ImageTool {
     // The caption is absolutely positioned at the bottom of the wrapper; the
     // alternative text goes before it, in normal flow below the image.
     const caption = this.ui && this.ui.nodes && this.ui.nodes.caption;
-    if (caption && caption.parentNode === wrapper) wrapper.insertBefore(this.mexAlt.element, caption);
-    else wrapper.appendChild(this.mexAlt.element);
+    if (caption && caption.parentNode === wrapper) {
+      wrapper.insertBefore(this.mexAlt.element, caption);
+      wrapper.insertBefore(this.mexFocal.element, caption);
+    } else wrapper.append(this.mexAlt.element, this.mexFocal.element);
     return wrapper;
   }
 
@@ -157,6 +195,9 @@ export class MexImageTool extends ImageTool {
     const out = { ...data, file: { ...(data.file || {}), alt } };
     if (decorative) out.decorative = true;
     else delete out.decorative;
+    const focalPoint = this.mexFocal.read();
+    if (focalPoint) out.focalPoint = focalPoint;
+    else delete out.focalPoint;
     return out;
   }
 }

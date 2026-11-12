@@ -1,7 +1,8 @@
 # Checks every pull request and push to a non-main branch on the Node versions
 # Strapi 5.61 supports: lint, formatting, build (with the server bundle runtime
 # check), unit tests, package verification, package contents and a production
-# audit. A second job checks that the lockfile installs with npm 10 and npm 11.
+# audit. A second job checks that the lockfile installs with npm 10 and npm 11;
+# a third runs the performance benchmark against scripts/bench-thresholds.json.
 # The integration and multi-process suites need a Strapi host; CONTRIBUTING.md
 # describes how to run them.
 name: CI
@@ -73,3 +74,22 @@ jobs:
         run: npx --yes npm@10 ci --dry-run --ignore-scripts
       - name: Lockfile installs with npm 11
         run: npx --yes npm@11 ci --dry-run --ignore-scripts
+
+  bench:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install dependencies (no lifecycle scripts)
+        run: npm ci --ignore-scripts
+      # The benchmark imports the shared sources directly; no build is needed.
+      - name: Benchmark (budgets, scaling, counters)
+        run: npm run bench

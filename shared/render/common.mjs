@@ -5,8 +5,18 @@
  */
 
 import { normalizeEditorDataSafe, isPlainObject } from '../editor-data.mjs';
-import { BLOCK_POLICIES, sanitizeTunes, sanitizeUrl } from '../sanitize-policy.mjs';
-import { inlineToHtml } from './inline.mjs';
+import {
+  BLOCK_POLICIES,
+  sanitizeTunes,
+  sanitizeUrl,
+  isBuiltInBlock,
+  cleanMediaFile,
+  registeredBlockOf,
+} from '../sanitize-policy.mjs';
+import { compileBlockList } from '../blocks/define.mjs';
+import { inlineToHtml, inlineToText } from './inline.mjs';
+import { createAnchorAllocator, createSlugAllocator } from '../toc.mjs';
+import { containsSynced, expandSynced, syncedLookup } from '../synced.mjs';
 
 /**
  * @typedef {object} PreparedBlock
@@ -16,28 +26,43 @@ import { inlineToHtml } from './inline.mjs';
  * @property {object} raw - Normalised data before cleaning (read only for optional keys such as `decorative`).
  * @property {object|undefined} tunes - Clean tunes.
  * @property {boolean} known - True for built-in block types.
+ * @property {object|null} definition - Compiled code-registered definition (custom block SDK), else null.
  * @property {PreparedBlock[]} children - Toggle content.
+ * @property {string} [anchor] - Heading anchor (`header` blocks, when heading ids are on; see `annotateHeadings`).
+ * @property {Array<{ id: string|null, slug: string, level: number, text: string }>} [headings] - Document headings (`toc` blocks; `slug` is the GitHub-style slug for Markdown).
+ * @property {boolean} [linkHeadings] - Whether toc entries link to the anchors (`toc` blocks).
  */
 
 /** Policy-pass inline cleaner: keeps the stored attributes (links are resolved later). */
-const keepInline = (html) => inlineToHtml(html);
+const keepInline = (html) => inlineToHtml(html, { storage: true });
 
 /**
  * Normalises any stored value and returns cleaned blocks with toggle children grouped.
  * @param {unknown} value - Stored field value (object, JSON string, legacy shapes).
- * @param {{ rawHtml?: string, sanitizeRaw?: (html: string) => string }} [options] - Render options.
+ * @param {{ rawHtml?: string, sanitizeRaw?: (html: string) => string, synced?: unknown }} [options] - Render options.
  * @returns {PreparedBlock[]} Blocks in document order.
  */
 export const prepareBlocks = (value, options = {}) => {
-  const data = normalizeEditorDataSafe(value);
-  if (!data) return [];
+  const normalized = normalizeEditorDataSafe(value);
+  if (!normalized) return [];
+  // Synced blocks (2.3): replaced by their source from `options.synced`, else by nothing.
+  const data = containsSynced(normalized.blocks)
+    ? expandSynced(normalized, syncedLookup(options.synced)).data
+    : normalized;
   const rawPolicy =
     options.rawHtml === 'allow' && typeof options.sanitizeRaw === 'function' ? 'allow' : 'disable';
   const ctx = { rawHtml: rawPolicy, rawSanitizer: () => '' };
+  // Definitions passed as `options.blocks` are used instead of the bundle registry (filled on the server).
+  const explicit = Array.isArray(options.blocks) ? compileBlockList(options.blocks) : null;
   const flat = data.blocks.map((block) => {
-    const known = Object.prototype.hasOwnProperty.call(BLOCK_POLICIES, block.type);
     const raw = isPlainObject(block.data) ? block.data : {};
-    const clean = known ? BLOCK_POLICIES[block.type](raw, keepInline, ctx) : raw;
+    const known = isBuiltInBlock({ type: block.type, data: raw });
+    const definition = known ? null : registeredBlockOf({ type: block.type, data: raw }, explicit);
+    const clean = known
+      ? BLOCK_POLICIES[block.type](raw, keepInline, ctx)
+      : definition
+        ? definition.clean(raw, keepInline)
+        : raw;
     for (const key of Object.keys(clean)) if (clean[key] === undefined) delete clean[key];
     return {
       id: block.id,
@@ -46,6 +71,7 @@ export const prepareBlocks = (value, options = {}) => {
       raw,
       tunes: sanitizeTunes(block.tunes),
       known,
+      definition,
       children: [],
     };
   });
@@ -111,10 +137,20 @@ export const imageCandidates = (file) => {
  * @param {object} file - Clean file from the block.
  * @param {object} block - Prepared block.
  * @param {{ media?: Function }} options - Render options.
+ * @param {{ mimePrefix?: string, vtt?: boolean }} [kind] - Kind of a non-image file (video, audio, track); images when omitted.
  * @returns {object} File to render.
  */
-export const resolveMedia = (file, block, options) => {
+export const resolveMedia = (file, block, options, kind) => {
   if (typeof options.media !== 'function') return file;
+  if (kind) {
+    let other;
+    try {
+      other = options.media({ ...file }, { id: block.id, type: block.type });
+    } catch {
+      other = null;
+    }
+    return isPlainObject(other) ? cleanMediaFile(other, kind) : file;
+  }
   let next;
   try {
     next = options.media({ ...file }, { id: block.id, type: block.type });
@@ -189,4 +225,53 @@ export const formatSize = (bytes) => {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+};
+
+/**
+ * Calls `fn` for every prepared block in document order (toggle content after its toggle).
+ * @param {PreparedBlock[]} blocks - Blocks.
+ * @param {(block: PreparedBlock) => void} fn - Visitor.
+ * @param {number} [depth=0] - Depth.
+ */
+const eachBlock = (blocks, fn, depth = 0) => {
+  if (depth > 16) return;
+  for (const block of blocks) {
+    fn(block);
+    if (block.children.length) eachBlock(block.children, fn, depth + 1);
+  }
+};
+
+/**
+ * Heading ids and table-of-contents data for one render. `options.headingIds`:
+ * `true` adds `id="mex-h-<blockId>"` to every heading, `false` never does
+ * (toc entries are then plain text), anything else adds them only when the
+ * document contains a `toc` block. Sets `anchor` on header blocks and
+ * `headings`/`linkHeadings` on toc blocks.
+ * @param {PreparedBlock[]} blocks - Prepared blocks (from `prepareBlocks`).
+ * @param {{ headingIds?: unknown }} [options] - Render options.
+ * @returns {PreparedBlock[]} The same blocks.
+ */
+export const annotateHeadings = (blocks, options = {}) => {
+  const tocs = [];
+  const headers = [];
+  eachBlock(blocks, (block) => {
+    if (!block.known) return;
+    if (block.type === 'toc') tocs.push(block);
+    else if (block.type === 'header') headers.push(block);
+  });
+  const enabled = options.headingIds === true || (options.headingIds !== false && tocs.length > 0);
+  if (!enabled && !tocs.length) return blocks;
+  const allocate = createAnchorAllocator();
+  const slugOf = createSlugAllocator();
+  const headings = headers.map((block) => {
+    const id = allocate(block.id);
+    const text = inlineToText(block.data.text);
+    if (enabled) block.anchor = id;
+    return { id: enabled ? id : null, slug: slugOf(text.trim()), level: block.data.level, text };
+  });
+  for (const toc of tocs) {
+    toc.headings = headings;
+    toc.linkHeadings = enabled;
+  }
+  return blocks;
 };

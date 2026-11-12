@@ -3,6 +3,8 @@ import { Badge, Box, Button, Flex, Typography, VisuallyHidden } from '@strapi/de
 import { ArrowClockwise } from '@strapi/icons';
 import styled from 'styled-components';
 import { blockText, diffDocuments, summarizeDiff } from '../../../../shared/diff.mjs';
+import { syncedDiffRefs } from '../../../../shared/synced.mjs';
+import { useSyncedSources } from '../../editor/synced-store';
 
 /**
  * "Changes" view of a version: what changed in the editor since this version.
@@ -59,6 +61,53 @@ const valueText = (value, empty) => {
   return text.length > MAX_VALUE_CHARS ? `${text.slice(0, MAX_VALUE_CHARS)}…` : text;
 };
 
+/** Labels of the built-in tunes. */
+const TUNE_LABELS = {
+  alignmentTune: { key: 'editor.history.diff.tune.alignmentTune', text: 'Alignment' },
+  textVariant: { key: 'editor.history.diff.tune.textVariant', text: 'Text variant' },
+  indentTune: { key: 'editor.history.diff.tune.indentTune', text: 'Indent' },
+};
+
+/** Labels of built-in tune values (indent levels are shown as numbers). */
+const TUNE_VALUES = {
+  alignmentTune: {
+    left: { key: 'editor.history.diff.tune.value.left', text: 'left' },
+    center: { key: 'editor.history.diff.tune.value.center', text: 'center' },
+    right: { key: 'editor.history.diff.tune.value.right', text: 'right' },
+    justify: { key: 'editor.history.diff.tune.value.justify', text: 'justified' },
+  },
+  textVariant: {
+    '': { key: 'editor.history.diff.tune.value.none', text: 'none' },
+    'call-out': { key: 'editor.history.diff.tune.value.callOut', text: 'call-out' },
+    citation: { key: 'editor.history.diff.tune.value.citation', text: 'citation' },
+    details: { key: 'editor.history.diff.tune.value.details', text: 'details' },
+  },
+};
+
+/**
+ * Human-readable text of one tune value.
+ * @param {{ tune: string, known: boolean }} change - Tune change.
+ * @param {string|number|null} value - Value (plain for built-in tunes, canonical JSON otherwise).
+ * @param {Function} t - Translator.
+ * @param {string} empty - Text for missing values.
+ * @returns {string} Text.
+ */
+export const tuneValueText = (change, value, t, empty) => {
+  if (value === null || value === undefined) return empty;
+  const label = change.known && TUNE_VALUES[change.tune] && TUNE_VALUES[change.tune][value];
+  if (label) return t(label.key, label.text);
+  return valueText(String(value), empty);
+};
+
+/**
+ * Human-readable name of a tune.
+ * @param {string} tune - Tune name.
+ * @param {Function} t - Translator.
+ * @returns {string} Label.
+ */
+export const tuneLabel = (tune, t) =>
+  TUNE_LABELS[tune] ? t(TUNE_LABELS[tune].key, TUNE_LABELS[tune].text) : tune;
+
 /**
  * Finds where a block that no longer exists would go back: after the nearest
  * earlier block that is still in the editor, else before the next one.
@@ -113,6 +162,25 @@ const TextOps = ({ ops, t }) => (
 export const VersionDiff = ({ t, version, current, versionNumber, canRestore, onRestoreBlock }) => {
   const entries = useMemo(() => diffDocuments(version, current), [version, current]);
   const counts = useMemo(() => summarizeDiff(entries), [entries]);
+  // Synced blocks store a reference only: the diff names the source ("Synced block <name>").
+  const syncedRefs = useMemo(() => {
+    const out = new Set();
+    for (const entry of entries) {
+      const refs = entry.op === 'equal' ? null : syncedDiffRefs(entry);
+      if (refs && refs.before) out.add(refs.before);
+      if (refs && refs.after) out.add(refs.after);
+    }
+    return [...out];
+  }, [entries]);
+  const { entries: syncedSources } = useSyncedSources(syncedRefs);
+  const syncedText = (ref) => {
+    const source = ref ? syncedSources.get(ref) : null;
+    if (source && source.template)
+      return t('editor.history.diff.synced', 'Synced block {name}', { name: source.template.name });
+    if (source && source.status === 'missing')
+      return t('editor.history.diff.syncedRemoved', 'Synced block (source deleted)');
+    return t('editor.history.diff.syncedUnknown', 'Synced block');
+  };
   const visible = entries
     .map((entry, index) => ({ entry, index }))
     .filter(({ entry }) => entry.op !== 'equal');
@@ -151,6 +219,7 @@ export const VersionDiff = ({ t, version, current, versionNumber, canRestore, on
             entry.op === 'removed'
               ? neighboursOf(entries, index)
               : { replaceId: entry.after ? entry.after.id : null, afterId: null, beforeId: null };
+          const synced = syncedDiffRefs(entry);
           return (
             <Entry
               tag="li"
@@ -173,24 +242,54 @@ export const VersionDiff = ({ t, version, current, versionNumber, canRestore, on
                     {entry.type}
                   </Typography>
                 </Flex>
-                {entry.op === 'added' ? (
+                {synced ? (
+                  <Text tag="p" variant="pi" textColor="neutral800" data-testid="mex-diff-synced">
+                    {synced.before && synced.before !== synced.after ? (
+                      <Deleted>
+                        <VisuallyHidden>{t('editor.history.diff.deleted', 'Removed text:')} </VisuallyHidden>
+                        {syncedText(synced.before)}
+                      </Deleted>
+                    ) : null}
+                    {synced.before && synced.after && synced.before !== synced.after ? ' → ' : null}
+                    {synced.after && synced.before !== synced.after ? (
+                      <Inserted>
+                        <VisuallyHidden>{t('editor.history.diff.inserted', 'Added text:')} </VisuallyHidden>
+                        {syncedText(synced.after)}
+                      </Inserted>
+                    ) : null}
+                    {synced.before === synced.after ? syncedText(synced.after) : null}
+                  </Text>
+                ) : null}
+                {!synced && entry.op === 'added' ? (
                   <Text tag="p" variant="pi" textColor="neutral800">
                     <Inserted>{blockText(entry.after) || empty}</Inserted>
                   </Text>
                 ) : null}
-                {entry.op === 'removed' ? (
+                {!synced && entry.op === 'removed' ? (
                   <Text tag="p" variant="pi" textColor="neutral800">
                     <Deleted>{blockText(entry.before) || empty}</Deleted>
                   </Text>
                 ) : null}
-                {(entry.fields || []).map((field) => (
+                {(synced ? [] : entry.fields || []).map((field) => (
                   <Box key={field.path} minWidth={0}>
-                    {entry.fields.length > 1 || field.kind === 'value' ? (
+                    {field.kind !== 'tunes' && (entry.fields.length > 1 || field.kind === 'value') ? (
                       <Typography variant="sigma" textColor="neutral600">
                         {field.path}
                       </Typography>
                     ) : null}
-                    {field.kind === 'text' ? (
+                    {field.kind === 'tunes' ? (
+                      <Flex tag="ul" direction="column" alignItems="stretch" gap={1}>
+                        {field.changes.map((change) => (
+                          <Text key={change.tune} tag="li" variant="pi" textColor="neutral800">
+                            {t('editor.history.diff.tune.change', '{tune}: {before} → {after}', {
+                              tune: tuneLabel(change.tune, t),
+                              before: tuneValueText(change, change.before, t, empty),
+                              after: tuneValueText(change, change.after, t, empty),
+                            })}
+                          </Text>
+                        ))}
+                      </Flex>
+                    ) : field.kind === 'text' ? (
                       <TextOps ops={field.ops} t={t} />
                     ) : (
                       <Text tag="p" variant="pi" textColor="neutral800">

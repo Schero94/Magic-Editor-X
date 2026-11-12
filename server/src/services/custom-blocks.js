@@ -17,6 +17,16 @@ const { uidSchema, issueDetails } = require('../utils/validation');
 
 const UID = 'plugin::magic-editor-x.custom-block';
 
+/**
+ * Names that became built-in tools in 2.3 (blocks `toc`, `gallery`, `video`,
+ * `audio`, `synced`; inline tool `mention`). New custom blocks cannot use
+ * them; a block created earlier under one of them keeps working and can still
+ * be edited under its name: its stored data has neither the built-in marker
+ * nor the built-in shape (`isBuiltInBlock`), so it is never rewritten, and its
+ * own editor tool keeps the name.
+ */
+const LEGACY_BUILT_IN_NAMES = new Set(['toc', 'gallery', 'video', 'audio', 'synced', 'mention']);
+
 /** Built-in tool names a custom block must not shadow. */
 const RESERVED_NAMES = new Set(
   [
@@ -333,6 +343,13 @@ module.exports = ({ strapi }) => {
   };
 
   const assertNameFree = async (name, exceptDocumentId) => {
+    // A block registered in code (custom block SDK) owns its name.
+    if (strapi.plugin('magic-editor-x').service('blocks').isRegisteredName(name)) {
+      throw new errors.ValidationError('Validation failed', {
+        formErrors: [],
+        fieldErrors: { name: ['A block with this name is defined in code'] },
+      });
+    }
     const rows = await query().findMany({ select: ['documentId', 'name'] });
     const clash = rows.find(
       (row) => row.name.toLowerCase() === name.toLowerCase() && row.documentId !== exceptDocumentId
@@ -341,6 +358,20 @@ module.exports = ({ strapi }) => {
       throw new errors.ValidationError('Validation failed', {
         formErrors: [],
         fieldErrors: { name: ['A block with this name already exists'] },
+      });
+    }
+  };
+
+  /**
+   * Refuses the 2.3 built-in block names unless the block already has that name.
+   * @param {string} name - Requested name.
+   * @param {string|null} [current] - Stored name of the block being updated.
+   */
+  const assertNotLegacyName = (name, current = null) => {
+    if (LEGACY_BUILT_IN_NAMES.has(name.toLowerCase()) && name !== current) {
+      throw new errors.ValidationError('Validation failed', {
+        formErrors: [],
+        fieldErrors: { name: ['This name is used by a built-in tool'] },
       });
     }
   };
@@ -380,6 +411,7 @@ module.exports = ({ strapi }) => {
     async create(input, user) {
       const parsed = blockSchema.safeParse(input);
       if (!parsed.success) fail(parsed.error);
+      assertNotLegacyName(parsed.data.name);
       await assertNameFree(parsed.data.name);
       const data = toRow(parsed.data);
       if (input.sortOrder === undefined) data.sortOrder = await nextSortOrder();
@@ -397,6 +429,7 @@ module.exports = ({ strapi }) => {
       const existing = await findByDocumentId(documentId);
       const parsed = blockSchema.safeParse(input);
       if (!parsed.success) fail(parsed.error);
+      assertNotLegacyName(parsed.data.name, existing.name);
       await assertNameFree(parsed.data.name, existing.documentId);
       const row = await query().update({ where: { id: existing.id }, data: toRow(parsed.data) });
       return toDto(row);
@@ -501,8 +534,13 @@ module.exports = ({ strapi }) => {
         const { id: _id, updatedAt: _u, createdAt: _c, documentId: _d, ...definition } = entry;
         const result = blockSchema.safeParse(definition);
         const name = typeof entry.name === 'string' ? entry.name.slice(0, 50) : '';
-        if (!result.success) skipped.push({ name, reason: 'invalid' });
-        else if (taken.has(result.data.name.toLowerCase())) skipped.push({ name, reason: 'exists' });
+        if (!result.success || LEGACY_BUILT_IN_NAMES.has(result.data.name.toLowerCase()))
+          skipped.push({ name, reason: 'invalid' });
+        else if (
+          taken.has(result.data.name.toLowerCase()) ||
+          strapi.plugin('magic-editor-x').service('blocks').isRegisteredName(result.data.name)
+        )
+          skipped.push({ name, reason: 'exists' });
         else {
           taken.add(result.data.name.toLowerCase());
           valid.push(result.data);
@@ -523,5 +561,6 @@ module.exports = ({ strapi }) => {
 
 module.exports.blockSchema = blockSchema;
 module.exports.RESERVED_NAMES = RESERVED_NAMES;
+module.exports.LEGACY_BUILT_IN_NAMES = LEGACY_BUILT_IN_NAMES;
 module.exports.SVG_OPTIONS = SVG_OPTIONS;
 module.exports.TEMPLATE_OPTIONS = TEMPLATE_OPTIONS;

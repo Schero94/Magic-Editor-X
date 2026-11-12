@@ -7,7 +7,9 @@ import {
   sameDraft,
   toDraft,
   toPayload,
+  toLanguageToolPayload,
   validateDraft,
+  validateLanguageTool,
 } from './configForm.mjs';
 
 /**
@@ -26,6 +28,7 @@ export const useConfigurationForm = () => {
   const [showErrors, setShowErrors] = useState(false);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [testingLanguageTool, setTestingLanguageTool] = useState(false);
   const mounted = useRef(true);
 
   useEffect(() => {
@@ -40,7 +43,7 @@ export const useConfigurationForm = () => {
       get(API.settings).then(
         ({ data }) => {
           if (!mounted.current) return;
-          const next = toDraft(data.data.ai);
+          const next = toDraft(data.data.ai, data.data.languageTool);
           setDto(data.data);
           setSaved(next);
           setDraft(next);
@@ -66,7 +69,14 @@ export const useConfigurationForm = () => {
 
   const errors = useMemo(() => {
     if (!draft || !dto) return {};
-    return validateDraft(draft, { saved, ai: dto.ai, environment: dto.environment });
+    return {
+      ...validateDraft(draft, { saved, ai: dto.ai, environment: dto.environment }),
+      ...validateLanguageTool(draft.languageTool, {
+        saved: saved && saved.languageTool,
+        dto: dto.languageTool,
+        environment: dto.environment,
+      }),
+    };
   }, [draft, dto, saved]);
 
   const setField = useCallback((key, value) => {
@@ -82,6 +92,19 @@ export const useConfigurationForm = () => {
 
   const replaceDraft = useCallback((next) => setDraft(next), []);
 
+  /** Updates one LanguageTool draft value (2.3); errors use `languageTool.<key>`. */
+  const setLanguageToolField = useCallback((key, value) => {
+    setDraft((current) => ({ ...current, languageTool: { ...current.languageTool, [key]: value } }));
+    setServerErrors((current) => {
+      const name = `languageTool.${key}`;
+      if (!current[name] && !current._form) return current;
+      const next = { ...current };
+      delete next[name];
+      delete next._form;
+      return next;
+    });
+  }, []);
+
   const dirty = Boolean(draft && saved && !sameDraft(draft, saved));
   const hasErrors = Object.keys(errors).length > 0;
 
@@ -95,7 +118,7 @@ export const useConfigurationForm = () => {
     setSaving(true);
     try {
       const { data } = await put(API.settings, toPayload(draft));
-      const stored = toDraft(data.data.ai);
+      const stored = toDraft(data.data.ai, data.data.languageTool);
       const adjusted = adjustedFields(draft, stored);
       setDto(data.data);
       setSaved(stored);
@@ -126,7 +149,9 @@ export const useConfigurationForm = () => {
    */
   const test = useCallback(async () => {
     setShowErrors(true);
-    const blocking = Object.keys(errors).filter((key) => key !== 'apiKey' || draft.apiKeyMode === 'replace');
+    const blocking = Object.keys(errors).filter(
+      (key) => !key.startsWith('languageTool.') && (key !== 'apiKey' || draft.apiKeyMode === 'replace')
+    );
     if (blocking.length) return { ok: false, invalid: true };
     setTesting(true);
     try {
@@ -139,6 +164,33 @@ export const useConfigurationForm = () => {
       return { ok: false, code: info.code, status: info.status };
     } finally {
       if (mounted.current) setTesting(false);
+    }
+  }, [draft, errors, post]);
+
+  /**
+   * Tests the LanguageTool connection with the current draft (2.3).
+   * @returns {Promise<{ ok: boolean, code?: string|null, invalid?: boolean }>} Outcome.
+   */
+  const testLanguageTool = useCallback(async () => {
+    setShowErrors(true);
+    const lt = draft && draft.languageTool;
+    const blocking = Object.keys(errors).filter(
+      (key) =>
+        key.startsWith('languageTool.') && (key !== 'languageTool.apiKey' || lt.apiKeyMode === 'replace')
+    );
+    if (!lt || !String(lt.baseUrl || '').trim()) return { ok: false, invalid: true, missingUrl: true };
+    if (blocking.length) return { ok: false, invalid: true };
+    setTestingLanguageTool(true);
+    try {
+      const payload = toLanguageToolPayload(lt);
+      if (lt.apiKeyMode === 'remove') payload.apiKey = '';
+      await post(API.settingsLanguageToolTest, { languageTool: payload });
+      return { ok: true };
+    } catch (error) {
+      const info = readApiError(error);
+      return { ok: false, code: info.code, status: info.status };
+    } finally {
+      if (mounted.current) setTestingLanguageTool(false);
     }
   }, [draft, errors, post]);
 
@@ -158,6 +210,9 @@ export const useConfigurationForm = () => {
     hasErrors,
     saving,
     testing,
+    testingLanguageTool,
+    setLanguageToolField,
+    testLanguageTool,
     reload: load,
     setField,
     replaceDraft,

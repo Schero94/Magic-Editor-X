@@ -24,6 +24,24 @@ const f =
     theme.fontSizes[index];
 const radius = ({ theme }) => theme.borderRadius;
 
+/** Half width (and height) of the select caret: a 12 x 6 px triangle like the DS CaretDown at 16 px. */
+const SELECT_CARET = '0.6rem';
+
+/**
+ * DS CaretDown drawn as two half-square gradients in neutral500 on the inline
+ * end of a native select (the 1px soft stop smooths the diagonal edge).
+ */
+const selectCaret = css`
+  background-image:
+    linear-gradient(45deg, transparent calc(50% - 0.5px), ${c('neutral500')} calc(50% + 0.5px)),
+    linear-gradient(135deg, ${c('neutral500')} calc(50% - 0.5px), transparent calc(50% + 0.5px));
+  background-position:
+    right calc(${s(3)} + ${SELECT_CARET}) center,
+    right ${s(3)} center;
+  background-size: ${SELECT_CARET} ${SELECT_CARET};
+  background-repeat: no-repeat;
+`;
+
 const ALERT_TONES = {
   primary: ['primary100', 'primary600', 'primary700'],
   secondary: ['secondary100', 'secondary600', 'secondary700'],
@@ -230,8 +248,46 @@ export const editorStyles = css`
       }
     }
 
+    /*
+     * Native <select> styled like the DS SingleSelect trigger: same border,
+     * radius, font and focus ring as the other block inputs (so a select and
+     * an input in one row have the same height), the DS caret (CaretDown,
+     * neutral500) on the inline end, pointer cursor, neutral300 border on
+     * hover. The element stays a native select, so labels, keyboard and
+     * screen reader behaviour are the browser's. The caret is drawn with two
+     * gradients from theme tokens: no image request, nothing for a strict
+     * img-src CSP to block, and it follows dark mode.
+     */
     .mex-tool__select {
-      appearance: auto;
+      appearance: none;
+      cursor: pointer;
+      color-scheme: ${({ theme }) => theme.colorScheme};
+      padding-inline-end: calc(${s(3)} + ${SELECT_CARET} * 2 + ${s(2)});
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      overflow: hidden;
+      ${selectCaret}
+
+      &:hover:not(:disabled):not(:focus) {
+        border-color: ${c('neutral300')};
+      }
+
+      &:disabled {
+        cursor: not-allowed;
+        background-color: ${c('neutral150')};
+        ${selectCaret}
+      }
+
+      &:dir(rtl) {
+        background-position:
+          left ${s(3)} center,
+          left calc(${s(3)} + ${SELECT_CARET}) center;
+      }
+
+      option {
+        background: ${c('neutral0')};
+        color: ${c('neutral800')};
+      }
     }
 
     .cdx-button,
@@ -345,6 +401,75 @@ export const editorStyles = css`
 
     .image-tool .mex-alt {
       margin-bottom: ${s(2)};
+    }
+
+    /* The official tool places the caption absolutely inside a fixed 50 px bottom padding;
+       taller content below the image (alternative text, AI suggestion) then ran under it.
+       The caption follows in normal flow instead. */
+    .image-tool--caption {
+      padding-bottom: 0;
+    }
+
+    .image-tool .image-tool__caption {
+      position: static;
+      margin-bottom: 0;
+    }
+
+    .image-tool:not(.image-tool--caption) .image-tool__caption {
+      display: none;
+    }
+
+    /* 2.3: AI alternative text suggestion (editor/ai-alt-text.js) */
+    .mex-alt-ai {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: ${s(2)};
+      min-width: 0;
+
+      .mex-alt-ai__status {
+        color: ${c('neutral600')};
+        font-size: ${f(1)};
+        margin: 0;
+
+        &:empty {
+          display: none;
+        }
+      }
+
+      .mex-alt-ai__result {
+        align-self: stretch;
+        border: 1px solid ${c('primary200')};
+        background: ${c('primary100')};
+        border-radius: ${radius};
+        padding: ${s(2)} ${s(3)};
+        min-width: 0;
+      }
+
+      .mex-alt-ai__label {
+        color: ${c('primary700')};
+        font-size: ${f(1)};
+        font-weight: 600;
+        margin: 0 0 ${s(1)};
+      }
+
+      .mex-alt-ai__text {
+        color: ${c('neutral800')};
+        margin: 0 0 ${s(2)};
+        overflow-wrap: anywhere;
+      }
+
+      .mex-alt-ai__actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: ${s(2)};
+      }
+    }
+
+    ::highlight(mex-grammar) {
+      text-decoration: underline wavy ${c('danger600')};
+      background-color: ${c('danger100')};
+      color: ${c('neutral800')};
     }
 
     ::highlight(mex-find) {
@@ -715,6 +840,77 @@ export const editorStyles = css`
       margin: ${s(5)} ${s(8)};
     }
 
+    /* Table of contents (settings + live preview of the headings) */
+    .mex-toc {
+      border: 1px solid ${c('neutral200')};
+      border-radius: ${radius};
+      background: ${c('neutral100')};
+      padding: ${s(3)} ${s(4)};
+      margin: ${s(2)} 0;
+
+      .mex-tool__grid {
+        margin-top: 0;
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+      }
+
+      .mex-tool__muted {
+        margin: 0;
+      }
+    }
+
+    .mex-toc__title {
+      margin: 0 0 ${s(2)};
+      font-weight: 600;
+      color: ${c('neutral800')};
+    }
+
+    ul.mex-toc__list {
+      list-style: disc;
+    }
+
+    ol.mex-toc__list {
+      list-style: decimal;
+    }
+
+    .mex-toc__list {
+      margin: 0;
+      padding-inline-start: ${s(5)};
+      color: ${c('neutral800')};
+      overflow-wrap: anywhere;
+
+      .mex-toc__list {
+        margin-top: ${s(1)};
+      }
+    }
+
+    .mex-toc__item + .mex-toc__item {
+      margin-top: ${s(1)};
+    }
+
+    /* Mention chip (inline entry reference, <a data-mex-mention>) */
+    .ce-block a[data-mex-mention] {
+      text-decoration: none;
+      color: ${c('primary700')};
+      background: ${c('primary100')};
+      border: 1px solid ${c('primary200')};
+      border-radius: ${radius};
+      padding: 0 ${s(1)};
+      white-space: normal;
+      overflow-wrap: anywhere;
+      box-decoration-break: clone;
+      -webkit-box-decoration-break: clone;
+
+      &::before {
+        content: '@';
+        color: ${c('primary600')};
+      }
+
+      &:focus-visible {
+        outline: 2px solid ${c('primary600')};
+        outline-offset: 1px;
+      }
+    }
+
     /* Toggle */
     .mex-toggle {
       display: flex;
@@ -795,9 +991,12 @@ export const editorStyles = css`
       padding: ${s(2)};
       border-bottom: 1px solid ${c('neutral200')};
 
+      /* Compact like the DS SingleSelect size S; the inline end keeps room for the caret. */
       .mex-tool__select {
         width: auto;
-        padding: ${s(1)} ${s(2)};
+        max-width: 100%;
+        padding-block: ${s(1)};
+        padding-inline-start: ${s(2)};
         font-size: ${f(1)};
       }
     }
@@ -952,6 +1151,244 @@ export const editorStyles = css`
 
     .mex-simple-image--stretched .mex-simple-image__img {
       width: 100%;
+    }
+
+    /* Media Library blocks (gallery, video, audio) and the focal point control */
+    .mex-gallery-tool,
+    .mex-media {
+      display: flex;
+      flex-direction: column;
+      gap: ${s(3)};
+      min-width: 0;
+    }
+
+    .mex-media__toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-end;
+      gap: ${s(3)};
+      min-width: 0;
+
+      .mex-tool__field {
+        flex: 1 1 14rem;
+      }
+    }
+
+    .mex-media__toolbar-action,
+    .mex-media__row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: ${s(2)};
+    }
+
+    .mex-gallery-tool__items {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(min(100%, 22rem), 1fr));
+      gap: ${s(3)};
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+
+    .mex-gallery-tool__item {
+      display: flex;
+      flex-direction: column;
+      gap: ${s(2)};
+      min-width: 0;
+      padding: ${s(3)};
+      border: 1px solid ${c('neutral200')};
+      border-radius: ${radius};
+      background: ${c('neutral0')};
+    }
+
+    .mex-gallery-tool__media {
+      border-radius: ${radius};
+      background: ${c('neutral100')};
+      overflow: hidden;
+      aspect-ratio: 4 / 3;
+    }
+
+    .mex-gallery-tool__thumb {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+
+    .mex-gallery-tool__head {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: ${s(2)};
+    }
+
+    .mex-gallery-tool__position,
+    .mex-media__file {
+      margin: 0;
+      color: ${c('neutral600')};
+      font-size: ${f(1)};
+      overflow-wrap: anywhere;
+      min-width: 0;
+    }
+
+    .mex-gallery-tool__actions {
+      display: flex;
+      gap: ${s(1)};
+    }
+
+    .mex-tool__button--icon {
+      justify-content: center;
+      min-width: 32px;
+      padding: ${s(1)};
+    }
+
+    .mex-tool__button--danger {
+      color: ${c('danger700')};
+      border-color: ${c('danger200')};
+
+      &:hover {
+        background: ${c('danger100')};
+      }
+    }
+
+    .mex-media__caption {
+      text-align: start;
+    }
+
+    .mex-media__preview {
+      border-radius: ${radius};
+      background: ${c('neutral100')};
+      overflow: hidden;
+    }
+
+    .mex-media__player {
+      display: block;
+      width: 100%;
+      max-height: 48rem;
+    }
+
+    .mex-media--audio .mex-media__preview {
+      padding: ${s(3)};
+    }
+
+    .mex-media__flags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: ${s(4)};
+    }
+
+    .mex-media__section {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: ${s(2)};
+      padding-top: ${s(3)};
+      border-top: 1px solid ${c('neutral150')};
+      min-width: 0;
+
+      > * {
+        max-width: 100%;
+      }
+    }
+
+    .mex-media__poster {
+      max-width: min(100%, 24rem);
+      border-radius: ${radius};
+    }
+
+    .mex-media__tracks {
+      display: flex;
+      flex-direction: column;
+      gap: ${s(3)};
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      align-self: stretch;
+    }
+
+    .mex-media__track {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: ${s(2)};
+      padding: ${s(3)};
+      border: 1px solid ${c('neutral200')};
+      border-radius: ${radius};
+
+      .mex-tool__grid {
+        align-self: stretch;
+        margin: 0;
+      }
+    }
+
+    .mex-focal {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: ${s(2)};
+      min-width: 0;
+    }
+
+    .image-tool .mex-focal {
+      margin-bottom: ${s(2)};
+    }
+
+    .mex-focal__panel {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: ${s(2)};
+      max-width: 100%;
+
+      &[hidden] {
+        display: none;
+      }
+    }
+
+    .mex-focal__surface {
+      position: relative;
+      display: block;
+      width: min(100%, 36rem);
+      cursor: crosshair;
+      border-radius: ${radius};
+      line-height: 0;
+
+      &:focus-visible {
+        outline: 2px solid ${c('primary600')};
+        outline-offset: 2px;
+      }
+    }
+
+    .mex-focal__img {
+      display: block;
+      width: 100%;
+      height: auto;
+      border-radius: ${radius};
+      user-select: none;
+    }
+
+    .mex-focal__marker {
+      position: absolute;
+      width: 24px;
+      height: 24px;
+      margin: -12px 0 0 -12px;
+      border: 3px solid ${c('neutral0')};
+      border-radius: 50%;
+      box-shadow:
+        0 0 0 2px ${c('primary600')},
+        inset 0 0 0 2px ${c('primary600')};
+      pointer-events: none;
+
+      &[hidden] {
+        display: none;
+      }
+    }
+
+    .mex-focal__value {
+      margin: 0;
+      font-size: ${f(1)};
+      color: ${c('neutral800')};
     }
 
     /* Person */

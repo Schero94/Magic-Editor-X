@@ -7,7 +7,10 @@ module.exports = {
   collaboration: require('./collaboration'),
   history: require('./history'),
   ai: require('./ai'),
+  grammar: require('./grammar'),
   settings: require('./settings'),
   links: require('./links'),
   quality: require('./quality'),
+  comments: require('./comments'),
+  templates: require('./templates'),
 };

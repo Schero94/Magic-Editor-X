@@ -27,16 +27,22 @@ Integration and browser tests run against a separate Strapi 5 app that installs 
 2. Pack the plugin into it: `npm run build && npm pack --pack-destination <app>/pkg`, then `npm install` in the app. `npm ls react styled-components` must show one version each.
 3. Configure the app:
    - `config/server`: `host: '127.0.0.1'`, a port of its own (not 1337), `logger: { updates: { enabled: false } }`.
-   - `config/admin`: `auth.secret`, `apiToken.salt`, `transfer.token.salt`, `secrets.encryptionKey` from the environment.
+   - `config/admin`: `auth.secret`, `apiToken.salt`, `transfer.token.salt`, `secrets.encryptionKey` from the environment, and `rateLimit: { max: 20 }` (the suite logs in once per test file; Strapi's default allows 5 logins per 5 minutes).
+   - `config/api`: `rest: { strictParams: true }` (the output tests check that `?mex=` is a registered parameter).
    - `config/database`: SQLite file in the app folder, or PostgreSQL from `DATABASE_URL`.
-   - `config/plugins`: `'magic-editor-x': { enabled: true, config: { ai: { allowPrivateBaseUrl: true } } }` so the tests can use a fake AI provider on 127.0.0.1.
-   - Content types for the tests: `api::article.article` (localised, Draft & Publish) with `title` (string), `slug` (uid of `title`), `body` (Magic Editor X), `summary` (Magic Editor X with the options `{ "preset": "basic", "requireAlt": true, "maxCharacters": 400, "linkTargets": "internal", "disableAi": true, "disableCollaboration": true, "publishGuard": true }`), `teaser` (Magic Editor X with `{ "preset": "minimal" }`), `legacy` (Blocks), `notes` (Rich text, Markdown), `migrated` (Magic Editor X) and a repeatable component `sections` with a Magic Editor X field `body`; `api::homepage.homepage` (single type) with `intro` (Magic Editor X).
+   - `config/plugins`: `'magic-editor-x': { enabled: true, config: { ai: { allowPrivateBaseUrl: true }, languageTool: { allowPrivateBaseUrl: true }, qualityChecks: { externalLinks: { enabled: true, allowPrivateOrigins: ['http://127.0.0.1:1578'], schedule: { enabled: true } } } } }` so the tests can use a fake AI provider, a fake LanguageTool server and fake link targets on 127.0.0.1 (`tests/integration/link-schedule.test.mjs` starts link servers on `MEX_LINK_PORT`, default 1578, which must match the listed origin, and on `MEX_LINK_DENIED_PORT`, default 1579, which must stay unlisted). Make `languageTool.allowPrivateBaseUrl` follow an environment variable: `tests/integration/ai-23.test.mjs` runs a second time against the app started with it off and `MEX_LT_PRIVATE=false` to check the refusal of private grammar servers.
+   - `src/index.js`: register the example block of the block SDK (`tests/fixtures/callout-card.mjs`) in `register()` with `strapi.plugin('magic-editor-x').service('blocks').register(calloutCard)` (`tests/integration/sdk.test.mjs`).
+   - `src/index.js` `bootstrap()`: when `process.env.MEX_LEGACY_BLOCKS === 'true'` and no custom block named `toc` exists, write one the way the 2.2 service did, because 2.3 refuses the name for new blocks: `strapi.db.query('plugin::magic-editor-x.custom-block').create({ data: { name: 'toc', label: 'Legacy contents box', blockType: 'simple', fields: [{ name: 'title', label: 'Title', type: 'text' }], displayFields: [], previewFields: [], tunes: [], styles: {}, inlineToolbar: true, enabled: true, sortOrder: 900 } })`. Start the host with `MEX_LEGACY_BLOCKS=true` for the integration suite (`tests/integration/reserved-names.test.mjs` fails with a hint otherwise). It replaces the built-in table of contents tool in that host's editor, so leave it off for browser checks of the built-in `toc` block.
+   - Content types for the tests: `api::article.article` (localised, Draft & Publish) with `title` (string), `slug` (uid of `title`), `body` (Magic Editor X), `summary` (Magic Editor X with the options `{ "preset": "basic", "requireAlt": true, "maxCharacters": 400, "linkTargets": "internal", "disableAi": true, "disableGrammar": true, "disableCollaboration": true, "publishGuard": true }`), `teaser` (Magic Editor X with `{ "preset": "minimal" }`), `legacy` (Blocks), `notes` (Rich text, Markdown), `migrated` (Magic Editor X) and a repeatable component `sections` with a Magic Editor X field `body`; `api::homepage.homepage` (single type) with `intro` (Magic Editor X); `api::category.category` (Draft & Publish) with `name` (string), `slug` (uid of `name`), `secretNote` (private string) and `body` (Magic Editor X); on the article also a `category` relation (many to one) and a dynamic zone `zone` with `blocks.text-section`. Add `@strapi/plugin-graphql` 5.61.x and set `links.urlPattern` to `'/{locale}/{collection}/{slug}'` in the plugin config.
 4. Generate every secret with `crypto.randomBytes` into `.env` (mode 600), including `MAGIC_EDITOR_X_ENCRYPTION_KEY`. Never print or commit them.
 5. Start the app with outgoing network blocked: `NODE_OPTIONS="-r ./block-egress.cjs" npx strapi start` (a preload that only allows loopback connections).
-6. Seed it through the admin API: register the first admin with `POST /admin/register-admin`, create three admins (`editor@example.test` with the Editor role plus `access`, `collaborate` and `ai.use`; `author@example.test` with the Author role and no plugin actions; `reviewer@example.test` with a role that can only read articles and the homepage and has `access` and `collaborate`), add the locale `de`, and write the credentials to a `creds.json` with mode 600:
+6. Seed it through the admin API: register the first admin with `POST /admin/register-admin` (Super Admin, which also has `templates.manage`), create five admins (`editor@example.test` with the Editor role plus `access`, `collaborate`, `ai.use`, `grammar.use`, `comments.read` and `comments.write`; `author@example.test` with the Author role and no plugin actions; `reviewer@example.test` with a role that can only read articles (fields `title`, `body`, `sections`, locales `en` and `de`) and the homepage and has `access`, `collaborate`, `comments.read` and `comments.write`; `reader@example.test` with a role that can only read articles and has `access` and `comments.read`; `writer@example.test` with a role that can read and update articles (locales `en` and `de`) and has `access`, `ai.use` and `grammar.use` but no Media Library permission), add the locale `de`, and write the credentials to a `creds.json` with mode 600:
 
 ```json
-{ "admin": { "email": "...", "password": "..." }, "users": { "editor": {}, "author": {}, "reviewer": {} } }
+{
+  "admin": { "email": "...", "password": "..." },
+  "users": { "editor": {}, "author": {}, "reviewer": {}, "reader": {}, "writer": {} }
+}
 ```
 
 Use synthetic data only (`*.example.test`, RFC 5737 addresses).
@@ -49,7 +55,21 @@ MEX_HOST_URL=http://127.0.0.1:<port> MEX_CREDS=<app>/creds.json npm run test:int
 
 The suite fails, never skips, when the variables are missing. It covers anonymous and role-based access, sanitising on save, custom blocks, version history with Content Manager permissions, collaboration over Socket.IO (two editors converging, read-only viewers, single-use and forged tokens, foreign origins), upload checks, the SSRF guard, the AI proxy against a local fake provider and the Content API output.
 
+Block comments of deleted entries must be gone afterwards; on the host database `select count(*) from magic_editor_comments c where not exists (select 1 from articles a where a.document_id = c.entry_id and a.locale = c.entry_locale)` returns 0.
+
 Run it on SQLite and on PostgreSQL: start the same app with `DATABASE_CLIENT=postgres DATABASE_URL=postgres://<user>@127.0.0.1:<port>/<database>` on a fresh database, seed it and run the suite again. The AI test uses the per-admin rate limit; wait a minute before running the suite twice against the same process.
+
+## Performance benchmark
+
+`npm run bench` (`scripts/bench.mjs`) builds synthetic documents of 500, 2000 and 5000 blocks from `tests/fixtures/editor-2x-all-blocks.json` (every block type, nested lists, tables, inline formatting, links) and measures the median of seven samples after a warm-up for normalise + sanitise, the three renderers, the version diff, find and replace, Yjs seed + apply, the quality lint and the preset check. Fast operations repeat inside a sample until it lasts 25 ms, so medians of small documents are stable. `--json` prints machine-readable results. CI runs it in the `bench` job.
+
+Thresholds live in `scripts/bench-thresholds.json` and are chosen so that the job does not flake on shared CI runners but still catches real regressions:
+
+- `budgetMs5000`: an absolute budget per operation at 5000 blocks, about ten times the median measured on a developer laptop (Apple M-series, Node 22) and at least 250 ms. A slower runner or a busy machine stays far below it; an accidental algorithmic change or a pathological slowdown does not.
+- `maxScaling`: the bound for `time(5000 blocks) / time(500 blocks)`. Linear work gives about 10; a quadratic step gives about 100. The bound is 30 for linear operations, so noise of a factor 2 to 3 passes and O(n²) fails.
+- `counters`: deterministic results (blocks kept by normalise + sanitise, find matches equal to replacements, blocks after the Yjs round trip, diff entries, lint issues, preset violations). A change here means the operation now does different work and the threshold file must be updated deliberately with the reason in the commit.
+
+When a change makes an operation legitimately slower, re-measure with `npm run bench -- --json` at least five times, update the numbers in the JSON and explain the change in the commit body.
 
 ## Several processes
 

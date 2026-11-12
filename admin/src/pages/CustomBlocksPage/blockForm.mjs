@@ -17,6 +17,9 @@ export const FIELD_TYPES = Object.freeze([
 export const TUNES = Object.freeze(['alignmentTune', 'textVariant', 'indentTune']);
 export const BLOCK_TYPES = Object.freeze(['simple', 'embedded-entry']);
 
+/** Names that became built-in tools in 2.3; an existing custom block keeps its name (same list as the server). */
+export const LEGACY_NAMES = Object.freeze(['toc', 'gallery', 'video', 'audio', 'synced', 'mention']);
+
 /** Built-in tool names (lower case), same list as the server. */
 export const RESERVED_NAMES = Object.freeze(
   [
@@ -29,11 +32,16 @@ export const RESERVED_NAMES = Object.freeze(
     'code',
     'codeFlask',
     'delimiter',
+    'toc',
     'table',
     'embed',
     'raw',
     'image',
     'simpleImage',
+    'gallery',
+    'video',
+    'audio',
+    'synced',
     'linkTool',
     'attaches',
     'personality',
@@ -49,6 +57,7 @@ export const RESERVED_NAMES = Object.freeze(
     'strikethrough',
     'tooltip',
     'hyperlink',
+    'mention',
     'aiAssistant',
     'textVariant',
     'alignmentTune',
@@ -250,7 +259,7 @@ export const toPayload = (values) => {
 /**
  * Validates the form like the server does.
  * @param {object} values - Form values.
- * @param {{ existingNames?: string[] }} [context] - Names of other blocks (lower case not required).
+ * @param {{ existingNames?: string[], originalName?: string|null }} [context] - Names of other blocks (lower case not required) and the stored name of the block being edited.
  * @returns {Record<string, string>} Path -> error code.
  */
 export const validateBlock = (values, context = {}) => {
@@ -258,7 +267,12 @@ export const validateBlock = (values, context = {}) => {
   const name = String(values.name || '').trim();
   if (!name) errors.name = 'required';
   else if (!NAME_PATTERN.test(name)) errors.name = 'namePattern';
-  else if (RESERVED_NAMES.includes(name.toLowerCase())) errors.name = 'reserved';
+  // A block created before 2.3 may keep a name that 2.3 gave to a built-in tool (`LEGACY_NAMES`).
+  else if (
+    RESERVED_NAMES.includes(name.toLowerCase()) &&
+    !(LEGACY_NAMES.includes(name.toLowerCase()) && context.originalName === name)
+  )
+    errors.name = 'reserved';
   else if ((context.existingNames || []).some((other) => other.toLowerCase() === name.toLowerCase()))
     errors.name = 'taken';
   const label = String(values.label || '').trim();

@@ -2,6 +2,7 @@
 
 const { createLogger } = require('./utils/logger');
 const { registerPermissions } = require('./permissions');
+const { subscribeCommentAuthorCleanup } = require('./utils/comment-retention');
 
 /**
  * Bootstrap: RBAC actions, plugin tables, migrations, the response parser
@@ -35,6 +36,9 @@ module.exports = async ({ strapi }) => {
     logger.error('database setup failed', error);
   }
 
+  // Code-registered blocks (custom block SDK): a Settings block with the same name stops the start.
+  await plugin.service('blocks').verify();
+
   // The plugin never changes the CSP; it only tells the owner what the editor preview needs.
   try {
     const csp = plugin.service('settings').inspectAdminCsp();
@@ -47,8 +51,18 @@ module.exports = async ({ strapi }) => {
     logger.error('the admin Content Security Policy could not be inspected', error);
   }
 
+  // Opt-in output transform (`?mex=`); registered first so it runs after the 1.x string parser below.
+  strapi.server.use(plugin.middleware('render-output')({}, { strapi }));
+
   if (strapi.config.get('plugin::magic-editor-x.api.autoParseJSON') !== false) {
     strapi.server.use(plugin.middleware('parse-editor-fields')({}, { strapi }));
+  }
+
+  try {
+    // Opt-in scheduled external link check (one process per fire time, see services/link-schedule.js).
+    if (plugin.service('link-schedule').schedule()) logger.info('scheduled link check is on');
+  } catch (error) {
+    logger.error('the scheduled link check could not be registered', error);
   }
 
   try {
@@ -74,4 +88,7 @@ module.exports = async ({ strapi }) => {
     afterDelete: onPermissionChange,
     afterDeleteMany: onPermissionChange,
   });
+
+  // Block comments: clear the author snapshot of deleted admin users.
+  subscribeCommentAuthorCleanup(strapi);
 };

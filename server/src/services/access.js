@@ -62,11 +62,13 @@ module.exports = ({ strapi }) => {
         if (!effectiveLocale) throw notFound();
       }
       const pc = checker(userAbility, uid);
-      if (pc.cannot.read() || pc.cannot.read(null, resolved.topLevel)) throw notFound();
+      // Field permissions name component fields with their path (`sections.body`), never the bare component.
+      const permissionField = resolved.permissionField || resolved.topLevel;
+      if (pc.cannot.read() || pc.cannot.read(null, permissionField)) throw notFound();
       const readable = await findAllowed(pc, 'read', uid, documentId, effectiveLocale || undefined);
       if (!readable) throw notFound();
       let canUpdate = false;
-      if (!pc.cannot.update() && !pc.cannot.update(null, resolved.topLevel)) {
+      if (!pc.cannot.update() && !pc.cannot.update(null, permissionField)) {
         canUpdate = Boolean(await findAllowed(pc, 'update', uid, documentId, effectiveLocale || undefined));
       }
       return { canRead: true, canUpdate, locale: effectiveLocale, topLevelField: resolved.topLevel };

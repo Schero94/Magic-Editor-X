@@ -11,6 +11,7 @@
 
 import { isPlainObject } from './editor-data.mjs';
 import { parseInline, nodesToHtml } from './render/inline.mjs';
+import { registeredBlockOf, isBuiltInBlock } from './sanitize-policy.mjs';
 
 export const MAX_QUERY_LENGTH = 200;
 export const MAX_MATCHES = 5000;
@@ -58,9 +59,12 @@ const HTML_FIELDS = {
   toggle: ['text'],
   image: ['caption'],
   simpleImage: ['caption'],
+  gallery: ['caption'],
+  video: ['caption'],
+  audio: ['caption'],
   embed: ['caption'],
 };
-const PLAIN_FIELDS = { code: ['code'], codeFlask: ['code'] };
+const PLAIN_FIELDS = { code: ['code'], codeFlask: ['code'], toc: ['title'] };
 
 /**
  * Lists the searchable fields of a block as `{ path, kind, value }`.
@@ -69,7 +73,12 @@ const PLAIN_FIELDS = { code: ['code'], codeFlask: ['code'] };
  */
 export const searchableFields = (block) => {
   const data = isPlainObject(block && block.data) ? block.data : {};
+  // Code-registered blocks (custom block SDK): the text and inline fields of their schema.
+  const definition = registeredBlockOf(block);
+  if (definition) return definition.fields(data);
   const out = [];
+  // Settings custom blocks (also those created before 2.3 under a built-in name) have no searchable fields.
+  if (!isBuiltInBlock(block)) return out;
   for (const key of HTML_FIELDS[block.type] || [])
     if (typeof data[key] === 'string') out.push({ path: [key], kind: 'html', value: data[key] });
   for (const key of PLAIN_FIELDS[block.type] || [])
@@ -88,6 +97,11 @@ export const searchableFields = (block) => {
     };
     walk(data.items, ['items'], 0);
   }
+  if (block.type === 'gallery' && Array.isArray(data.images))
+    data.images.forEach((item, index) => {
+      if (isPlainObject(item) && typeof item.caption === 'string')
+        out.push({ path: ['images', index, 'caption'], kind: 'html', value: item.caption });
+    });
   if (block.type === 'checklist' && Array.isArray(data.items))
     data.items.forEach((item, index) => {
       if (isPlainObject(item) && typeof item.text === 'string')
@@ -278,7 +292,7 @@ export const replaceMatches = (data, query, replacement, options = {}, scope = {
           }
         };
         walk(nodes);
-        value = changed ? nodesToHtml(nodes) : field.value;
+        value = changed ? nodesToHtml(nodes, { storage: true }) : field.value;
       }
       if (changed) nextData = setPath(nextData, field.path, value);
     }

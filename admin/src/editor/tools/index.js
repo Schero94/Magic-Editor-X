@@ -29,11 +29,18 @@ import {
   MediaLibraryTool,
 } from './blocks';
 import { CodeHighlightTool } from './code-highlight';
+import { TocTool } from './toc';
+import { SyncedTool } from './synced';
+import { MentionTool } from './mention';
 import { ToggleTool } from './toggle';
 import { ChecklistTool } from './checklist';
 import { buildCustomBlockTools } from './custom-block';
 import { MexImageTool } from './alt-text';
+import { GalleryTool, VideoTool, AudioTool } from './media';
+import { MARKED_BLOCKS } from '../../../../shared/sanitize-policy.mjs';
+import { markedTool } from './marked';
 import { isBlockAllowed } from '../../../../shared/presets.mjs';
+import { buildCodeBlockTools } from '../block-registry';
 
 export { createUndoManager } from './undo';
 export { createDragDrop } from './drag-drop';
@@ -58,6 +65,24 @@ const INLINE = [
   'tooltip',
 ];
 
+/** Names 2.3 gave to built-in tools that a Settings custom block could already have. */
+const LEGACY_CUSTOM_NAMES = new Set([...Object.keys(MARKED_BLOCKS), 'mention']);
+
+/**
+ * Key of the mention inline tool when a custom block owns `mention`. Custom
+ * block names cannot contain `$`, so it never clashes with one.
+ */
+const MENTION_FALLBACK_KEY = 'mention$mex';
+
+/**
+ * True when an enabled custom block has this exact name.
+ * @param {unknown} blocks - Custom block DTOs.
+ * @param {string} name - Tool name.
+ * @returns {boolean} Result.
+ */
+const hasCustomBlock = (blocks, name) =>
+  Array.isArray(blocks) && blocks.some((block) => block && block.name === name && block.enabled !== false);
+
 /**
  * Builds the `tools` object for `new EditorJS({ tools })`.
  * @param {object} ctx - Context from the editor field (see README in the parent component).
@@ -66,11 +91,25 @@ const INLINE = [
 export function buildTools(ctx) {
   const t = typeof ctx.t === 'function' ? ctx.t : (_id, fallback) => fallback;
   const preset = ctx.preset || null;
-  const allowedInline =
+  const presetInline =
     preset && preset.inline ? INLINE.filter((name) => preset.inline.includes(name)) : INLINE;
+  // Mentions are internal links: offered with the hyperlink tool when the field allows links to entries.
+  const linkTargets = (preset && preset.linkTargets) || 'all';
+  const mentions =
+    presetInline.includes('hyperlink') &&
+    (linkTargets === 'all' || linkTargets === 'internal') &&
+    Boolean(ctx.fetchClient && typeof ctx.fetchClient.get === 'function');
+  // A custom block named `mention` from before 2.3 keeps the name; the inline tool then uses another key
+  // (inline tools store no name, so this changes nothing in the content).
+  const mentionKey = hasCustomBlock(ctx.customBlocks, 'mention') ? MENTION_FALLBACK_KEY : 'mention';
+  const allowedInline = mentions
+    ? presetInline.flatMap((name) => (name === 'hyperlink' ? [name, mentionKey] : [name]))
+    : presetInline;
   const inline = ctx.aiEnabled ? [...allowedInline, 'aiAssistant'] : allowedInline;
   const levels = preset && preset.headingLevels.length ? preset.headingLevels : [1, 2, 3, 4, 5, 6];
   const canUpload = ctx.canUpload !== false;
+  // Choosing files in the Media Library dialog needs `plugin::upload.read`.
+  const canBrowse = ctx.canBrowse === true && typeof ctx.openMediaLibrary === 'function';
   const shared = {
     t,
     fetchClient: ctx.fetchClient,
@@ -91,7 +130,7 @@ export function buildTools(ctx) {
       tunes: ['alignmentTune', 'textVariant', 'indentTune'],
       config: {
         placeholder:
-          ctx.placeholder || t('tools.paragraph.placeholder', 'Write, or press Tab to choose a block'),
+          ctx.placeholder || t('tools.paragraph.placeholder', 'Write, or type / to choose a block'),
         preserveBlank: true,
       },
     },
@@ -151,6 +190,9 @@ export function buildTools(ctx) {
     },
     codeFlask: { class: CodeHighlightTool, config: { ...shared, language: 'javascript' } },
     delimiter: { class: DelimiterTool, shortcut: 'CMD+SHIFT+D', config: shared },
+    toc: { class: markedTool(TocTool, 'toc'), config: { t, levels } },
+    // Synced block (2.3): inserted from the template dialog; the field renders its view (`ctx.mountSynced`).
+    synced: { class: markedTool(SyncedTool, 'synced'), config: { t, mount: ctx.mountSynced } },
     table: {
       class: Table,
       inlineToolbar: inline,
@@ -192,12 +234,37 @@ export function buildTools(ctx) {
         buttonContent: t('tools.image.select', 'Select an image'),
         t,
         requireAlt: Boolean(preset && preset.requireAlt),
+        // 2.3: AI alternative text suggestion (only when the owner and the field allow it).
+        suggestAltText: ctx.suggestAltText,
       },
     },
     simpleImage: {
       class: SimpleImageTool,
       inlineToolbar: inline,
       config: { ...shared, requireAlt: Boolean(preset && preset.requireAlt) },
+    },
+    gallery: {
+      class: markedTool(GalleryTool, 'gallery'),
+      inlineToolbar: inline,
+      toolbox: canBrowse ? undefined : false,
+      config: {
+        ...shared,
+        canBrowse,
+        requireAlt: Boolean(preset && preset.requireAlt),
+        suggestAltText: ctx.suggestAltText,
+      },
+    },
+    video: {
+      class: markedTool(VideoTool, 'video'),
+      inlineToolbar: inline,
+      toolbox: canBrowse ? undefined : false,
+      config: { ...shared, canBrowse, getLocale: ctx.getContentLocale },
+    },
+    audio: {
+      class: markedTool(AudioTool, 'audio'),
+      inlineToolbar: inline,
+      toolbox: canBrowse ? undefined : false,
+      config: { ...shared, canBrowse, getLocale: ctx.getContentLocale },
     },
     linkTool: { class: LinkPreviewTool, config: shared },
     attaches: {
@@ -229,6 +296,15 @@ export function buildTools(ctx) {
         linkTargets: (preset && preset.linkTargets) || 'all',
       },
     },
+    ...(mentions
+      ? {
+          [mentionKey]: {
+            class: MentionTool,
+            shortcut: 'CMD+SHIFT+2',
+            config: { t, fetchClient: ctx.fetchClient, getLocale: ctx.getContentLocale },
+          },
+        }
+      : {}),
 
     alignmentTune: { class: AlignmentTune, config: { t, default: 'left' } },
     textVariant: { class: TextVariantTune, config: { t } },
@@ -251,16 +327,26 @@ export function buildTools(ctx) {
 
   const custom = buildCustomBlockTools(ctx.customBlocks, { ...ctx, t, canUpload }, shared);
   for (const [name, tool] of Object.entries(custom)) {
-    if (!Object.prototype.hasOwnProperty.call(tools, name)) {
+    // A custom block created before 2.3 under a name 2.3 gave to a built-in tool
+    // (`toc`, `gallery`, `video`, `audio`, `synced`, `mention`) keeps its own tool.
+    const legacy = LEGACY_CUSTOM_NAMES.has(name);
+    if (legacy || !Object.prototype.hasOwnProperty.call(tools, name)) {
       tools[name] = tool.inlineToolbar === true ? { ...tool, inlineToolbar: inline } : tool;
     }
   }
+  // 2.3: blocks registered in code by the host app (custom block SDK). Their
+  // names never clash with built-in tools; a Settings block of the same name
+  // cannot exist (the server refuses to start), so the code tool wins.
+  const code = buildCodeBlockTools({ t, locale: ctx.locale, inline, shared });
+  for (const [name, tool] of Object.entries(code)) tools[name] = tool;
   return preset ? applyPreset(tools, preset) : tools;
 }
 
 /** Tools that are not blocks of their own (inline tools, tunes, the Media Library placeholder). */
 const NOT_BLOCKS = new Set([
   ...INLINE,
+  'mention',
+  MENTION_FALLBACK_KEY,
   'aiAssistant',
   'alignmentTune',
   'textVariant',
@@ -340,10 +426,14 @@ export function editorI18n(t) {
         Code: tr('tools.names.code', 'Code'),
         'Code (highlighted)': tr('tools.names.codeHighlighted', 'Code (highlighted)'),
         Delimiter: tr('tools.names.delimiter', 'Delimiter'),
+        'Table of contents': tr('tools.names.toc', 'Table of contents'),
         Table: tr('tools.names.table', 'Table'),
         'Raw HTML': tr('tools.names.raw', 'Raw HTML'),
         Image: tr('tools.names.image', 'Image'),
         'Image by URL': tr('tools.names.simpleImage', 'Image by URL'),
+        Gallery: tr('tools.names.gallery', 'Gallery'),
+        Video: tr('tools.names.video', 'Video'),
+        Audio: tr('tools.names.audio', 'Audio'),
         'Link preview': tr('tools.names.linkPreview', 'Link preview'),
         Attachment: tr('tools.names.attachment', 'Attachment'),
         Person: tr('tools.names.person', 'Person'),
@@ -351,6 +441,7 @@ export function editorI18n(t) {
         'Media Library': tr('tools.names.mediaLibrary', 'Media Library'),
         'Embedded entry': tr('tools.names.embeddedEntry', 'Embedded entry'),
         Link: tr('tools.names.link', 'Link'),
+        Mention: tr('tools.names.mention', 'Mention'),
         Bold: tr('tools.names.bold', 'Bold'),
         Italic: tr('tools.names.italic', 'Italic'),
         Marker: tr('tools.names.marker', 'Marker'),

@@ -16,19 +16,24 @@ import {
   ClockCounterClockwise,
   Collapse,
   Command,
+  Discuss,
   Expand,
   Eye,
   EyeStriked,
+  Feather,
+  Layout,
+  Monitor,
   More,
   SealCheck,
   Search,
+  Sparkle,
 } from '@strapi/icons';
 import styled from 'styled-components';
 import { peerFamily } from './RemoteCarets';
 
 /**
  * Toolbar above the editor: undo/redo, version history, find and replace,
- * quality checks, focus mode, keyboard shortcuts, fullscreen, live
+ * quality checks, block comments, focus mode, keyboard shortcuts, fullscreen, live
  * collaboration status with the people in the room, and counts (blocks,
  * words, characters, reading time) with the limits of the field preset.
  */
@@ -127,6 +132,22 @@ export const EditorToolbar = ({
   focusMode = false,
   onToggleFocus,
   onOpenShortcuts,
+  commentsAvailable = false,
+  commentsOpen = false,
+  onToggleComments,
+  commentsCount = 0,
+  commentsButtonRef,
+  grammarOpen = false,
+  onToggleGrammar,
+  grammarButtonRef,
+  onOpenFieldAi,
+  moreButtonRef,
+  onOpenTemplates,
+  templatesButtonRef,
+  previewOpen = false,
+  onTogglePreview,
+  previewButtonRef,
+  previewId,
 }) => {
   const status = STATUS[collaboration.status];
   const peers = collaboration.peers || [];
@@ -220,7 +241,79 @@ export const EditorToolbar = ({
             ) : null}
           </CountBadge>
         ) : null}
+        {commentsAvailable && onToggleComments ? (
+          <CountBadge>
+            <IconButton
+              ref={commentsButtonRef}
+              label={
+                commentsCount
+                  ? t(
+                      'editor.toolbar.commentsCount',
+                      'Comments ({count, plural, one {# open thread} other {# open threads}})',
+                      { count: commentsCount }
+                    )
+                  : t('editor.toolbar.comments', 'Comments')
+              }
+              variant="ghost"
+              onClick={onToggleComments}
+              aria-pressed={commentsOpen}
+              disabled={!ready}
+              data-testid="mex-comments-toggle"
+            >
+              <Discuss />
+            </IconButton>
+            {commentsCount ? (
+              <Badge size="S" aria-hidden="true" backgroundColor="primary100" textColor="primary700">
+                {commentsCount > 99 ? '99+' : commentsCount}
+              </Badge>
+            ) : null}
+          </CountBadge>
+        ) : null}
+        {onToggleGrammar ? (
+          <IconButton
+            ref={grammarButtonRef}
+            label={t('editor.toolbar.grammar', 'Check grammar')}
+            variant="ghost"
+            onClick={onToggleGrammar}
+            aria-pressed={grammarOpen}
+            disabled={!ready}
+            data-testid="mex-grammar-toggle"
+          >
+            <Feather />
+          </IconButton>
+        ) : null}
+        {onOpenTemplates ? (
+          <IconButton
+            ref={templatesButtonRef}
+            label={t('editor.toolbar.templates', 'Insert template')}
+            variant="ghost"
+            onClick={onOpenTemplates}
+            disabled={!ready || readOnly || previewOpen}
+            data-testid="mex-templates-open"
+          >
+            <Layout />
+          </IconButton>
+        ) : null}
+        {onTogglePreview ? (
+          <IconButton
+            ref={previewButtonRef}
+            label={
+              previewOpen
+                ? t('editor.toolbar.previewOff', 'Back to editing')
+                : t('editor.toolbar.preview', 'Preview')
+            }
+            variant="ghost"
+            onClick={onTogglePreview}
+            aria-pressed={previewOpen}
+            aria-controls={previewOpen ? previewId : undefined}
+            disabled={!ready}
+            data-testid="mex-preview-toggle"
+          >
+            <Monitor />
+          </IconButton>
+        ) : null}
         <SimpleMenu
+          ref={moreButtonRef}
           tag={IconButton}
           icon={<More />}
           label={t('editor.toolbar.more', 'More editor actions')}
@@ -232,6 +325,11 @@ export const EditorToolbar = ({
               {focusMode
                 ? t('editor.toolbar.focusOff', 'Leave focus mode')
                 : t('editor.toolbar.focusOn', 'Focus mode')}
+            </MenuItem>
+          ) : null}
+          {onOpenFieldAi ? (
+            <MenuItem onSelect={onOpenFieldAi} startIcon={<Sparkle />}>
+              {t('editor.toolbar.fieldAi', 'AI for the whole field')}
             </MenuItem>
           ) : null}
           {onOpenShortcuts ? (

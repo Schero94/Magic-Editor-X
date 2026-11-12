@@ -19,7 +19,11 @@ import {
   sanitizeUrl,
   sanitizeTarget,
   cleanInternalLinkAttributes,
+  isMentionLink,
 } from '../sanitize-policy.mjs';
+import { escapeHtml, serializeNodes } from './nodes.mjs';
+
+export { escapeHtml };
 
 /** Tags whose content is dropped together with the tag. */
 const DROP_WITH_CONTENT = new Set([
@@ -102,19 +106,6 @@ export const decodeEntities = (text) =>
       return named === undefined ? match : named;
     }
   );
-
-/**
- * Escapes text for HTML element content and attribute values.
- * @param {unknown} text - Plain text.
- * @returns {string} Escaped text.
- */
-export const escapeHtml = (text) =>
-  String(text ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
 
 /**
  * Parses the attribute section of a start tag.
@@ -301,7 +292,7 @@ export const parseInline = (input) => {
 /**
  * Applies the internal-link resolver to one link element.
  * @param {Record<string, string>} attrs - Clean link attributes.
- * @param {((ref: { uid: string, documentId: string, locale: string|null, href: string|null }) => unknown) | undefined} resolver - `options.links`.
+ * @param {((ref: { uid: string, documentId: string, locale: string|null, href: string|null, mention?: true }) => unknown) | undefined} resolver - `options.links`.
  * @returns {Record<string, string> | null} Attributes, or null to render the link text only.
  */
 export const resolveLinkAttributes = (attrs, resolver) => {
@@ -314,6 +305,7 @@ export const resolveLinkAttributes = (attrs, resolver) => {
       documentId: attrs['data-mex-document-id'],
       locale: attrs['data-mex-locale'] || null,
       href: attrs.href || null,
+      ...(isMentionLink(attrs) ? { mention: true } : {}),
     });
   } catch {
     result = undefined;
@@ -336,17 +328,76 @@ const ATTRIBUTE_ORDER = [
   'data-mex-uid',
   'data-mex-document-id',
   'data-mex-locale',
+  'data-mex-mention',
 ];
 
+/** Class the renderers add to mentions (`<a data-mex-mention>`); never stored. */
+export const MENTION_CLASS = 'mex-mention';
+
 /**
- * Serialises attributes in a fixed order.
- * @param {Record<string, string>} attrs - Attributes.
- * @returns {string} ` name="value"` pairs.
+ * Builds render nodes from a parsed inline tree: attributes in a fixed order,
+ * links resolved with `options.links`, `rel="noopener noreferrer"` added to
+ * `target="_blank"` links, links without a valid href reduced to their
+ * content. Mentions get the class `mex-mention` unless `storage` is set
+ * (re-serialising stored values keeps them as stored). The result contains
+ * only allowed tags and validated attributes.
+ * @param {InlineNode[]} nodes - Parsed nodes (from `parseInline`).
+ * @param {{ links?: Function, storage?: boolean }} [options] - Render options (`links` resolver; `storage`: internal, no render-only classes).
+ * @returns {import('./nodes.mjs').RenderNode[]} Render nodes.
  */
-const serializeAttributes = (attrs) =>
-  ATTRIBUTE_ORDER.filter((name) => attrs[name] !== undefined && attrs[name] !== '')
-    .map((name) => ` ${name}="${escapeHtml(attrs[name])}"`)
-    .join('');
+export const inlineNodesToRender = (nodes, options = {}) => {
+  /** @type {import('./nodes.mjs').RenderNode[]} */
+  const out = [];
+  for (const node of nodes) {
+    if (node.type === 'text') {
+      out.push({ type: 'text', value: node.value });
+      continue;
+    }
+    if (node.tag === 'br') {
+      out.push({ type: 'element', tag: 'br', attrs: {}, children: [] });
+      continue;
+    }
+    let attrs = node.attrs;
+    if (node.tag === 'a') {
+      attrs = resolveLinkAttributes(attrs, options.links);
+      if (!attrs || !attrs.href) {
+        out.push(...inlineNodesToRender(node.children, options));
+        continue;
+      }
+      if (attrs.target === '_blank') {
+        const rel = new Set(
+          String(attrs.rel || '')
+            .split(/\s+/)
+            .filter(Boolean)
+        );
+        rel.add('noopener');
+        rel.add('noreferrer');
+        attrs = { ...attrs, rel: Array.from(rel).sort().join(' ') };
+      }
+      if (!options.storage && isMentionLink(attrs)) attrs = { ...attrs, class: MENTION_CLASS };
+    }
+    /** @type {Record<string, string>} */
+    const ordered = {};
+    for (const name of ATTRIBUTE_ORDER) {
+      if (attrs[name] !== undefined && attrs[name] !== '') ordered[name] = String(attrs[name]);
+    }
+    out.push({
+      type: 'element',
+      tag: node.tag,
+      attrs: ordered,
+      children: inlineNodesToRender(node.children, options),
+    });
+  }
+  return out;
+};
+
+/**
+ * Render nodes of untrusted inline HTML (see `inlineNodesToRender`).
+ * @param {unknown} html - Inline HTML.
+ * @param {{ links?: Function }} [options] - Render options.
+ * @returns {import('./nodes.mjs').RenderNode[]} Render nodes.
+ */
+export const inlineToNodes = (html, options) => inlineNodesToRender(parseInline(html), options);
 
 /**
  * Serialises a parsed tree to safe HTML.
@@ -354,29 +405,7 @@ const serializeAttributes = (attrs) =>
  * @param {{ links?: Function }} [options] - Render options (`links` resolver).
  * @returns {string} HTML containing only allowed tags.
  */
-export const nodesToHtml = (nodes, options = {}) =>
-  nodes
-    .map((node) => {
-      if (node.type === 'text') return escapeHtml(node.value);
-      if (node.tag === 'br') return '<br>';
-      let attrs = node.attrs;
-      if (node.tag === 'a') {
-        attrs = resolveLinkAttributes(attrs, options.links);
-        if (!attrs || !attrs.href) return nodesToHtml(node.children, options);
-        if (attrs.target === '_blank') {
-          const rel = new Set(
-            String(attrs.rel || '')
-              .split(/\s+/)
-              .filter(Boolean)
-          );
-          rel.add('noopener');
-          rel.add('noreferrer');
-          attrs = { ...attrs, rel: Array.from(rel).sort().join(' ') };
-        }
-      }
-      return `<${node.tag}${serializeAttributes(attrs)}>${nodesToHtml(node.children, options)}</${node.tag}>`;
-    })
-    .join('');
+export const nodesToHtml = (nodes, options = {}) => serializeNodes(inlineNodesToRender(nodes, options));
 
 /**
  * Plain text of a parsed tree (`<br>` becomes a line break).

@@ -5,7 +5,8 @@
  */
 
 import { parseInline, resolveLinkAttributes, inlineToText } from './inline.mjs';
-import { prepareBlocks, resolveMedia, overrideFor, scalarFields } from './common.mjs';
+import { prepareBlocks, resolveMedia, overrideFor, scalarFields, annotateHeadings } from './common.mjs';
+import { buildTocTree } from '../toc.mjs';
 
 /**
  * Escapes Markdown punctuation in text.
@@ -253,6 +254,21 @@ const RENDERERS = {
     const alt = b.data.decorative === true ? '' : escapeMarkdown(oneLine(text));
     return `![${alt}](${linkUrl(b.data.url)})`;
   },
+  gallery: (b, o) => {
+    const lines = b.data.images
+      .map((image) => {
+        const file = resolveMedia(image.file, b, o);
+        if (!file.url) return '';
+        const alt = image.decorative ? '' : escapeMarkdown(oneLine(file.alt || ''));
+        return `![${alt}](${linkUrl(file.url)}${linkTitle(inlineToText(image.caption))})`;
+      })
+      .filter(Boolean);
+    if (!lines.length) return '';
+    const caption = oneLine(md(b.data.caption, o));
+    return [lines.join('\n'), caption].filter(Boolean).join('\n\n');
+  },
+  video: (b, o) => mediaLink('video', b, o),
+  audio: (b, o) => mediaLink('audio', b, o),
   linkTool: (b) =>
     b.data.link ? `[${escapeMarkdown(b.data.meta.title || b.data.link)}](${linkUrl(b.data.link)})` : '',
   attaches: (b) => {
@@ -282,6 +298,71 @@ const RENDERERS = {
       : escapeMarkdown(b.data.text);
   },
   delimiter: () => '---',
+  toc: (b) => {
+    const tree = buildTocTree(b.headings || [], b.data);
+    if (!tree.length) return '';
+    const ordered = b.data.style === 'ordered';
+    const lines = (nodes, indent) =>
+      nodes.flatMap((node, index) => {
+        const marker = ordered ? `${index + 1}.` : '-';
+        const text = escapeMarkdown(node.text);
+        // Markdown has no heading ids of its own: entries link to the GitHub-style slug
+        // that Markdown renderers (GitHub, markdown-it-anchor, rehype-slug) give the heading.
+        const entry = b.linkHeadings && node.slug ? `[${text}](#${linkUrl(node.slug)})` : text;
+        return [
+          `${indent}${marker} ${entry}`,
+          ...lines(node.children, `${indent}${' '.repeat(marker.length + 1)}`),
+        ];
+      });
+    const title = b.data.title.trim();
+    return [title ? `**${escapeMarkdown(title)}**` : '', lines(tree, '').join('\n')]
+      .filter(Boolean)
+      .join('\n\n');
+  },
+};
+
+/**
+ * Markdown of a video or audio block: a link to the file plus the caption.
+ * @param {'video'|'audio'} kind - Block kind.
+ * @param {object} b - Prepared block.
+ * @param {object} o - Render options.
+ * @returns {string} Markdown.
+ */
+function mediaLink(kind, b, o) {
+  const file = resolveMedia(b.data.file, b, o, { mimePrefix: `${kind}/` });
+  if (!file.url) return '';
+  const caption = oneLine(md(b.data.caption, o));
+  const link = `[${escapeMarkdown(oneLine(b.data.title || file.name || file.url))}](${linkUrl(file.url)})`;
+  return [link, caption].filter(Boolean).join('\n\n');
+}
+
+/**
+ * Markdown of a code-registered block: its `markdown(data, helpers)` result
+ * (helpers: `escape`, `inline`, `text`), else the text and inline fields in
+ * schema order as escaped paragraphs.
+ * @param {object} block - Prepared block with `definition`.
+ * @param {object} opts - Render options.
+ * @returns {string} Markdown.
+ */
+const registeredMarkdown = (block, opts) => {
+  const { definition } = block;
+  if (definition.markdown) {
+    try {
+      const out = definition.markdown(block.data, {
+        escape: escapeMarkdown,
+        inline: (html) => md(html, opts),
+        text: (html) => inlineToText(html),
+      });
+      if (typeof out === 'string') return out;
+    } catch {
+      // The default Markdown below is used.
+    }
+  }
+  return definition
+    .fields(block.data)
+    .map((field) => (field.kind === 'html' ? md(field.value, opts) : escapeMarkdown(field.value.trim())))
+    .filter(Boolean)
+    .join('\n\n');
 };
 
 /**
@@ -310,6 +391,7 @@ export const renderMarkdown = (value, options = {}) => {
           if (typeof out === 'string') return out;
         }
         if (block.known) return RENDERERS[block.type](block, opts, render);
+        if (block.definition) return registeredMarkdown(block, opts);
         return scalarFields(block.data)
           .map(([, v]) => md(v, opts))
           .filter(Boolean)
@@ -317,5 +399,5 @@ export const renderMarkdown = (value, options = {}) => {
       })
       .filter((text) => text && text.trim() !== '')
       .join('\n\n');
-  return render(prepareBlocks(value, opts));
+  return render(annotateHeadings(prepareBlocks(value, opts), opts));
 };

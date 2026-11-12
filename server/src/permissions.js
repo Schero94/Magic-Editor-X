@@ -17,6 +17,11 @@ const ACTIONS = Object.freeze({
   customBlocksManage: `plugin::${PLUGIN}.custom-blocks.manage`,
   settingsRead: `plugin::${PLUGIN}.settings.read`,
   settingsUpdate: `plugin::${PLUGIN}.settings.update`,
+  commentsRead: `plugin::${PLUGIN}.comments.read`,
+  commentsWrite: `plugin::${PLUGIN}.comments.write`,
+  commentsModerate: `plugin::${PLUGIN}.comments.moderate`,
+  grammar: `plugin::${PLUGIN}.grammar.use`,
+  templatesManage: `plugin::${PLUGIN}.templates.manage`,
 });
 
 const ACTION_DEFINITIONS = [
@@ -26,6 +31,14 @@ const ACTION_DEFINITIONS = [
   { uid: 'custom-blocks.manage', displayName: 'Manage custom blocks' },
   { uid: 'settings.read', displayName: 'Read settings' },
   { uid: 'settings.update', displayName: 'Update settings' },
+  { uid: 'comments.read', displayName: 'Read block comments' },
+  {
+    uid: 'comments.write',
+    displayName: 'Write block comments (comment, reply, resolve, edit and delete own)',
+  },
+  { uid: 'comments.moderate', displayName: "Moderate block comments (delete anyone's)" },
+  { uid: 'grammar.use', displayName: 'Use the grammar check (LanguageTool)' },
+  { uid: 'templates.manage', displayName: 'Manage templates and block patterns' },
 ];
 
 /**

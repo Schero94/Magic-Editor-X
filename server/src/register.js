@@ -6,6 +6,31 @@ const { resolveFieldPreset, allowedInlineTags, checkPreset } = require('../../sh
 const { schemaHasEditorFields, transformEditorFields } = require('./utils/editor-fields');
 const { registerPublishGuard } = require('./utils/publish-guard');
 const { formErrorDetails } = require('./utils/form-errors');
+const { registerCommentRetention } = require('./utils/comment-retention');
+const { OUTPUT_FORMATS } = require('../../shared/resolve-references.mjs');
+const { registerGraphql } = require('./graphql');
+
+/**
+ * Registers the `mex` query parameter on the GET routes of `api::` content
+ * types (Strapi's documented `contentAPI.addQueryParams`), so `?mex=` also
+ * passes when the host sets `api.rest.strictParams: true`. Strapi versions
+ * without `addQueryParams` accept unknown query keys unless strict mode is on.
+ * @param {object} strapi - Strapi instance.
+ */
+const registerOutputParam = (strapi) => {
+  const contentAPI = strapi.contentAPI;
+  if (!contentAPI || typeof contentAPI.addQueryParams !== 'function') return;
+  contentAPI.addQueryParams({
+    mex: {
+      schema: (z) => z.enum(OUTPUT_FORMATS).optional(),
+      matchRoute: (route) =>
+        Boolean(route) &&
+        route.method === 'GET' &&
+        Boolean(route.info) &&
+        typeof route.info.apiName === 'string',
+    },
+  });
+};
 
 /**
  * Registers the custom field and the Document Service middleware that
@@ -72,4 +97,7 @@ module.exports = ({ strapi }) => {
     return next();
   });
   registerPublishGuard(strapi);
+  registerOutputParam(strapi);
+  registerGraphql(strapi);
+  registerCommentRetention(strapi);
 };

@@ -24,6 +24,8 @@
   "field.options.maxCharacters.description": "Visible text, counted like the editor toolbar. Empty or 0 means no limit.",
   "field.options.features": "Features",
   "field.options.disableAi.label": "Turn off the AI assistant for this field",
+  "field.options.disableGrammar.label": "Turn off the grammar check for this field",
+  "field.options.disableGrammar.description": "No text from this field is sent to LanguageTool",
   "field.options.disableCollaboration.label": "Turn off live collaboration for this field",
   "field.options.publishGuard.label": "Block publishing while quality checks report errors",
   "field.options.publishGuard.description": "Errors are missing alternative texts (when required) and empty links",

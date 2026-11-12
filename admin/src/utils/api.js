@@ -13,6 +13,7 @@ export const API = {
   linkTypes: '/magic-editor-x/links/types',
   linkSearch: '/magic-editor-x/links/search',
   qualityLinks: '/magic-editor-x/quality/links',
+  qualityLinkReport: '/magic-editor-x/quality/link-report',
   customBlocks: '/magic-editor-x/custom-blocks',
   customBlocksExport: '/magic-editor-x/custom-blocks/export',
   customBlocksImport: '/magic-editor-x/custom-blocks/import',
@@ -23,8 +24,23 @@ export const API = {
   history: '/magic-editor-x/history',
   historyItem: (id) => `/magic-editor-x/history/${encodeURIComponent(id)}`,
   ai: (action) => `/magic-editor-x/ai/${encodeURIComponent(action)}`,
+  aiAltText: '/magic-editor-x/ai/image/alt-text',
+  aiField: (action) => `/magic-editor-x/ai/field/${encodeURIComponent(action)}`,
+  grammarCheck: '/magic-editor-x/grammar/check',
+  comments: '/magic-editor-x/comments',
+  comment: (id) => `/magic-editor-x/comments/${encodeURIComponent(id)}`,
+  commentReplies: (id) => `/magic-editor-x/comments/${encodeURIComponent(id)}/replies`,
+  commentResolve: (id) => `/magic-editor-x/comments/${encodeURIComponent(id)}/resolve`,
+  commentReopen: (id) => `/magic-editor-x/comments/${encodeURIComponent(id)}/reopen`,
+  templates: '/magic-editor-x/templates',
+  templateTargets: '/magic-editor-x/templates/targets',
+  templatesOrder: '/magic-editor-x/templates/order',
+  template: (id) => `/magic-editor-x/templates/${encodeURIComponent(id)}`,
+  templateDuplicate: (id) => `/magic-editor-x/templates/${encodeURIComponent(id)}/duplicate`,
+  templateUsage: (id) => `/magic-editor-x/templates/${encodeURIComponent(id)}/usage`,
   settings: '/magic-editor-x/settings',
   settingsAiTest: '/magic-editor-x/settings/ai/test',
+  settingsLanguageToolTest: '/magic-editor-x/settings/language-tool/test',
 };
 
 /**
@@ -36,8 +52,13 @@ export const readApiError = (error) => {
   const response = error && error.response;
   const body = response && response.data;
   const apiError = body && body.error;
+  // Strapi's fetch client (FetchError) puts the HTTP status on the error and the body in `response.data`.
+  const status =
+    (response && response.status) ||
+    (error && typeof error.status === 'number' ? error.status : null) ||
+    (apiError && typeof apiError.status === 'number' ? apiError.status : null);
   return {
-    status: (response && response.status) || null,
+    status: status || null,
     message: (apiError && apiError.message) || (body && body.message) || null,
     code: (apiError && apiError.details && apiError.details.code) || null,
     details: (apiError && apiError.details) || null,

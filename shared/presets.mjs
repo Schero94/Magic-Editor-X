@@ -11,11 +11,13 @@
  * - `maxBlocks`, `maxCharacters`: positive integers (0 or empty = no limit)
  * - `requireAlt`: images need an alternative text or the "decorative" flag
  * - `linkTargets`: 'all' (default) | 'internal' | 'external' | 'none'
- * - `disableAi`, `disableCollaboration`, `publishGuard`: booleans
+ * - `disableAi`, `disableGrammar`, `disableCollaboration`, `publishGuard`: booleans
  */
 
 import { isPlainObject, computeStats } from './editor-data.mjs';
 import { parseInline } from './render/inline.mjs';
+import { activeBlocks } from './blocks/active.mjs';
+import { registeredBlockOf, isBuiltInBlock } from './sanitize-policy.mjs';
 
 /** Built-in block types (stored names). `mediaLib` only inserts `image` blocks. */
 export const BUILTIN_BLOCKS = Object.freeze([
@@ -30,11 +32,16 @@ export const BUILTIN_BLOCKS = Object.freeze([
   'code',
   'codeFlask',
   'delimiter',
+  'toc',
+  'synced',
   'table',
   'embed',
   'raw',
   'image',
   'simpleImage',
+  'gallery',
+  'video',
+  'audio',
   'linkTool',
   'attaches',
   'personality',
@@ -71,9 +78,14 @@ export const PRESETS = Object.freeze({
       'code',
       'codeFlask',
       'delimiter',
+      'toc',
+      'synced',
       'table',
       'embed',
       'image',
+      'gallery',
+      'video',
+      'audio',
       'linkTool',
       'attaches',
       'button',
@@ -154,6 +166,7 @@ const limitOf = (value) => {
  * @property {boolean} requireAlt - Images need an alternative text or the decorative flag.
  * @property {'all'|'internal'|'external'|'none'} linkTargets - Allowed link destinations.
  * @property {boolean} ai - AI assistant allowed.
+ * @property {boolean} grammar - Grammar check (LanguageTool) allowed; independent of `ai`.
  * @property {boolean} collaboration - Live collaboration allowed.
  * @property {boolean} publishGuard - Quality errors block publishing.
  * @property {boolean} restricted - True when any rule differs from the full preset.
@@ -172,6 +185,11 @@ export const resolveFieldPreset = (options) => {
   const base = PRESETS[name];
   const listed = parseBlockList(source.allowedBlocks);
   let blocks = listed || (base.blocks ? [...base.blocks] : null);
+  // Code-registered blocks (custom block SDK) join the named presets their definition lists.
+  if (!listed && blocks)
+    for (const definition of activeBlocks())
+      if (definition.presets.includes(name) && !blocks.includes(definition.name))
+        blocks.push(definition.name);
   // A paragraph is the default block: it is always allowed.
   if (blocks && !blocks.includes('paragraph')) blocks = ['paragraph', ...blocks];
   let headingLevels = parseHeadingLevels(source.headingLevels) || [...base.headingLevels];
@@ -189,6 +207,7 @@ export const resolveFieldPreset = (options) => {
     requireAlt: source.requireAlt === true,
     linkTargets,
     ai: source.disableAi !== true,
+    grammar: source.disableGrammar !== true,
     collaboration: source.disableCollaboration !== true,
     publishGuard: source.publishGuard === true,
   };
@@ -265,11 +284,14 @@ export const blockLinkKinds = (block) => {
     data.link
   )
     kinds.push('external');
+  // URL fields of a code-registered block are external links.
+  const definition = registeredBlockOf(block);
+  if (definition) for (let i = 0; i < definition.urls(data).length; i += 1) kinds.push('external');
   return kinds;
 };
 
 /**
- * True when an image block has an alternative text or is marked decorative.
+ * True when an image block (or every image of a gallery) has an alternative text or is marked decorative.
  * @param {{ type: string, data: object }} block - Block.
  * @returns {boolean|null} Result, or null when the block is not an image.
  */
@@ -284,6 +306,13 @@ export const imageHasAlt = (block) => {
     if (data.decorative === true) return true;
     return typeof data.alt === 'string' && data.alt.trim() !== '';
   }
+  if (block.type === 'gallery' && isBuiltInBlock(block) && Array.isArray(data.images))
+    return data.images.every(
+      (item) =>
+        !isPlainObject(item) ||
+        item.decorative === true ||
+        (isPlainObject(item.file) && typeof item.file.alt === 'string' && item.file.alt.trim() !== '')
+    );
   return null;
 };
 

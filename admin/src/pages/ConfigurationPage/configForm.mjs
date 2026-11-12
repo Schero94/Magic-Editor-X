@@ -11,13 +11,36 @@ export const LIMITS = Object.freeze({
   maxOutputTokens: Object.freeze({ min: 64, max: 16000 }),
 });
 const EDITABLE = ['enabled', 'provider', 'baseUrl', 'model', 'maxInputChars', 'maxOutputTokens'];
+/** 2.3 owner switches; absent in DTOs of older servers, then never sent. */
+const SWITCHES = ['allowImages', 'allowFieldActions'];
+const LANGUAGE_TOOL_EDITABLE = ['enabled', 'baseUrl', 'username', 'level'];
+
+/**
+ * Builds the LanguageTool draft (2.3) from `data.languageTool`.
+ * @param {object|undefined} languageTool - DTO part.
+ * @returns {object|undefined} Draft, undefined when the server has no LanguageTool settings.
+ */
+export const toLanguageToolDraft = (languageTool) =>
+  languageTool
+    ? {
+        enabled: Boolean(languageTool.enabled),
+        baseUrl: languageTool.baseUrl || '',
+        username: languageTool.username || '',
+        level: languageTool.level === 'picky' ? 'picky' : 'default',
+        apiKeyMode: 'keep',
+        apiKey: '',
+      }
+    : undefined;
 
 /**
  * Builds the form draft from the server DTO.
  * @param {object} ai - `data.ai` from GET /settings.
+ * @param {object} [languageTool] - `data.languageTool` (2.3).
  * @returns {object} Draft.
  */
-export const toDraft = (ai) => ({
+export const toDraft = (ai, languageTool) => ({
+  ...Object.fromEntries(SWITCHES.filter((key) => typeof ai[key] === 'boolean').map((key) => [key, ai[key]])),
+  ...(languageTool ? { languageTool: toLanguageToolDraft(languageTool) } : {}),
   enabled: Boolean(ai.enabled),
   provider: PROVIDERS.includes(ai.provider) ? ai.provider : 'anthropic',
   baseUrl: ai.baseUrl || '',
@@ -125,7 +148,81 @@ export const toPayload = (draft) => {
   };
   if (draft.apiKeyMode === 'remove') ai.apiKey = '';
   if (draft.apiKeyMode === 'replace') ai.apiKey = String(draft.apiKey || '').trim();
-  return { ai };
+  for (const key of SWITCHES) if (typeof draft[key] === 'boolean') ai[key] = draft[key];
+  const languageTool = draft.languageTool ? toLanguageToolPayload(draft.languageTool) : null;
+  return languageTool ? { ai, languageTool } : { ai };
+};
+
+/**
+ * LanguageTool part of the PUT body. `apiKey` is omitted (keep), '' (remove) or the new value.
+ * @param {object} lt - LanguageTool draft.
+ * @returns {object} Body part.
+ */
+export const toLanguageToolPayload = (lt) => {
+  const out = {
+    enabled: Boolean(lt.enabled),
+    baseUrl: String(lt.baseUrl || '')
+      .trim()
+      .replace(/\/+$/, ''),
+    username: String(lt.username || '').trim(),
+    level: lt.level === 'picky' ? 'picky' : 'default',
+  };
+  if (lt.apiKeyMode === 'remove') out.apiKey = '';
+  if (lt.apiKeyMode === 'replace') out.apiKey = String(lt.apiKey || '').trim();
+  return out;
+};
+
+/**
+ * Validates the LanguageTool draft with the server's rules.
+ * @param {object|undefined} lt - Draft.
+ * @param {{ saved?: object, dto?: object, environment?: object }} context - Stored draft, DTO and environment.
+ * @returns {Record<string, string>} `languageTool.<field>` -> error code.
+ */
+export const validateLanguageTool = (lt, { saved, dto, environment } = {}) => {
+  const errors = {};
+  if (!lt) return errors;
+  const allowPrivate = Boolean(
+    environment && environment.languageTool && environment.languageTool.allowPrivateBaseUrl
+  );
+  const baseUrl = String(lt.baseUrl || '').trim();
+  if (!baseUrl && lt.enabled) errors['languageTool.baseUrl'] = 'required';
+  if (baseUrl) {
+    const url = (() => {
+      try {
+        return new URL(baseUrl);
+      } catch {
+        return null;
+      }
+    })();
+    if (
+      !url ||
+      !['http:', 'https:'].includes(url.protocol) ||
+      url.username ||
+      url.password ||
+      url.search ||
+      url.hash ||
+      baseUrl.length > 500
+    )
+      errors['languageTool.baseUrl'] = 'url';
+    else if (url.protocol !== 'https:' && !allowPrivate) errors['languageTool.baseUrl'] = 'httpsLanguageTool';
+  }
+  if (String(lt.username || '').length > 200) errors['languageTool.username'] = 'invalid';
+  if (lt.apiKeyMode === 'replace') {
+    const key = String(lt.apiKey || '').trim();
+    if (!key) errors['languageTool.apiKey'] = 'required';
+    else if (key.length > 500) errors['languageTool.apiKey'] = 'tooLong';
+    else if (dto && !dto.canStoreApiKey) errors['languageTool.apiKey'] = 'cannotStore';
+    if (!String(lt.username || '').trim()) errors['languageTool.username'] = 'required';
+  } else if (
+    lt.apiKeyMode === 'keep' &&
+    saved &&
+    dto &&
+    dto.hasApiKey &&
+    (String(lt.baseUrl || '').trim() !== saved.baseUrl || String(lt.username || '').trim() !== saved.username)
+  ) {
+    errors['languageTool.apiKey'] = 'reenterLanguageTool';
+  }
+  return errors;
 };
 
 /**
@@ -152,7 +249,8 @@ export const mapServerErrors = (details) => {
   for (const [key, messages] of Object.entries(fieldErrors)) {
     const message = Array.isArray(messages) ? messages[0] : String(messages || '');
     const field = key.startsWith('ai.') ? key.slice(3) : null;
-    if (field && EDITABLE.concat(['apiKey']).includes(field)) out[field] = message;
+    if (field && EDITABLE.concat(['apiKey'], SWITCHES).includes(field)) out[field] = message;
+    else if (/^languageTool\.(enabled|baseUrl|username|level|apiKey)$/.test(key)) out[key] = message;
     else out._form = message;
   }
   if (!Object.keys(out).length && details && Array.isArray(details.formErrors) && details.formErrors[0]) {
@@ -169,5 +267,22 @@ export const mapServerErrors = (details) => {
  */
 export const sameDraft = (a, b) =>
   EDITABLE.every((key) => a[key] === b[key]) &&
+  SWITCHES.every((key) => a[key] === b[key]) &&
   a.apiKeyMode === b.apiKeyMode &&
-  (a.apiKeyMode !== 'replace' || a.apiKey === b.apiKey);
+  (a.apiKeyMode !== 'replace' || a.apiKey === b.apiKey) &&
+  sameLanguageTool(a.languageTool, b.languageTool);
+
+/**
+ * LanguageTool draft comparison.
+ * @param {object|undefined} a - Draft.
+ * @param {object|undefined} b - Draft.
+ * @returns {boolean} Equal or not.
+ */
+const sameLanguageTool = (a, b) => {
+  if (!a || !b) return a === b;
+  return (
+    LANGUAGE_TOOL_EDITABLE.every((key) => a[key] === b[key]) &&
+    a.apiKeyMode === b.apiKeyMode &&
+    (a.apiKeyMode !== 'replace' || a.apiKey === b.apiKey)
+  );
+};

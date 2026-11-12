@@ -1,5 +1,71 @@
 # Changelog
 
+## [Unreleased]
+
+Magic Editor X 2.3 connects the editor to the rest of your stack: React and Vue components, rendered and resolved Content API and GraphQL output, a block SDK, media blocks, templates, patterns and synced blocks, block comments, mentions and a table of contents, plus optional AI and grammar assistants. No migration is needed; stored content keeps the same Editor.js JSON and every new output is opt-in.
+
+### Highlights
+
+- **React, Vue, Nuxt and Astro.** `magic-editor-x/react` and `magic-editor-x/vue` render content with real components (per-block components or slots) from the same render tree as `renderHtml`; guides for Astro, React and Vue/Nuxt are in `docs/guides/`.
+- **Rendered and resolved API output.** `?mex=html|text|markdown|json` on Content API GET requests, and `<field>Rendered(format)` / `<field>Resolved` in GraphQL. Internal links, mentions, embedded entries, Media Library files and synced blocks are resolved with the caller's permissions; draft-only or unreadable targets are never revealed.
+- **Block SDK.** Define a block once with `defineBlock` (`magic-editor-x/blocks`), register it on the server and in the admin, and it is sanitised, preset-checked, collaborative and rendered everywhere.
+- **Media.** Gallery, video and audio blocks from the Media Library (alternative texts, captions, poster, WebVTT tracks, no autoplay) and a focal point for images.
+- **Templates, patterns and synced blocks.** Reusable starting content and block sequences per field or preset, inserted from the editor toolbar; synced blocks are edited in one place and every field that references them shows the change.
+- **In-field preview.** The rendered output of the field next to the editor (toolbar or Ctrl/Cmd+Alt+P), also for read-only users.
+- **Block comments.** Threads per block with reply, resolve and reopen, live across servers, with their own permissions.
+- **Structure.** A table of contents block with stable heading anchors, and mentions of other entries.
+- **Assistants (off until enabled).** AI alternative text for images (image and gallery blocks), whole-field translate and summarize, and a LanguageTool grammar check (self-hosted or hosted).
+- **Operations.** Scheduled external link checks (one process in a cluster runs each check), code blocks with line numbers and a copy button in the renderers, and a performance benchmark in CI.
+
+### Added
+
+- Package exports `magic-editor-x/react`, `magic-editor-x/vue` and `magic-editor-x/blocks`; render functions `renderTree`, `serializeNodes`, `enhanceCodeBlocks`, `copyText`; render options `code`, `focalPoint`, `headingIds`, `toc`, `blocks` and `synced`. `vue` (`^3.5.0`) is an optional peer dependency; the React peer range is `^18.0.0 || ^19.0.0`.
+- Content API query parameter `mex` (registered with `strapi.contentAPI.addQueryParams`, so it also passes with `api.rest.strictParams`); GraphQL fields `<field>Rendered(format: HTML|TEXT|MARKDOWN)` and `<field>Resolved` when `@strapi/plugin-graphql` is installed; service `references.transform`. Synced blocks are expanded in this output.
+- Blocks `gallery`, `video`, `audio`, `toc` and `synced`; `focalPoint` on `image` data and gallery images; mention links (`data-mex-mention="true"`).
+- Templates and block patterns (content type `plugin::magic-editor-x.template`, `kind: 'template' | 'pattern'`) with Settings > Magic Editor X > Templates, the "Insert template" dialog, "Save as pattern" for selected blocks and "Save content as template".
+- Synced blocks: template rows with `kind: 'synced'`, inserted as `{ type: 'synced', data: { ref } }` from the "Insert template" dialog, with "Edit source" and "Detach" in the editor and a usage count in Settings (`GET /magic-editor-x/templates/:id/usage`).
+- In-field preview of the rendered field (toolbar button, Ctrl/Cmd+Alt+P).
+- Block comments (content type `plugin::magic-editor-x.comment`) with the Comments panel and per-block markers.
+- AI alternative text suggestions for image blocks and gallery images (`POST /magic-editor-x/ai/image/alt-text`), whole-field translate and summarize (`POST /magic-editor-x/ai/field/:action`) and the LanguageTool grammar check (`POST /magic-editor-x/grammar/check`).
+- Permissions `comments.read`, `comments.write`, `comments.moderate`, `templates.manage` and `grammar.use`.
+- Admin routes for comments, templates (including usage), the link report and the link schedule, AI alternative text and field actions, the grammar check and the LanguageTool connection test (see the README route table).
+- Config keys `comments.enabled`, `comments.perMinute`, `qualityChecks.externalLinks.allowPrivateOrigins`, `qualityChecks.externalLinks.schedule`, `languageTool.allowPrivateBaseUrl`, `languageTool.requestsPerMinute`, `languageTool.timeoutMs`; settings `ai.allowImages`, `ai.allowFieldActions` and `languageTool`.
+- Quality rules `video-no-captions` and `toc-no-headings`; `npm run bench`.
+- Custom field option `disableGrammar` (Content-Type Builder > Advanced settings): the field shows no "Check grammar" button and `POST /magic-editor-x/grammar/check` answers 403 for it, so its text is never sent to LanguageTool. It is independent of `disableAi`.
+
+### Changed
+
+- Block select controls (gallery layout and columns, caption track kind, table of contents levels and style, code language, custom block selects) look like Strapi Design System selects in light and dark mode.
+- The editor stylesheet is added once per page instead of once per field, which removes multi-second freezes when opening or leaving edit views with several editor fields.
+- Heading ids `mex-h-<blockId>` are written when the document has a table of contents (or with `headingIds: true`). Without a `toc` block and without the new options, `renderHtml` output is the same as in 2.2.
+- Code blocks keep a valid language that is not in the editor's list instead of resetting it to `plaintext`; one language list (`shared/code-languages.mjs`) serves the editor, the highlighting and the renderers.
+- The image caption in the editor follows in normal flow instead of overlapping the controls below the image.
+- The 2.3 built-in block names (`toc`, `gallery`, `video`, `audio`, `synced`) and the `mention` tool never change the stored data of an existing custom block with the same name: it keeps its own editor tool, sanitising, rendering and API output, byte for byte as in 2.2. Built-in blocks of these types store the marker `_mex: 1` in their data to tell them apart; new custom blocks cannot use these names.
+
+### Fixed
+
+- Pressing Enter on a block select (gallery layout, table of contents levels, code language, custom block selects) submitted the Content Manager form.
+- Text typed into an editor field right after saving a new entry (or while the edit view was still loading) reached the editor but not the form, so Save stayed disabled and the edit could be lost. The field now reports edits made while it starts and marks its holder with `data-mex-ready="true"` when typing is safe.
+- Collaboration: edits re-applied after a room compaction or a reconnect could split another person's text typed at the same spot (for example two inserts became interleaved). Re-applied inserts now stay whole (present since 2.1).
+- Version history: blocks whose tunes differed only in key order were reported as changed; tune changes are now shown readably ("Alignment: left → center").
+- Version history, live collaboration and the link report answered 404 for editor fields inside components (MEX-23-12).
+- Admin error handling read no HTTP status from Strapi's fetch client errors, so the 400 and 404 branches of the editor and the settings pages never ran (`readApiError`).
+- Seeding a live room was quadratic in the number of blocks (5,000 blocks: about 467 ms to 75 ms).
+- Editor.js dropped internal-link references from alert, warning and toggle fields on save.
+- The editor hint said Tab chooses a block; in Editor.js 2.31 it is "/".
+
+### Security
+
+- See [docs/security-audit-2.3.md](./docs/security-audit-2.3.md): API output and reference resolution (MEX-23-01, MEX-23-02), React/Vue renderers (MEX-23-03), block SDK (MEX-23-04), media blocks (MEX-23-05), mentions (MEX-23-06), block comments (MEX-23-07), scheduled link check (MEX-23-08), AI alternative text and field actions (MEX-23-09), LanguageTool (MEX-23-10), templates and preview (MEX-23-11), synced blocks (MEX-23-14), component field permissions (MEX-23-12) and live room seeding (MEX-23-13).
+
+### Migration
+
+- No action needed. Rebuild the admin (`npm run build`) after updating.
+- Grant the new permissions to roles that should comment (`comments.read`, `comments.write`, `comments.moderate`), manage templates, patterns and synced blocks (`templates.manage`) or use the grammar check (`grammar.use`).
+- Features that send content to a provider stay off until the owner turns them on in Settings (`ai.allowImages`, `ai.allowFieldActions`, LanguageTool). The scheduled link check needs `qualityChecks.externalLinks.enabled` and `qualityChecks.externalLinks.schedule.enabled` in `config/plugins`.
+- Custom blocks created before 2.3 under the names `toc`, `gallery`, `video`, `audio`, `synced` or `mention` need nothing: their stored data is never rewritten and they stay editable under their name. New custom blocks cannot use these names.
+- Editor.js stays at 2.31.7: 2.32.0 is still a release candidate on npm (`next` tag 2.32.0-rc.3, no final release).
+
 # [2.2.0](https://github.com/Schero94/Magic-Editor-X/compare/v2.1.0...v2.2.0) (2026-11-12)
 
 

@@ -5,7 +5,21 @@
  */
 
 import { inlineToText } from './inline.mjs';
-import { prepareBlocks, overrideFor, scalarFields } from './common.mjs';
+import { prepareBlocks, overrideFor, scalarFields, annotateHeadings } from './common.mjs';
+import { buildTocTree } from '../toc.mjs';
+
+/**
+ * Plain-text lines of a table of contents (two spaces per level).
+ * @param {Array<{ text: string, children: Array }>} nodes - Toc tree.
+ * @param {boolean} ordered - Numbered entries.
+ * @param {number} depth - Depth.
+ * @returns {string[]} Lines.
+ */
+const tocLines = (nodes, ordered, depth) =>
+  nodes.flatMap((node, index) => [
+    `${'  '.repeat(depth)}${ordered ? `${index + 1}.` : '-'} ${node.text}`,
+    ...tocLines(node.children, ordered, depth + 1),
+  ]);
 
 /**
  * Plain text of list items with bullets and two-space indentation per level.
@@ -33,6 +47,17 @@ const listLines = (items, style, start, depth) => {
 
 const t = (html) => inlineToText(html).trim();
 
+/**
+ * Text of a video or audio block: title and caption, or the file URL.
+ * @param {object} b - Prepared block.
+ * @returns {string} Text.
+ */
+const mediaText = (b) => {
+  if (!b.data.file.url) return '';
+  const parts = [b.data.title.trim(), t(b.data.caption)].filter(Boolean);
+  return parts.length ? parts.join('\n') : b.data.file.url;
+};
+
 /** @type {Record<string, (block: object, options: object, render: Function) => string>} */
 const RENDERERS = {
   paragraph: (b) => t(b.data.text),
@@ -57,6 +82,17 @@ const RENDERERS = {
     b.data.content.map((row) => row.map((cell) => t(cell).replace(/\s+/g, ' ')).join('\t')).join('\n'),
   image: (b) => t(b.data.caption) || (b.raw.decorative === true ? '' : (b.data.file.alt || '').trim()),
   simpleImage: (b) => t(b.data.caption),
+  gallery: (b) =>
+    [
+      ...b.data.images.map((image) =>
+        image.file.url ? t(image.caption) || (image.decorative ? '' : (image.file.alt || '').trim()) : ''
+      ),
+      t(b.data.caption),
+    ]
+      .filter(Boolean)
+      .join('\n'),
+  video: (b) => mediaText(b),
+  audio: (b) => mediaText(b),
   linkTool: (b) => [b.data.meta.title, b.data.link].filter(Boolean).join('\n'),
   attaches: (b) =>
     b.data.file.url ? b.data.title || b.data.file.title || b.data.file.name || b.data.file.url : '',
@@ -64,6 +100,34 @@ const RENDERERS = {
   personality: (b) => [b.data.name, b.data.description, b.data.link].filter(Boolean).join('\n'),
   button: (b) => (b.data.link ? `${b.data.text} (${b.data.link})` : b.data.text),
   delimiter: () => '---',
+  toc: (b) => {
+    const tree = buildTocTree(b.headings || [], b.data);
+    if (!tree.length) return '';
+    return [b.data.title.trim(), ...tocLines(tree, b.data.style === 'ordered', 0)].filter(Boolean).join('\n');
+  },
+};
+
+/**
+ * Plain text of a code-registered block: its `text(data, helpers)` result,
+ * else the text and inline fields in schema order, one per line.
+ * @param {object} block - Prepared block with `definition`.
+ * @returns {string} Text.
+ */
+const registeredText = (block) => {
+  const { definition } = block;
+  if (definition.text) {
+    try {
+      const out = definition.text(block.data, { text: (html) => inlineToText(html) });
+      if (typeof out === 'string') return out;
+    } catch {
+      // The default text below is used.
+    }
+  }
+  return definition
+    .fields(block.data)
+    .map((field) => (field.kind === 'html' ? inlineToText(field.value) : field.value).trim())
+    .filter(Boolean)
+    .join('\n');
 };
 
 /**
@@ -92,6 +156,7 @@ export const renderText = (value, options = {}) => {
           if (typeof out === 'string') return out;
         }
         if (block.known) return RENDERERS[block.type](block, opts, render);
+        if (block.definition) return registeredText(block);
         return scalarFields(block.data)
           .map(([, v]) => inlineToText(v).trim())
           .filter(Boolean)
@@ -100,5 +165,5 @@ export const renderText = (value, options = {}) => {
       .map((text) => String(text).replace(/\u00a0/g, ' '))
       .filter((text) => text.trim() !== '')
       .join('\n\n');
-  return render(prepareBlocks(value, opts));
+  return render(annotateHeadings(prepareBlocks(value, opts), opts));
 };

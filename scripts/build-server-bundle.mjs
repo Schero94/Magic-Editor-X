@@ -55,8 +55,29 @@ const renderOptions = {
 await build({ ...renderOptions, format: 'esm', outfile: 'dist/render/index.mjs' });
 await build({ ...renderOptions, format: 'cjs', outfile: 'dist/render/index.js' });
 
+// Custom block SDK (`magic-editor-x/blocks`): framework-free like the renderers.
+const blocksOptions = { ...renderOptions, entryPoints: ['shared/blocks/index.mjs'] };
+await build({ ...blocksOptions, format: 'esm', outfile: 'dist/blocks/index.mjs' });
+await build({ ...blocksOptions, format: 'cjs', outfile: 'dist/blocks/index.js' });
+
+// Framework components (`magic-editor-x/react`, `magic-editor-x/vue`): the
+// framework is the caller's (external), the renderer core is bundled in.
+for (const [name, external] of [
+  ['react', ['react']],
+  ['vue', ['vue']],
+]) {
+  const frameworkOptions = { ...renderOptions, entryPoints: [`shared/frameworks/${name}.mjs`], external };
+  await build({ ...frameworkOptions, format: 'esm', outfile: `dist/${name}/index.mjs` });
+  await build({ ...frameworkOptions, format: 'cjs', outfile: `dist/${name}/index.js` });
+}
+
 // TypeScript finds these next to the resolved file (`index.d.ts` for require, `index.d.mts` for import).
-const renderTypes = await readFile(new URL('../types/render.d.ts', import.meta.url), 'utf8');
-const shimmed = renderTypes.replace("from './index.js'", "from '../../types/index.js'");
-await writeFile(new URL('../dist/render/index.d.ts', import.meta.url), shimmed);
-await writeFile(new URL('../dist/render/index.d.mts', import.meta.url), shimmed);
+for (const name of ['render', 'react', 'vue', 'blocks']) {
+  const types = await readFile(new URL(`../types/${name}.d.ts`, import.meta.url), 'utf8');
+  const shimmed = types
+    .replace("from './index.js'", "from '../../types/index.js'")
+    .replace("from './render.js'", "from '../render/index.js'")
+    .replace("import('./blocks.js')", "import('../blocks/index.js')");
+  await writeFile(new URL(`../dist/${name}/index.d.ts`, import.meta.url), shimmed);
+  await writeFile(new URL(`../dist/${name}/index.d.mts`, import.meta.url), shimmed);
+}
