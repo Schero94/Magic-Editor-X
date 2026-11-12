@@ -52,6 +52,7 @@ export const AUDIT_EVENTS = Object.freeze([
   'synced.restore',
   'settings.update',
   'linkcheck.run',
+  'ai.localize',
 ]);
 
 /** Event names: `area.verb`, lower case. */

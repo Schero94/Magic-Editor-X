@@ -5,6 +5,8 @@ const { cleanEditorValue } = require('./utils/sanitizer');
 const { resolveFieldPreset, allowedInlineTags, checkPreset } = require('../../shared/presets.mjs');
 const { schemaHasEditorFields, transformEditorFields } = require('./utils/editor-fields');
 const { registerPublishGuard } = require('./utils/publish-guard');
+const { createRepairMiddleware } = require('./utils/ai-localization-guard');
+const { registerReleaseReadiness } = require('./utils/release-readiness');
 const { formErrorDetails } = require('./utils/form-errors');
 const { registerCommentRetention } = require('./utils/comment-retention');
 const { registerAuditTrail } = require('./utils/audit-trail');
@@ -95,7 +97,7 @@ module.exports = ({ strapi }) => {
 
   const logger = createLogger(strapi);
   const cache = new Map();
-  strapi.documents.use(async (ctx, next) => {
+  const saveMiddleware = async (ctx, next) => {
     const sanitize = strapi.config.get('plugin::magic-editor-x.sanitizeOnSave') !== false;
     if (!sanitize || !['create', 'update'].includes(ctx.action) || !ctx.params || !ctx.params.data)
       return next();
@@ -152,8 +154,13 @@ module.exports = ({ strapi }) => {
       },
     });
     return next();
-  });
+  };
+  // 2.4: writes of Strapi's i18n AI translations are rebuilt from the source locale first
+  // (no-op for every other write), then cleaned and checked like any write.
+  const repairAiLocalization = createRepairMiddleware(strapi, logger);
+  strapi.documents.use((ctx, next) => repairAiLocalization(ctx, () => saveMiddleware(ctx, next)));
   registerPublishGuard(strapi);
+  registerReleaseReadiness(strapi);
   registerOutputParam(strapi);
   registerGraphql(strapi);
   registerCommentRetention(strapi);

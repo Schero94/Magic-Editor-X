@@ -3,6 +3,7 @@
 const { createLogger } = require('./utils/logger');
 const { unsubscribeCommentAuthorCleanup } = require('./utils/comment-retention');
 const { unsubscribeAuditActorCleanup } = require('./utils/audit-trail');
+const { unregisterReleaseReadiness } = require('./utils/release-readiness');
 const { clearActiveBlocks } = require('../../shared/blocks/active.mjs');
 
 /**
@@ -13,6 +14,7 @@ const { clearActiveBlocks } = require('../../shared/blocks/active.mjs');
 module.exports = async ({ strapi }) => {
   unsubscribeCommentAuthorCleanup(strapi);
   unsubscribeAuditActorCleanup(strapi);
+  unregisterReleaseReadiness(strapi);
   try {
     strapi.plugin('magic-editor-x').service('audit').stop();
   } catch (error) {
