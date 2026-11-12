@@ -282,3 +282,50 @@ test(
     );
   }
 );
+
+test('fields inside a repeatable component: mentions and notifications follow the entry key', async () => {
+  const editor = await tokenFor('editor');
+  const reviewer = await tokenFor('reviewer');
+  const entry = await createArticle(editor, {
+    title: 'Sections with mentions',
+    body: doc([p('topblk0001', 'Top')]),
+    sections: [{ heading: 'A', body: doc([p('secblk0001', 'Section text to discuss')]) }],
+  });
+  const draft = await call(
+    'GET',
+    `/content-manager/collection-types/${ARTICLE}/${entry.documentId}?locale=en`,
+    {
+      token: editor,
+    }
+  );
+  const fieldKey = draft.body.data.sections[0].body.fieldKey;
+  assert.match(fieldKey, /^[A-Za-z0-9_-]{16,32}$/);
+  const t = { uid: ARTICLE, documentId: entry.documentId, locale: 'en', field: 'sections.0.body', fieldKey };
+  const cora = (await mentionable(editor, t, 'cora')).body.data[0];
+  assert.ok(cora, 'Cora can read sections.body');
+  const created = await call('POST', '/magic-editor-x/comments', {
+    token: editor,
+    body: {
+      ...t,
+      blockId: 'secblk0001',
+      body: '@Cora Prüfer here',
+      anchor: {
+        path: 'text',
+        start: null,
+        end: null,
+        quote: { exact: 'text to discuss', prefix: 'Section ', suffix: '' },
+      },
+      mentions: [cora.id],
+    },
+  });
+  assert.equal(created.status, 201, JSON.stringify(created.body));
+  const listed = await notifications(reviewer);
+  const item = listed.body.data.find((note) => note.threadId === created.body.data.id);
+  assert.ok(item);
+  assert.equal(item.target.field, 'sections.body');
+  assert.equal(item.target.fieldKey, fieldKey);
+  // The panel of that entry lists it under the key.
+  const field = await list(reviewer, t);
+  assert.ok(field.body.meta.notifications.some((note) => note.threadId === created.body.data.id));
+  assert.equal(field.body.data[0].anchor.quote.exact, 'text to discuss');
+});
