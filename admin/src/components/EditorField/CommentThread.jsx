@@ -1,6 +1,6 @@
 import { forwardRef, useState } from 'react';
 import { useIntl } from 'react-intl';
-import { Badge, Box, Button, Field, Flex, Textarea, TextButton, Typography } from '@strapi/design-system';
+import { Badge, Box, Button, Field, Flex, Textarea, Typography } from '@strapi/design-system';
 import styled from 'styled-components';
 import { ConfirmAction } from '../ui/ConfirmAction';
 import { MAX_COMMENT_LENGTH, relativeTimeParts } from '../../../../shared/comments.mjs';
@@ -219,9 +219,9 @@ export const CommentThread = forwardRef(function CommentThread(
             </Flex>
           </Flex>
           {thread.detached ? null : (
-            <TextButton onClick={() => onSelectBlock(thread.blockId)}>
+            <Button variant="ghost" size="S" onClick={() => onSelectBlock(thread.blockId)}>
               {t('editor.comments.showBlock', 'Show block')}
-            </TextButton>
+            </Button>
           )}
         </Flex>
         {thread.detached ? (
@@ -280,15 +280,23 @@ export const CommentThread = forwardRef(function CommentThread(
                     </Body>
                   )}
                   {!isEditing && ((own && canWrite) || canDelete) ? (
-                    <Flex gap={3} wrap="wrap">
+                    <Flex gap={2} wrap="wrap">
                       {own && canWrite ? (
-                        <TextButton onClick={() => setEditing({ id: comment.id, value: comment.body })}>
+                        <Button
+                          variant="ghost"
+                          size="S"
+                          onClick={() => setEditing({ id: comment.id, value: comment.body })}
+                        >
                           {t('editor.comments.edit', 'Edit')}
-                        </TextButton>
+                        </Button>
                       ) : null}
                       {canDelete ? (
                         <ConfirmAction
-                          trigger={<TextButton>{t('editor.comments.delete', 'Delete')}</TextButton>}
+                          trigger={
+                            <Button variant="ghost" size="S">
+                              {t('editor.comments.delete', 'Delete')}
+                            </Button>
+                          }
                           title={
                             isThread
                               ? t('editor.comments.delete.threadTitle', 'Delete this thread?')

@@ -33,10 +33,13 @@ Integration and browser tests run against a separate Strapi 5 app that installs 
    - Content types for the tests: `api::article.article` (localised, Draft & Publish) with `title` (string), `slug` (uid of `title`), `body` (Magic Editor X), `summary` (Magic Editor X with the options `{ "preset": "basic", "requireAlt": true, "maxCharacters": 400, "linkTargets": "internal", "disableAi": true, "disableCollaboration": true, "publishGuard": true }`), `teaser` (Magic Editor X with `{ "preset": "minimal" }`), `legacy` (Blocks), `notes` (Rich text, Markdown), `migrated` (Magic Editor X) and a repeatable component `sections` with a Magic Editor X field `body`; `api::homepage.homepage` (single type) with `intro` (Magic Editor X).
 4. Generate every secret with `crypto.randomBytes` into `.env` (mode 600), including `MAGIC_EDITOR_X_ENCRYPTION_KEY`. Never print or commit them.
 5. Start the app with outgoing network blocked: `NODE_OPTIONS="-r ./block-egress.cjs" npx strapi start` (a preload that only allows loopback connections).
-6. Seed it through the admin API: register the first admin with `POST /admin/register-admin`, create three admins (`editor@example.test` with the Editor role plus `access`, `collaborate` and `ai.use`; `author@example.test` with the Author role and no plugin actions; `reviewer@example.test` with a role that can only read articles and the homepage and has `access` and `collaborate`), add the locale `de`, and write the credentials to a `creds.json` with mode 600:
+6. Seed it through the admin API: register the first admin with `POST /admin/register-admin`, create four admins (`editor@example.test` with the Editor role plus `access`, `collaborate`, `ai.use`, `comments.read` and `comments.write`; `author@example.test` with the Author role and no plugin actions; `reviewer@example.test` with a role that can only read articles (fields `title`, `body`, `sections`, locales `en` and `de`) and the homepage and has `access`, `collaborate`, `comments.read` and `comments.write`; `reader@example.test` with a role that can only read articles and has `access` and `comments.read`), add the locale `de`, and write the credentials to a `creds.json` with mode 600:
 
 ```json
-{ "admin": { "email": "...", "password": "..." }, "users": { "editor": {}, "author": {}, "reviewer": {} } }
+{
+  "admin": { "email": "...", "password": "..." },
+  "users": { "editor": {}, "author": {}, "reviewer": {}, "reader": {} }
+}
 ```
 
 Use synthetic data only (`*.example.test`, RFC 5737 addresses).
@@ -48,6 +51,8 @@ MEX_HOST_URL=http://127.0.0.1:<port> MEX_CREDS=<app>/creds.json npm run test:int
 ```
 
 The suite fails, never skips, when the variables are missing. It covers anonymous and role-based access, sanitising on save, custom blocks, version history with Content Manager permissions, collaboration over Socket.IO (two editors converging, read-only viewers, single-use and forged tokens, foreign origins), upload checks, the SSRF guard, the AI proxy against a local fake provider and the Content API output.
+
+Block comments of deleted entries must be gone afterwards; on the host database `select count(*) from magic_editor_comments c where not exists (select 1 from articles a where a.document_id = c.entry_id and a.locale = c.entry_locale)` returns 0.
 
 Run it on SQLite and on PostgreSQL: start the same app with `DATABASE_CLIENT=postgres DATABASE_URL=postgres://<user>@127.0.0.1:<port>/<database>` on a fresh database, seed it and run the suite again. The AI test uses the per-admin rate limit; wait a minute before running the suite twice against the same process.
 

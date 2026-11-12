@@ -171,7 +171,11 @@ export const CommentsPanel = ({
     if (event.key !== 'Escape' || event.defaultPrevented) return;
     const tag = event.target && event.target.tagName;
     if (tag === 'TEXTAREA' || tag === 'INPUT') return;
-    if (event.target && event.target.closest && event.target.closest('[role="listbox"],[role="dialog"]'))
+    if (
+      event.target &&
+      event.target.closest &&
+      event.target.closest('[role="listbox"],[role="dialog"],[role="alertdialog"]')
+    )
       return;
     event.stopPropagation();
     onClose();
