@@ -705,33 +705,144 @@ export const editorStyles = css`
       color: ${c('buttonNeutral0')};
     }
 
-    .tc-wrap {
-      --color-background: ${c('neutral100')};
-      --color-text-secondary: ${c('neutral600')};
-      --color-border: ${c('neutral200')};
-      --cell-size: 34px;
-      --toolbox-icon-size: 18px;
-      --toolbox-padding: 6px;
-      --toolbox-aiming-field-size: calc(var(--toolbox-icon-size) + 2 * var(--toolbox-padding));
+    /* Table (2.4, tools/table.js): a real table with its own scroll region. */
+    .mex-table-tool {
+      display: flex;
+      flex-direction: column;
+      gap: ${s(2)};
+      min-width: 0;
+      max-width: 100%;
     }
 
-    .tc-table {
+    .mex-table-tool__toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: ${s(1)};
+      padding: ${s(1)};
+      border: 1px solid ${c('neutral200')};
+      border-radius: ${radius};
+      background: ${c('neutral100')};
+    }
+
+    .mex-table-tool__separator {
+      align-self: stretch;
+      width: 1px;
+      margin: 0 ${s(1)};
+      background: ${c('neutral200')};
+    }
+
+    .mex-table-tool__button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      padding: 0;
+      border: none;
+      border-radius: ${radius};
+      background: transparent;
       color: ${c('neutral800')};
+      cursor: pointer;
+
+      &:hover:not(:disabled) {
+        background: ${c('neutral150')};
+      }
+
+      &[aria-pressed='true'] {
+        background: ${c('primary100')};
+        color: ${c('primary700')};
+      }
+
+      &:focus-visible {
+        outline: 2px solid ${c('primary600')};
+        outline-offset: 1px;
+      }
+
+      &:disabled {
+        color: ${c('neutral500')};
+        cursor: not-allowed;
+        opacity: 0.6;
+      }
+
+      svg {
+        width: 18px;
+        height: 18px;
+      }
     }
 
-    .tc-row--selected,
-    .tc-cell--selected {
+    .mex-table-tool__scroll {
+      max-width: 100%;
+      overflow-x: auto;
+    }
+
+    .mex-table-tool__table {
+      width: 100%;
+      border-collapse: collapse;
+      color: ${c('neutral800')};
+      font-size: ${f(2)};
+    }
+
+    .mex-table-tool__cell {
+      min-width: 9.6rem;
+      padding: 0;
+      border: 1px solid ${c('neutral200')};
+      background: ${c('neutral0')};
+      text-align: start;
+      vertical-align: top;
+
+      &:focus-within {
+        box-shadow: inset 0 0 0 2px ${c('primary600')};
+      }
+
+      &.mex-align-left {
+        text-align: left;
+      }
+
+      &.mex-align-center {
+        text-align: center;
+      }
+
+      &.mex-align-right {
+        text-align: right;
+      }
+    }
+
+    th.mex-table-tool__cell {
+      background: ${c('neutral100')};
+      font-weight: 600;
+    }
+
+    .mex-table-tool__cell--selected,
+    th.mex-table-tool__cell--selected {
       background: ${c('primary100')};
     }
 
-    .tc-popover {
-      --color-border: ${c('neutral150')};
-      --color-background: ${c('neutral0')};
-      --color-background-hover: ${c('neutral100')};
-      --color-background-confirm: ${c('danger600')};
-      --color-background-confirm-hover: ${c('danger700')};
-      --color-text-confirm: ${c('buttonNeutral0')};
-      color: ${c('neutral800')};
+    .mex-table-tool__input {
+      min-height: 3.6rem;
+      padding: ${s(2)} ${s(3)};
+      overflow-wrap: anywhere;
+      outline: none;
+    }
+
+    .mex-table-tool__caption {
+      padding: ${s(1)} ${s(2)};
+      border-radius: ${radius};
+      color: ${c('neutral600')};
+      font-size: ${f(1)};
+
+      &:focus {
+        box-shadow: 0 0 0 2px ${c('primary600')};
+      }
+    }
+
+    .mex-table-tool__status {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      white-space: nowrap;
     }
 
     .cdx-attaches {

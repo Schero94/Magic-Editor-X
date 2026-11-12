@@ -13,6 +13,7 @@
  * comments and unknown elements are never copied.
  */
 
+import { TABLE_ALIGNS, TABLE_LIMITS, cleanTableAlign, normalizeMerges } from '../table.mjs';
 import {
   MAX_CONVERTED_BLOCKS,
   classifyImageSource,
@@ -519,14 +520,47 @@ const pushList = (ctx, node) => {
 };
 
 /**
- * Converts a table; the first row is a header row when it uses `<th>` or `<thead>`.
+ * Explicit alignment of a cell: `text-align` or `align` on the cell, else the
+ * one alignment all its paragraphs share (Word and Google Docs align the
+ * paragraph inside the cell).
+ * @param {object} cell - `<td>`/`<th>`.
+ * @returns {'left'|'center'|'right'|null} Alignment.
+ */
+const cellAlign = (cell) => {
+  const read = (node) => {
+    const match = /(?:^|;)\s*text-align\s*:\s*([a-z]+)/.exec(styleOf(node));
+    const value = match ? match[1] : attr(node, 'align').toLowerCase();
+    return TABLE_ALIGNS.includes(value) ? value : null;
+  };
+  const own = read(cell);
+  if (own) return own;
+  const paragraphs = visible(cell.children).filter(
+    (node) => isElement(node) && /^(p|div|h[1-6])$/.test(node.name)
+  );
+  const values = paragraphs.map(read);
+  return values.length && values.every((value) => value && value === values[0]) ? values[0] : null;
+};
+
+/** A `colspan`/`rowspan` value, 1 when missing or invalid, at most `max`. */
+const spanOf = (value, max) => {
+  const number = Number.parseInt(value, 10);
+  return Number.isInteger(number) && number > 1 ? Math.min(number, Math.max(max, 1)) : 1;
+};
+
+/**
+ * Converts a table. The first row is a header row when it is in `<thead>` or
+ * uses only `<th>`; the first column is a header column when every body row
+ * starts with a `<th>` and the body has data cells. `colspan`/`rowspan`
+ * become merged cells (a rowspan ends with its row group), `text-align`/`align`
+ * shared by a column's body cells becomes its alignment, `<caption>` the caption.
  * @param {object} ctx - Context.
  * @param {object} node - `<table>`.
  */
 const pushTable = (ctx, node) => {
   const rows = [];
-  let withHeadings = false;
   const state = { images: [] };
+  let caption = '';
+  let group = 0;
   const collect = (nodes, inHead, depth = 0) => {
     for (const child of visible(nodes)) {
       if (!isElement(child) || depth > 3) continue;
@@ -534,18 +568,72 @@ const pushTable = (ctx, node) => {
         const cells = visible(child.children).filter(
           (cell) => isElement(cell) && (cell.name === 'td' || cell.name === 'th')
         );
-        if (!cells.length) continue;
-        if (rows.length === 0 && (inHead || cells.every((cell) => cell.name === 'th'))) withHeadings = true;
-        rows.push(cells.slice(0, 100).map((cell) => tidyInline(inlineOf(cell.children, state))));
-      } else if (/^(thead|tbody|tfoot)$/.test(child.name))
+        if (cells.length && rows.length < TABLE_LIMITS.rows) rows.push({ cells, head: inHead, group });
+      } else if (/^(thead|tbody|tfoot)$/.test(child.name)) {
+        group += 1;
         collect(child.children, child.name === 'thead', depth + 1);
+        group += 1;
+      } else if (child.name === 'caption' && depth === 0 && !caption)
+        caption = tidyInline(inlineOf(child.children, state));
     }
   };
   collect(node.children, false);
   if (!rows.length) return;
-  const width = Math.max(...rows.map((row) => row.length));
-  const content = rows.slice(0, 500).map((row) => [...row, ...Array(width - row.length).fill('')]);
-  push(ctx, { type: 'table', data: { withHeadings, stretched: false, content } });
+  // Grid of anchor cells (the HTML table model, bounded): covered slots hold COVERED.
+  const COVERED = {};
+  const grid = rows.map(() => []);
+  const merges = [];
+  rows.forEach((row, r) => {
+    let groupEnd = r;
+    while (groupEnd + 1 < rows.length && rows[groupEnd + 1].group === row.group) groupEnd += 1;
+    let c = 0;
+    for (const cell of row.cells) {
+      while (grid[r][c]) c += 1;
+      if (c >= TABLE_LIMITS.cols) break;
+      const colspan = spanOf(attr(cell, 'colspan'), TABLE_LIMITS.cols - c);
+      const rowspan = spanOf(attr(cell, 'rowspan'), groupEnd - r + 1);
+      for (let rr = 0; rr < rowspan; rr += 1)
+        for (let cc = 0; cc < colspan; cc += 1) grid[r + rr][c + cc] = rr || cc ? COVERED : cell;
+      if (rowspan * colspan > 1) merges.push({ row: r, col: c, rowspan, colspan });
+      c += colspan;
+    }
+  });
+  const width = Math.max(...grid.map((row) => row.length));
+  const anchor = (r, c) => (grid[r][c] && grid[r][c] !== COVERED ? grid[r][c] : null);
+  const content = grid.map((row, r) =>
+    Array.from({ length: width }, (_, c) => {
+      const cell = anchor(r, c);
+      return cell ? tidyInline(inlineOf(cell.children, state)) : '';
+    })
+  );
+  const withHeadings = rows[0].head || rows[0].cells.every((cell) => cell.name === 'th');
+  const data = { withHeadings, stretched: false, content };
+  const body = rows.map((_, r) => r).slice(withHeadings ? 1 : 0);
+  const starts = body.map((r) => anchor(r, 0)).filter(Boolean);
+  if (
+    starts.length &&
+    starts.every((cell) => cell.name === 'th') &&
+    body.some((r) => grid[r].some((cell) => cell && cell !== COVERED && cell.name === 'td'))
+  )
+    data.headerColumn = true;
+  const alignRows = body.length ? body : [0];
+  const align = cleanTableAlign(
+    Array.from({ length: width }, (_, c) => {
+      const values = alignRows
+        .map((r) => anchor(r, c))
+        .filter(
+          (cell) => cell && spanOf(attr(cell, 'colspan'), 2) === 1 && cell.children && cell.children.length
+        )
+        .map(cellAlign);
+      return values.length && values.every((value) => value && value === values[0]) ? values[0] : null;
+    }),
+    width
+  );
+  if (align) data.align = align;
+  const valid = normalizeMerges(merges, content.length, width, { headerRow: withHeadings });
+  if (valid.length) data.merges = valid;
+  if (caption && !isBlankInline(caption)) data.caption = caption;
+  push(ctx, { type: 'table', data });
   pushImages(ctx, state.images);
 };
 

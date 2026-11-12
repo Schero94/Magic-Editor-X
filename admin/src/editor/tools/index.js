@@ -4,7 +4,6 @@ import List from '@editorjs/list';
 import Quote from '@editorjs/quote';
 import Warning from '@editorjs/warning';
 import Code from '@editorjs/code';
-import Table from '@editorjs/table';
 import Embed from '@editorjs/embed';
 import Raw from '@editorjs/raw';
 import Attaches from '@editorjs/attaches';
@@ -33,6 +32,7 @@ import { TocTool } from './toc';
 import { SyncedTool } from './synced';
 import { MentionTool } from './mention';
 import { ToggleTool } from './toggle';
+import { TableTool } from './table';
 import { ChecklistTool } from './checklist';
 import { buildCustomBlockTools } from './custom-block';
 import { MexImageTool } from './alt-text';
@@ -193,11 +193,12 @@ export function buildTools(ctx) {
     toc: { class: markedTool(TocTool, 'toc'), config: { t, levels } },
     // Synced block (2.3): inserted from the template dialog; the field renders its view (`ctx.mountSynced`).
     synced: { class: markedTool(SyncedTool, 'synced'), config: { t, mount: ctx.mountSynced } },
+    // 2.4: own table tool (header row and column, alignment, merged cells, caption).
     table: {
-      class: Table,
+      class: TableTool,
       inlineToolbar: inline,
       shortcut: 'CMD+SHIFT+T',
-      config: { rows: 2, cols: 3, withHeadings: true },
+      config: { rows: 2, cols: 3, withHeadings: true, t },
     },
     embed: {
       class: Embed,
@@ -470,16 +471,6 @@ export function editorI18n(t) {
           Unordered: tr('tools.list.unordered', 'Bulleted'),
           Ordered: tr('tools.list.ordered', 'Numbered'),
           Checklist: tr('tools.names.checklist', 'Checklist'),
-        },
-        table: {
-          'With headings': tr('tools.table.withHeadings', 'With headings'),
-          'Without headings': tr('tools.table.withoutHeadings', 'Without headings'),
-          'Add row above': tr('tools.table.rowAbove', 'Add row above'),
-          'Add row below': tr('tools.table.rowBelow', 'Add row below'),
-          'Delete row': tr('tools.table.deleteRow', 'Delete row'),
-          'Add column to left': tr('tools.table.columnLeft', 'Add column to the left'),
-          'Add column to right': tr('tools.table.columnRight', 'Add column to the right'),
-          'Delete column': tr('tools.table.deleteColumn', 'Delete column'),
         },
         header: {
           'Heading 1': tr('tools.header.level1', 'Heading 1'),

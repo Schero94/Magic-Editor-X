@@ -1047,7 +1047,8 @@
       "type": "object",
       "properties": {
         "withHeadings": {
-          "type": "boolean"
+          "type": "boolean",
+          "description": "The first row is a header row."
         },
         "stretched": {
           "type": "boolean"
@@ -1061,7 +1062,56 @@
             "items": {
               "$ref": "#/$defs/inlineHtml"
             }
+          },
+          "description": "Rows of cells. With `merges` the grid is rectangular and the cells a merge covers are empty strings."
+        },
+        "headerColumn": {
+          "type": "boolean",
+          "description": "2.4: the first column is a header column (only written when true)."
+        },
+        "align": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "enum": ["left", "center", "right", null]
+          },
+          "description": "2.4: alignment per column (null = not set); trailing nulls are removed."
+        },
+        "merges": {
+          "type": "array",
+          "maxItems": 1000,
+          "description": "2.4: merged cells, sorted by row and column. Inside the grid, never overlapping, at least two cells, never from the header row into the body.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "row": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 499
+              },
+              "col": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 99
+              },
+              "rowspan": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 500
+              },
+              "colspan": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100
+              }
+            },
+            "required": ["row", "col", "rowspan", "colspan"],
+            "additionalProperties": false
           }
+        },
+        "caption": {
+          "$ref": "#/$defs/inlineHtml",
+          "description": "2.4: table caption (inline HTML, only written when not empty)."
         }
       },
       "required": ["withHeadings", "stretched", "content"],

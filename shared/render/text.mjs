@@ -78,8 +78,14 @@ const RENDERERS = {
   code: (b) => b.data.code,
   codeFlask: (b) => b.data.code,
   raw: () => '',
-  table: (b) =>
-    b.data.content.map((row) => row.map((cell) => t(cell).replace(/\s+/g, ' ')).join('\t')).join('\n'),
+  // Tab-separated rows; merged cells leave their covered cells empty; the caption (2.4) is the first line.
+  table: (b) => {
+    const rows = b.data.content
+      .map((row) => row.map((cell) => t(cell).replace(/\s+/g, ' ')).join('\t'))
+      .join('\n');
+    const caption = b.data.caption ? t(b.data.caption).replace(/\s+/g, ' ') : '';
+    return caption && b.data.content.length ? `${caption}\n${rows}` : rows;
+  },
   image: (b) => t(b.data.caption) || (b.raw.decorative === true ? '' : (b.data.file.alt || '').trim()),
   simpleImage: (b) => t(b.data.caption),
   gallery: (b) =>

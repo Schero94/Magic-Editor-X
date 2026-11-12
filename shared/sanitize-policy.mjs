@@ -11,6 +11,7 @@
 
 import { isPlainObject } from './editor-data.mjs';
 import { activeBlock } from './blocks/active.mjs';
+import { TABLE_LIMITS, cleanTableExtras } from './table.mjs';
 import {
   BUILT_IN_MARKER,
   BUILT_IN_MARKER_VERSION,
@@ -387,15 +388,23 @@ export const BLOCK_POLICIES = {
     if (ctx.rawHtml === 'disable') return { html: '' };
     return { html: ctx.rawSanitizer(html) };
   },
-  table: (d, inline) => ({
-    withHeadings: bool(d.withHeadings),
-    stretched: bool(d.stretched),
-    content: Array.isArray(d.content)
-      ? d.content
-          .slice(0, 500)
-          .map((row) => (Array.isArray(row) ? row.slice(0, 100).map((cell) => inline(cell)) : []))
-      : [],
-  }),
+  // 2.4: optional header column, column alignment, merged cells and caption (shared/table.mjs).
+  table: (d, inline) =>
+    cleanTableExtras(
+      {
+        withHeadings: bool(d.withHeadings),
+        stretched: bool(d.stretched),
+        content: Array.isArray(d.content)
+          ? d.content
+              .slice(0, TABLE_LIMITS.rows)
+              .map((row) =>
+                Array.isArray(row) ? row.slice(0, TABLE_LIMITS.cols).map((cell) => inline(cell)) : []
+              )
+          : [],
+      },
+      d,
+      inline
+    ),
   image: (d, inline) => {
     const file = isPlainObject(d.file) ? d.file : {};
     const cleanFile = { url: sanitizeUrl(file.url, { schemes: ['http', 'https'] }) };

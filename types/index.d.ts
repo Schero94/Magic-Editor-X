@@ -74,10 +74,28 @@ export interface RawData {
   /** Raw HTML, sanitised or emptied according to the server's `rawHtml` option. */
   html: string;
 }
+/** A merged table cell (2.4): anchor (top left) cell and size. */
+export interface TableMerge {
+  row: number;
+  col: number;
+  rowspan: number;
+  colspan: number;
+}
+export type TableAlign = 'left' | 'center' | 'right';
 export interface TableData {
+  /** The first row is a header row. */
   withHeadings: boolean;
   stretched: boolean;
+  /** Rows of cells. With `merges` the grid is rectangular and covered cells are ''. */
   content: InlineHtml[][];
+  /** 2.4: the first column is a header column (only stored when true). */
+  headerColumn?: boolean;
+  /** 2.4: alignment per column (null = not set). */
+  align?: Array<TableAlign | null>;
+  /** 2.4: merged cells (inside the grid, never overlapping, never from the header row into the body). */
+  merges?: TableMerge[];
+  /** 2.4: caption (only stored when not empty). */
+  caption?: InlineHtml;
 }
 export interface MediaFormat {
   url: Url;

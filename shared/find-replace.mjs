@@ -114,6 +114,9 @@ export const searchableFields = (block) => {
           if (typeof cell === 'string') out.push({ path: ['content', r, c], kind: 'html', value: cell });
         });
     });
+  // 2.4: table caption (after the cells, where the editor shows it).
+  if (block.type === 'table' && typeof data.caption === 'string')
+    out.push({ path: ['caption'], kind: 'html', value: data.caption });
   return out;
 };
 

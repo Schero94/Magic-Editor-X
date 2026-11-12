@@ -38,7 +38,14 @@ const RULES = {
     key: 'editor.quality.rule.videoCaptions',
     text: 'Video without captions or subtitles',
   },
-  'table-no-header': { key: 'editor.quality.rule.tableHeader', text: 'Table without a header row' },
+  'table-no-header': {
+    key: 'editor.quality.rule.tableHeader',
+    text: 'Table without a header row or header column',
+  },
+  'table-empty-header': {
+    key: 'editor.quality.rule.tableEmptyHeader',
+    text: '{count, plural, one {# empty header cell} other {# empty header cells}} in a table',
+  },
   'low-contrast': {
     key: 'editor.quality.rule.lowContrast',
     text: 'Text colour contrast {ratio}:1 is below 4.5:1',

@@ -6,6 +6,7 @@
  * as escaped text; inline HTML is escaped (only `<br>` is kept).
  */
 
+import { cleanTableAlign } from '../table.mjs';
 import { lexer } from 'marked';
 import {
   MAX_CONVERTED_BLOCKS,
@@ -248,10 +249,11 @@ const walk = (ctx, tokens, depth) => {
           .map((row) => row.slice(0, 100).map((cell) => tidyInline(inlineOf(cell.tokens, state))));
         const width = Math.max(header.length, ...rows.map((row) => row.length));
         const pad = (row) => [...row, ...Array(width - row.length).fill('')];
-        push(ctx, {
-          type: 'table',
-          data: { withHeadings: true, stretched: false, content: [pad(header), ...rows.map(pad)] },
-        });
+        const data = { withHeadings: true, stretched: false, content: [pad(header), ...rows.map(pad)] };
+        // GFM alignment row (2.4): `:---`, `:---:`, `---:`.
+        const align = cleanTableAlign(token.align, width);
+        if (align) data.align = align;
+        push(ctx, { type: 'table', data });
         break;
       }
       case 'hr':

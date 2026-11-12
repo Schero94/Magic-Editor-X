@@ -87,6 +87,7 @@ export const ALLOWED_OUTPUT_TAGS = new Set([
   'summary',
   'pre',
   'table',
+  'caption',
   'thead',
   'tbody',
   'tr',
@@ -156,6 +157,25 @@ export const xssDocument = (payload) =>
         content: [
           [payload, payload],
           [payload, payload],
+        ],
+      },
+    },
+    // Tables v2 (2.4): header column, alignment, merges and caption carry the payload too.
+    {
+      type: 'table',
+      data: {
+        withHeadings: true,
+        headerColumn: true,
+        caption: payload,
+        align: [payload, 'center', { toString: payload }],
+        merges: [
+          { row: 1, col: 0, rowspan: 2, colspan: 2 },
+          { row: payload, col: 0, rowspan: 1, colspan: 2 },
+        ],
+        content: [
+          [payload, payload, payload],
+          [payload, payload, payload],
+          [payload, payload, payload],
         ],
       },
     },
