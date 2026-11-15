@@ -206,6 +206,7 @@ export const BlockAiDialog = ({
   return (
     <Modal.Root open onOpenChange={(open) => !open && onClose()}>
       <Modal.Content
+        aria-describedby={undefined}
         data-testid="mex-block-ai-dialog"
         onCloseAutoFocus={(event) => {
           if (!returnFocus) return;

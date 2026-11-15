@@ -295,6 +295,7 @@ export const FootnoteDialog = ({
       }}
     >
       <Modal.Content
+        aria-describedby={undefined}
         {...escapeProps}
         onOpenAutoFocus={focusNote}
         onCloseAutoFocus={(event) => {

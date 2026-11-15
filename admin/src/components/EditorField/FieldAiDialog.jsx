@@ -201,6 +201,7 @@ export const FieldAiDialog = ({
   return (
     <Modal.Root open onOpenChange={(open) => !open && onClose()}>
       <Modal.Content
+        aria-describedby={undefined}
         onCloseAutoFocus={(event) => {
           if (!returnFocus) return;
           event.preventDefault();

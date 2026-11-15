@@ -313,7 +313,7 @@ export const TemplateDialog = ({
         if (!next && !busy) onClose();
       }}
     >
-      <Modal.Content>
+      <Modal.Content aria-describedby={undefined}>
         <Modal.Header closeLabel={t('editor.templates.close', 'Close')}>
           <Modal.Title>{t('editor.templates.title', 'Insert a template or pattern')}</Modal.Title>
         </Modal.Header>

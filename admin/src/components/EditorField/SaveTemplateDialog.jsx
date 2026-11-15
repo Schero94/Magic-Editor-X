@@ -74,7 +74,7 @@ export const SaveTemplateDialog = ({ t, request, target, fieldLabel, onSaved, on
         if (!next && !saving) onClose();
       }}
     >
-      <Modal.Content>
+      <Modal.Content aria-describedby={undefined}>
         <Modal.Header closeLabel={t('editor.templates.close', 'Close')}>
           <Modal.Title>{t('editor.saveTemplate.title', 'Save as template or pattern')}</Modal.Title>
         </Modal.Header>

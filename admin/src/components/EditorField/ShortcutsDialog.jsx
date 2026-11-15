@@ -125,7 +125,7 @@ export const ShortcutsDialog = ({
 
   return (
     <Modal.Root open onOpenChange={(open) => !open && onClose()}>
-      <Modal.Content>
+      <Modal.Content aria-describedby={undefined}>
         <Modal.Header closeLabel={t('editor.shortcuts.close', 'Close')}>
           <Modal.Title>{t('editor.shortcuts.title', 'Keyboard shortcuts')}</Modal.Title>
         </Modal.Header>

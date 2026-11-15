@@ -486,7 +486,7 @@ export const HistoryModal = ({
   const escapeProps = useTooltipSafeEscape(onClose);
   return (
     <Modal.Root open onOpenChange={(open) => !open && onClose()}>
-      <Modal.Content {...escapeProps}>
+      <Modal.Content aria-describedby={undefined} {...escapeProps}>
         <Modal.Header closeLabel={t('editor.history.close', 'Close')}>
           <Modal.Title>{t('editor.history.title', 'Version history')}</Modal.Title>
         </Modal.Header>

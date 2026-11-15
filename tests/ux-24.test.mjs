@@ -28,7 +28,7 @@ test('plugin dialogs with icon buttons close with one Escape while a tooltip is 
     const source = fs.readFileSync(new URL(file, dir), 'utf8');
     if (!/<Modal\.Content/.test(source) || !/<(IconButton|Tooltip)\b/.test(source)) continue;
     assert.match(source, /useTooltipSafeEscape\(/, file);
-    assert.match(source, /<Modal\.Content\s+\{\.\.\.escapeProps\}/, file);
+    assert.match(source, /<Modal\.Content\b[^>]*\{\.\.\.escapeProps\}/, file);
   }
 });
 

@@ -134,3 +134,13 @@ test('code block colours every Prism token itself, so host themes cannot lower t
     assert.match(styles, new RegExp(`\\.mex-code__pre \\.mex-code__code \\.token\\.${token}\\b`), token);
   }
 });
+
+test('every plugin Modal opts out of the Radix description (no console warning on Strapi 5.62)', () => {
+  // Radix Dialog 1.1.5 (Design System 2.3.1) warns when DialogContent keeps its default
+  // aria-describedby without a Description element; aria-describedby={undefined} is the opt-out.
+  const missing = [];
+  for (const [file, source] of sources)
+    for (const match of source.matchAll(/<Modal\.Content\b[^>]*>/g))
+      if (!match[0].includes('aria-describedby')) missing.push(file);
+  assert.deepEqual(missing, []);
+});

@@ -445,7 +445,7 @@ export const SuggestEditor = ({
             if (!next && !sending) closeSend();
           }}
         >
-          <Modal.Content {...escapeProps}>
+          <Modal.Content aria-describedby={undefined} {...escapeProps}>
             <Modal.Header closeLabel={t('editor.suggest.dialog.close', 'Close')}>
               <Modal.Title>{t('editor.suggest.dialog.title', 'Send suggestions')}</Modal.Title>
             </Modal.Header>

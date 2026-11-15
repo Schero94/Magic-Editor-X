@@ -638,7 +638,7 @@ export const ReuseDialog = ({
         if (!next && !busy) onClose();
       }}
     >
-      <Modal.Content>
+      <Modal.Content aria-describedby={undefined}>
         <Modal.Header closeLabel={t('editor.reuse.close', 'Close')}>
           <Modal.Title>{t('editor.reuse.title', 'Insert from another entry')}</Modal.Title>
         </Modal.Header>
