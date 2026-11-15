@@ -192,6 +192,17 @@ const defaults = {
      */
     urlPattern: '',
   },
+  presence: {
+    /**
+     * 2.5: "Editing now" in the Magic Editor X side panel of the Content Manager: the panel sends a
+     * heartbeat every 15 s while an entry is open (names only, 30 s lifetime) and lists other editors.
+     */
+    enabled: true,
+    /** 2.5: ask once before editing an entry someone else is editing (a dialog; never a hard lock). */
+    softLock: false,
+    /** Presence requests one admin may make per minute, shared by all processes (all open tabs). */
+    perMinute: 30,
+  },
 };
 
 const positiveInt = (max) => z.number().int().min(1).max(max);
@@ -327,6 +338,7 @@ const configSchema = z.looseObject({
   links: z.looseObject({
     urlPattern: z.string().max(MAX_LINK_PATTERN_LENGTH).refine(isValidLinkPattern),
   }),
+  presence: z.looseObject({ enabled: z.boolean(), softLock: z.boolean(), perMinute: positiveInt(600) }),
 });
 
 module.exports = {

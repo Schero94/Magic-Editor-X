@@ -587,3 +587,4 @@ module.exports = ({ strapi }, dependencies = {}) => {
   };
   return api;
 };
+module.exports.fieldKey = fieldKey;

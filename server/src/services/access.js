@@ -1,7 +1,7 @@
 'use strict';
 
 const { errors } = require('@strapi/utils');
-const { resolveEditorField } = require('../utils/editor-fields');
+const { resolveEditorField, schemaHasEditorFields } = require('../utils/editor-fields');
 const { readPositionalEntries } = require('../utils/field-identity');
 const { fieldIdentity, isValidFieldKey } = require('../../../shared/field-identity.mjs');
 
@@ -178,6 +178,38 @@ module.exports = ({ strapi }) => {
         .findOne({ where: { id: userId }, populate: ['roles'] });
       if (!user || user.isActive === false || user.blocked === true) return null;
       return strapi.service('admin::permission').engine.generateUserAbility(user);
+    },
+
+    /**
+     * 2.5 entry panel: checks Content Manager read access to one document locale (no field) and
+     * whether the caller may update it. Only API types with at least one Magic Editor X field.
+     * @param {{ userAbility: object, uid: string, documentId: string, locale?: string|null }} target - Document.
+     * @returns {Promise<{ canRead: true, canUpdate: boolean, locale: string|null, contentType: object, checker: object }>}
+     *   Access, the effective locale (null for types without i18n), the schema and the permission checker.
+     * @throws {errors.NotFoundError} When the type has no editor field, or the document cannot be read.
+     */
+    async checkDocument({ userAbility, uid, documentId, locale }) {
+      if (!userAbility) throw notFound();
+      const contentType = strapi.contentType(uid);
+      if (!contentType || !uid.startsWith('api::') || !schemaHasEditorFields(strapi, contentType))
+        throw notFound();
+      const localized = Boolean(contentType.pluginOptions?.i18n?.localized);
+      let effectiveLocale = null;
+      if (localized) {
+        effectiveLocale =
+          locale || (await strapi.plugin('i18n')?.service('locales')?.getDefaultLocale?.()) || null;
+        if (!effectiveLocale) throw notFound();
+      } else if (locale) {
+        throw notFound();
+      }
+      const pc = checker(userAbility, uid);
+      if (pc.cannot.read()) throw notFound();
+      const readable = await findAllowed(pc, 'read', uid, documentId, effectiveLocale || undefined);
+      if (!readable) throw notFound();
+      let canUpdate = false;
+      if (!pc.cannot.update())
+        canUpdate = Boolean(await findAllowed(pc, 'update', uid, documentId, effectiveLocale || undefined));
+      return { canRead: true, canUpdate, locale: effectiveLocale, contentType, checker: pc };
     },
   };
 };

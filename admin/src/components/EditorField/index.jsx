@@ -93,6 +93,7 @@ import {
 import { FootnoteDialog } from './FootnoteDialog';
 import { FootnotesPanel } from './FootnotesPanel';
 import { restoreBlockInEditor } from '../../editor/restore-block.mjs';
+import { OPEN_FIELD_PANEL_EVENT, matchesFieldRequest } from '../../editor/entry-panel-events.mjs';
 import { markInputReady, trackUserInput } from '../../editor/input-tracking.mjs';
 import { createStyleOwners } from '../../editor/style-owners.mjs';
 import { highlightMatch, clearHighlight } from '../../editor/find-highlight';
@@ -1775,6 +1776,29 @@ const EditorFieldBody = ({
     },
     [comments.threads]
   );
+
+  // 2.5: the Magic Editor X side panel opens this field's comments or quality check.
+  const panelRequestRef = useRef(null);
+  useEffect(() => {
+    panelRequestRef.current = { path: target.field, savedKey, commentsEnabled, ready, suggestMode };
+  });
+  useEffect(() => {
+    const onRequest = (event) => {
+      const state = panelRequestRef.current;
+      if (!state || !state.ready || state.suggestMode || !matchesFieldRequest(event.detail, state)) return;
+      if (event.detail.panel === 'comments') {
+        if (!state.commentsEnabled) return;
+        setCommentFocusThread(null);
+        setCommentsOpen(true);
+      } else {
+        setQualityOpen(true);
+      }
+      event.detail.handled = true;
+      if (frameRef.current) frameRef.current.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    };
+    window.addEventListener(OPEN_FIELD_PANEL_EVENT, onRequest);
+    return () => window.removeEventListener(OPEN_FIELD_PANEL_EVENT, onRequest);
+  }, []);
 
   // Block suggestions (2.4) -------------------------------------------------
   const suggestionCounts = useMemo(
