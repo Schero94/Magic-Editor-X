@@ -728,5 +728,11 @@
   "editor.toolbar.reuse": "Insertar desde otra entrada",
   "editor.reuse.copyBlock": "Copiar bloque",
   "editor.reuse.embed": "Contenido incrustado",
-  "editor.quality.rule.colorContrast": "{mode, select, dark {Tema oscuro} other {Tema claro}}: color de texto / resaltado {pair} tiene un contraste de {ratio}:1, por debajo de 4,5:1"
+  "editor.quality.rule.colorContrast": "{mode, select, dark {Tema oscuro} other {Tema claro}}: color de texto / resaltado {pair} tiene un contraste de {ratio}:1, por debajo de 4,5:1",
+  "editor.drafts.found": "Se encontraron cambios sin guardar ({time}).",
+  "editor.drafts.conflict": "El contenido guardado ha cambiado desde entonces. Al restaurar se reemplaza en el editor ({count, plural, one {# bloque es distinto} other {# bloques son distintos}}).",
+  "editor.drafts.conflictPlain": "El contenido guardado ha cambiado desde entonces. Al restaurar se reemplaza en el editor.",
+  "editor.drafts.discard": "Descartar",
+  "editor.drafts.restore": "Restaurar",
+  "editor.drafts.restored": "Cambios restaurados. Guarde la entrada para conservarlos."
 }

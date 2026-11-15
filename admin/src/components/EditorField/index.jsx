@@ -43,6 +43,7 @@ import { useEditorConfig } from '../../hooks/useEditorConfig';
 import { getTranslation } from '../../utils/getTranslation';
 import { API, readApiError } from '../../utils/api';
 import { useFieldTarget } from './useFieldTarget';
+import { useSavedValues } from './useSavedValues';
 import { useCollaboration } from './useCollaboration';
 import { EditorToolbar } from './EditorToolbar';
 import { HistoryModal } from './HistoryModal';
@@ -123,6 +124,13 @@ import {
   identityTarget,
 } from '../../editor/field-path.mjs';
 import { escapeHtml } from '../../../../shared/render/inline.mjs';
+// 2.5: local draft buffer (protect unsaved work) and lazy start of fields (performance).
+import { useDraftBuffer } from './useDraftBuffer';
+import { DraftNotice } from './DraftNotice';
+import { useLazyActivation } from './useLazyActivation';
+import { LazyPlaceholder } from './LazyPlaceholder';
+import { savedValueOf } from '../../editor/drafts-logic.mjs';
+import { lazyMarginOf } from '../../editor/lazy-init.mjs';
 import {
   resolveFieldPreset,
   enabledAnnotations,
@@ -142,6 +150,15 @@ import {
  */
 
 const SAVE_DEBOUNCE_MS = 150;
+
+/** 2.5: a lazily started editor renders out of view until ready; its static placeholder keeps the place. */
+const WAITING_HOLDER_STYLE = {
+  position: 'absolute',
+  visibility: 'hidden',
+  insetInline: 0,
+  top: 0,
+  pointerEvents: 'none',
+};
 
 const EditorStyles = createGlobalStyle`${editorStyles}`;
 // 2.5: the configured colour tokens in the editor and the preview (light or dark values by admin theme).
@@ -357,6 +374,7 @@ const EditorFieldBody = ({
   disabled,
   error,
   labelAction,
+  savedValues,
 }) => {
   const { formatMessage, locale: adminLocale } = useIntl();
   const { get, post } = useFetchClient();
@@ -429,6 +447,12 @@ const EditorFieldBody = ({
   const [focusMode, setFocusMode] = useState(false);
   const [toolShortcuts, setToolShortcuts] = useState([]);
   const frameRef = useRef(null);
+  // 2.5: Editor.js (and the live room, which waits for `ready`) start when the field nears the viewport.
+  const lazy = useLazyActivation(frameRef, {
+    enabled: Boolean(target.uid) && !(config && config.lazyInit && config.lazyInit.enabled === false),
+    marginPx: lazyMarginOf(config && config.lazyInit && config.lazyInit.marginPx),
+  });
+  const focusOnStartRef = useRef(false);
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [commentFocusThread, setCommentFocusThread] = useState(null);
   const [currentBlockId, setCurrentBlockId] = useState(null);
@@ -1005,7 +1029,7 @@ const EditorFieldBody = ({
       })
     : null;
   useEffect(() => {
-    if (!config || !holderRef.current) return undefined;
+    if (!config || !holderRef.current || !lazy.active) return undefined;
     const prepared = prepareEditorValue(value);
     setValueError(prepared.error);
     const initial = prepared.data;
@@ -1194,7 +1218,18 @@ const EditorFieldBody = ({
     };
     // The editor is rebuilt only when its tools change; value updates are applied below.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- value/readOnly are handled by the effects below
-  }, [toolsKey, adminLocale]);
+  }, [toolsKey, adminLocale, lazy.active]);
+
+  // 2.5: a field started by focusing (Tab) or clicking its placeholder takes the focus once ready.
+  useEffect(() => {
+    if (!ready || !focusOnStartRef.current || !editorRef.current) return;
+    focusOnStartRef.current = false;
+    try {
+      editorRef.current.focus();
+    } catch {
+      // nothing to focus
+    }
+  }, [ready]);
 
   // Read-only switches (permission changes, collaboration role) without rebuilding.
   useEffect(() => {
@@ -1453,6 +1488,37 @@ const EditorFieldBody = ({
     },
     [applyExternal]
   );
+
+  // 2.5 local draft buffer: unsaved content survives a reload, a crash, a closed tab and an ended session.
+  const savedValue = useMemo(() => savedValueOf(savedValues, name, savedKey), [savedValues, name, savedKey]);
+  const draft = useDraftBuffer({
+    enabled: Boolean(target.uid && config && config.drafts && config.drafts.enabled !== false),
+    ttlHours: config && config.drafts ? config.drafts.ttlHours : undefined,
+    target: {
+      uid: target.uid,
+      documentId: target.documentId,
+      locale: target.locale,
+      field: name,
+      fieldKey: savedKey,
+    },
+    value,
+    savedValue,
+    shownData: currentData,
+    ready,
+    readOnly,
+    collaboration: {
+      active: collaboration.active,
+      status: collaboration.status,
+      pending: collaboration.pending,
+    },
+    onRestore: async (data) => {
+      await replaceContent(data);
+      toggleNotification({
+        type: 'success',
+        message: t('editor.drafts.restored', 'Changes restored. Save the entry to keep them.'),
+      });
+    },
+  });
 
   // Field preset problems of the current content (saving fails while any remain).
   const violations = useMemo(
@@ -2718,6 +2784,7 @@ const EditorFieldBody = ({
         <Field.Label action={labelAction}>{label}</Field.Label>
         <Frame
           ref={frameRef}
+          data-mex-frame="true"
           $error={Boolean(error)}
           $fullscreen={fullscreen}
           role={fullscreen ? 'dialog' : undefined}
@@ -2788,6 +2855,16 @@ const EditorFieldBody = ({
             tools={fieldTools}
             moreButtonRef={moreButtonRef}
           />
+          {draft.notice && ready && !suggestMode ? (
+            <DraftNotice
+              t={t}
+              notice={draft.notice}
+              onRestore={draft.restore}
+              onDiscard={draft.discard}
+              busy={draft.busy}
+              disabled={!ready || readOnly}
+            />
+          ) : null}
           {suggestionsOpen && suggestionsEnabled && ready && !suggestMode ? (
             <PanelSlot padding={2} $fullscreen={fullscreen}>
               <SuggestionsPanel
@@ -2922,6 +2999,21 @@ const EditorFieldBody = ({
               onSaveSelection={canManageTemplates ? saveSelection : undefined}
               onAi={aiAllowed && target.uid ? onBlockAiRequest : undefined}
             />
+            {lazy.deferred && !ready && !configError ? (
+              <LazyPlaceholder
+                t={t}
+                value={value}
+                minHeight={minHeight}
+                placeholder={placeholder}
+                allowRaw={allowRawPreview}
+                lang={target.locale || undefined}
+                dir={direction}
+                onStart={() => {
+                  focusOnStartRef.current = true;
+                  lazy.activate();
+                }}
+              />
+            ) : null}
             <MediaDropArea
               FileDropZone={FileDropZone}
               enabled={Boolean(ready && !readOnly && dropTypes.length)}
@@ -2932,6 +3024,7 @@ const EditorFieldBody = ({
             >
               <Holder
                 ref={holderRef}
+                style={lazy.deferred && !ready ? WAITING_HOLDER_STYLE : undefined}
                 className="mex-editor"
                 lang={target.locale || undefined}
                 dir={direction}
@@ -3246,7 +3339,8 @@ const EditorFieldBody = ({
  */
 const EditorField = (props) => {
   const target = useFieldTarget(props.name);
-  return <EditorFieldBody {...props} target={target} />;
+  const savedValues = useSavedValues();
+  return <EditorFieldBody {...props} target={target} savedValues={savedValues} />;
 };
 
 export { EditorField, EditorFieldBody };

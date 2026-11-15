@@ -728,5 +728,11 @@
   "editor.toolbar.reuse": "Inserir a partir de outra entrada",
   "editor.reuse.copyBlock": "Copiar bloco",
   "editor.reuse.embed": "Conteúdo incorporado",
-  "editor.quality.rule.colorContrast": "{mode, select, dark {Tema escuro} other {Tema claro}}: cor do texto / destaque {pair} tem contraste de {ratio}:1, abaixo de 4,5:1"
+  "editor.quality.rule.colorContrast": "{mode, select, dark {Tema escuro} other {Tema claro}}: cor do texto / destaque {pair} tem contraste de {ratio}:1, abaixo de 4,5:1",
+  "editor.drafts.found": "Foram encontradas alterações não salvas ({time}).",
+  "editor.drafts.conflict": "O conteúdo salvo mudou desde então. Ao restaurar, ele é substituído no editor ({count, plural, one {# bloco é diferente} other {# blocos são diferentes}}).",
+  "editor.drafts.conflictPlain": "O conteúdo salvo mudou desde então. Ao restaurar, ele é substituído no editor.",
+  "editor.drafts.discard": "Descartar",
+  "editor.drafts.restore": "Restaurar",
+  "editor.drafts.restored": "Alterações restauradas. Salve a entrada para mantê-las."
 }

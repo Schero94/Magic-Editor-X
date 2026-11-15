@@ -75,6 +75,10 @@ Thresholds live in `scripts/bench-thresholds.json` and are chosen so that the jo
 - `maxScaling`: the bound for `time(5000 blocks) / time(500 blocks)`. Linear work gives about 10; a quadratic step gives about 100. The bound is 30 for linear operations, so noise of a factor 2 to 3 passes and O(n²) fails.
 - `counters`: deterministic results (blocks kept by normalise + sanitise, find matches equal to replacements, blocks after the Yjs round trip, diff entries, lint issues, preset violations). A change here means the operation now does different work and the threshold file must be updated deliberately with the reason in the commit.
 
+Documents with many editor fields (2.5, `documents` in the thresholds file): a write or response with 20 top-level editor fields plus 25, 100 and 250 items in a repeatable component and in a dynamic zone (20 blocks per field) goes through the editor field walk (`utils/editor-fields.js`), the save middleware's normalise + sanitise + preset check per field, field key assignment (`assignFieldKeys`) and the `?mex=html` output walk + render. The same rules apply with `budgetMs250` (budget at 250 items) and `maxScaling` bounding `time(250 items) / time(25 items)` (linear work is about 7). Counters are the number of fields visited (70, 220, 520), keys assigned (50, 200, 500) and, for the save path, `fields * 1000 + preset violations`.
+
+Browser cost with many fields is not part of CI (it needs a host and a browser): measure an entry with 20+ fields with Playwright (time until the fields in view are ready, long tasks, JS heap, collaboration sessions and sockets) before and after a change that touches field start-up.
+
 When a change makes an operation legitimately slower, re-measure with `npm run bench -- --json` at least five times, update the numbers in the JSON and explain the change in the commit body.
 
 ## Several processes

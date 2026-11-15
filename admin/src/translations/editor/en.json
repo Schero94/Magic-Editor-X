@@ -728,5 +728,11 @@
   "editor.toolbar.reuse": "Insert from another entry",
   "editor.reuse.copyBlock": "Copy block",
   "editor.reuse.embed": "Embedded content",
-  "editor.quality.rule.colorContrast": "{mode, select, dark {Dark theme} other {Light theme}}: text colour / highlight {pair} has contrast {ratio}:1, below 4.5:1"
+  "editor.quality.rule.colorContrast": "{mode, select, dark {Dark theme} other {Light theme}}: text colour / highlight {pair} has contrast {ratio}:1, below 4.5:1",
+  "editor.drafts.found": "Unsaved changes from {time} were found.",
+  "editor.drafts.conflict": "The saved content changed since then. Restoring replaces it in the editor ({count, plural, one {# block differs} other {# blocks differ}}).",
+  "editor.drafts.conflictPlain": "The saved content changed since then. Restoring replaces it in the editor.",
+  "editor.drafts.discard": "Discard",
+  "editor.drafts.restore": "Restore",
+  "editor.drafts.restored": "Changes restored. Save the entry to keep them."
 }

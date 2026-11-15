@@ -217,6 +217,25 @@ const defaults = {
     /** Presence requests one admin may make per minute, shared by all processes (all open tabs). */
     perMinute: 30,
   },
+  /**
+   * 2.5 local draft buffer: unsaved field content is kept in the admin's browser (IndexedDB)
+   * until it is saved, discarded, expires or the admin logs out. Invisible until there is
+   * something to restore.
+   */
+  drafts: {
+    enabled: true,
+    /** Lifetime of a buffer in hours (1 to 720). */
+    ttlHours: 72,
+  },
+  /**
+   * 2.5 lazy start: Editor.js and the live room of a field start when the field comes within
+   * `marginPx` of the viewport (or is focused); until then a static render keeps its place.
+   */
+  lazyInit: {
+    enabled: true,
+    /** Distance in CSS pixels above and below the viewport (0 to 10000). */
+    marginPx: 800,
+  },
   mcp: {
     /**
      * MCP tools for AI clients (2.5): convert Markdown/HTML, validate and render content through
@@ -402,6 +421,19 @@ const configSchema = z.looseObject({
   // 2.5: optional so a 2.4 configuration validated without the defaults merged stays valid.
   presence: z
     .looseObject({ enabled: z.boolean(), softLock: z.boolean(), perMinute: positiveInt(600) })
+    .optional(),
+  // 2.5: optional so a 2.4 configuration validated without the defaults merged stays valid.
+  drafts: z
+    .looseObject({
+      enabled: z.boolean(),
+      ttlHours: z.number().int().min(1).max(720),
+    })
+    .optional(),
+  lazyInit: z
+    .looseObject({
+      enabled: z.boolean(),
+      marginPx: z.number().int().min(0).max(10000),
+    })
     .optional(),
   // 2.5: optional so a 2.4 configuration validated without the defaults merged stays valid.
   mcp: z.looseObject({ enabled: z.boolean() }).optional(),
