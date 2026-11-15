@@ -34,6 +34,9 @@ const TABLES = Object.freeze({
 
 const ABORT = 'magic-editor-x:abort-transaction';
 
+/** 2.5: room suffix of entry heartbeat rows in the presence table (`<uid>|<documentId>|<locale or ->|@entry`). */
+const ENTRY_PRESENCE_SUFFIX = '|@entry';
+
 /**
  * Lock-table key of a room's generation row.
  * @param {string} room - Room key.
@@ -378,7 +381,9 @@ module.exports = ({ strapi }) => {
         .where({ user_id: userId })
         .andWhere('updated_at', '>', freshAfter)
         .select('room');
-      return { sockets: rows.length, rooms: new Set(rows.map((row) => row.room)) };
+      // 2.5: entry heartbeats of the side panel are no sockets and count against no socket limit.
+      const sockets = rows.filter((row) => !String(row.room).endsWith(ENTRY_PRESENCE_SUFFIX));
+      return { sockets: sockets.length, rooms: new Set(sockets.map((row) => row.room)) };
     },
 
     /**
@@ -995,6 +1000,81 @@ module.exports = ({ strapi }) => {
         }
       }
       return removed;
+    },
+
+    // 2.5 entry panel and homepage widgets -------------------------------------
+
+    ENTRY_PRESENCE_SUFFIX,
+
+    /**
+     * Live presence rows of every room of one document locale (socket rows of all field rooms,
+     * positional fields included, and entry heartbeat rows), across processes.
+     * @param {string} prefix - `<uid>|<documentId>|<locale or ->|`.
+     * @param {number} freshAfter - Only rows refreshed after this time.
+     * @param {number} [limit=200] - Row bound.
+     * @returns {Promise<Array<{ id: string, room: string, user_id: number, name: string, color: string, can_edit: boolean, cursor: string|null, updated_at: number }>>} Rows.
+     */
+    async listDocumentPresence(prefix, freshAfter, limit = 200) {
+      // `!` escapes LIKE wildcards on SQLite, PostgreSQL and MySQL alike; the prefix is re-checked below.
+      const pattern = `${String(prefix).replace(/[!%_]/g, (char) => `!${char}`)}%`;
+      const rows = await table(TABLES.presence)
+        .whereRaw("room LIKE ? ESCAPE '!'", [pattern])
+        .andWhere('updated_at', '>', freshAfter)
+        .orderBy('updated_at', 'desc')
+        .limit(limit)
+        .select('id', 'room', 'user_id', 'name', 'color', 'can_edit', 'cursor', 'updated_at');
+      return rows.filter((row) => String(row.room).startsWith(prefix));
+    },
+
+    /**
+     * Hashes of URLs whose last check found a problem (bounded).
+     * @param {string[]} statuses - Problem statuses.
+     * @param {number} limit - Row bound.
+     * @returns {Promise<Map<string, { status: string, code: number|null }>>} Problems by hash.
+     */
+    async problemLinkUrls(statuses, limit) {
+      const rows = await table(TABLES.linkUrls)
+        .whereIn('status', statuses)
+        .orderBy('hash', 'asc')
+        .limit(limit)
+        .select('hash', 'status', 'code');
+      return new Map(
+        rows.map((row) => [
+          row.hash,
+          { status: row.status, code: row.code === null || row.code === undefined ? null : Number(row.code) },
+        ])
+      );
+    },
+
+    /**
+     * One page of link rows in key order (scan of the scheduled link report).
+     * @param {string} afterKey - Exclusive lower bound ('' to start).
+     * @param {number} limit - Page size.
+     * @returns {Promise<Array<{ key: string, uid: string, documentId: string, locale: string|null, field: string, version: string, links: Array<{ h: string, b: string }> }>>} Rows.
+     */
+    async linkFieldsPage(afterKey, limit) {
+      const rows = await table(TABLES.linkFields)
+        .where('key', '>', afterKey)
+        .orderBy('key', 'asc')
+        .limit(limit)
+        .select('key', 'uid', 'document_id', 'locale', 'field', 'version', 'links');
+      return rows.map((row) => {
+        let links;
+        try {
+          links = JSON.parse(row.links);
+        } catch {
+          links = [];
+        }
+        return {
+          key: row.key,
+          uid: row.uid,
+          documentId: row.document_id,
+          locale: row.locale || null,
+          field: row.field,
+          version: row.version,
+          links: Array.isArray(links) ? links : [],
+        };
+      });
     },
   };
 };

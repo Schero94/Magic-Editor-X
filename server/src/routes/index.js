@@ -138,6 +138,12 @@ const adminRoutes = [
     'settings.testLanguageTool',
     [ACTIONS.settingsRead, ACTIONS.settingsUpdate],
   ],
+
+  // 2.5 entry panel (Content Manager side panel) and homepage widgets; CM checks in the handlers.
+  ['POST', '/presence', 'entryPanel.presence', [ACTIONS.access]],
+  ['GET', '/entry-summary', 'entryPanel.summary', [ACTIONS.access]],
+  ['GET', '/widgets/open-threads', 'entryPanel.openThreads', [ACTIONS.access, ACTIONS.commentsRead]],
+  ['GET', '/widgets/broken-links', 'entryPanel.brokenLinks', [ACTIONS.access]],
 ].map(([method, path, handler, actions]) => ({
   method,
   path,

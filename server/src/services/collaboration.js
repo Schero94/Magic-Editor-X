@@ -1342,3 +1342,4 @@ module.exports.cleanCursor = cleanCursor;
 module.exports.targetOfRoom = targetOfRoom;
 module.exports.identityOf = identityOf;
 module.exports.PROTOCOL = PROTOCOL;
+module.exports.colorFor = colorFor;
