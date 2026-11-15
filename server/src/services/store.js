@@ -296,6 +296,69 @@ module.exports = ({ strapi }) => {
     },
 
     /**
+     * Remembers the field keys of emptied entries (2.5): `fk:<scope>|<component row id>` -> key in
+     * the locks table. A positional value that is emptied and saved is stored as `null` (required
+     * checks, renderers and API output stay as they were), so its key lives here until the entry
+     * gets content again. Upsert, safe from several processes.
+     * @param {string} scope - `fieldKeyScope(...)` (hex, document + locale + base path).
+     * @param {Array<[string, string]>} pairs - `[componentId, fieldKey]` pairs.
+     * @param {number} ttlMs - How long the key is kept.
+     * @returns {Promise<void>}
+     */
+    async rememberFieldKeys(scope, pairs, ttlMs) {
+      const expiresAt = Date.now() + ttlMs;
+      for (const [componentId, fieldKey] of pairs) {
+        const key = `fk:${scope}|${componentId}`;
+        const updated = await table(TABLES.locks)
+          .where({ key })
+          .update({ owner: fieldKey, expires_at: expiresAt });
+        if (updated === 0) {
+          try {
+            await table(TABLES.locks).insert({ key, owner: fieldKey, expires_at: expiresAt });
+          } catch {
+            await table(TABLES.locks).where({ key }).update({ owner: fieldKey, expires_at: expiresAt });
+          }
+        }
+      }
+    },
+
+    /**
+     * Remembered field keys of one scope (2.5).
+     * @param {string} scope - `fieldKeyScope(...)`.
+     * @returns {Promise<Map<string, string>>} Component row id -> key (at most 1000).
+     */
+    async rememberedFieldKeys(scope) {
+      const prefix = `fk:${scope}|`;
+      const rows = await table(TABLES.locks)
+        .where('key', 'like', `${prefix}%`)
+        .andWhere('expires_at', '>=', Date.now())
+        .select('key', 'owner')
+        .limit(1000);
+      const out = new Map();
+      for (const row of rows) {
+        if (typeof row.key === 'string' && row.key.startsWith(prefix))
+          out.set(row.key.slice(prefix.length), String(row.owner));
+      }
+      return out;
+    },
+
+    /**
+     * Forgets remembered field keys (2.5), when their entry has content again.
+     * @param {string} scope - `fieldKeyScope(...)`.
+     * @param {string[]} componentIds - Component row ids.
+     * @returns {Promise<void>}
+     */
+    async forgetFieldKeys(scope, componentIds) {
+      if (!componentIds.length) return;
+      await table(TABLES.locks)
+        .whereIn(
+          'key',
+          componentIds.map((id) => `fk:${scope}|${id}`)
+        )
+        .del();
+    },
+
+    /**
      * Reads a cluster-wide signal.
      * @param {string} name - Signal name.
      * @returns {Promise<string>} Current value ('' when never set).

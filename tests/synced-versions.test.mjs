@@ -299,3 +299,33 @@ test('routes need templates.manage; field history never serves a source version'
     { name: 'NotFoundError' }
   );
 });
+
+test('2.5: default tune values do not create a version (Editor.js save without changes)', async () => {
+  const { services, snapshots } = setup();
+  const created = await services.templates.create(source(), ada);
+  const withDefaults = doc('Contact us');
+  withDefaults.blocks[0].tunes = {
+    alignmentTune: { alignment: 'left' },
+    textVariant: '',
+    indentTune: { indentLevel: 0 },
+  };
+  await services.templates.update(created.id, source({ blocks: withDefaults }), ada);
+  assert.equal(snapshots.rows.length, 1, 'default tunes equal "no tune"');
+  const centred = doc('Contact us');
+  centred.blocks[0].tunes = { alignmentTune: { alignment: 'center' } };
+  await services.templates.update(created.id, source({ blocks: centred }), ada);
+  assert.equal(snapshots.rows.length, 2, 'a real tune change is a version');
+  // A version stored by 2.4 carries a hash over the default tunes: the content is compared again.
+  const legacy = await services['synced-versions'].record(
+    { documentId: created.id, name: 'Footer', blocks: withDefaults },
+    ada
+  );
+  assert.equal(legacy.created, true);
+  snapshots.rows.at(-1).contentHash = 'hash-written-by-2.4';
+  const again = await services['synced-versions'].record(
+    { documentId: created.id, name: 'Footer', blocks: doc('Contact us') },
+    ada
+  );
+  assert.equal(again.created, false);
+  assert.equal(snapshots.rows.length, 3);
+});
