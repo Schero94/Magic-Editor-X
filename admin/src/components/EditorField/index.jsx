@@ -101,6 +101,10 @@ import { insertSuggestion } from '../../editor/ai-selection';
 import { GrammarPanel } from './GrammarPanel';
 import { FieldAiDialog } from './FieldAiDialog';
 import { BlockAiDialog } from './BlockAiDialog';
+// 2.5: dropped files (Media Library drop zone) and signed URLs of private upload providers.
+import { MediaDropArea } from './MediaDropArea';
+import { droppedBlock, dropPosition, dropTypesFor, imageBlockData } from '../../editor/drop-insert.mjs';
+import { createSignedMediaRefresher } from '../../editor/signed-media';
 import { applySegments } from '../../../../shared/ai-fields.mjs';
 import {
   isPositionalFieldPath,
@@ -334,6 +338,11 @@ const EditorFieldBody = ({
   const { get, post } = useFetchClient();
   const { toggleNotification } = useNotification();
   const MediaLibraryDialog = useStrapiApp('MagicEditorX', (state) => state.components['media-library']);
+  // 2.5: Strapi 5.61+ Media Library drop zone (absent on older hosts and with the legacy Media Library).
+  const FileDropZone = useStrapiApp(
+    'MagicEditorX',
+    (state) => (state.components && state.components['media-library-file-drop-zone']) || null
+  );
   const { config, customBlocks, error: configError, loading: configLoading, retry } = useEditorConfig();
   const navigate = useNavigate();
   const settingsHref = useHref(SETTINGS_PATH);
@@ -1217,23 +1226,7 @@ const EditorFieldBody = ({
       images.forEach((asset, offset) => {
         editor.blocks.insert(
           'image',
-          {
-            file: {
-              url: asset.url,
-              mime: asset.mime,
-              width: asset.width,
-              height: asset.height,
-              size: asset.size,
-              alt: asset.alternativeText || asset.name || '',
-              formats: asset.formats || undefined,
-              id: asset.id,
-              documentId: asset.documentId,
-            },
-            caption: asset.caption || '',
-            withBorder: false,
-            withBackground: false,
-            stretched: false,
-          },
+          imageBlockData(asset),
           undefined,
           start + offset,
           offset === images.length - 1
@@ -1263,6 +1256,62 @@ const EditorFieldBody = ({
       if (block && block.name === 'mediaLib') editor.blocks.delete(request.blockIndex);
     }
   }, [mediaRequest]);
+
+  // 2.5: files dropped onto the field become image, video or audio blocks at the drop point.
+  const dropAllowed = useMemo(
+    () => ({
+      image: Boolean(permissions.upload) && isBlockAllowed(preset, 'image'),
+      video: Boolean(permissions.upload && permissions.mediaLibrary) && isBlockAllowed(preset, 'video'),
+      audio: Boolean(permissions.upload && permissions.mediaLibrary) && isBlockAllowed(preset, 'audio'),
+    }),
+    [permissions.upload, permissions.mediaLibrary, preset]
+  );
+  const dropTypes = useMemo(() => dropTypesFor(dropAllowed), [dropAllowed]);
+  const onDroppedAsset = useCallback(
+    (asset, drop) => {
+      const editor = editorRef.current;
+      const planned = droppedBlock(asset, dropAllowed);
+      if (!editor || !planned) return;
+      const count = editor.blocks.getBlocksCount();
+      if (drop.next === null) {
+        const position = dropPosition(drop.target, count);
+        drop.next = position.index;
+        drop.replace = position.replace;
+      }
+      const at = Math.min(drop.next, count);
+      editor.blocks.insert(planned.type, planned.data, undefined, at, false);
+      if (drop.replace) {
+        drop.replace = false;
+        const empty = editor.blocks.getBlockByIndex(at + 1);
+        if (empty && empty.isEmpty) editor.blocks.delete(at + 1);
+      }
+      drop.next = at + 1;
+      userTouchedRef.current = true;
+      scheduleSave();
+    },
+    [dropAllowed, scheduleSave]
+  );
+
+  // 2.5: a private upload provider serves files through expiring signed URLs: the media shown in
+  // the field (editor, preview) get fresh ones (POST /media/signed-urls; nothing is stored signed).
+  const privateFiles = Boolean(config && config.uploads && config.uploads.privateFiles);
+  const signTargetRef = useRef(null);
+  useEffect(() => {
+    signTargetRef.current = target.uid && target.documentId ? fieldTarget : null;
+  });
+  useEffect(() => {
+    const area = areaRef.current;
+    if (!privateFiles || !area) return undefined;
+    const refresher = createSignedMediaRefresher({
+      root: area.parentElement || area,
+      request: async (urls) => {
+        const body = { urls, ...(signTargetRef.current ? { target: signTargetRef.current } : {}) };
+        const { data } = await post('/magic-editor-x/media/signed-urls', body);
+        return (data && data.data && data.data.urls) || {};
+      },
+    });
+    return () => refresher.destroy();
+  }, [privateFiles, post]);
 
   /** Replaces the editor content with a snapshot; the form becomes dirty and the user saves as usual. */
   const restoreSnapshot = useCallback(
@@ -2563,19 +2612,28 @@ const EditorFieldBody = ({
               onSaveSelection={canManageTemplates ? saveSelection : undefined}
               onAi={aiAllowed && target.uid ? onBlockAiRequest : undefined}
             />
-            <Holder
-              ref={holderRef}
-              className="mex-editor"
-              lang={target.locale || undefined}
-              dir={direction}
-              $minHeight={minHeight}
-              $fullscreen={fullscreen}
-              $focus={focusMode}
-              $gutter={markerColumns}
-              data-testid="magic-editor-x"
-              aria-busy={!ready}
-              aria-describedby={`${name}-mex-keyboard`}
-            />
+            <MediaDropArea
+              FileDropZone={FileDropZone}
+              enabled={Boolean(ready && !readOnly && dropTypes.length)}
+              allowedTypes={dropTypes}
+              fullscreen={fullscreen}
+              holderRef={holderRef}
+              onAsset={onDroppedAsset}
+            >
+              <Holder
+                ref={holderRef}
+                className="mex-editor"
+                lang={target.locale || undefined}
+                dir={direction}
+                $minHeight={minHeight}
+                $fullscreen={fullscreen}
+                $focus={focusMode}
+                $gutter={markerColumns}
+                data-testid="magic-editor-x"
+                aria-busy={!ready}
+                aria-describedby={`${name}-mex-keyboard`}
+              />
+            </MediaDropArea>
             {commentsWritable && readOnly && ready && !previewOpen ? (
               <SelectionCommentButton
                 containerRef={areaRef}

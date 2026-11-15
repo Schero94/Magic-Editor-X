@@ -48,6 +48,8 @@ module.exports = ({ strapi }) => ({
           maxImageBytes: conf('uploads.maxImageBytes', 10 * 1024 * 1024),
           maxFileBytes: conf('uploads.maxFileBytes', 20 * 1024 * 1024),
           attachmentTypes: service(strapi, 'editor').attachmentTypes(),
+          // 2.5: the upload provider serves files through signed URLs only (the editor refreshes them).
+          privateFiles: await service(strapi, 'media').isPrivate(),
         },
         linkPreview: conf('linkPreview.enabled', true) !== false,
         quality: {

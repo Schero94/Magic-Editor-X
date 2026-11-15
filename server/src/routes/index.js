@@ -138,6 +138,9 @@ const adminRoutes = [
     'settings.testLanguageTool',
     [ACTIONS.settingsRead, ACTIONS.settingsUpdate],
   ],
+
+  // 2.5: fresh signed URLs for a private upload provider (Media Library read or the field's own files; handler).
+  ['POST', '/media/signed-urls', 'media.signedUrls', [ACTIONS.access]],
 ].map(([method, path, handler, actions]) => ({
   method,
   path,

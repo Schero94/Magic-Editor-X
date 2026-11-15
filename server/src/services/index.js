@@ -23,4 +23,6 @@ module.exports = {
   collaboration: require('./collaboration'),
   migrations: require('./migrations'),
   migrate: require('./migrate'),
+  // 2.5: private upload providers (signed Media Library URLs)
+  media: require('./media'),
 };

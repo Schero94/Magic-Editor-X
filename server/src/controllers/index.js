@@ -16,4 +16,6 @@ module.exports = {
   suggestions: require('./suggestions'),
   templates: require('./templates'),
   audit: require('./audit'),
+  // 2.5: private upload providers
+  media: require('./media'),
 };
