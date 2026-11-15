@@ -12,7 +12,12 @@
  *
  * Usage (see CONTRIBUTING.md):
  *   node scripts/cluster-acceptance.mjs --app ../mex-host --pg postgres://user@127.0.0.1:5440/mex_cluster \
- *     [--reset] [--processes 8] [--base 1480]
+ *     [--reset] [--processes 8] [--base 1480] [--proof collaboration|presence]
+ *
+ * `--proof presence` (2.5) runs scripts/cluster/presence-proof.mjs instead: document presence of the
+ * side panel across processes (heartbeats, field-room sockets incl. a positional field, leave, crash
+ * without ghosts, shared rate limit). The app also needs the `sections` repeatable component with a
+ * Magic Editor X field `body` (the acceptance host has it).
  *
  * The app needs an `api::article.article` collection type with a Magic Editor X
  * field `body` (the acceptance host in CONTRIBUTING.md has it) and a config that
@@ -59,6 +64,9 @@ const dbName = new URL(pgUrl).pathname.slice(1);
 if (!/^mex_[a-z0-9_]+$/.test(dbName))
   fail('the database name must start with "mex_" (it is reset between runs)');
 if (!Number.isInteger(count) || count < 2 || count > 16) fail('--processes must be between 2 and 16');
+const PROOFS = { collaboration: 'proof.mjs', presence: 'presence-proof.mjs' };
+const proofName = option('proof', 'collaboration');
+if (!PROOFS[proofName]) fail('--proof must be collaboration or presence');
 
 const ports = { balancer: base, strapi: Array.from({ length: count }, (_, i) => base + 11 + i) };
 const isFree = (port) =>
@@ -151,7 +159,7 @@ try {
   for (const port of ports.strapi.slice(1)) startStrapi(port);
   for (const port of ports.strapi.slice(1)) await waitHealthy(port);
   console.log(`${count} processes healthy on ${ports.strapi.join(', ')}; balancer on ${ports.balancer}`);
-  const proof = spawn(process.execPath, [path.join(here, 'cluster', 'proof.mjs')], {
+  const proof = spawn(process.execPath, [path.join(here, 'cluster', PROOFS[proofName])], {
     cwd: repo,
     env: {
       ...runEnv,

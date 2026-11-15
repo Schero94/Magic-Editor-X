@@ -9,6 +9,7 @@ const { inspectCsp } = require('../../../shared/csp.mjs');
 const { paletteCss } = require('../../../shared/inline-format.mjs');
 const { paletteContrastIssues } = require('../../../shared/quality.mjs');
 const { paletteOf } = require('../utils/inline-policy');
+const { mcpStatus } = require('../mcp');
 
 /**
  * Admin-editable settings, stored in the plugin store under `settings`.
@@ -259,6 +260,10 @@ module.exports = ({ strapi }) => {
           perHour: config('comments.notifications.emailPerHour', 10),
         },
         rawHtml: config('rawHtml', 'sanitize'),
+        // 2.5: MCP tools for AI clients (config only, shown read-only).
+        mcp: (({ enabled, serverEnabled, active, path }) => ({ enabled, serverEnabled, active, path }))(
+          mcpStatus(strapi)
+        ),
         uploads: {
           maxImageBytes: config('uploads.maxImageBytes', 10 * 1024 * 1024),
           maxFileBytes: config('uploads.maxFileBytes', 20 * 1024 * 1024),

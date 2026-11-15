@@ -96,6 +96,9 @@ import {
 import { FootnoteDialog } from './FootnoteDialog';
 import { FootnotesPanel } from './FootnotesPanel';
 import { restoreBlockInEditor } from '../../editor/restore-block.mjs';
+import { OPEN_FIELD_PANEL_EVENT, matchesFieldRequest } from '../../editor/entry-panel-events.mjs';
+import { installEditorKeyGuard } from '../../editor/focus-guard.mjs';
+import { restrictView } from '../../../../shared/collab-replica.mjs';
 import { markInputReady, trackUserInput } from '../../editor/input-tracking.mjs';
 import { createStyleOwners } from '../../editor/style-owners.mjs';
 import { highlightMatch, clearHighlight } from '../../editor/find-highlight';
@@ -365,6 +368,9 @@ const EditorFieldBody = ({
     (id, defaultMessage, values) => formatMessage({ id: getTranslation(id), defaultMessage }, values),
     [formatMessage]
   );
+
+  // 2.5: keys typed outside the editors (dialogs, popovers, other fields) never reach Editor.js.
+  useEffect(() => installEditorKeyGuard(), []);
 
   const holderRef = useRef(null);
   const editorRef = useRef(null);
@@ -1133,8 +1139,12 @@ const EditorFieldBody = ({
           editor
             .save()
             .then((data) => {
+              // Only stored blocks: the default paragraph of an empty field is not in any room (2.5).
               if (!destroyed && !userTouchedRef.current && data && Array.isArray(data.blocks))
-                viewRef.current = data;
+                viewRef.current = restrictView(
+                  data,
+                  ((initial && initial.blocks) || []).map((block) => block.id)
+                );
             })
             .catch(() => null);
       },
@@ -1818,6 +1828,29 @@ const EditorFieldBody = ({
     },
     [comments.threads]
   );
+
+  // 2.5: the Magic Editor X side panel opens this field's comments or quality check.
+  const panelRequestRef = useRef(null);
+  useEffect(() => {
+    panelRequestRef.current = { path: target.field, savedKey, commentsEnabled, ready, suggestMode };
+  });
+  useEffect(() => {
+    const onRequest = (event) => {
+      const state = panelRequestRef.current;
+      if (!state || !state.ready || state.suggestMode || !matchesFieldRequest(event.detail, state)) return;
+      if (event.detail.panel === 'comments') {
+        if (!state.commentsEnabled) return;
+        setCommentFocusThread(null);
+        setCommentsOpen(true);
+      } else {
+        setQualityOpen(true);
+      }
+      event.detail.handled = true;
+      if (frameRef.current) frameRef.current.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    };
+    window.addEventListener(OPEN_FIELD_PANEL_EVENT, onRequest);
+    return () => window.removeEventListener(OPEN_FIELD_PANEL_EVENT, onRequest);
+  }, []);
 
   // Block suggestions (2.4) -------------------------------------------------
   const suggestionCounts = useMemo(

@@ -1,4 +1,5 @@
-import { Bell } from '@strapi/icons';
+import { Bell, Discuss, Link as LinkIcon } from '@strapi/icons';
+import { EntryPanel } from './components/EntryPanel';
 import { PLUGIN_ID } from './pluginId';
 import { PluginIcon } from './components/PluginIcon';
 import { PERMISSIONS } from './permissions';
@@ -100,6 +101,37 @@ export default {
           { action: 'plugin::magic-editor-x.comments.read' },
         ],
       });
+    }
+
+    // 2.5: homepage widgets "My open threads" and "Broken links" (the server checks every request).
+    if (app.widgets && typeof app.widgets.register === 'function') {
+      app.widgets.register([
+        {
+          id: 'open-threads',
+          pluginId: PLUGIN_ID,
+          icon: Discuss,
+          title: { id: getTranslation('widget.openThreads.title'), defaultMessage: 'My open threads' },
+          component: async () => {
+            const { OpenThreadsWidget } = await import('./components/EntryWidgets');
+            return OpenThreadsWidget;
+          },
+          permissions: [
+            { action: 'plugin::magic-editor-x.access' },
+            { action: 'plugin::magic-editor-x.comments.read' },
+          ],
+        },
+        {
+          id: 'broken-links',
+          pluginId: PLUGIN_ID,
+          icon: LinkIcon,
+          title: { id: getTranslation('widget.brokenLinks.title'), defaultMessage: 'Broken links' },
+          component: async () => {
+            const { BrokenLinksWidget } = await import('./components/EntryWidgets');
+            return BrokenLinksWidget;
+          },
+          permissions: [{ action: 'plugin::magic-editor-x.access' }],
+        },
+      ]);
     }
 
     app.customFields.register({
@@ -388,7 +420,16 @@ export default {
     );
   },
 
-  bootstrap() {},
+  /**
+   * 2.5: the one Magic Editor X side panel of the Content Manager edit view (presence, comments,
+   * quality). Other features add a section to `components/EntryPanel/sections.jsx`, never a panel.
+   * @param {object} app - Strapi admin app.
+   */
+  bootstrap(app) {
+    const contentManager = app.getPlugin && app.getPlugin('content-manager');
+    const apis = contentManager && contentManager.apis;
+    if (apis && typeof apis.addEditViewSidePanel === 'function') apis.addEditViewSidePanel([EntryPanel]);
+  },
 
   /**
    * @param {{ locales: string[] }} options - Admin locales.

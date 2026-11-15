@@ -7,6 +7,7 @@ const { createRateLimiter } = require('../utils/rate-limit');
 const { normalizeExcerpt } = require('../../../shared/comments.mjs');
 const { cleanMentionIds, MAX_MENTION_QUERY } = require('../../../shared/comment-mentions.mjs');
 const { parseFieldIdentity } = require('../../../shared/field-identity.mjs');
+const { mentionMailLanguage, mentionMailTexts } = require('../utils/mention-mail');
 
 /**
  * @mentions and in-admin notifications of comments (2.4).
@@ -286,37 +287,32 @@ module.exports = ({ strapi }) => {
     for (const { notification, recipientId, ability } of items) {
       try {
         if (!(await hit(`mentionmail:${recipientId}`, perHour, 3600000))) continue;
-        const user = await strapi.db
-          .query('admin::user')
-          .findOne({ where: { id: recipientId }, select: ['email', 'isActive', 'blocked'] });
+        const user = await strapi.db.query('admin::user').findOne({
+          where: { id: recipientId },
+          select: ['email', 'isActive', 'blocked', 'preferedLanguage'],
+        });
         if (!user || user.isActive === false || user.blocked === true) continue;
         const to = typeof user.email === 'string' ? user.email.trim() : '';
         if (!EMAIL_PATTERN.test(to)) continue;
-        const actor = headerSafe(actorName, 80) || 'Someone';
-        const title = headerSafe(await titleFor(ability, target), 120);
-        const typeName = headerSafe(link.typeName, 80);
-        const where = title ? `"${title}" (${typeName})` : `an entry of ${typeName}`;
-        const sentence = `${actor} mentioned you in a comment on ${where}.`;
-        const footer =
-          'You get this e-mail because e-mail notifications for mentions are turned on in Magic Editor X.';
-        const lines = [
-          sentence,
-          '',
-          url ? `Open the comment: ${url}` : 'Open the Content Manager to read the comment.',
-          '',
-          footer,
-        ];
+        // 2.5: subject and text in the recipient's admin interface language (English fallback).
+        const texts = mentionMailTexts(mentionMailLanguage(user.preferedLanguage), {
+          actor: headerSafe(actorName, 80),
+          title: headerSafe(await titleFor(ability, target), 120),
+          type: headerSafe(link.typeName, 80),
+          url,
+        });
+        const lines = [texts.sentence, '', texts.openText, '', texts.footer];
         // Own HTML part with every value escaped (names and titles come from admins and content).
         const html = [
-          `<p>${escapeHtml(sentence)}</p>`,
+          `<p>${escapeHtml(texts.sentence)}</p>`,
           url
-            ? `<p><a href="${escapeHtml(url)}">Open the comment</a></p>`
-            : '<p>Open the Content Manager to read the comment.</p>',
-          `<p>${escapeHtml(footer)}</p>`,
+            ? `<p><a href="${escapeHtml(url)}">${escapeHtml(texts.openLabel)}</a></p>`
+            : `<p>${escapeHtml(texts.noUrl)}</p>`,
+          `<p>${escapeHtml(texts.footer)}</p>`,
         ].join('');
         await mailer.send({
           to,
-          subject: headerSafe(`${actor} mentioned you in a comment`, 150),
+          subject: headerSafe(texts.subject, 150),
           text: lines.join('\n'),
           html,
         });
