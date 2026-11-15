@@ -208,6 +208,11 @@ const SHORTCUT_LABELS = {
   hyperlink: ['tools.names.link', 'Link'],
   mention: ['tools.names.mention', 'Mention'],
   aiAssistant: ['tools.names.ai', 'AI assistant'],
+  // 2.5 (only when the field turns them on)
+  superscript$mex: ['tools.names.superscript', 'Superscript'],
+  subscript$mex: ['tools.names.subscript', 'Subscript'],
+  color$mex: ['tools.names.color', 'Colour'],
+  annotation$abbreviation: ['tools.names.abbreviation', 'Abbreviation'],
 };
 
 const PanelSlot = styled(Box)`

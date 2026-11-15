@@ -248,6 +248,8 @@ export interface InlineAnnotationDefinitionInput {
   attributes: Record<string, InlineAnnotationAttributeInput>;
   /** Presets that offer the annotation without the field option `inlineAnnotations`. */
   presets?: ReadonlyArray<'full' | 'article' | 'basic' | 'minimal'>;
+  /** Keyboard shortcut of the editor tool: one of `ANNOTATION_SHORTCUTS` (Ctrl on Windows/Linux). */
+  shortcut?: 'CMD+SHIFT+0' | 'CMD+SHIFT+1' | 'CMD+SHIFT+8';
   /**
    * Server only: one call per response with every distinct use (at most 200);
    * return the values in the same order (string up to 2000 characters or a plain object).
@@ -278,6 +280,7 @@ export const ANNOTATION_ATTRIBUTE: 'data-mex-annotation';
 export const ANNOTATION_VALUE_PREFIX: 'data-mex-a-';
 export const ANNOTATION_FIELD_TYPES: readonly InlineAnnotationFieldType[];
 export const ANNOTATION_PRESETS: readonly ['full', 'article', 'basic', 'minimal'];
+export const ANNOTATION_SHORTCUTS: readonly ['CMD+SHIFT+0', 'CMD+SHIFT+1', 'CMD+SHIFT+8'];
 export const ANNOTATION_RENDER_TAGS: readonly InlineAnnotationWrapper['tag'][];
 export const ANNOTATION_LIMITS: Readonly<{
   attributes: number;

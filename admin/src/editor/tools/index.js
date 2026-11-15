@@ -392,12 +392,16 @@ export function buildTools(ctx) {
   if (colorsOn) {
     tools[COLOR_TOOL] = {
       class: ColorTool,
+      // Opens the colour menu (arrow keys and Enter pick a token).
+      shortcut: 'CMD+SHIFT+7',
       config: { t, palette: ctx.palette, locale: ctx.locale, isDark: ctx.isDark },
     };
   }
   for (const definition of annotations) {
+    const shortcut = definition.name === 'abbreviation' ? 'CMD+SHIFT+9' : definition.shortcut;
     tools[`${ANNOTATION_TOOL_PREFIX}${definition.name}`] = {
       class: createAnnotationTool(definition),
+      ...(shortcut ? { shortcut } : {}),
       // The built-in abbreviation has translated labels; code-registered annotations use their own.
       config: {
         t,

@@ -74,6 +74,13 @@ export const ANNOTATION_RENDER_TAGS = Object.freeze([
   'del',
 ]);
 
+/**
+ * Keyboard shortcuts an annotation may use (`CMD+SHIFT+<digit>`, Ctrl on
+ * Windows/Linux). The other digits are taken by Magic Editor X (2 mention,
+ * 7 colour, 9 abbreviation) or by macOS (3 to 6 screenshots).
+ */
+export const ANNOTATION_SHORTCUTS = Object.freeze(['CMD+SHIFT+0', 'CMD+SHIFT+1', 'CMD+SHIFT+8']);
+
 /** Name of the built-in annotation (off by default; enabled per field). */
 export const ABBREVIATION = 'abbreviation';
 
@@ -150,7 +157,7 @@ const normalizeAttribute = (where, input) => {
  * Defines an inline annotation. The result is frozen and validated; pass it
  * to the server (`service('blocks').registerInlineAnnotation`) and to the
  * renderers (`annotations` option).
- * @param {{ name: string, label?: string, description?: string, attributes: Record<string, object>, presets?: string[], resolve?: Function, render?: Function }} definition - Definition.
+ * @param {{ name: string, label?: string, description?: string, attributes: Record<string, object>, presets?: string[], shortcut?: string, resolve?: Function, render?: Function }} definition - Definition (`shortcut`: one of `ANNOTATION_SHORTCUTS`).
  * @returns {Readonly<object>} Frozen definition.
  * @throws {BlockDefinitionError} `INVALID_DEFINITION` for an invalid definition.
  */
@@ -160,7 +167,11 @@ export const defineInlineAnnotation = (definition) => {
   if (typeof name !== 'string' || !ANNOTATION_NAME.test(name))
     fail(JSON.stringify(name), 'the name must match /^[a-z][a-z0-9-]{1,39}$/');
   for (const key of Object.keys(definition))
-    if (!['name', 'label', 'description', 'attributes', 'presets', 'resolve', 'render'].includes(key))
+    if (
+      !['name', 'label', 'description', 'attributes', 'presets', 'resolve', 'render', 'shortcut'].includes(
+        key
+      )
+    )
       fail(name, `unknown key "${key}"`);
   for (const key of ['label', 'description'])
     if (
@@ -180,6 +191,8 @@ export const defineInlineAnnotation = (definition) => {
   const presets = definition.presets === undefined ? [] : definition.presets;
   if (!Array.isArray(presets) || !presets.every((preset) => ANNOTATION_PRESETS.includes(preset)))
     fail(name, `"presets" must list only ${ANNOTATION_PRESETS.join(', ')}`);
+  if (definition.shortcut !== undefined && !ANNOTATION_SHORTCUTS.includes(definition.shortcut))
+    fail(name, `"shortcut" must be one of ${ANNOTATION_SHORTCUTS.join(', ')}`);
   for (const key of ['resolve', 'render'])
     if (definition[key] !== undefined && typeof definition[key] !== 'function')
       fail(name, `"${key}" must be a function`);
@@ -189,6 +202,7 @@ export const defineInlineAnnotation = (definition) => {
     ...(definition.description ? { description: definition.description } : {}),
     attributes: Object.freeze(attributes),
     presets: Object.freeze([...new Set(presets)]),
+    ...(definition.shortcut ? { shortcut: definition.shortcut } : {}),
     ...(definition.resolve ? { resolve: definition.resolve } : {}),
     ...(definition.render ? { render: definition.render } : {}),
   });
@@ -326,6 +340,7 @@ export const annotationsFromSummaries = (summaries) => {
           label: typeof summary.label === 'string' ? summary.label.slice(0, 100) : undefined,
           attributes: summary.attributes,
           presets: Array.isArray(summary.presets) ? summary.presets : [],
+          ...(typeof summary.shortcut === 'string' ? { shortcut: summary.shortcut } : {}),
         })
       );
     } catch {
@@ -345,6 +360,7 @@ export const annotationSummary = (definition) => ({
   label: definition.label,
   builtIn: definition === abbreviationAnnotation,
   presets: [...definition.presets],
+  ...(definition.shortcut ? { shortcut: definition.shortcut } : {}),
   resolves: typeof definition.resolve === 'function',
   attributes: Object.fromEntries(
     Object.entries(definition.attributes).map(([key, field]) => [key, { ...field }])

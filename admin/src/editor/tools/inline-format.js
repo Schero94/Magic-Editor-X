@@ -45,6 +45,9 @@ export const FORMAT_ICONS = Object.freeze({
   annotation: SVG(
     '<path d="M4 4h8l8 8-8 8-8-8V4Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="8.5" cy="8.5" r="1.5" fill="currentColor"/>'
   ),
+  abbreviation: SVG(
+    '<text x="2" y="16.5" font-family="system-ui, sans-serif" font-size="12" font-weight="700" fill="currentColor">Ab</text><path d="M3 20h18" stroke="currentColor" stroke-width="1.6" stroke-dasharray="2 2"/>'
+  ),
 });
 
 /**
@@ -251,10 +254,10 @@ export class ColorTool {
         onActivate: () => this.clear(),
       },
     ];
+    // Icon only (the hint shows the translated tool name), like the other inline tools.
+    // No `name`: Editor.js names the item after the tool key, which its shortcut looks up.
     return {
       icon: FORMAT_ICONS.color,
-      name: 'color',
-      title: this.t('tools.names.color', 'Colour'),
       isActive: () =>
         Boolean(
           this.target() &&
@@ -375,7 +378,8 @@ export const createAnnotationTool = (definition) => {
         className: this.api.styles.inlineToolButton,
         attrs: { type: 'button' },
       });
-      this.button.innerHTML = FORMAT_ICONS.annotation;
+      this.button.innerHTML =
+        definition.name === 'abbreviation' ? FORMAT_ICONS.abbreviation : FORMAT_ICONS.annotation;
       return this.button;
     }
 

@@ -13,6 +13,7 @@ export const glossaryAnnotation = defineInlineAnnotation({
   name: 'glossary',
   label: 'Glossary term',
   description: 'Links a word to its definition in the glossary.',
+  shortcut: 'CMD+SHIFT+8',
   attributes: {
     term: { type: 'text', max: 80, required: true, label: 'Glossary entry (slug)' },
   },

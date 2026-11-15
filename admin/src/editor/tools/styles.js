@@ -2183,7 +2183,37 @@ export const editorStyles = css`
       color: ${c('neutral600')};
       font-size: ${f(1)};
     }
+  }
 
+  /*
+   * 2.5: the inline toolbar never gets wider than the screen: on narrow
+   * screens its buttons wrap to a second row instead of running off the
+   * edge (Editor.js lays them out in one row). Not scoped to .mex-editor:
+   * Editor.js measures the toolbar width on a copy outside the editor before
+   * it positions it.
+   */
+  .ce-popover--inline:not(.ce-popover--nested) > .ce-popover__container {
+    /* A column, so the wrapped item rows give the toolbar its height. */
+    flex-direction: column;
+    min-width: 0;
+    max-width: calc(100vw - 3.2rem);
+    /* max-content, not auto: Editor.js sets both top and bottom on this box. */
+    height: max-content;
+    min-height: var(--height);
+  }
+
+  .ce-popover--inline:not(.ce-popover--nested) > .ce-popover__container > .ce-popover__items {
+    flex-wrap: wrap;
+    row-gap: ${s(1)};
+  }
+
+  /* A menu of the toolbar (Convert to, Colour) opens below the toolbar, also when it has two rows. */
+  .ce-popover--inline .ce-popover--nested-level-1 .ce-popover__container {
+    top: calc(100% + 3px);
+  }
+
+  /* 2.5: inline formatting (colour, annotations). */
+  .mex-editor {
     /* 2.5: highlights keep the text colour of the theme; token colours come from PaletteStyles. */
     .ce-block mark[data-mex-highlight] {
       color: inherit;
