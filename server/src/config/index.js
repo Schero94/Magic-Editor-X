@@ -192,6 +192,14 @@ const defaults = {
      */
     urlPattern: '',
   },
+  mcp: {
+    /**
+     * MCP tools for AI clients (2.5): convert Markdown/HTML, validate and render content through
+     * Strapi's MCP server (needs `server.mcp.enabled: true` in config/server and an admin token with
+     * `plugin::magic-editor-x.mcp.use`). Off by default.
+     */
+    enabled: false,
+  },
 };
 
 const positiveInt = (max) => z.number().int().min(1).max(max);
@@ -327,6 +335,8 @@ const configSchema = z.looseObject({
   links: z.looseObject({
     urlPattern: z.string().max(MAX_LINK_PATTERN_LENGTH).refine(isValidLinkPattern),
   }),
+  // 2.5: optional so a 2.4 configuration validated without the defaults merged stays valid.
+  mcp: z.looseObject({ enabled: z.boolean() }).optional(),
 });
 
 module.exports = {
