@@ -6,6 +6,7 @@ const { sha256 } = require('../utils/crypto');
 const { normalizeLabel } = require('./history');
 const { displayName } = require('./templates');
 const { stableStringify } = require('../../../shared/ydoc.mjs');
+const { comparableBlocks } = require('../../../shared/default-tunes.mjs');
 
 /**
  * Version history of synced block sources (2.4).
@@ -47,12 +48,20 @@ const sourceKey = (documentId) => `${TEMPLATE_UID}|${documentId}|-|${FIELD}`;
 
 /**
  * Hash of what a version holds (name and blocks, key order independent).
+ * Default tune values count as "no tune" (`comparableBlocks`, 2.5), like the
+ * field version hash: Editor.js writes them on every save, so an unchanged
+ * source saved from the editor hashes the same as the stored one.
  * @param {string} name - Source name.
  * @param {{ blocks?: unknown[] }|null} blocks - Editor.js document.
  * @returns {string} Hex hash.
  */
 const versionHash = (name, blocks) =>
-  sha256(stableStringify([String(name || ''), blocks && Array.isArray(blocks.blocks) ? blocks.blocks : []]));
+  sha256(
+    stableStringify([
+      String(name || ''),
+      comparableBlocks(blocks && Array.isArray(blocks.blocks) ? blocks.blocks : []),
+    ])
+  );
 
 module.exports = ({ strapi }) => {
   const query = () => strapi.db.query(SNAPSHOT_UID);
@@ -114,7 +123,12 @@ module.exports = ({ strapi }) => {
           orderBy: [{ version: 'desc' }, { id: 'desc' }],
           limit: 1,
         });
-        if (latest && latest.contentHash === hash) return { created: false, version: toDto(latest) };
+        // Versions stored by 2.4 carry a hash over the default tunes: compare their content again.
+        const same =
+          latest &&
+          (latest.contentHash === hash ||
+            (latest.jsonContent && versionHash(latest.sourceName, latest.jsonContent) === hash));
+        if (same) return { created: false, version: toDto(latest) };
         const row = await query().create({
           data: {
             roomId: sourceKey(source.documentId),

@@ -19,6 +19,7 @@ export const PERMISSIONS = {
   auditRead: action('audit.read'),
   suggestionsCreate: action('suggestions.create'),
   suggestionsReview: action('suggestions.review'),
+  mcpUse: action('mcp.use'),
 };
 
 export default PERMISSIONS;

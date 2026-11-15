@@ -211,6 +211,14 @@ const defaults = {
     /** Distance in CSS pixels above and below the viewport (0 to 10000). */
     marginPx: 800,
   },
+  mcp: {
+    /**
+     * MCP tools for AI clients (2.5): convert Markdown/HTML, validate and render content through
+     * Strapi's MCP server (needs `server.mcp.enabled: true` in config/server and an admin token with
+     * `plugin::magic-editor-x.mcp.use`). Off by default.
+     */
+    enabled: false,
+  },
 };
 
 const positiveInt = (max) => z.number().int().min(1).max(max);
@@ -346,14 +354,21 @@ const configSchema = z.looseObject({
   links: z.looseObject({
     urlPattern: z.string().max(MAX_LINK_PATTERN_LENGTH).refine(isValidLinkPattern),
   }),
-  drafts: z.looseObject({
-    enabled: z.boolean(),
-    ttlHours: z.number().int().min(1).max(720),
-  }),
-  lazyInit: z.looseObject({
-    enabled: z.boolean(),
-    marginPx: z.number().int().min(0).max(10000),
-  }),
+  // 2.5: optional so a 2.4 configuration validated without the defaults merged stays valid.
+  drafts: z
+    .looseObject({
+      enabled: z.boolean(),
+      ttlHours: z.number().int().min(1).max(720),
+    })
+    .optional(),
+  lazyInit: z
+    .looseObject({
+      enabled: z.boolean(),
+      marginPx: z.number().int().min(0).max(10000),
+    })
+    .optional(),
+  // 2.5: optional so a 2.4 configuration validated without the defaults merged stays valid.
+  mcp: z.looseObject({ enabled: z.boolean() }).optional(),
 });
 
 module.exports = {
