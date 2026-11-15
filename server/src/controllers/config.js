@@ -76,6 +76,15 @@ module.exports = ({ strapi }) => ({
           suggestionsCreate: can(ACTIONS.suggestionsCreate),
           suggestionsReview: can(ACTIONS.suggestionsReview),
         },
+        // 2.5: local draft buffer and lazy start of fields (browser-only behaviour).
+        drafts: {
+          enabled: conf('drafts.enabled', true) !== false,
+          ttlHours: conf('drafts.ttlHours', 72),
+        },
+        lazyInit: {
+          enabled: conf('lazyInit.enabled', true) !== false,
+          marginPx: conf('lazyInit.marginPx', 800),
+        },
       },
     };
   },

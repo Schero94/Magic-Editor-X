@@ -632,5 +632,11 @@
   "editor.suggestions.showAll": "Mostrar sugerencias",
   "editor.toolbar.suggest": "Sugerir cambios",
   "editor.toolbar.suggestionsCount": "Sugerencias ({count, plural, one {# abierta} other {# abiertas}})",
-  "editor.toolbar.suggestions": "Sugerencias"
+  "editor.toolbar.suggestions": "Sugerencias",
+  "editor.drafts.found": "Se encontraron cambios sin guardar ({time}).",
+  "editor.drafts.conflict": "El contenido guardado ha cambiado desde entonces. Al restaurar se reemplaza en el editor ({count, plural, one {# bloque es distinto} other {# bloques son distintos}}).",
+  "editor.drafts.conflictPlain": "El contenido guardado ha cambiado desde entonces. Al restaurar se reemplaza en el editor.",
+  "editor.drafts.discard": "Descartar",
+  "editor.drafts.restore": "Restaurar",
+  "editor.drafts.restored": "Cambios restaurados. Guarde la entrada para conservarlos."
 }

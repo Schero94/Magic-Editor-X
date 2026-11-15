@@ -632,5 +632,11 @@
   "editor.suggestions.showAll": "Afficher les suggestions",
   "editor.toolbar.suggest": "Suggérer des modifications",
   "editor.toolbar.suggestionsCount": "Suggestions ({count, plural, one {# ouverte} other {# ouvertes}})",
-  "editor.toolbar.suggestions": "Suggestions"
+  "editor.toolbar.suggestions": "Suggestions",
+  "editor.drafts.found": "Des modifications non enregistrées ont été trouvées ({time}).",
+  "editor.drafts.conflict": "Le contenu enregistré a changé depuis. La restauration le remplace dans l’éditeur ({count, plural, one {# bloc diffère} other {# blocs diffèrent}}).",
+  "editor.drafts.conflictPlain": "Le contenu enregistré a changé depuis. La restauration le remplace dans l’éditeur.",
+  "editor.drafts.discard": "Ignorer",
+  "editor.drafts.restore": "Restaurer",
+  "editor.drafts.restored": "Modifications restaurées. Enregistrez l’entrée pour les conserver."
 }

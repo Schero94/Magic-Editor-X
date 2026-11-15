@@ -632,5 +632,11 @@
   "editor.suggestions.showAll": "Show suggestions",
   "editor.toolbar.suggest": "Suggest changes",
   "editor.toolbar.suggestionsCount": "Suggestions ({count, plural, one {# open} other {# open}})",
-  "editor.toolbar.suggestions": "Suggestions"
+  "editor.toolbar.suggestions": "Suggestions",
+  "editor.drafts.found": "Unsaved changes from {time} were found.",
+  "editor.drafts.conflict": "The saved content changed since then. Restoring replaces it in the editor ({count, plural, one {# block differs} other {# blocks differ}}).",
+  "editor.drafts.conflictPlain": "The saved content changed since then. Restoring replaces it in the editor.",
+  "editor.drafts.discard": "Discard",
+  "editor.drafts.restore": "Restore",
+  "editor.drafts.restored": "Changes restored. Save the entry to keep them."
 }

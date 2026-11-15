@@ -632,5 +632,11 @@
   "editor.suggestions.showAll": "Mostrar sugestões",
   "editor.toolbar.suggest": "Sugerir alterações",
   "editor.toolbar.suggestionsCount": "Sugestões ({count, plural, one {# aberta} other {# abertas}})",
-  "editor.toolbar.suggestions": "Sugestões"
+  "editor.toolbar.suggestions": "Sugestões",
+  "editor.drafts.found": "Foram encontradas alterações não salvas ({time}).",
+  "editor.drafts.conflict": "O conteúdo salvo mudou desde então. Ao restaurar, ele é substituído no editor ({count, plural, one {# bloco é diferente} other {# blocos são diferentes}}).",
+  "editor.drafts.conflictPlain": "O conteúdo salvo mudou desde então. Ao restaurar, ele é substituído no editor.",
+  "editor.drafts.discard": "Descartar",
+  "editor.drafts.restore": "Restaurar",
+  "editor.drafts.restored": "Alterações restauradas. Salve a entrada para mantê-las."
 }

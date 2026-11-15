@@ -192,6 +192,25 @@ const defaults = {
      */
     urlPattern: '',
   },
+  /**
+   * 2.5 local draft buffer: unsaved field content is kept in the admin's browser (IndexedDB)
+   * until it is saved, discarded, expires or the admin logs out. Invisible until there is
+   * something to restore.
+   */
+  drafts: {
+    enabled: true,
+    /** Lifetime of a buffer in hours (1 to 720). */
+    ttlHours: 72,
+  },
+  /**
+   * 2.5 lazy start: Editor.js and the live room of a field start when the field comes within
+   * `marginPx` of the viewport (or is focused); until then a static render keeps its place.
+   */
+  lazyInit: {
+    enabled: true,
+    /** Distance in CSS pixels above and below the viewport (0 to 10000). */
+    marginPx: 800,
+  },
 };
 
 const positiveInt = (max) => z.number().int().min(1).max(max);
@@ -326,6 +345,14 @@ const configSchema = z.looseObject({
   }),
   links: z.looseObject({
     urlPattern: z.string().max(MAX_LINK_PATTERN_LENGTH).refine(isValidLinkPattern),
+  }),
+  drafts: z.looseObject({
+    enabled: z.boolean(),
+    ttlHours: z.number().int().min(1).max(720),
+  }),
+  lazyInit: z.looseObject({
+    enabled: z.boolean(),
+    marginPx: z.number().int().min(0).max(10000),
   }),
 });
 

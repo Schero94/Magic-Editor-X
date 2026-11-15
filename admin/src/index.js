@@ -5,6 +5,8 @@ import { PERMISSIONS } from './permissions';
 import { getTranslation } from './utils/getTranslation';
 import { registerBlock } from './editor/block-registry';
 import { createReactTool } from './editor/react-tool';
+import { createLogoutMiddleware } from './editor/drafts-logic.mjs';
+import { clearDrafts } from './editor/draft-store';
 
 /**
  * Translations are split by area (common, editor, tools, settings); each
@@ -339,6 +341,11 @@ export default {
         },
       ]
     );
+
+    // 2.5 local draft buffers: removed from this browser when the admin logs out on purpose
+    // (Redux middleware of the admin store; see editor/drafts-logic.mjs createLogoutMiddleware).
+    if (typeof app.addMiddlewares === 'function')
+      app.addMiddlewares([createLogoutMiddleware({ onLogout: () => clearDrafts() })]);
   },
 
   bootstrap() {},

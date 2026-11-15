@@ -632,5 +632,11 @@
   "editor.suggestions.showAll": "Vorschläge anzeigen",
   "editor.toolbar.suggest": "Änderungen vorschlagen",
   "editor.toolbar.suggestionsCount": "Vorschläge ({count, plural, one {# offen} other {# offen}})",
-  "editor.toolbar.suggestions": "Vorschläge"
+  "editor.toolbar.suggestions": "Vorschläge",
+  "editor.drafts.found": "Es wurden ungespeicherte Änderungen gefunden ({time}).",
+  "editor.drafts.conflict": "Der gespeicherte Inhalt wurde seitdem geändert. Beim Wiederherstellen wird er im Editor ersetzt ({count, plural, one {# Block unterscheidet sich} other {# Blöcke unterscheiden sich}}).",
+  "editor.drafts.conflictPlain": "Der gespeicherte Inhalt wurde seitdem geändert. Beim Wiederherstellen wird er im Editor ersetzt.",
+  "editor.drafts.discard": "Verwerfen",
+  "editor.drafts.restore": "Wiederherstellen",
+  "editor.drafts.restored": "Änderungen wiederhergestellt. Speichern Sie den Eintrag, um sie zu behalten."
 }

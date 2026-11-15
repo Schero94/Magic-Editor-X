@@ -12,6 +12,16 @@
  *   diffDocuments, find + replace, Yjs seed + apply (shared/ydoc.mjs),
  *   quality lint, preset check, audit change summary (2.4).
  *
+ * 2.5: whole documents with many editor fields (20 top-level fields, a
+ * repeatable component and a dynamic zone with 25, 100 and 250 items, each
+ * field 20 blocks) through the server paths that walk every field of a write
+ * or a response: the editor field walk (utils/editor-fields.js), the save
+ * middleware's normalise + sanitise + preset check per field (register.js),
+ * field identity assignment (shared/field-identity.mjs assignFieldKeys) and
+ * the `?mex=html` output walk + render (utils/output-walk.js, renderHtml).
+ * Checked against `documents` in the thresholds (budget at 250 items,
+ * scaling 250/25 items; the work grows with 20 + 2 x items fields, about 7x).
+ *
  * Checks (thresholds in scripts/bench-thresholds.json, see CONTRIBUTING.md):
  *   - absolute budget per operation at 5000 blocks (several times a local median);
  *   - scaling: time(5000) / time(500) below a bound per operation (linear work
@@ -34,9 +44,13 @@ import { createSeedUpdate, applyLocalChanges, docToEditorData } from '../shared/
 import { lintDocument } from '../shared/quality.mjs';
 import { resolveFieldPreset, checkPreset } from '../shared/presets.mjs';
 import { fieldChanges } from '../shared/audit.mjs';
+import { allowedInlineTags } from '../shared/presets.mjs';
+import { assignFieldKeys } from '../shared/field-identity.mjs';
 
 const require = createRequire(import.meta.url);
 const { cleanEditorValue } = require('../server/src/utils/sanitizer.js');
+const { transformEditorFields } = require('../server/src/utils/editor-fields.js');
+const { walkOutput } = require('../server/src/utils/output-walk.js');
 
 const root = path.resolve(import.meta.dirname, '..');
 const fixture = JSON.parse(
@@ -182,6 +196,127 @@ for (const size of SIZES) {
   }
 }
 
+// 2.5: documents with many editor fields (server paths that walk every field).
+const EDITOR = { type: 'customField', customField: 'plugin::magic-editor-x.richtext' };
+const benchStrapi = {
+  components: {
+    'blocks.text-section': {
+      uid: 'blocks.text-section',
+      attributes: { heading: { type: 'string' }, body: EDITOR },
+    },
+    'blocks.quote-card': {
+      uid: 'blocks.quote-card',
+      attributes: { caption: { type: 'string' }, body: { ...EDITOR, options: { preset: 'basic' } } },
+    },
+  },
+  getModel: () => null,
+};
+const documentSchema = {
+  uid: 'api::bench.bench',
+  attributes: {
+    title: { type: 'string' },
+    ...Object.fromEntries(Array.from({ length: 20 }, (_, i) => [`part${i}`, EDITOR])),
+    sections: { type: 'component', repeatable: true, component: 'blocks.text-section' },
+    zone: { type: 'dynamiczone', components: ['blocks.text-section', 'blocks.quote-card'] },
+  },
+};
+const DOC_SIZES = [25, 100, 250];
+/** Plain-text 20-block field value (paragraphs, headers, a list). */
+const fieldValue = (seed) =>
+  normalizeEditorData({
+    time: 1762850000000,
+    version: '2.31.7',
+    blocks: Array.from({ length: 20 }, (_, i) =>
+      i % 7 === 0
+        ? { id: `h${seed}-${i}`, type: 'header', data: { text: `Heading ${seed} ${i}`, level: 2 } }
+        : i % 5 === 0
+          ? {
+              id: `l${seed}-${i}`,
+              type: 'list',
+              data: { style: 'unordered', meta: {}, items: [{ content: `Item ${i}`, meta: {}, items: [] }] },
+            }
+          : {
+              id: `p${seed}-${i}`,
+              type: 'paragraph',
+              data: {
+                text: `Field ${seed} paragraph ${i} with <b>bold</b> and <a href="https://www.example.test/${i}">a link</a>.`,
+              },
+            }
+    ),
+  });
+/**
+ * Document of 20 top-level editor fields plus `items` repeatable entries and `items` dynamic zone entries.
+ * @param {number} items - Entries per list.
+ * @returns {object} Write data (fresh objects; the walks mutate).
+ */
+const makeEntry = (items) => {
+  const entry = { title: 'Bench' };
+  for (let i = 0; i < 20; i += 1) entry[`part${i}`] = fieldValue(`t${i}`);
+  entry.sections = Array.from({ length: items }, (_, i) => ({ heading: `S${i}`, body: fieldValue(`s${i}`) }));
+  entry.zone = Array.from({ length: items }, (_, i) =>
+    i % 2
+      ? { __component: 'blocks.quote-card', caption: `Q${i}`, body: fieldValue(`q${i}`) }
+      : { __component: 'blocks.text-section', heading: `Z${i}`, body: fieldValue(`z${i}`) }
+  );
+  return entry;
+};
+const documentOperations = (items) => {
+  const json = JSON.stringify(makeEntry(items));
+  const fresh = () => JSON.parse(json);
+  // The walk with an identity transform does not change the data: one parsed copy is reused.
+  const shared = fresh();
+  return {
+    'doc fieldWalk': () => {
+      let count = 0;
+      transformEditorFields(benchStrapi, documentSchema, shared, (value) => {
+        count += 1;
+        return value;
+      });
+      return count;
+    },
+    'doc saveNormalize': () => {
+      let violations = 0;
+      let count = 0;
+      transformEditorFields(benchStrapi, documentSchema, fresh(), (value, attribute) => {
+        const preset = resolveFieldPreset(attribute && attribute.options);
+        const clean = cleanEditorValue(value, { rawHtml: 'sanitize', inlineTags: allowedInlineTags(preset) });
+        if (preset.restricted) violations += checkPreset(clean, preset).length;
+        count += 1;
+        return clean;
+      });
+      return count * 1000 + violations;
+    },
+    'doc fieldKeys': () => {
+      const items = [];
+      transformEditorFields(benchStrapi, documentSchema, fresh(), (value, attribute, path, container) => {
+        items.push({ path, value, container });
+        return value;
+      });
+      let next = 0;
+      assignFieldKeys(items, { create: () => `benchkey${String((next += 1)).padStart(14, '0')}` });
+      return next;
+    },
+    'doc outputRender': () => {
+      let length = 0;
+      let count = 0;
+      walkOutput(benchStrapi, documentSchema, fresh(), (holder, key) => {
+        // The copy is parsed in every sample (render-output replaces values in place).
+        holder[key] = renderHtml(holder[key]);
+        length += holder[key].length > 0 ? 1 : 0;
+        count += 1;
+      });
+      return length === count ? count : -1;
+    },
+  };
+};
+for (const items of DOC_SIZES) {
+  for (const [name, fn] of Object.entries(documentOperations(items))) {
+    const counter = fn();
+    const { median, iterations } = measure(fn);
+    results.push({ size: items, name, median, iterations, counter, kind: 'document' });
+  }
+}
+
 const failures = [];
 const byKey = new Map(results.map((row) => [`${row.name}@${row.size}`, row]));
 const table = [];
@@ -219,6 +354,39 @@ for (const name of Object.keys(thresholds.operations)) {
   });
 }
 
+const docTable = [];
+for (const name of Object.keys(thresholds.documents || {})) {
+  const limits = thresholds.documents[name];
+  const small = byKey.get(`${name}@${DOC_SIZES[0]}`);
+  const large = byKey.get(`${name}@${DOC_SIZES[DOC_SIZES.length - 1]}`);
+  if (!small || !large) {
+    failures.push(`${name}: not measured`);
+    continue;
+  }
+  const ratio = large.median / Math.max(small.median, 0.001);
+  if (large.median > limits.budgetMs250)
+    failures.push(
+      `${name}: ${large.median.toFixed(2)} ms at 250 items is above the budget of ${limits.budgetMs250} ms`
+    );
+  if (ratio > limits.maxScaling)
+    failures.push(`${name}: 250/25 items time ratio ${ratio.toFixed(1)} is above ${limits.maxScaling}`);
+  for (const size of DOC_SIZES) {
+    const expected = limits.counters?.[String(size)];
+    const row = byKey.get(`${name}@${size}`);
+    if (expected !== undefined && row.counter !== expected)
+      failures.push(`${name}: counter at ${size} items is ${row.counter}, expected ${expected}`);
+  }
+  docTable.push({
+    operation: name,
+    ...Object.fromEntries(
+      DOC_SIZES.map((size) => [`${size} items ms`, byKey.get(`${name}@${size}`).median.toFixed(2)])
+    ),
+    ratio: ratio.toFixed(1),
+    'max ratio': limits.maxScaling,
+    'budget ms': limits.budgetMs250,
+  });
+}
+
 if (asJson) {
   process.stdout.write(
     `${JSON.stringify({ node: process.version, samples: SAMPLES, results, failures }, null, 2)}\n`
@@ -226,6 +394,10 @@ if (asJson) {
 } else {
   process.stdout.write(`Magic Editor X benchmark (node ${process.version}, median of ${SAMPLES} samples)\n`);
   console.table(table);
+  process.stdout.write(
+    'Documents with many editor fields (20 top-level fields + items in a repeatable component and a dynamic zone, 20 blocks each)\n'
+  );
+  console.table(docTable);
 }
 if (failures.length) {
   process.stderr.write(
