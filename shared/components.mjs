@@ -496,3 +496,64 @@ export const setActiveComponents = (descriptors) => {
  * @returns {ComponentDescriptor|null} Descriptor.
  */
 export const activeComponent = (uid) => active.get(uid) || null;
+
+/**
+ * Merges a form edit of a component block into the block's current values
+ * (2.5). The form sends only the attributes it changed; `undefined` removes
+ * one. Merging into the current values keeps a collaborator's change of
+ * another attribute that reached the block before the form rendered it (a
+ * whole-values write from a stale render would delete that change in the
+ * shared document).
+ * @param {unknown} current - Current stored values of the block.
+ * @param {Record<string, unknown>} patch - Changed attributes.
+ * @returns {Record<string, string|number|boolean>} New values.
+ */
+export const mergeComponentPatch = (current, patch) => {
+  const out = { ...cleanValuesShape(current) };
+  for (const key of Object.keys(isPlainObject(patch) ? patch : {})) {
+    if (patch[key] === undefined || patch[key] === null || patch[key] === '') delete out[key];
+    else out[key] = patch[key];
+  }
+  return cleanValuesShape(out);
+};
+
+/**
+ * Re-applies a text edit to newer text (2.5): `edited` is what the input
+ * holds after a keystroke, `base` what it showed before (the last render),
+ * `current` the attribute's latest value, which may already contain a
+ * collaborator's change the input has not shown yet. The edit (common prefix
+ * and suffix of `base` and `edited`) is replayed on `current`, so neither
+ * side's typing is lost. Falls back to `edited` when the edited range cannot
+ * be found in `current`.
+ * @param {string} base - Text the input showed.
+ * @param {string} edited - Text after the local edit.
+ * @param {string} current - Latest text of the attribute.
+ * @returns {string} Merged text.
+ */
+export const rebaseTextEdit = (base, edited, current) => {
+  if (typeof base !== 'string' || typeof edited !== 'string' || typeof current !== 'string') return edited;
+  if (current === base) return edited;
+  let prefix = 0;
+  while (prefix < base.length && prefix < edited.length && base[prefix] === edited[prefix]) prefix += 1;
+  let suffix = 0;
+  while (
+    suffix < base.length - prefix &&
+    suffix < edited.length - prefix &&
+    base[base.length - 1 - suffix] === edited[edited.length - 1 - suffix]
+  )
+    suffix += 1;
+  const removed = base.slice(prefix, base.length - suffix);
+  const inserted = edited.slice(prefix, edited.length - suffix);
+  const head = base.slice(0, prefix);
+  const tail = base.slice(base.length - suffix);
+  // Typing at the end of what the input showed continues at the end of the latest text.
+  if (!removed && suffix === 0 && current.startsWith(base)) return current + inserted;
+  let at = -1;
+  if (current.startsWith(head) && current.slice(prefix, prefix + removed.length) === removed) at = prefix;
+  else if (current.endsWith(tail)) {
+    const end = current.length - suffix;
+    if (current.slice(end - removed.length, end) === removed) at = end - removed.length;
+  }
+  if (at < 0) return edited;
+  return current.slice(0, at) + inserted + current.slice(at + removed.length);
+};

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   Badge,
   Box,
@@ -14,7 +14,7 @@ import {
   Typography,
 } from '@strapi/design-system';
 import styled from 'styled-components';
-import { checkComponentValues, defaultValues } from '../../../../shared/components.mjs';
+import { checkComponentValues, defaultValues, rebaseTextEdit } from '../../../../shared/components.mjs';
 
 /**
  * Form of a component block (2.5), rendered by the field through a portal
@@ -179,6 +179,14 @@ export const ComponentBlockView = ({
   const [values, setValues] = useState(() =>
     usable && fresh ? { ...defaultValues(descriptor), ...initial } : initial
   );
+  // Latest values, also those a collaborator sent but React has not rendered yet: an edit is
+  // always based on them, never on a stale render (that would undo the collaborator's change).
+  const valuesRef = useRef(values);
+  // What the inputs show (the last render): the base of a text edit (see `rebaseTextEdit`).
+  const shownRef = useRef(values);
+  useLayoutEffect(() => {
+    shownRef.current = values;
+  }, [values]);
   const [touched, setTouched] = useState(() => new Set());
   const [showAll, setShowAll] = useState(false);
   const rootRef = useRef(null);
@@ -194,7 +202,10 @@ export const ComponentBlockView = ({
   // A collaborator's change of this block arrives here (the form keeps its DOM, focus and caret).
   useEffect(() => {
     if (typeof subscribe !== 'function') return undefined;
-    return subscribe((next) => setValues(next));
+    return subscribe((next) => {
+      valuesRef.current = next;
+      setValues(next);
+    });
   }, [subscribe]);
 
   // Keep the caret where it was when the block was rendered again (undo, a collaborator's change).
@@ -265,11 +276,22 @@ export const ComponentBlockView = ({
   }
 
   const update = (field, next) => {
-    const nextValues = { ...values };
-    if (next === '' || next === undefined) delete nextValues[field];
+    const latest = valuesRef.current;
+    // A collaborator may have changed this text after the input last rendered: replay the edit on it.
+    if (typeof next === 'string' && typeof latest[field] === 'string')
+      next = rebaseTextEdit(
+        typeof shownRef.current[field] === 'string' ? shownRef.current[field] : '',
+        next,
+        latest[field]
+      );
+    const nextValues = { ...latest };
+    const empty = next === '' || next === undefined;
+    if (empty) delete nextValues[field];
     else nextValues[field] = next;
+    valuesRef.current = nextValues;
     setValues(nextValues);
-    onChange(nextValues);
+    // Only the edited attribute goes to the block (merged there with collaborators' values).
+    onChange({ [field]: empty ? undefined : next }, { patch: true });
   };
 
   const errorOf = (field) => {

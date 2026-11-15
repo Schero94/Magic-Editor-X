@@ -13,6 +13,8 @@ import {
   cleanValuesShape,
   currentValues,
   defaultValues,
+  mergeComponentPatch,
+  rebaseTextEdit,
   describeComponent,
   parseComponentList,
   setActiveComponents,
@@ -485,4 +487,45 @@ test('find and replace (text attributes of known components only), diff kinds, n
   assert.ok(flat.includes('values.title'), 'title diffed');
   assert.ok(flat.includes('"kind":"text"'), 'text diff for attribute values');
   assert.deepEqual(collectSegments(value), []);
+});
+
+test('regression: a form edit is merged into the block values, never replaces them (live data loss)', () => {
+  // Collaborator A typed into `title`; the change reached B's block before B's form re-rendered.
+  const blockValues = { title: 'Tabcdefgh', text: 'X', url: '/a' };
+  // B types into `text` from a stale render (title still 'T'): only the edited attribute is sent.
+  assert.deepEqual(mergeComponentPatch(blockValues, { text: 'Xi' }), {
+    title: 'Tabcdefgh',
+    text: 'Xi',
+    url: '/a',
+  });
+  assert.deepEqual(mergeComponentPatch(blockValues, { url: undefined }), { title: 'Tabcdefgh', text: 'X' });
+  assert.deepEqual(mergeComponentPatch(blockValues, { priority: 3, bad: { a: 1 } }).priority, 3);
+  assert.equal(mergeComponentPatch(blockValues, { bad: { a: 1 } }).bad, undefined);
+  // Through Yjs: the merged write keeps A's title; a whole stale write would have deleted it.
+  const seed = createSeedUpdate(doc(block('c1', 'blocks.cta', { title: 'T', text: 'X', url: '/a' })), 'e1');
+  const b = new Y.Doc();
+  Y.applyUpdate(b, seed);
+  applyEditorDataToDoc(b, doc(block('c1', 'blocks.cta', blockValues)));
+  applyEditorDataToDoc(b, doc(block('c1', 'blocks.cta', mergeComponentPatch(blockValues, { text: 'Xi' }))));
+  assert.equal(docToEditorData(b).blocks[0].data.values.title, 'Tabcdefgh');
+  // The old behaviour, for the record: the stale whole values remove A's edit.
+  const stale = new Y.Doc();
+  Y.applyUpdate(stale, seed);
+  applyEditorDataToDoc(stale, doc(block('c1', 'blocks.cta', blockValues)));
+  applyEditorDataToDoc(stale, doc(block('c1', 'blocks.cta', { title: 'T', text: 'Xi', url: '/a' })));
+  assert.equal(docToEditorData(stale).blocks[0].data.values.title, 'T');
+});
+
+test('regression: a keystroke on stale text is replayed on the latest text (same attribute)', () => {
+  // The input showed 'T'; A's 'abc' already arrived; B typed 'i' at the end.
+  assert.equal(rebaseTextEdit('T', 'Ti', 'Tabc'), 'Tabci');
+  // B typed at the start, A appended.
+  assert.equal(rebaseTextEdit('Title', 'XTitle', 'Title now'), 'XTitle now');
+  // B deleted a character that still exists.
+  assert.equal(rebaseTextEdit('Tab', 'Ta', 'Tabcd'), 'Tacd');
+  assert.equal(rebaseTextEdit('same', 'same!', 'same'), 'same!');
+  // A collaborator replaced the text: the local insertion is replayed where its context still matches.
+  assert.equal(rebaseTextEdit('abc', 'abcd', 'zzz'), 'zzzd');
+  // A deleted range that no longer exists: the local edit wins (no guessing).
+  assert.equal(rebaseTextEdit('abcd', 'ad', 'zzz'), 'ad');
 });

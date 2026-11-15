@@ -1,5 +1,5 @@
 import { ICONS, el } from './dom';
-import { COMPONENT_UID, cleanValuesShape } from '../../../../shared/components.mjs';
+import { COMPONENT_UID, cleanValuesShape, mergeComponentPatch } from '../../../../shared/components.mjs';
 
 /**
  * Component block (`component`, 2.5): a Content-Type Builder component with
@@ -134,9 +134,14 @@ export const createComponentTool = (components) => {
               if (this.remote === listener) this.remote = null;
             };
           },
-          onChange: (values) => {
+          onChange: (values, options = {}) => {
             if (this.readOnly) return;
-            this.data = { ...this.data, values: cleanValuesShape(values) };
+            // A patch (one attribute) is merged into the block's current values, which also hold
+            // collaborators' changes the form may not have rendered yet; undefined removes the key.
+            const next = options.patch
+              ? mergeComponentPatch(this.data.values, values)
+              : cleanValuesShape(values);
+            this.data = { ...this.data, values: next };
             if (this.block && typeof this.block.dispatchChange === 'function') this.block.dispatchChange();
             // Selects and switches fire no input event (their popovers live outside the editor):
             // report the change like typing, so the field saves it before a collaborator's change is shown.
