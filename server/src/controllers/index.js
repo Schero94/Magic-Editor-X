@@ -16,4 +16,5 @@ module.exports = {
   suggestions: require('./suggestions'),
   templates: require('./templates'),
   audit: require('./audit'),
+  reuse: require('./reuse'),
 };

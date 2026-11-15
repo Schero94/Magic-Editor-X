@@ -17,7 +17,7 @@ import {
   HyperlinkTool,
   AiInlineTool,
 } from './inline';
-import { AiBlockTune, AlignmentTune, TextVariantTune } from './tunes';
+import { AiBlockTune, AlignmentTune, CopyBlockTune, TextVariantTune } from './tunes';
 import {
   AlertTool,
   DelimiterTool,
@@ -391,6 +391,16 @@ export function buildTools(ctx) {
       tools[name] = { ...tool, tunes: [...(Array.isArray(tool.tunes) ? tool.tunes : []), 'aiBlockTune'] };
     }
   }
+  // 2.5: "Copy block" in every block's menu: the block with all its data goes to the clipboard
+  // and can be pasted into any Magic Editor X field (other entries and tabs too).
+  if (typeof ctx.onCopyBlock === 'function') {
+    tools.copyBlockTune = { class: CopyBlockTune, config: { t, onCopyBlock: ctx.onCopyBlock } };
+    for (const [name, tool] of Object.entries(tools)) {
+      if (NOT_BLOCKS.has(name) || !tool || typeof tool !== 'object' || !tool.class) continue;
+      if (tool.class.isInline || tool.class.isTune) continue;
+      tools[name] = { ...tool, tunes: [...(Array.isArray(tool.tunes) ? tool.tunes : []), 'copyBlockTune'] };
+    }
+  }
   return preset ? applyPreset(tools, preset) : tools;
 }
 
@@ -403,6 +413,7 @@ const NOT_BLOCKS = new Set([
   'aiAssistant',
   COMMENT_TOOL,
   'aiBlockTune',
+  'copyBlockTune',
   'alignmentTune',
   'textVariant',
   'indentTune',

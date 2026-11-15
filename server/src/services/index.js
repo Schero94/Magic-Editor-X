@@ -23,4 +23,5 @@ module.exports = {
   collaboration: require('./collaboration'),
   migrations: require('./migrations'),
   migrate: require('./migrate'),
+  reuse: require('./reuse'),
 };

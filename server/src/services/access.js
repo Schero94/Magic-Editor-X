@@ -179,5 +179,45 @@ module.exports = ({ strapi }) => {
       if (!user || user.isActive === false || user.blocked === true) return null;
       return strapi.service('admin::permission').engine.generateUserAbility(user);
     },
+
+    /**
+     * 2.5 ("Use existing content"): Content Manager read access to one document locale as a
+     * whole, for routes that then check each field with `canReadField`. Same rules as
+     * `checkField`: type read permission, the permission query with its conditions (also locale
+     * permissions) on the draft, 404 when anything is missing or denied.
+     * @param {{ userAbility: object, uid: string, documentId: string, locale?: string|null }} target - Document.
+     * @returns {Promise<{ contentType: object, locale: string|null, checker: object }>} Type, effective locale and the permission checker.
+     * @throws {errors.NotFoundError} When the type or document does not exist or cannot be read.
+     */
+    async readableDocument({ userAbility, uid, documentId, locale }) {
+      if (!userAbility) throw notFound();
+      const contentType = strapi.contentType(uid);
+      if (!contentType || !uid.startsWith('api::')) throw notFound();
+      let effectiveLocale = null;
+      if (contentType.pluginOptions?.i18n?.localized) {
+        effectiveLocale =
+          locale || (await strapi.plugin('i18n')?.service('locales')?.getDefaultLocale?.()) || null;
+        if (!effectiveLocale) throw notFound();
+      }
+      const pc = checker(userAbility, uid);
+      if (pc.cannot.read()) throw notFound();
+      const readable = await findAllowed(pc, 'read', uid, documentId, effectiveLocale || undefined);
+      if (!readable) throw notFound();
+      return { contentType, locale: effectiveLocale, checker: pc };
+    },
+
+    /**
+     * 2.5: whether a permission checker allows reading an editor field (field-level permissions:
+     * the path without indices inside components, the zone itself inside dynamic zones).
+     * @param {object} pc - Permission checker from `readableDocument`.
+     * @param {object} contentType - Content type.
+     * @param {string} field - Field path (with or without indices).
+     * @returns {boolean} True when the field resolves to an editor field the caller may read.
+     */
+    canReadField(pc, contentType, field) {
+      const resolved = resolveEditorField(strapi, contentType, field);
+      if (!resolved) return false;
+      return !pc.cannot.read(null, resolved.permissionField || resolved.topLevel);
+    },
   };
 };

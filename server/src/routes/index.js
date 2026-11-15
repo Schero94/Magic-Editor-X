@@ -138,6 +138,10 @@ const adminRoutes = [
     'settings.testLanguageTool',
     [ACTIONS.settingsRead, ACTIONS.settingsUpdate],
   ],
+
+  // 2.5 "Use existing content": the source side of "Insert from another entry" (CM read checked in the handler).
+  ['GET', '/reuse/types', 'reuse.types', [ACTIONS.access]],
+  ['GET', '/reuse/source', 'reuse.source', [ACTIONS.access]],
 ].map(([method, path, handler, actions]) => ({
   method,
   path,

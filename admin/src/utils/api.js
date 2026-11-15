@@ -62,6 +62,9 @@ export const API = {
   settings: '/magic-editor-x/settings',
   settingsAiTest: '/magic-editor-x/settings/ai/test',
   settingsLanguageToolTest: '/magic-editor-x/settings/language-tool/test',
+  // 2.5 "Use existing content".
+  reuseTypes: '/magic-editor-x/reuse/types',
+  reuseSource: '/magic-editor-x/reuse/source',
 };
 
 /**

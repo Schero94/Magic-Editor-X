@@ -192,6 +192,15 @@ const defaults = {
      */
     urlPattern: '',
   },
+  reuse: {
+    /**
+     * 2.5 "Insert from another entry" in the field's More tools (needs Content Manager read on
+     * the source). False hides it and the reuse routes answer 404.
+     */
+    enabled: true,
+    /** Source requests (type list, entry content) one admin may make per minute, shared by all processes. */
+    perMinute: 60,
+  },
 };
 
 const positiveInt = (max) => z.number().int().min(1).max(max);
@@ -327,6 +336,10 @@ const configSchema = z.looseObject({
   links: z.looseObject({
     urlPattern: z.string().max(MAX_LINK_PATTERN_LENGTH).refine(isValidLinkPattern),
   }),
+  // 2.5: optional so a 2.4 configuration validated without the defaults merged stays valid.
+  reuse: z
+    .looseObject({ enabled: z.boolean().optional(), perMinute: positiveInt(1000).optional() })
+    .optional(),
 });
 
 module.exports = {
