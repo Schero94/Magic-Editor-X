@@ -5,6 +5,7 @@ const { unsubscribeCommentAuthorCleanup } = require('./utils/comment-retention')
 const { unsubscribeAuditActorCleanup } = require('./utils/audit-trail');
 const { unregisterReleaseReadiness } = require('./utils/release-readiness');
 const { clearActiveBlocks } = require('../../shared/blocks/active.mjs');
+const { resetMcp } = require('./mcp');
 
 /**
  * Stops the collaboration server and its timers, removes the link check cron
@@ -22,6 +23,8 @@ module.exports = async ({ strapi }) => {
   }
   // A new Strapi instance in the same process registers its blocks again.
   clearActiveBlocks();
+  // 2.5: Strapi drops its MCP registrations with the instance; a new one registers again.
+  await resetMcp();
   try {
     strapi.plugin('magic-editor-x').service('link-schedule').stop();
   } catch (error) {

@@ -22,7 +22,8 @@ const commonOptions = {
   target: ['node22'],
   sourcemap: false,
   minify: false,
-  external: [...externals],
+  // 2.5: the MCP worker script is a file of its own next to the bundle (see below).
+  external: [...externals, './mcp-worker.js'],
   logLevel: 'info',
 };
 
@@ -39,6 +40,15 @@ await build({
   banner: {
     js: "import { createRequire } from 'node:module';const require = createRequire(import.meta.url);",
   },
+});
+
+// MCP tool worker (2.5): a CommonJS script next to the server bundle, started with
+// worker_threads by both the CJS and the ESM bundle (`require.resolve('./mcp-worker.js')`).
+await build({
+  ...commonOptions,
+  entryPoints: ['server/src/utils/mcp-worker.js'],
+  format: 'cjs',
+  outfile: 'dist/server/mcp-worker.js',
 });
 
 // Framework-free renderers (`magic-editor-x/render`): no Node built-ins, no dependencies.

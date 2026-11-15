@@ -78,6 +78,8 @@ module.exports = ({ strapi }) => ({
           suggestionsCreate: can(ACTIONS.suggestionsCreate),
           suggestionsReview: can(ACTIONS.suggestionsReview),
         },
+        // 2.5 "Use existing content".
+        reuse: { enabled: conf('reuse.enabled', true) !== false },
       },
     };
   },

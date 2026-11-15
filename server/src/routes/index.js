@@ -139,6 +139,14 @@ const adminRoutes = [
     [ACTIONS.settingsRead, ACTIONS.settingsUpdate],
   ],
 
+  // 2.5 entry panel (Content Manager side panel) and homepage widgets; CM checks in the handlers.
+  ['POST', '/presence', 'entryPanel.presence', [ACTIONS.access]],
+  ['GET', '/entry-summary', 'entryPanel.summary', [ACTIONS.access]],
+  ['GET', '/widgets/open-threads', 'entryPanel.openThreads', [ACTIONS.access, ACTIONS.commentsRead]],
+  ['GET', '/widgets/broken-links', 'entryPanel.brokenLinks', [ACTIONS.access]],
+  // 2.5 "Use existing content": the source side of "Insert from another entry" (CM read checked in the handler).
+  ['GET', '/reuse/types', 'reuse.types', [ACTIONS.access]],
+  ['GET', '/reuse/source', 'reuse.source', [ACTIONS.access]],
   // 2.5: fresh signed URLs for a private upload provider (Media Library read or the field's own files; handler).
   ['POST', '/media/signed-urls', 'media.signedUrls', [ACTIONS.access]],
 ].map(([method, path, handler, actions]) => ({

@@ -16,6 +16,9 @@ module.exports = {
   suggestions: require('./suggestions'),
   templates: require('./templates'),
   audit: require('./audit'),
+  // 2.5 entry panel and homepage widgets
+  entryPanel: require('./entry-panel'),
+  reuse: require('./reuse'),
   // 2.5: private upload providers
   media: require('./media'),
 };
