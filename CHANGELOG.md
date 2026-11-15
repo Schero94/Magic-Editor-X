@@ -1,5 +1,45 @@
 # Changelog
 
+## [Unreleased]
+
+Magic Editor X 2.5 shows who is editing an entry, keeps unsaved work, lets editors reuse content from other entries, starts long entries faster, adds palette colours, superscript, subscript and inline annotations, supports private upload providers and dropped files, and adds optional tools for Strapi's MCP server. Everything new is off by default or appears only when it is relevant; the field toolbar is unchanged.
+
+### Features
+
+- **Entry panel:** a Magic Editor X side panel in the Content Manager shows who else is editing the entry (names only, across processes, also without live collaboration), open comment threads and quality issues or broken links per field, each with a button that opens that field's panel. Optional soft lock `presence.softLock` (off): a dialog asks once per tab before you edit an entry someone else is editing; nobody is locked out. Homepage widgets **My open threads** and **Broken links**. Routes `POST /presence`, `GET /entry-summary`, `GET /widgets/open-threads`, `GET /widgets/broken-links`; config `presence.enabled` (true), `presence.softLock` (false), `presence.perMinute` (30).
+- **Unsaved work is kept:** unsaved field content stays in your browser (IndexedDB) and is offered back after a reload, crash, closed tab or ended session with one notice: Restore (one Undo reverts it) or Discard. Never restored automatically over newer saved content. Removed on save, discard, expiry and logout. Config `drafts.enabled` (true), `drafts.ttlHours` (72).
+- **Insert from another entry:** More tools > Write > Insert from another entry copies chosen blocks from any entry, field or language you can read, with a preview and one undo step. Blocks the field does not allow are listed with the reason; synced blocks stay synced; inserted blocks get new ids. Routes `GET /reuse/types`, `GET /reuse/source`; config `reuse.enabled` (true), `reuse.perMinute` (60).
+- **Block clipboard:** blocks copied between Magic Editor X fields, entries and tabs keep all their data and alignment; new **Copy block** in the block menu.
+- **Faster long entries:** Editor.js and the live room of a field start when the field comes near the screen or gets focus (`lazyInit.enabled`, `lazyInit.marginPx` 800). With 20 fields and a dynamic zone, 4 editors and live connections start instead of 20. The benchmark covers 20 fields and up to 250 repeatable and dynamic-zone items.
+- **Palette colours, superscript, subscript, inline annotations:** text colour and highlight from named tokens in the new `palette` config (stored as `data-mex-color`/`data-mex-highlight`, rendered as classes, never inline styles), with a contrast check in Settings and the quality rule `color-contrast`; superscript and subscript; inline annotations with the built-in abbreviation and `registerInlineAnnotation` in `magic-editor-x/blocks` (server-side `resolve`, renderer options `annotations` and `resolveAnnotation`). Field options `inlineColors`, `inlineScript`, `inlineAnnotations`, all off by default.
+- **Private upload providers:** Media Library files in Magic Editor X values are stored with their file id and unsigned URL and signed in batches on every Content API, GraphQL and `?mex=` read and in the editor. New route `POST /media/signed-urls`; `GET /config` adds `uploads.privateFiles`.
+- **Drop files onto a field** (Strapi 5.61+): they are uploaded through Strapi's Media Library drop zone and inserted as image, video or audio blocks; older hosts keep the previous behaviour.
+- **Tools for AI clients (MCP):** with `mcp.enabled` (false) and Strapi's `server.mcp.enabled`, tools `mex_from_markdown`, `mex_from_html`, `mex_validate`, `mex_render`, one JSON Schema resource per preset and the prompt `mex_content_guide`. Pure transformations in a worker thread with a time limit; new action `plugin::magic-editor-x.mcp.use` (no role gets it automatically).
+
+### Bug Fixes
+
+- Tab and other keys work in every Magic Editor X dialog and in other form fields while an editor has a current block (Editor.js handled keys typed anywhere on the page).
+- Text typed into an empty field in a live room now reaches the other editors (0 of 1 edits arrived in 2.4.0), and other people's edits no longer move your focus.
+- Discarding a draft keeps version history and comments of sections whose published version predates 2.4.
+- A section emptied and saved keeps its history and comments (its `fieldKey` is remembered while the value is `null`).
+- Saving a synced block without changes no longer creates a version.
+- Mention e-mails use the recipient's admin language (en, de, fr, es, pt).
+- The inline toolbar wraps inside the field on narrow screens instead of running off the left edge.
+- Focus returns into gallery, video and audio blocks after the Media Library picker closes.
+
+### Deferred
+
+- Live Preview inline editing for Magic Editor X fields: in Strapi 5.61 the side editor and its messages are internal, live preview is experimental and needs a Growth or Enterprise plan, and content source maps skip JSON custom fields.
+- Columns/layout block: the 2.5 spike measured blockers on Editor.js 2.31 (moving a block between columns while someone edits it loses the edit without a new collaboration schema; nested editors handle keys twice; comments, suggestions, quality, find/replace and AI address top-level blocks only). See `docs/engine-decision.md`.
+- Session-expiry warning: Strapi does not expose when an admin session ends to the browser; local drafts cover lost sessions instead.
+
+### Migration notes
+
+- No breaking changes and nothing to do for public upload providers.
+- With a private upload provider, migration `2.5.0-media-file-ids` adds `fileId` to media in Magic Editor X values once at startup (idempotent, under the migration lease). Dry run: `npx magic-editor-x media-file-ids`; apply again: `--apply`.
+- Fields start lazily: scripts and tests that wait for `[data-mex-ready="true"]` must scroll the field into view first, or set `lazyInit.enabled: false`.
+- New config keys `presence`, `drafts`, `lazyInit`, `reuse`, `palette` and `mcp` are optional.
+
 # [2.4.0](https://github.com/Schero94/Magic-Editor-X/compare/v2.3.1...v2.4.0) (2026-11-12)
 
 
