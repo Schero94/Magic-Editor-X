@@ -158,3 +158,36 @@ export class AiBlockTune {
     };
   }
 }
+
+/**
+ * "Copy block" in the block menu (2.5): puts the block with all its data on
+ * the clipboard (Editor.js block format plus plain text and HTML), so it can
+ * be pasted into another Magic Editor X field, entry or tab. Stores nothing.
+ */
+export class CopyBlockTune {
+  static get isTune() {
+    return true;
+  }
+
+  constructor({ config, block }) {
+    this.config = config || {};
+    this.block = block;
+  }
+
+  render() {
+    const title =
+      typeof this.config.t === 'function'
+        ? this.config.t('editor.reuse.copyBlock', 'Copy block')
+        : 'Copy block';
+    return {
+      icon: ICONS.copy,
+      title,
+      name: 'mex-copy-block',
+      closeOnActivate: true,
+      onActivate: () => {
+        if (this.block && typeof this.config.onCopyBlock === 'function')
+          this.config.onCopyBlock(this.block.id);
+      },
+    };
+  }
+}

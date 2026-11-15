@@ -103,6 +103,20 @@ module.exports = ({ strapi }) => {
         return { cleaned };
       },
     },
+    // 2.5: Media Library file ids for stored file slots, and no stored signatures.
+    // Runs only with a private upload provider (and then once); `magic-editor-x media-file-ids` re-runs it.
+    {
+      id: '2.5.0-media-file-ids',
+      when: () => strapi.plugin('magic-editor-x').service('media').isPrivate(),
+      async run() {
+        const report = await strapi
+          .plugin('magic-editor-x')
+          .service('media')
+          .migrateFileIds({ dryRun: false });
+        const { dryRun: _dryRun, ...counts } = report;
+        return counts;
+      },
+    },
   ];
 
   return {
@@ -112,7 +126,10 @@ module.exports = ({ strapi }) => {
      */
     async run() {
       const done = (await pluginStore().get({ key: 'migrations' })) || {};
-      const pending = migrations.filter((migration) => !done[migration.id]);
+      const due = await Promise.all(
+        migrations.map(async (migration) => !migration.when || (await migration.when()))
+      );
+      const pending = migrations.filter((migration, index) => !done[migration.id] && due[index]);
       if (pending.length === 0) return;
       if (!(await store().acquire('migrations', PROCESS_ID, 10 * 60 * 1000))) return;
       try {

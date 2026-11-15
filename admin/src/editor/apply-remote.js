@@ -1,6 +1,7 @@
 import { stableStringify } from '../../../shared/ydoc.mjs';
 import { meaningfulTunes } from '../../../shared/default-tunes.mjs';
 import { applyComponentValues } from './tools/component';
+import { deleteBlockKeepingFocus } from './focus-guard.mjs';
 
 /**
  * Applies a target document (from collaboration, history restore or a form
@@ -159,7 +160,7 @@ export const applyToEditor = async (editor, target, known) => {
     for (let index = editor.blocks.getBlocksCount() - 1; index >= 0; index -= 1) {
       const current = editor.blocks.getBlockByIndex(index);
       if (current && !targetIds.has(current.id)) {
-        editor.blocks.delete(index);
+        deleteBlockKeepingFocus(editor, index);
         known.delete(current.id);
       }
     }
@@ -217,7 +218,7 @@ export const applyToEditor = async (editor, target, known) => {
       }
     }
     while (editor.blocks.getBlocksCount() > blocks.length)
-      editor.blocks.delete(editor.blocks.getBlocksCount() - 1);
+      deleteBlockKeepingFocus(editor, editor.blocks.getBlocksCount() - 1);
     return 'patched';
   } catch {
     known.clear();

@@ -1491,6 +1491,14 @@
             "url": {
               "$ref": "#/$defs/url"
             },
+            "id": {
+              "type": ["integer", "string"],
+              "description": "Media Library file id (2.5)."
+            },
+            "documentId": {
+              "type": "string",
+              "maxLength": 64
+            },
             "name": {
               "type": "string",
               "maxLength": 255

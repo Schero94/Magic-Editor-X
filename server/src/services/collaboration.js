@@ -3,6 +3,7 @@
 const { randomUUID } = require('node:crypto');
 const { Server } = require('socket.io');
 const Y = require('yjs');
+const { unsignStored } = require('../utils/media-signing');
 const { errors } = require('@strapi/utils');
 const { createLogger } = require('../utils/logger');
 const { getTokenKey, signToken, verifyToken } = require('../utils/crypto');
@@ -386,7 +387,7 @@ module.exports = ({ strapi }) => {
         basePath: basePathOf(target.field),
       });
       const entry = entries.find((candidate) => candidate.fieldKey === target.fieldKey);
-      return entry ? entry.value : undefined;
+      return entry ? unsignStored(strapi, entry.value) : undefined;
     }
     const parts = target.field.split('.');
     const top = parts[0];
@@ -405,7 +406,8 @@ module.exports = ({ strapi }) => {
       if (value === null || value === undefined) return undefined;
       value = value[/^\d+$/.test(part) ? Number(part) : part];
     }
-    return value;
+    // 2.5: the Document Service signs private media for readers; a room stores unsigned URLs.
+    return unsignStored(strapi, value);
   };
 
   /**
@@ -720,7 +722,8 @@ module.exports = ({ strapi }) => {
         } catch {
           saved = null;
         }
-        if (blocksOf(saved) === blocksOf(clean(content))) return false;
+        const unsigned = await unsignStored(strapi, content);
+        if (blocksOf(saved) === blocksOf(clean(unsigned))) return false;
       }
       const result = await history().create({ ...target, field: identityOf(target) }, content, {
         trigger: 'auto',
@@ -1194,7 +1197,8 @@ module.exports = ({ strapi }) => {
           }
           if (stored || !result.canUpdate) return stored;
           try {
-            return cleanEditorValue(initialValue, { rawHtml });
+            const unsigned = await unsignStored(strapi, initialValue);
+            return cleanEditorValue(unsigned, { rawHtml });
           } catch {
             return null;
           }
@@ -1346,3 +1350,4 @@ module.exports.cleanCursor = cleanCursor;
 module.exports.targetOfRoom = targetOfRoom;
 module.exports.identityOf = identityOf;
 module.exports.PROTOCOL = PROTOCOL;
+module.exports.colorFor = colorFor;

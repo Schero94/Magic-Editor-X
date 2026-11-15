@@ -292,9 +292,18 @@ export const BLOCK_DATA_SCHEMAS = Object.freeze({
   ),
   attaches: obj(
     {
-      file: obj({ url, name: str(255), extension: str(16), size: { type: 'number' }, title: str(255) }, [
-        'url',
-      ]),
+      file: obj(
+        {
+          url,
+          id: { type: ['integer', 'string'], description: 'Media Library file id (2.5).' },
+          documentId: str(64),
+          name: str(255),
+          extension: str(16),
+          size: { type: 'number' },
+          title: str(255),
+        },
+        ['url']
+      ),
       title: str(255),
     },
     ['file', 'title']

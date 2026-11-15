@@ -2,6 +2,7 @@
 
 const { randomUUID } = require('node:crypto');
 const { errors } = require('@strapi/utils');
+const { unsignStored } = require('../utils/media-signing');
 const { cleanEditorValue } = require('../utils/sanitizer');
 const { sha256 } = require('../utils/crypto');
 const { recordAudit } = require('../utils/audit-record');
@@ -190,6 +191,8 @@ module.exports = ({ strapi }) => {
       if (!clean) clean = { time: Date.now(), blocks: [], version: '2.31.7' };
       // Versions keep the content only; the field's identity is the row's fieldName (2.4).
       delete clean.fieldKey;
+      // 2.5: a private upload provider's signatures are never stored (they expire).
+      clean = await unsignStored(strapi, clean);
       const hash = contentHash(clean);
       const key = `snapver:${fieldKey(target)}`.slice(0, 255);
       let acquired = false;

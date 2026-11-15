@@ -34,6 +34,9 @@ const TABLES = Object.freeze({
 
 const ABORT = 'magic-editor-x:abort-transaction';
 
+/** 2.5: room suffix of entry heartbeat rows in the presence table (`<uid>|<documentId>|<locale or ->|@entry`). */
+const ENTRY_PRESENCE_SUFFIX = '|@entry';
+
 /**
  * Lock-table key of a room's generation row.
  * @param {string} room - Room key.
@@ -293,6 +296,69 @@ module.exports = ({ strapi }) => {
     },
 
     /**
+     * Remembers the field keys of emptied entries (2.5): `fk:<scope>|<component row id>` -> key in
+     * the locks table. A positional value that is emptied and saved is stored as `null` (required
+     * checks, renderers and API output stay as they were), so its key lives here until the entry
+     * gets content again. Upsert, safe from several processes.
+     * @param {string} scope - `fieldKeyScope(...)` (hex, document + locale + base path).
+     * @param {Array<[string, string]>} pairs - `[componentId, fieldKey]` pairs.
+     * @param {number} ttlMs - How long the key is kept.
+     * @returns {Promise<void>}
+     */
+    async rememberFieldKeys(scope, pairs, ttlMs) {
+      const expiresAt = Date.now() + ttlMs;
+      for (const [componentId, fieldKey] of pairs) {
+        const key = `fk:${scope}|${componentId}`;
+        const updated = await table(TABLES.locks)
+          .where({ key })
+          .update({ owner: fieldKey, expires_at: expiresAt });
+        if (updated === 0) {
+          try {
+            await table(TABLES.locks).insert({ key, owner: fieldKey, expires_at: expiresAt });
+          } catch {
+            await table(TABLES.locks).where({ key }).update({ owner: fieldKey, expires_at: expiresAt });
+          }
+        }
+      }
+    },
+
+    /**
+     * Remembered field keys of one scope (2.5).
+     * @param {string} scope - `fieldKeyScope(...)`.
+     * @returns {Promise<Map<string, string>>} Component row id -> key (at most 1000).
+     */
+    async rememberedFieldKeys(scope) {
+      const prefix = `fk:${scope}|`;
+      const rows = await table(TABLES.locks)
+        .where('key', 'like', `${prefix}%`)
+        .andWhere('expires_at', '>=', Date.now())
+        .select('key', 'owner')
+        .limit(1000);
+      const out = new Map();
+      for (const row of rows) {
+        if (typeof row.key === 'string' && row.key.startsWith(prefix))
+          out.set(row.key.slice(prefix.length), String(row.owner));
+      }
+      return out;
+    },
+
+    /**
+     * Forgets remembered field keys (2.5), when their entry has content again.
+     * @param {string} scope - `fieldKeyScope(...)`.
+     * @param {string[]} componentIds - Component row ids.
+     * @returns {Promise<void>}
+     */
+    async forgetFieldKeys(scope, componentIds) {
+      if (!componentIds.length) return;
+      await table(TABLES.locks)
+        .whereIn(
+          'key',
+          componentIds.map((id) => `fk:${scope}|${id}`)
+        )
+        .del();
+    },
+
+    /**
      * Reads a cluster-wide signal.
      * @param {string} name - Signal name.
      * @returns {Promise<string>} Current value ('' when never set).
@@ -315,7 +381,9 @@ module.exports = ({ strapi }) => {
         .where({ user_id: userId })
         .andWhere('updated_at', '>', freshAfter)
         .select('room');
-      return { sockets: rows.length, rooms: new Set(rows.map((row) => row.room)) };
+      // 2.5: entry heartbeats of the side panel are no sockets and count against no socket limit.
+      const sockets = rows.filter((row) => !String(row.room).endsWith(ENTRY_PRESENCE_SUFFIX));
+      return { sockets: sockets.length, rooms: new Set(sockets.map((row) => row.room)) };
     },
 
     /**
@@ -932,6 +1000,81 @@ module.exports = ({ strapi }) => {
         }
       }
       return removed;
+    },
+
+    // 2.5 entry panel and homepage widgets -------------------------------------
+
+    ENTRY_PRESENCE_SUFFIX,
+
+    /**
+     * Live presence rows of every room of one document locale (socket rows of all field rooms,
+     * positional fields included, and entry heartbeat rows), across processes.
+     * @param {string} prefix - `<uid>|<documentId>|<locale or ->|`.
+     * @param {number} freshAfter - Only rows refreshed after this time.
+     * @param {number} [limit=200] - Row bound.
+     * @returns {Promise<Array<{ id: string, room: string, user_id: number, name: string, color: string, can_edit: boolean, cursor: string|null, updated_at: number }>>} Rows.
+     */
+    async listDocumentPresence(prefix, freshAfter, limit = 200) {
+      // `!` escapes LIKE wildcards on SQLite, PostgreSQL and MySQL alike; the prefix is re-checked below.
+      const pattern = `${String(prefix).replace(/[!%_]/g, (char) => `!${char}`)}%`;
+      const rows = await table(TABLES.presence)
+        .whereRaw("room LIKE ? ESCAPE '!'", [pattern])
+        .andWhere('updated_at', '>', freshAfter)
+        .orderBy('updated_at', 'desc')
+        .limit(limit)
+        .select('id', 'room', 'user_id', 'name', 'color', 'can_edit', 'cursor', 'updated_at');
+      return rows.filter((row) => String(row.room).startsWith(prefix));
+    },
+
+    /**
+     * Hashes of URLs whose last check found a problem (bounded).
+     * @param {string[]} statuses - Problem statuses.
+     * @param {number} limit - Row bound.
+     * @returns {Promise<Map<string, { status: string, code: number|null }>>} Problems by hash.
+     */
+    async problemLinkUrls(statuses, limit) {
+      const rows = await table(TABLES.linkUrls)
+        .whereIn('status', statuses)
+        .orderBy('hash', 'asc')
+        .limit(limit)
+        .select('hash', 'status', 'code');
+      return new Map(
+        rows.map((row) => [
+          row.hash,
+          { status: row.status, code: row.code === null || row.code === undefined ? null : Number(row.code) },
+        ])
+      );
+    },
+
+    /**
+     * One page of link rows in key order (scan of the scheduled link report).
+     * @param {string} afterKey - Exclusive lower bound ('' to start).
+     * @param {number} limit - Page size.
+     * @returns {Promise<Array<{ key: string, uid: string, documentId: string, locale: string|null, field: string, version: string, links: Array<{ h: string, b: string }> }>>} Rows.
+     */
+    async linkFieldsPage(afterKey, limit) {
+      const rows = await table(TABLES.linkFields)
+        .where('key', '>', afterKey)
+        .orderBy('key', 'asc')
+        .limit(limit)
+        .select('key', 'uid', 'document_id', 'locale', 'field', 'version', 'links');
+      return rows.map((row) => {
+        let links;
+        try {
+          links = JSON.parse(row.links);
+        } catch {
+          links = [];
+        }
+        return {
+          key: row.key,
+          uid: row.uid,
+          documentId: row.document_id,
+          locale: row.locale || null,
+          field: row.field,
+          version: row.version,
+          links: Array.isArray(links) ? links : [],
+        };
+      });
     },
   };
 };

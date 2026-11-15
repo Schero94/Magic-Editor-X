@@ -30,6 +30,8 @@ const p = (id, text) => ({ id, type: 'paragraph', data: { text } });
 const cta = (id, values, uid = 'blocks.cta') => ({ id, type: 'component', data: { uid, values } });
 
 const state = {};
+/** Key order independent form (PostgreSQL jsonb reorders object keys). */
+const sorted = (object) => JSON.stringify(Object.fromEntries(Object.entries(object).sort()));
 
 /** Read-only API token for the Content API and GraphQL checks. */
 const readToken = async () => {
@@ -190,47 +192,52 @@ test('live rooms: component edits merge; switching to a component the field does
   const target = { uid: ARTICLE, documentId: article.documentId, locale: 'en', field: 'body' };
   const a = await connect(await openSession(editor, target));
   const b = await connect(await openSession(editor, target));
-  const send = async (client, data) => {
-    const before = Y.encodeStateVector(client.ydoc);
-    applyEditorDataToDoc(client.ydoc, data);
-    return new Promise((resolve) =>
-      client.socket
-        .timeout(5000)
-        .emit('mx:update', Y.encodeStateAsUpdate(client.ydoc, before), (error, value) =>
-          resolve(error ? { timeout: true } : value)
-        )
+  try {
+    const send = async (client, data) => {
+      const before = Y.encodeStateVector(client.ydoc);
+      applyEditorDataToDoc(client.ydoc, data);
+      return new Promise((resolve) =>
+        client.socket
+          .timeout(5000)
+          .emit('mx:update', Y.encodeStateAsUpdate(client.ydoc, before), (error, value) =>
+            resolve(error ? { timeout: true } : value)
+          )
+      );
+    };
+    const base = docToEditorData(a.ydoc).blocks[0].data;
+    const [ra, rb] = await Promise.all([
+      send(
+        a,
+        doc([
+          { id: 'lc', type: 'component', data: { ...base, values: { ...base.values, title: 'Start now' } } },
+        ])
+      ),
+      send(
+        b,
+        doc([
+          { id: 'lc', type: 'component', data: { ...base, values: { ...base.values, text: 'Line two' } } },
+        ])
+      ),
+    ]);
+    assert.equal(ra.ok, true, JSON.stringify(ra));
+    assert.equal(rb.ok, true, JSON.stringify(rb));
+    const merged = { title: 'Start now', text: 'Line two', url: '/a' };
+    assert.notEqual(
+      await waitFor(
+        () =>
+          sorted(docToEditorData(a.ydoc).blocks[0].data.values) === sorted(merged) &&
+          sorted(docToEditorData(b.ydoc).blocks[0].data.values) === sorted(merged)
+      ),
+      -1,
+      `both clients see both edits: ${JSON.stringify([docToEditorData(a.ydoc).blocks, docToEditorData(b.ydoc).blocks])}`
     );
-  };
-  const base = docToEditorData(a.ydoc).blocks[0].data;
-  const [ra, rb] = await Promise.all([
-    send(
+    const current = docToEditorData(a.ydoc).blocks[0].data;
+    const refused = await send(
       a,
-      doc([
-        { id: 'lc', type: 'component', data: { ...base, values: { ...base.values, title: 'Start now' } } },
-      ])
-    ),
-    send(
-      b,
-      doc([{ id: 'lc', type: 'component', data: { ...base, values: { ...base.values, text: 'Line two' } } }])
-    ),
-  ]);
-  assert.equal(ra.ok, true, JSON.stringify(ra));
-  assert.equal(rb.ok, true, JSON.stringify(rb));
-  const merged = { title: 'Start now', text: 'Line two', url: '/a' };
-  assert.notEqual(
-    await waitFor(
-      () =>
-        JSON.stringify(docToEditorData(a.ydoc).blocks[0].data.values) === JSON.stringify(merged) &&
-        JSON.stringify(docToEditorData(b.ydoc).blocks[0].data.values) === JSON.stringify(merged)
-    ),
-    -1,
-    'both clients see both edits'
-  );
-  const current = docToEditorData(a.ydoc).blocks[0].data;
-  const refused = await send(
-    a,
-    doc([{ id: 'lc', type: 'component', data: { ...current, uid: 'blocks.media-card' } }])
-  );
-  assert.equal(refused.ok, false, JSON.stringify(refused));
-  for (const client of [a, b]) client.socket.disconnect();
+      doc([{ id: 'lc', type: 'component', data: { ...current, uid: 'blocks.media-card' } }])
+    );
+    assert.equal(refused.ok, false, JSON.stringify(refused));
+  } finally {
+    for (const client of [a, b]) client.socket.disconnect();
+  }
 });

@@ -2,6 +2,7 @@
 
 const { z } = require('zod');
 const { errors } = require('@strapi/utils');
+const { unsignStored } = require('../utils/media-signing');
 const { issueDetails } = require('../utils/validation');
 const { recordAudit } = require('../utils/audit-record');
 const { cleanEditorValue } = require('../utils/sanitizer');
@@ -379,6 +380,8 @@ module.exports = ({ strapi }) => {
      */
     async create(input, user) {
       const data = toRow(input);
+      // 2.5: a private upload provider's signatures are never stored (they expire).
+      data.blocks = await unsignStored(strapi, data.blocks);
       const count = await query().count();
       if (count >= TEMPLATE_LIMITS.templates)
         throw new errors.ValidationError('Too many templates', { code: 'TOO_MANY_TEMPLATES' });
@@ -400,6 +403,7 @@ module.exports = ({ strapi }) => {
     async update(documentId, input, user = null, options = {}) {
       const existing = await findRow(documentId);
       const data = toRow(input);
+      data.blocks = await unsignStored(strapi, data.blocks);
       // References point at synced sources: neither side may change kind.
       if ((existing.kind === 'synced') !== (data.kind === 'synced'))
         invalid('kind', 'The type of a synced block cannot be changed');

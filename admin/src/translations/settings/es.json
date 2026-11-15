@@ -523,5 +523,9 @@
   "settings.audit.event.suggestionAccept": "Sugerencia aceptada",
   "settings.audit.event.suggestionReject": "Sugerencia rechazada",
   "settings.audit.event.suggestionWithdraw": "Sugerencia retirada",
-  "settings.audit.counts.outdated": "Se reemplazó una versión más reciente del bloque"
+  "settings.audit.counts.outdated": "Se reemplazó una versión más reciente del bloque",
+  "settings.environment.mcp": "Herramientas para clientes de IA (MCP)",
+  "settings.environment.mcpOn": "Los clientes de IA se conectan a {path} con un token de administración. Dé al token el permiso «Use the MCP tools» en Plugins > Magic Editor X. Las herramientas convierten, comprueban y renderizan contenido; nunca leen ni guardan entradas.",
+  "settings.environment.mcpServerOff": "Activado (mcp.enabled), pero el servidor MCP de Strapi está apagado. Ponga server.mcp.enabled en true en config/server y reinicie.",
+  "settings.environment.mcpOff": "Actívelo con mcp.enabled en config/plugins y server.mcp.enabled en config/server, y reinicie."
 }

@@ -1,6 +1,7 @@
 'use strict';
 
 const { errors } = require('@strapi/utils');
+const { unsignStoredAll } = require('../utils/media-signing');
 const { createRateLimiter } = require('../utils/rate-limit');
 const { cleanEditorValue } = require('../utils/sanitizer');
 const { resolveEditorField } = require('../utils/editor-fields');
@@ -271,6 +272,14 @@ module.exports = ({ strapi }) => {
           afterBlockId: item.op === 'insert' ? item.afterBlockId || null : null,
           proposed: cleanProposed(item.proposed, item.blockId, resolved.attribute),
         };
+      });
+      // 2.5: a private upload provider's signatures are never stored (they expire).
+      const unsigned = await unsignStoredAll(
+        strapi,
+        prepared.map((item) => (item.proposed ? { blocks: [item.proposed] } : null))
+      );
+      unsigned.forEach((value, index) => {
+        if (value && prepared[index].proposed) prepared[index].proposed = value.blocks[0];
       });
       const where = whereTarget(target);
       const own = await query().findMany({
