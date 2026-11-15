@@ -292,5 +292,16 @@
   "tools.names.gallery": "Galerie",
   "tools.names.video": "Video",
   "tools.names.audio": "Audio",
-  "tools.hyperlink.internalOnly": "Wählen Sie einen Eintrag über „Mit einem Eintrag verlinken“"
+  "tools.hyperlink.internalOnly": "Wählen Sie einen Eintrag über „Mit einem Eintrag verlinken“",
+  "tools.names.color": "Farbe",
+  "tools.names.superscript": "Hochgestellt",
+  "tools.names.subscript": "Tiefgestellt",
+  "tools.names.abbreviation": "Abkürzung",
+  "tools.color.text": "Text",
+  "tools.color.highlight": "Hervorhebung",
+  "tools.color.remove": "Farbe entfernen",
+  "tools.annotation.apply": "Anwenden",
+  "tools.annotation.remove": "Entfernen",
+  "tools.annotation.required": "Bitte füllen Sie die Pflichtfelder aus.",
+  "tools.annotation.fullForm": "Ausgeschriebene Form"
 }

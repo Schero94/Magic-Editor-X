@@ -2184,6 +2184,107 @@ export const editorStyles = css`
       font-size: ${f(1)};
     }
   }
+
+  /*
+   * 2.5: the inline toolbar never gets wider than the screen: on narrow
+   * screens its buttons wrap to a second row instead of running off the
+   * edge (Editor.js lays them out in one row). Not scoped to .mex-editor:
+   * Editor.js measures the toolbar width on a copy outside the editor before
+   * it positions it.
+   */
+  .ce-popover--inline:not(.ce-popover--nested) > .ce-popover__container {
+    /* A column, so the wrapped item rows give the toolbar its height. */
+    flex-direction: column;
+    min-width: 0;
+    /* Narrower than the editor's text column (screen minus the field's gutters), so Editor.js keeps it inside. */
+    max-width: calc(100vw - 6.4rem);
+    /* max-content, not auto: Editor.js sets both top and bottom on this box. */
+    height: max-content;
+    min-height: var(--height);
+  }
+
+  .ce-popover--inline:not(.ce-popover--nested) > .ce-popover__container > .ce-popover__items {
+    flex-wrap: wrap;
+    row-gap: ${s(1)};
+  }
+
+  /* A menu of the toolbar (Convert to, Colour) opens below the toolbar, also when it has two rows. */
+  .ce-popover--inline .ce-popover--nested-level-1 .ce-popover__container {
+    top: calc(100% + 3px);
+  }
+
+  /* 2.5: inline formatting (colour, annotations). */
+  .mex-editor {
+    /* 2.5: highlights keep the text colour of the theme; token colours come from PaletteStyles. */
+    .ce-block mark[data-mex-highlight] {
+      color: inherit;
+      padding: 0 1px;
+      border-radius: 2px;
+      box-decoration-break: clone;
+      -webkit-box-decoration-break: clone;
+    }
+
+    /* 2.5: inline annotations (abbreviation, glossary, ...) are marked with a dotted underline. */
+    .ce-block span[data-mex-annotation] {
+      text-decoration: underline dotted ${c('primary600')};
+      text-decoration-thickness: 2px;
+      text-underline-offset: 3px;
+    }
+
+    .mex-annotation-form {
+      max-width: min(32rem, calc(100vw - 4rem));
+    }
+
+    .mex-annotation-form__row {
+      display: flex;
+      flex-direction: column;
+      gap: ${s(1)};
+      font-size: ${f(1)};
+      font-weight: 600;
+      color: ${c('neutral800')};
+    }
+
+    .mex-annotation-form__error {
+      margin: 0;
+      color: ${c('danger600')};
+      font-size: ${f(1)};
+    }
+
+    .mex-annotation-form__buttons {
+      display: flex;
+      justify-content: flex-end;
+      flex-wrap: wrap;
+      gap: ${s(2)};
+    }
+
+    .mex-annotation-form__apply,
+    .mex-annotation-form__remove {
+      min-height: 3.2rem;
+      padding: 0 ${s(3)};
+      border-radius: ${radius};
+      font-size: ${f(1)};
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .mex-annotation-form__apply {
+      border: 1px solid ${c('primary600')};
+      background: ${c('primary600')};
+      color: ${c('neutral0')};
+    }
+
+    .mex-annotation-form__remove {
+      border: 1px solid ${c('neutral200')};
+      background: ${c('neutral0')};
+      color: ${c('neutral800')};
+    }
+
+    .mex-annotation-form__apply:focus-visible,
+    .mex-annotation-form__remove:focus-visible {
+      outline: 2px solid ${c('primary600')};
+      outline-offset: 2px;
+    }
+  }
 `;
 
 export default editorStyles;

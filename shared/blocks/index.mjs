@@ -19,3 +19,17 @@ export {
   RESERVED_BLOCK_NAMES,
   SDK_COMPATIBLE_NAMES,
 } from './define.mjs';
+
+// 2.5: inline annotations (glossary, abbreviation, ...).
+export {
+  defineInlineAnnotation,
+  annotationJsonSchema,
+  abbreviationAnnotation,
+  ANNOTATION_ATTRIBUTE,
+  ANNOTATION_VALUE_PREFIX,
+  ANNOTATION_FIELD_TYPES,
+  ANNOTATION_LIMITS,
+  ANNOTATION_PRESETS,
+  ANNOTATION_RENDER_TAGS,
+  ANNOTATION_SHORTCUTS,
+} from './annotations.mjs';

@@ -62,6 +62,10 @@ const RULES = {
     key: 'editor.quality.rule.footnoteEmpty',
     text: 'Footnote without text',
   },
+  'color-contrast': {
+    key: 'editor.quality.rule.colorContrast',
+    text: '{mode, select, dark {Dark theme} other {Light theme}}: text colour / highlight {pair} has contrast {ratio}:1, below 4.5:1',
+  },
 };
 
 const LINK_STATUS = {
@@ -195,6 +199,7 @@ const useScheduledReport = (fetchClient, target) => {
  * @param {() => void} [props.onClose] - Closes the panel.
  * @param {Array<{ code: string, blockId: string|null, index: number|null, params?: object }>} [props.violations] - Field preset violations (saving fails while any remain).
  * @param {(() => void)|null} [props.onFixViolations] - Applies the automatic fixes (structure only).
+ * @param {object|null} [props.palette] - 2.5: normalised colour palette (enables the colour contrast rule).
  * @returns {JSX.Element} Panel.
  */
 export const QualityPanel = ({
@@ -209,10 +214,11 @@ export const QualityPanel = ({
   onClose,
   violations = [],
   onFixViolations = null,
+  palette = null,
 }) => {
   const { formatDate } = useIntl();
   const scheduled = useScheduledReport(fetchClient, scheduledEnabled ? target : null);
-  const { issues, stats } = useQualityIssues(data, options);
+  const { issues, stats } = useQualityIssues(data, options, palette);
   const [check, setCheck] = useState({ state: 'idle', result: null, message: '' });
   const [announcement, setAnnouncement] = useState('');
   const requestRef = useRef(0);

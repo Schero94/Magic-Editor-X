@@ -2,7 +2,7 @@ import { ICONS, el, button } from './dom';
 import { sanitizeUrl } from '../sanitize';
 import { createLinkPicker } from './link-picker';
 import { readInternalLink, internalLinkAttributes } from './logic.mjs';
-import { LINK_SANITIZE, SPAN_SANITIZE } from './sanitize-config';
+import { LINK_SANITIZE, SPAN_SANITIZE, MARK_SANITIZE } from './sanitize-config';
 
 /**
  * Inline tools (Editor.js inline toolbar). Bold and italic come from the
@@ -68,7 +68,8 @@ const createFormatTool = (spec) =>
     }
 
     static get sanitize() {
-      return { [spec.tag]: { class: spec.className } };
+      // 2.5: a shared rule (`spec.rule`) when another tool uses the same tag (marker and highlight).
+      return { [spec.tag]: spec.rule || { class: spec.className } };
     }
 
     constructor({ api }) {
@@ -103,6 +104,7 @@ const createFormatTool = (spec) =>
 export const MarkerTool = createFormatTool({
   tag: 'mark',
   className: 'cdx-marker',
+  rule: MARK_SANITIZE,
   title: 'Marker',
   icon: ICONS.marker,
   shortcut: 'CMD+SHIFT+M',
@@ -246,7 +248,7 @@ export class TooltipTool extends AttributeInlineTool {
   }
 
   static get sanitize() {
-    return { span: { ...SPAN_SANITIZE } };
+    return { span: SPAN_SANITIZE };
   }
 
   get spec() {

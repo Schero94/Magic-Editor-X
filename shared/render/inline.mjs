@@ -26,6 +26,23 @@ import {
   MAX_FOOTNOTE_NOTE,
 } from '../sanitize-policy.mjs';
 import { escapeHtml, serializeNodes } from './nodes.mjs';
+import {
+  COLOR_ATTRIBUTE,
+  HIGHLIGHT_ATTRIBUTE,
+  TOKEN_PATTERN,
+  colorClass,
+  highlightClass,
+} from '../inline-format.mjs';
+import {
+  ANNOTATION_ATTRIBUTE,
+  ANNOTATION_VALUE_PREFIX,
+  ANNOTATION_NAME,
+  ANNOTATION_KEY,
+  ANNOTATION_LIMITS,
+  activeAnnotation,
+  cleanAnnotationAttributes,
+  cleanAnnotationWrapper,
+} from '../blocks/annotations.mjs';
 
 export { escapeHtml };
 
@@ -211,6 +228,54 @@ export const isFootnoteNode = (node) =>
   node.type === 'element' && node.tag === 'sup' && typeof node.attrs['data-mex-footnote'] === 'string';
 
 /**
+ * True for a text colour span (2.5, `<span data-mex-color="token">`).
+ * @param {InlineNode} node - Parsed node.
+ * @returns {boolean} Result.
+ */
+export const isColorNode = (node) =>
+  node.type === 'element' && node.tag === 'span' && typeof node.attrs[COLOR_ATTRIBUTE] === 'string';
+
+/**
+ * True for a highlight (2.5, `<mark data-mex-highlight="token">`).
+ * @param {InlineNode} node - Parsed node.
+ * @returns {boolean} Result.
+ */
+export const isHighlightNode = (node) =>
+  node.type === 'element' && node.tag === 'mark' && typeof node.attrs[HIGHLIGHT_ATTRIBUTE] === 'string';
+
+/**
+ * True for an inline annotation (2.5, `<span data-mex-annotation="name">`).
+ * @param {InlineNode} node - Parsed node.
+ * @returns {boolean} Result.
+ */
+export const isAnnotationNode = (node) =>
+  node.type === 'element' && node.tag === 'span' && typeof node.attrs[ANNOTATION_ATTRIBUTE] === 'string';
+
+/**
+ * Name and attribute values of an annotation node.
+ * @param {InlineElement} node - Annotation node.
+ * @returns {{ name: string, attrs: Record<string, string> }} Annotation.
+ */
+export const annotationOf = (node) => {
+  const attrs = {};
+  for (const [name, value] of Object.entries(node.attrs))
+    if (name.startsWith(ANNOTATION_VALUE_PREFIX)) attrs[name.slice(ANNOTATION_VALUE_PREFIX.length)] = value;
+  return { name: node.attrs[ANNOTATION_ATTRIBUTE], attrs };
+};
+
+/**
+ * Stored attributes of an annotation (name first, values sorted by key).
+ * @param {string} name - Annotation name.
+ * @param {Record<string, string>} values - Values by key.
+ * @returns {Record<string, string>} Attributes.
+ */
+const annotationAttributes = (name, values) => {
+  const out = { [ANNOTATION_ATTRIBUTE]: name };
+  for (const key of Object.keys(values).sort()) out[`${ANNOTATION_VALUE_PREFIX}${key}`] = values[key];
+  return out;
+};
+
+/**
  * Special inline elements (2.4): inline math keeps only its text (the TeX
  * source, bounded) and footnote markers keep a short placeholder text plus
  * their parsed note. Runs after parsing so nested markup inside these
@@ -250,6 +315,30 @@ const specialElement = (tag, attribs, options) => {
     // Boolean flag like `data-mex-mention`: `""` and `"true"` are accepted and normalised.
     if (!/^(?:|true)$/.test(attribs[MATH_ATTRIBUTE])) return null;
     return { attrs: { [MATH_ATTRIBUTE]: 'true' } };
+  }
+  // 2.5: inline annotation, then text colour (a span carries one of them; the editor nests elements).
+  if (tag === 'span' && Object.prototype.hasOwnProperty.call(attribs, ANNOTATION_ATTRIBUTE)) {
+    const name = attribs[ANNOTATION_ATTRIBUTE];
+    if (!ANNOTATION_NAME.test(name)) return null;
+    const values = {};
+    for (const [attribute, value] of Object.entries(attribs)) {
+      if (!attribute.startsWith(ANNOTATION_VALUE_PREFIX)) continue;
+      const key = attribute.slice(ANNOTATION_VALUE_PREFIX.length);
+      if (!ANNOTATION_KEY.test(key) || Object.keys(values).length >= ANNOTATION_LIMITS.attributes) continue;
+      const text = String(value).slice(0, ANNOTATION_LIMITS.text);
+      if (text) values[key] = text;
+    }
+    return { attrs: annotationAttributes(name, values) };
+  }
+  if (tag === 'span' && Object.prototype.hasOwnProperty.call(attribs, COLOR_ATTRIBUTE)) {
+    return TOKEN_PATTERN.test(attribs[COLOR_ATTRIBUTE])
+      ? { attrs: { [COLOR_ATTRIBUTE]: attribs[COLOR_ATTRIBUTE] } }
+      : null;
+  }
+  if (tag === 'mark' && Object.prototype.hasOwnProperty.call(attribs, HIGHLIGHT_ATTRIBUTE)) {
+    return TOKEN_PATTERN.test(attribs[HIGHLIGHT_ATTRIBUTE])
+      ? { attrs: { [HIGHLIGHT_ATTRIBUTE]: attribs[HIGHLIGHT_ATTRIBUTE] } }
+      : null;
   }
   if (tag === 'sup' && !options.inNote) {
     const id = attribs['data-mex-footnote'];
@@ -486,6 +575,27 @@ export const inlineNodesToRender = (nodes, options = {}) => {
       out.push({ type: 'element', tag: 'sup', attrs, children: inlineNodesToRender(node.children, options) });
       continue;
     }
+    // 2.5: colour and highlight tokens get their class when rendered; storage keeps the token only.
+    if (isColorNode(node) || isHighlightNode(node)) {
+      const color = node.tag === 'span';
+      const name = color ? COLOR_ATTRIBUTE : HIGHLIGHT_ATTRIBUTE;
+      const token = node.attrs[name];
+      out.push({
+        type: 'element',
+        tag: node.tag,
+        attrs: options.storage
+          ? { [name]: token }
+          : { class: color ? colorClass(token) : highlightClass(token), [name]: token },
+        children: inlineNodesToRender(node.children, options),
+      });
+      continue;
+    }
+    if (isAnnotationNode(node)) {
+      const children = inlineNodesToRender(node.children, options);
+      if (options.storage) out.push({ type: 'element', tag: 'span', attrs: { ...node.attrs }, children });
+      else out.push(...renderAnnotation(node, children, options));
+      continue;
+    }
     let attrs = node.attrs;
     if (node.tag === 'a') {
       attrs = resolveLinkAttributes(attrs, options.links);
@@ -518,6 +628,103 @@ export const inlineNodesToRender = (nodes, options = {}) => {
     });
   }
   return out;
+};
+
+/** Compiled `annotations` render option per array (name -> definition). */
+const annotationLists = new WeakMap();
+
+/**
+ * Definition of an annotation for a render call: the `annotations` option
+ * (definitions from `defineInlineAnnotation`; replaces the bundle registry
+ * for that call), else the bundle registry (server) and the built-in
+ * abbreviation.
+ * @param {string} name - Annotation name.
+ * @param {object} options - Render options.
+ * @returns {object|null} Definition.
+ */
+const annotationDefinition = (name, options) => {
+  const list = options.annotations;
+  if (Array.isArray(list)) {
+    if (!annotationLists.has(list)) {
+      const map = new Map();
+      for (const item of list.slice(0, ANNOTATION_LIMITS.registered))
+        if (item && typeof item === 'object' && typeof item.name === 'string' && item.attributes)
+          map.set(item.name, item);
+      annotationLists.set(list, map);
+    }
+    const found = annotationLists.get(list).get(name);
+    if (found) return found;
+  }
+  return activeAnnotation(name);
+};
+
+/**
+ * Resolved value of an annotation from `options.resolveAnnotation` (server
+ * output passes the batch results): a string (max 2000 characters) or a plain
+ * object; anything else, or a throw, is ignored.
+ * @param {object} options - Render options.
+ * @param {{ name: string, attrs: Record<string, string>, text: string }} annotation - Annotation.
+ * @returns {unknown} Value or undefined.
+ */
+const resolvedValue = (options, annotation) => {
+  if (typeof options.resolveAnnotation !== 'function') return undefined;
+  let value;
+  try {
+    value = options.resolveAnnotation(annotation);
+  } catch {
+    return undefined;
+  }
+  if (typeof value === 'string') return value.slice(0, 2000);
+  if (value && typeof value === 'object' && !Array.isArray(value)) return value;
+  return undefined;
+};
+
+/**
+ * Render nodes of an annotation (2.5): the definition's `render` result
+ * (one validated wrapper element around the annotated text), `false` for
+ * the text only, or the default
+ * `<span class="mex-annotation mex-annotation-<name>" data-mex-annotation …>`
+ * (with the cleaned `data-mex-a-*` values only when the definition is known).
+ * An annotation whose required values are missing renders its text only.
+ * @param {InlineElement} node - Annotation node.
+ * @param {import('./nodes.mjs').RenderNode[]} children - Rendered content.
+ * @param {object} options - Render options.
+ * @returns {import('./nodes.mjs').RenderNode[]} Nodes.
+ */
+const renderAnnotation = (node, children, options) => {
+  const { name, attrs } = annotationOf(node);
+  const definition = annotationDefinition(name, options);
+  const values = definition ? cleanAnnotationAttributes(definition, attrs) : attrs;
+  if (!values) return children;
+  if (definition && typeof definition.render === 'function') {
+    const text = nodesToText(node.children);
+    let out;
+    try {
+      out = definition.render({
+        name,
+        attrs: { ...values },
+        text,
+        resolved: resolvedValue(options, { name, attrs: { ...values }, text }),
+      });
+    } catch {
+      out = undefined;
+    }
+    if (out === false) return children;
+    const wrapper = cleanAnnotationWrapper(out);
+    if (wrapper) return [{ type: 'element', tag: wrapper.tag, attrs: wrapper.attrs, children }];
+  }
+  // Values are written only when a definition cleaned them (an unknown annotation's values are not validated).
+  return [
+    {
+      type: 'element',
+      tag: 'span',
+      attrs: {
+        class: `mex-annotation mex-annotation-${name}`,
+        ...annotationAttributes(name, definition ? values : {}),
+      },
+      children,
+    },
+  ];
 };
 
 /**
@@ -604,33 +811,90 @@ export const mapFootnoteNotes = (html, fn) => {
 };
 
 /**
- * Canonical stored form of inline math and footnotes (2.4), applied by the
- * server and admin sanitisers after their own HTML sanitiser: math keeps only
- * its TeX text, footnote notes are cleaned with the inline rules (no nested
- * footnotes, no entry references). With `footnotes: false` (a field preset
- * without the footnote tool) markers are removed together with their notes.
- * Strings without these elements are returned unchanged.
+ * Inline policy of one field (2.5) for `canonicalInlineExtras`:
+ * - `footnotes: false` removes footnote markers with their notes;
+ * - `colors` / `highlights`: allowed tokens (unknown ones are unwrapped);
+ *   undefined keeps every syntactically valid token;
+ * - `annotations`: allowed definitions by name (a Map or an array of
+ *   definitions); unknown names are unwrapped and values are cleaned with the
+ *   definition (missing required values unwrap); undefined keeps every
+ *   syntactically valid annotation;
+ * - `plainTags`: tags allowed only as their special form (a field that allows
+ *   `span` only for colours unwraps other spans).
+ * @typedef {{ footnotes?: boolean, colors?: string[], highlights?: string[], annotations?: Map<string, object>|object[], plainTags?: string[] }} InlineExtrasPolicy
+ */
+
+const SPECIAL_MARKERS = [
+  MATH_ATTRIBUTE,
+  'data-mex-footnote',
+  COLOR_ATTRIBUTE,
+  HIGHLIGHT_ATTRIBUTE,
+  ANNOTATION_ATTRIBUTE,
+];
+
+/**
+ * True when a node is the special form of its tag (math, footnote, colour, highlight, annotation).
+ * @param {InlineNode} node - Node.
+ * @returns {boolean} Result.
+ */
+const isSpecialNode = (node) =>
+  isMathNode(node) ||
+  isFootnoteNode(node) ||
+  isColorNode(node) ||
+  isHighlightNode(node) ||
+  isAnnotationNode(node);
+
+/**
+ * Canonical stored form of inline math and footnotes (2.4) and of colours,
+ * highlights and annotations (2.5), applied by the server and admin
+ * sanitisers after their own HTML sanitiser: math keeps only its TeX text,
+ * footnote notes are cleaned with the inline rules (no nested footnotes, no
+ * entry references), tokens and annotations follow the field's policy (see
+ * `InlineExtrasPolicy`; also inside notes). Strings without these elements
+ * (and without tags the policy restricts) are returned unchanged.
  * @param {string} html - Sanitised inline HTML.
- * @param {{ footnotes?: boolean }} [options] - `footnotes: false` removes footnote markers.
+ * @param {InlineExtrasPolicy} [options] - Field policy.
  * @returns {string} HTML.
  */
 export const canonicalInlineExtras = (html, options = {}) => {
   if (typeof html !== 'string') return '';
-  const math = html.includes(MATH_ATTRIBUTE);
-  const notes = html.includes('data-mex-footnote');
-  if (!math && !notes) return html;
+  const plain = Array.isArray(options.plainTags) ? options.plainTags : [];
+  const special = SPECIAL_MARKERS.some((marker) => html.includes(marker));
+  const restricted = plain.some((tag) => html.includes(`<${tag}`));
+  if (!special && !restricted) return html;
+  const colors = Array.isArray(options.colors) ? new Set(options.colors) : null;
+  const highlights = Array.isArray(options.highlights) ? new Set(options.highlights) : null;
+  let annotations = null;
+  if (options.annotations instanceof Map) annotations = options.annotations;
+  else if (Array.isArray(options.annotations))
+    annotations = new Map(options.annotations.filter(Boolean).map((item) => [item.name, item]));
   const nodes = parseInline(html);
-  if (options.footnotes === false && notes) {
-    const strip = (list, depth = 0) =>
-      list.filter((node) => {
-        if (node.type !== 'element') return true;
-        if (isFootnoteNode(node)) return false;
-        if (depth < MAX_DEPTH) node.children = strip(node.children, depth + 1);
-        return true;
-      });
-    return nodesToHtml(strip(nodes), { storage: true });
-  }
-  return nodesToHtml(nodes, { storage: true });
+  const filter = (list, depth = 0) => {
+    const out = [];
+    for (const node of list) {
+      if (node.type !== 'element') {
+        out.push(node);
+        continue;
+      }
+      if (options.footnotes === false && isFootnoteNode(node)) continue;
+      if (depth < MAX_DEPTH) node.children = filter(node.children, depth + 1);
+      if (node.note) node.note = filter(node.note, depth + 1);
+      let keep = true;
+      if (isColorNode(node)) keep = !colors || colors.has(node.attrs[COLOR_ATTRIBUTE]);
+      else if (isHighlightNode(node)) keep = !highlights || highlights.has(node.attrs[HIGHLIGHT_ATTRIBUTE]);
+      else if (isAnnotationNode(node) && annotations) {
+        const { name, attrs } = annotationOf(node);
+        const definition = annotations.get(name);
+        const values = definition ? cleanAnnotationAttributes(definition, attrs) : null;
+        if (values) node.attrs = annotationAttributes(name, values);
+        else keep = false;
+      } else if (!isSpecialNode(node) && plain.includes(node.tag)) keep = false;
+      if (keep) out.push(node);
+      else out.push(...node.children);
+    }
+    return out;
+  };
+  return nodesToHtml(filter(nodes), { storage: true });
 };
 
 /**

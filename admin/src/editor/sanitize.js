@@ -12,6 +12,8 @@ import {
 } from '../../../shared/sanitize-policy.mjs';
 import { normalizeEditorData } from '../../../shared/editor-data.mjs';
 import { canonicalInlineExtras } from '../../../shared/render/inline.mjs';
+import { COLOR_ATTRIBUTE, HIGHLIGHT_ATTRIBUTE } from '../../../shared/inline-format.mjs';
+import { ANNOTATION_ATTRIBUTE } from '../../../shared/blocks/annotations.mjs';
 
 /**
  * Admin-side sanitising with DOMPurify, using the same policy as the server
@@ -25,6 +27,16 @@ const instance = () => {
   purify = createDOMPurify(window);
   purify.addHook('uponSanitizeAttribute', (node, data) => {
     const tag = node.nodeName.toLowerCase();
+    // 2.5: annotation values (`data-mex-a-<key>`) on an annotation span; validated by `canonicalInlineExtras`.
+    if (
+      tag === 'span' &&
+      ANNOTATION_VALUE_ATTRIBUTE.test(data.attrName) &&
+      typeof node.hasAttribute === 'function' &&
+      node.hasAttribute(ANNOTATION_ATTRIBUTE)
+    ) {
+      data.forceKeepAttr = true;
+      return;
+    }
     if (data.attrName === 'class') {
       const allowed = INLINE_CLASSES[tag] || [];
       const kept = String(data.attrValue)
@@ -61,7 +73,13 @@ const instance = () => {
   return purify;
 };
 
-const ALLOWED_ATTR = Array.from(new Set(Object.values(INLINE_ATTRIBUTES).flat()));
+// The `data-mex-a-*` prefix rule (sanitize-html syntax) is handled by the hook above.
+const ALLOWED_ATTR = Array.from(new Set(Object.values(INLINE_ATTRIBUTES).flat())).filter(
+  (name) => !name.endsWith('*')
+);
+
+/** 2.5: `data-mex-a-<key>` (annotation value attribute). */
+const ANNOTATION_VALUE_ATTRIBUTE = /^data-mex-a-[a-z][a-z0-9]{0,23}$/;
 
 /**
  * Sanitises inline HTML (paragraph text, captions, table cells).
@@ -80,7 +98,15 @@ export const sanitizeInline = (html) =>
       // validated by cleanInternalLinkAttributes in the hook above, and math and
       // footnote attributes (2.4: a note is inline HTML, "See: …" looks like a
       // scheme too) by `canonicalInlineExtras` below.
-      ADD_URI_SAFE_ATTR: [...INTERNAL_LINK_ATTRIBUTES, MATH_ATTRIBUTE, ...FOOTNOTE_ATTRIBUTES],
+      ADD_URI_SAFE_ATTR: [
+        ...INTERNAL_LINK_ATTRIBUTES,
+        MATH_ATTRIBUTE,
+        ...FOOTNOTE_ATTRIBUTES,
+        // 2.5: tokens and the annotation name (validated by `canonicalInlineExtras`).
+        COLOR_ATTRIBUTE,
+        HIGHLIGHT_ATTRIBUTE,
+        ANNOTATION_ATTRIBUTE,
+      ],
     })
   );
 

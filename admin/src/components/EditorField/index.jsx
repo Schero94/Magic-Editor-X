@@ -28,9 +28,12 @@ import {
 } from '@strapi/icons';
 import { useFetchClient, useNotification, useStrapiApp } from '@strapi/strapi/admin';
 import { Lightbulb, Pencil } from '@strapi/icons';
-import styled, { createGlobalStyle } from 'styled-components';
+import styled, { createGlobalStyle, useTheme } from 'styled-components';
 import { buildTools, editorI18n, createUndoManager, createDragDrop } from '../../editor/tools';
 import { editorStyles } from '../../editor/tools/styles';
+import { isDarkTheme, paletteEditorCss } from '../../editor/palette-style.mjs';
+import { normalizePalette } from '../../../../shared/inline-format.mjs';
+import { abbreviationAnnotation, annotationsFromSummaries } from '../../../../shared/blocks/annotations.mjs';
 import { createCspGuard } from '../../editor/tools/csp-guard';
 import { prepareEditorValue, prepareRemoteData, sanitizeInline } from '../../editor/sanitize';
 import { applyToEditor, blockKey, rememberBlocks } from '../../editor/apply-remote';
@@ -122,6 +125,7 @@ import {
 import { escapeHtml } from '../../../../shared/render/inline.mjs';
 import {
   resolveFieldPreset,
+  enabledAnnotations,
   checkPreset,
   fixPresetViolations,
   isBlockAllowed,
@@ -140,6 +144,8 @@ import {
 const SAVE_DEBOUNCE_MS = 150;
 
 const EditorStyles = createGlobalStyle`${editorStyles}`;
+// 2.5: the configured colour tokens in the editor and the preview (light or dark values by admin theme).
+const PaletteStyles = createGlobalStyle`${({ $palette, theme }) => paletteEditorCss($palette, isDarkTheme(theme))}`;
 const styleOwners = createStyleOwners();
 
 /**
@@ -148,7 +154,7 @@ const styleOwners = createStyleOwners();
  * layout effect, so the styles are in place before the browser paints.
  * @returns {JSX.Element|null} Styles of the owning field.
  */
-const SharedEditorStyles = () => {
+const SharedEditorStyles = ({ palette = null }) => {
   const id = useId();
   const [owner, setOwner] = useState(false);
   useLayoutEffect(() => {
@@ -161,7 +167,13 @@ const SharedEditorStyles = () => {
       styleOwners.remove(id);
     };
   }, [id]);
-  return owner ? <EditorStyles /> : null;
+  if (!owner) return null;
+  return (
+    <>
+      <EditorStyles />
+      {palette ? <PaletteStyles $palette={palette} /> : null}
+    </>
+  );
 };
 
 /** Locales written right to left (language subtag). */
@@ -207,6 +219,11 @@ const SHORTCUT_LABELS = {
   hyperlink: ['tools.names.link', 'Link'],
   mention: ['tools.names.mention', 'Mention'],
   aiAssistant: ['tools.names.ai', 'AI assistant'],
+  // 2.5 (only when the field turns them on)
+  superscript$mex: ['tools.names.superscript', 'Superscript'],
+  subscript$mex: ['tools.names.subscript', 'Subscript'],
+  color$mex: ['tools.names.color', 'Colour'],
+  annotation$abbreviation: ['tools.names.abbreviation', 'Abbreviation'],
 };
 
 const PanelSlot = styled(Box)`
@@ -524,6 +541,30 @@ const EditorFieldBody = ({
   useEffect(() => {
     presetRef.current = preset;
   }, [preset]);
+  // 2.5: colour palette (config), extra inline formatting and annotations this field offers.
+  const theme = useTheme();
+  const darkRef = useRef(false);
+  const palette = useMemo(() => normalizePalette(config && config.palette), [config]);
+  const fieldAnnotations = useMemo(
+    () =>
+      enabledAnnotations(preset, [
+        abbreviationAnnotation,
+        ...annotationsFromSummaries(config && config.annotations),
+      ]),
+    [config, preset]
+  );
+  const inlineExtrasRef = useRef({});
+  useEffect(() => {
+    darkRef.current = isDarkTheme(theme);
+  }, [theme]);
+  useEffect(() => {
+    inlineExtrasRef.current = {
+      inlineExtras: { colors: preset.colors, script: preset.script },
+      palette,
+      annotations: fieldAnnotations,
+      isDark: () => darkRef.current,
+    };
+  }, [preset, palette, fieldAnnotations]);
   const direction = directionOf(target.locale);
   // 2.3 AI features: owner switches (config), RBAC and the field preset; the server checks all three again.
   const aiAllowed = Boolean(config && config.ai.enabled && permissions.ai && preset.ai);
@@ -1024,6 +1065,8 @@ const EditorFieldBody = ({
       commentsAvailable: () => commentsWritableRef.current,
       // 2.5: "Copy block" in the block menu.
       onCopyBlock: (blockId) => copyBlockRef.current && copyBlockRef.current(blockId),
+      // 2.5: extra inline formatting the field turns on (off by default).
+      ...inlineExtrasRef.current,
     });
     const toolNames = new Set(Object.keys(tools));
     toolNamesRef.current = toolNames;
@@ -1416,7 +1459,7 @@ const EditorFieldBody = ({
     () => (preset.restricted && currentData ? checkPreset(prepareEditorValue(currentData).data, preset) : []),
     [currentData, preset]
   );
-  const quality = useQualityIssues(currentData, fieldOptions || undefined);
+  const quality = useQualityIssues(currentData, fieldOptions || undefined, palette);
   const qualityFetch = useMemo(() => ({ get, post }), [get, post]);
   const qualityCount = {
     errors: quality.stats.errors + violations.length,
@@ -2670,7 +2713,7 @@ const EditorFieldBody = ({
 
   return (
     <Field.Root name={name} id={name} error={error} hint={fieldHint} required={required}>
-      <SharedEditorStyles />
+      <SharedEditorStyles palette={palette} />
       <Flex direction="column" alignItems="stretch" gap={1}>
         <Field.Label action={labelAction}>{label}</Field.Label>
         <Frame
@@ -2699,6 +2742,11 @@ const EditorFieldBody = ({
                 placeholder,
                 attachmentTypes: config && config.uploads.attachmentTypes,
                 mountSynced,
+                // 2.5: the same extra inline formatting as the field.
+                inlineExtras: { colors: preset.colors, script: preset.script },
+                palette,
+                annotations: fieldAnnotations,
+                isDark: () => darkRef.current,
               }}
               preset={preset}
               direction={direction}
@@ -2797,6 +2845,7 @@ const EditorFieldBody = ({
                 onClose={closeQuality}
                 violations={violations}
                 onFixViolations={readOnly ? null : fixViolations}
+                palette={palette}
               />
             </PanelSlot>
           ) : null}

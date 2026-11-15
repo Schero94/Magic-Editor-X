@@ -527,5 +527,19 @@
   "settings.environment.mcp": "Outils pour clients IA (MCP)",
   "settings.environment.mcpOn": "Les clients IA se connectent à {path} avec un jeton d’administration. Donnez au jeton la permission « Use the MCP tools » sous Plugins > Magic Editor X. Les outils convertissent, vérifient et affichent le contenu ; ils ne lisent ni n’enregistrent jamais d’entrées.",
   "settings.environment.mcpServerOff": "Activé (mcp.enabled), mais le serveur MCP de Strapi est désactivé. Mettez server.mcp.enabled à true dans config/server et redémarrez.",
-  "settings.environment.mcpOff": "Activez avec mcp.enabled dans config/plugins et server.mcp.enabled dans config/server, puis redémarrez."
+  "settings.environment.mcpOff": "Activez avec mcp.enabled dans config/plugins et server.mcp.enabled dans config/server, puis redémarrez.",
+  "settings.palette.title": "Couleurs de texte et surlignages",
+  "settings.palette.subtitle": "Définies dans la configuration du plugin (config/plugins.js, clé palette). Les champs les proposent lorsque l’option « Couleur du texte et surlignage » est activée.",
+  "settings.palette.empty": "Aucune palette n’est configurée : les rédacteurs ne voient pas d’outil de couleur. Demandez à votre développeur d’ajouter des couleurs à la configuration du plugin.",
+  "settings.palette.issuesTitle": "{count, plural, one {# combinaison est difficile} other {# combinaisons sont difficiles}} à lire",
+  "settings.palette.issue": "{mode, select, dark {Thème sombre} other {Thème clair}} : {pair} a un contraste de {ratio}:1 (requis : 4,5:1)",
+  "settings.palette.defaultText": "texte par défaut",
+  "settings.palette.page": "fond de page",
+  "settings.palette.colors": "Couleurs de texte",
+  "settings.palette.highlights": "Surlignages",
+  "settings.palette.light": "Thème clair",
+  "settings.palette.dark": "Thème sombre",
+  "settings.palette.css": "CSS pour votre site",
+  "settings.palette.copy": "Copier le CSS",
+  "settings.palette.annotations": "Annotations pour l’option de champ « Annotations » : {names}"
 }

@@ -12,12 +12,16 @@
  * - `requireAlt`: images need an alternative text or the "decorative" flag
  * - `linkTargets`: 'all' (default) | 'internal' | 'external' | 'none'
  * - `disableAi`, `disableGrammar`, `disableCollaboration`, `publishGuard`: booleans
+ * - 2.5, all off by default: `inlineColors` (text colour and highlight from the
+ *   configured palette), `inlineScript` (superscript and subscript),
+ *   `inlineAnnotations` (comma-separated annotation names, e.g. `abbreviation`)
  */
 
 import { isPlainObject, computeStats } from './editor-data.mjs';
 import { parseInline, walkInlineElements, mapFootnoteNotes } from './render/inline.mjs';
 import { activeBlocks } from './blocks/active.mjs';
 import { registeredBlockOf, isBuiltInBlock } from './sanitize-policy.mjs';
+import { activeAnnotations, ANNOTATION_NAME } from './blocks/annotations.mjs';
 
 /** Built-in block types (stored names). `mediaLib` only inserts `image` blocks. */
 export const BUILTIN_BLOCKS = Object.freeze([
@@ -176,6 +180,9 @@ const limitOf = (value) => {
  * @property {boolean} collaboration - Live collaboration allowed.
  * @property {boolean} publishGuard - Quality errors block publishing.
  * @property {boolean} restricted - True when any rule differs from the full preset.
+ * @property {boolean} colors - 2.5: text colour and highlight tokens (option `inlineColors`).
+ * @property {boolean} script - 2.5: superscript and subscript (option `inlineScript`).
+ * @property {string[]} annotations - 2.5: annotation names listed in `inlineAnnotations`.
  */
 
 /**
@@ -226,7 +233,26 @@ export const resolveFieldPreset = (options) => {
     preset.requireAlt ||
     preset.linkTargets !== 'all'
   );
+  // 2.5: extra inline formatting, off unless the field turns it on (not part of `restricted`).
+  preset.colors = source.inlineColors === true;
+  preset.script = source.inlineScript === true;
+  preset.annotations = parseAnnotationList(source.inlineAnnotations);
   return preset;
+};
+
+/**
+ * Parses the `inlineAnnotations` option (comma list of annotation names).
+ * @param {unknown} value - Option value.
+ * @returns {string[]} Valid names (at most 50).
+ */
+export const parseAnnotationList = (value) => {
+  if (typeof value !== 'string' || !value.trim()) return [];
+  const names = value
+    .slice(0, 2000)
+    .split(/[\s,;]+/)
+    .map((name) => name.trim().toLowerCase())
+    .filter((name) => ANNOTATION_NAME.test(name));
+  return [...new Set(names)].slice(0, 50);
 };
 
 /**
@@ -247,7 +273,81 @@ export const allowedInlineTags = (preset) => {
   if (!preset.inline) return null;
   const tags = new Set(['br']);
   for (const tool of preset.inline) for (const tag of INLINE_TOOL_TAGS[tool] || []) tags.add(tag);
+  for (const tag of extraInlineTags(preset)) tags.add(tag);
   return [...tags].sort();
+};
+
+/** 2.5: tags of the option-driven inline formatting (not preset tool names). */
+export const EXTRA_INLINE_TAGS = Object.freeze({
+  colors: Object.freeze(['span', 'mark']),
+  script: Object.freeze(['sup', 'sub']),
+  annotations: Object.freeze(['span']),
+});
+
+/**
+ * Tags the field's extra inline formatting adds (2.5).
+ * @param {FieldPreset} preset - Preset.
+ * @returns {string[]} Tags.
+ */
+const extraInlineTags = (preset) => [
+  ...(preset.colors ? EXTRA_INLINE_TAGS.colors : []),
+  ...(preset.script ? EXTRA_INLINE_TAGS.script : []),
+  ...(preset.annotations && preset.annotations.length ? EXTRA_INLINE_TAGS.annotations : []),
+];
+
+/**
+ * Annotation definitions a field offers (2.5): the names its
+ * `inlineAnnotations` option lists plus definitions whose `presets` include
+ * the field's preset, among the known definitions.
+ * @param {FieldPreset} preset - Preset.
+ * @param {Array<{ name: string, presets?: readonly string[] }>} [definitions] - Known definitions (default: this bundle's registry with the built-in abbreviation).
+ * @returns {Array<object>} Definitions in registry order.
+ */
+export const enabledAnnotations = (preset, definitions = activeAnnotations()) =>
+  definitions.filter(
+    (definition) =>
+      (preset.annotations || []).includes(definition.name) ||
+      (Array.isArray(definition.presets) && definition.presets.includes(preset.name))
+  );
+
+/**
+ * Inline policy of a field for the sanitisers (2.5): the allowed tags plus
+ * the `canonicalInlineExtras` rules (footnotes, allowed colour and highlight
+ * tokens, allowed annotations, tags that are allowed only in their special
+ * form).
+ * @param {FieldPreset} preset - Preset.
+ * @param {{ palette?: { colors: Array<{ name: string }>, highlights: Array<{ name: string }> }|null, definitions?: object[] }} [context] - Normalised palette and known annotation definitions.
+ * @returns {{ tags: string[]|null, footnotes: boolean, colors: string[], highlights: string[], annotations: Map<string, object>, plainTags: string[] }} Policy.
+ */
+export const inlinePolicy = (preset, context = {}) => {
+  const palette = context.palette || null;
+  const tags = allowedInlineTags(preset);
+  const toolTags = new Set();
+  if (preset.inline)
+    for (const tool of preset.inline) for (const tag of INLINE_TOOL_TAGS[tool] || []) toolTags.add(tag);
+  const plainTags = preset.inline
+    ? [
+        ...new Set([
+          ...(preset.colors ? EXTRA_INLINE_TAGS.colors : []),
+          ...(preset.annotations.length ? EXTRA_INLINE_TAGS.annotations : []),
+        ]),
+      ]
+        .filter((tag) => !toolTags.has(tag))
+        .sort()
+    : [];
+  return {
+    tags,
+    footnotes: !preset.inline || preset.inline.includes('footnote'),
+    colors: preset.colors && palette ? palette.colors.map((token) => token.name) : [],
+    highlights: preset.colors && palette ? palette.highlights.map((token) => token.name) : [],
+    annotations: new Map(
+      enabledAnnotations(preset, context.definitions || activeAnnotations()).map((definition) => [
+        definition.name,
+        definition,
+      ])
+    ),
+    plainTags,
+  };
 };
 
 /**

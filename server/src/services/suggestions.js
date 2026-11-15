@@ -6,7 +6,8 @@ const { createRateLimiter } = require('../utils/rate-limit');
 const { cleanEditorValue } = require('../utils/sanitizer');
 const { resolveEditorField } = require('../utils/editor-fields');
 const { displayName } = require('./comments');
-const { resolveFieldPreset, allowedInlineTags, checkPreset } = require('../../../shared/presets.mjs');
+const { resolveFieldPreset, checkPreset } = require('../../../shared/presets.mjs');
+const { fieldInlinePolicy } = require('../utils/inline-policy');
 const { canonicalJson } = require('../../../shared/diff.mjs');
 const { parseFieldIdentity } = require('../../../shared/field-identity.mjs');
 const {
@@ -139,7 +140,7 @@ module.exports = ({ strapi }) => {
     try {
       clean = cleanEditorValue(
         { time: Date.now(), version: '2.31.7', blocks: [{ ...block, id: blockId }] },
-        { rawHtml, inlineTags: allowedInlineTags(preset) }
+        { rawHtml, inline: fieldInlinePolicy(strapi, attribute && attribute.options) }
       );
     } catch (error) {
       if (error && error.name === 'EditorDataError')

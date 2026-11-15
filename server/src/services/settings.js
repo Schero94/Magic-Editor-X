@@ -6,6 +6,9 @@ const { errors } = require('@strapi/utils');
 const { getEncryptionKey, encryptSecret, decryptSecret } = require('../utils/crypto');
 const { validateHttpUrl } = require('../utils/url-security');
 const { inspectCsp } = require('../../../shared/csp.mjs');
+const { paletteCss } = require('../../../shared/inline-format.mjs');
+const { paletteContrastIssues } = require('../../../shared/quality.mjs');
+const { paletteOf } = require('../utils/inline-policy');
 const { mcpStatus } = require('../mcp');
 
 /**
@@ -266,6 +269,26 @@ module.exports = ({ strapi }) => {
           maxFileBytes: config('uploads.maxFileBytes', 20 * 1024 * 1024),
         },
         csp: inspectAdminCsp(),
+        // 2.5: colour palette (config only, shown read-only with its contrast problems and the site CSS).
+        palette: (() => {
+          const palette = paletteOf(strapi);
+          return {
+            ...palette,
+            issues: paletteContrastIssues(palette),
+            css: paletteCss(palette),
+            annotations: (() => {
+              try {
+                return strapi
+                  .plugin('magic-editor-x')
+                  .service('blocks')
+                  .annotationSummaries()
+                  .map(({ name, label, builtIn, resolves }) => ({ name, label, builtIn, resolves }));
+              } catch {
+                return [];
+              }
+            })(),
+          };
+        })(),
       },
     };
   };

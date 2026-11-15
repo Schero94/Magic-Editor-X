@@ -292,5 +292,16 @@
   "tools.names.gallery": "Galería",
   "tools.names.video": "Vídeo",
   "tools.names.audio": "Audio",
-  "tools.hyperlink.internalOnly": "Elija una entrada con «Enlazar a una entrada»"
+  "tools.hyperlink.internalOnly": "Elija una entrada con «Enlazar a una entrada»",
+  "tools.names.color": "Color",
+  "tools.names.superscript": "Superíndice",
+  "tools.names.subscript": "Subíndice",
+  "tools.names.abbreviation": "Abreviatura",
+  "tools.color.text": "Texto",
+  "tools.color.highlight": "Resaltado",
+  "tools.color.remove": "Quitar el color",
+  "tools.annotation.apply": "Aplicar",
+  "tools.annotation.remove": "Quitar",
+  "tools.annotation.required": "Complete los campos obligatorios.",
+  "tools.annotation.fullForm": "Forma completa"
 }

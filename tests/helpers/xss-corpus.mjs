@@ -71,6 +71,13 @@ export const XSS = [
   '<sup data-mex-footnote="a" data-mex-note="&lt;img src=x onerror=alert(1)&gt;&lt;a href=&quot;javascript:alert(1)&quot;&gt;x&lt;/a&gt;" onclick="alert(1)">1</sup>',
   '<sup data-mex-footnote="a&quot; onclick=&quot;alert(1)">1</sup>',
   '<sup data-mex-footnote="ok" data-mex-note="&lt;sup data-mex-footnote=&quot;in&quot; data-mex-note=&quot;&amp;lt;script&amp;gt;&quot;&gt;2&lt;/sup&gt;">1</sup>',
+  // 2.5: colour and highlight tokens, inline annotations.
+  '<span data-mex-color="accent&quot; onclick=&quot;alert(1)">x</span>',
+  '<span data-mex-color="accent" onclick="alert(1)" style="color:red" class="evil">x<img src=x onerror=alert(1)></span>',
+  '<mark data-mex-highlight="note" onmouseover=alert(1) style="background:url(javascript:alert(1))">x</mark>',
+  '<span data-mex-annotation="abbreviation" data-mex-a-title="&quot;&gt;&lt;script&gt;alert(1)&lt;/script&gt;" onclick=alert(1)>x</span>',
+  '<span data-mex-annotation="glossary" data-mex-a-href="javascript:alert(1)" data-mex-a-onclick="alert(1)" data-mex-a-x="&lt;img src=x onerror=alert(1)&gt;">x</span>',
+  '<span data-mex-annotation="x&quot; onclick=&quot;alert(1)">x</span>',
 ];
 
 /** TeX payloads for the math renderer (2.4). */
@@ -98,6 +105,8 @@ export const TEX_XSS = [
 
 export const ALLOWED_OUTPUT_TAGS = new Set([
   ...INLINE_TAGS,
+  // 2.5: the built-in abbreviation annotation.
+  'abbr',
   'p',
   'h1',
   'h2',
@@ -329,6 +338,13 @@ export const xssDocument = (payload) =>
       type: 'paragraph',
       data: {
         text: `<span data-mex-math>${payload}</span><sup data-mex-footnote="fn1" data-mex-note="${escapeHtml(payload)}">1</sup>`,
+      },
+    },
+    // 2.5: colour, highlight and an abbreviation whose full form is the payload.
+    {
+      type: 'paragraph',
+      data: {
+        text: `<mark data-mex-highlight="note"><span data-mex-color="accent">${payload}</span></mark><span data-mex-annotation="abbreviation" data-mex-a-title="${escapeHtml(payload)}">${payload}</span>`,
       },
     },
     { type: 'custom-x', data: { title: payload, url: payload, nested: { a: payload } } }

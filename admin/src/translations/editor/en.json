@@ -727,5 +727,6 @@
   "editor.reuse.copyFailed": "The block could not be copied. Select it and press Ctrl+C (Cmd+C on a Mac).",
   "editor.toolbar.reuse": "Insert from another entry",
   "editor.reuse.copyBlock": "Copy block",
-  "editor.reuse.embed": "Embedded content"
+  "editor.reuse.embed": "Embedded content",
+  "editor.quality.rule.colorContrast": "{mode, select, dark {Dark theme} other {Light theme}}: text colour / highlight {pair} has contrast {ratio}:1, below 4.5:1"
 }

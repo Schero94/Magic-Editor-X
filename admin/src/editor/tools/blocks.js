@@ -1,7 +1,7 @@
 import { ICONS, el, field, input, select, button, editable } from './dom';
 import { createAltControl } from './alt-text';
 import { sanitizeInline, sanitizeUrl } from '../sanitize';
-import { LINK_SANITIZE, SPAN_SANITIZE, SUP_SANITIZE } from './sanitize-config';
+import { LINK_SANITIZE, SPAN_SANITIZE, SUP_SANITIZE, MARK_SANITIZE } from './sanitize-config';
 import {
   ALERT_TYPES,
   ALERT_ALIGNMENTS,
@@ -28,11 +28,13 @@ const INLINE_SANITIZE = {
   em: true,
   u: { class: 'cdx-underline' },
   s: { class: 'cdx-strikethrough' },
-  mark: { class: 'cdx-marker' },
+  mark: MARK_SANITIZE,
   code: { class: 'inline-code' },
   a: { ...LINK_SANITIZE },
-  span: { ...SPAN_SANITIZE },
+  // The shared objects (not copies): annotation keys are added when a field offers annotations (2.5).
+  span: SPAN_SANITIZE,
   sup: { ...SUP_SANITIZE },
+  sub: true,
   br: true,
 };
 

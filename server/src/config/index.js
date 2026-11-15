@@ -4,6 +4,7 @@ const { z } = require('zod');
 const { isTimeZone } = require('../utils/time-zone');
 const { isValidLinkPattern, MAX_LINK_PATTERN_LENGTH } = require('../../../shared/link-pattern.mjs');
 const { isListablePrivateOrigin } = require('../utils/url-security');
+const { TOKEN_PATTERN, PALETTE_LIMITS } = require('../../../shared/inline-format.mjs');
 
 /**
  * Plugin configuration (config/plugins.js -> 'magic-editor-x': { config: {...} }).
@@ -192,6 +193,19 @@ const defaults = {
      */
     urlPattern: '',
   },
+  /**
+   * 2.5: text colour and highlight tokens. Editors pick a token, content stores
+   * its name (`<span data-mex-color="accent">`), the site CSS styles the
+   * renderer classes `mex-color-<name>` / `mex-highlight-<name>`. `light` and
+   * `dark` (hex) are used for the editor display and the contrast check;
+   * `background`/`text` (optional `{ light, dark }`) are the site's page colours
+   * for that check. Fields offer the tokens only with the field option
+   * "Text colour and highlight". Empty (default): no colour tool anywhere.
+   */
+  palette: {
+    colors: [],
+    highlights: [],
+  },
   presence: {
     /**
      * 2.5: "Editing now" in the Magic Editor X side panel of the Content Manager: the panel sends a
@@ -223,6 +237,28 @@ const defaults = {
 };
 
 const positiveInt = (max) => z.number().int().min(1).max(max);
+
+const HEX_COLOR = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
+const hexColor = z.string().regex(HEX_COLOR);
+const colorPair = z.strictObject({ light: hexColor, dark: hexColor });
+const paletteToken = z.strictObject({
+  name: z.string().regex(TOKEN_PATTERN),
+  label: z
+    .union([
+      z.string().min(1).max(PALETTE_LIMITS.label),
+      z.record(
+        z.string().regex(/^[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8}){0,3}$/),
+        z.string().min(1).max(PALETTE_LIMITS.label)
+      ),
+    ])
+    .optional(),
+  light: hexColor,
+  dark: hexColor.optional(),
+});
+const tokenList = z
+  .array(paletteToken)
+  .max(PALETTE_LIMITS.tokens)
+  .refine((list) => new Set(list.map((token) => token.name)).size === list.length);
 
 /** Five cron fields (no seconds field, so a run starts at most once a minute). */
 const CRON_RULE = /^[0-9A-Za-z*,/?#-]{1,20}(?:[ \t]+[0-9A-Za-z*,/?#-]{1,20}){4}$/;
@@ -355,6 +391,14 @@ const configSchema = z.looseObject({
   links: z.looseObject({
     urlPattern: z.string().max(MAX_LINK_PATTERN_LENGTH).refine(isValidLinkPattern),
   }),
+  palette: z
+    .strictObject({
+      background: colorPair.optional(),
+      text: colorPair.optional(),
+      colors: tokenList,
+      highlights: tokenList,
+    })
+    .optional(),
   // 2.5: optional so a 2.4 configuration validated without the defaults merged stays valid.
   presence: z
     .looseObject({ enabled: z.boolean(), softLock: z.boolean(), perMinute: positiveInt(600) })

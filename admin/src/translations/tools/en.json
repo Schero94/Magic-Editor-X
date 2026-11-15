@@ -292,5 +292,16 @@
   "tools.names.gallery": "Gallery",
   "tools.names.video": "Video",
   "tools.names.audio": "Audio",
-  "tools.hyperlink.internalOnly": "Choose an entry with \"Link to an entry\""
+  "tools.hyperlink.internalOnly": "Choose an entry with \"Link to an entry\"",
+  "tools.names.color": "Colour",
+  "tools.names.superscript": "Superscript",
+  "tools.names.subscript": "Subscript",
+  "tools.names.abbreviation": "Abbreviation",
+  "tools.color.text": "Text",
+  "tools.color.highlight": "Highlight",
+  "tools.color.remove": "Remove colour",
+  "tools.annotation.apply": "Apply",
+  "tools.annotation.remove": "Remove",
+  "tools.annotation.required": "Fill in the required fields.",
+  "tools.annotation.fullForm": "Full form"
 }

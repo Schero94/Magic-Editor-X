@@ -5,6 +5,7 @@ const { unsubscribeCommentAuthorCleanup } = require('./utils/comment-retention')
 const { unsubscribeAuditActorCleanup } = require('./utils/audit-trail');
 const { unregisterReleaseReadiness } = require('./utils/release-readiness');
 const { clearActiveBlocks } = require('../../shared/blocks/active.mjs');
+const { clearActiveAnnotations } = require('../../shared/blocks/annotations.mjs');
 const { resetMcp } = require('./mcp');
 
 /**
@@ -23,6 +24,7 @@ module.exports = async ({ strapi }) => {
   }
   // A new Strapi instance in the same process registers its blocks again.
   clearActiveBlocks();
+  clearActiveAnnotations();
   // 2.5: Strapi drops its MCP registrations with the instance; a new one registers again.
   await resetMcp();
   try {

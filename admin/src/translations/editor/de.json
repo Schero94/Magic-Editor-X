@@ -727,5 +727,6 @@
   "editor.reuse.copyFailed": "Der Block konnte nicht kopiert werden. Markieren Sie ihn und drücken Sie Strg+C (Cmd+C auf dem Mac).",
   "editor.toolbar.reuse": "Aus einem anderen Eintrag einfügen",
   "editor.reuse.copyBlock": "Block kopieren",
-  "editor.reuse.embed": "Eingebetteter Inhalt"
+  "editor.reuse.embed": "Eingebetteter Inhalt",
+  "editor.quality.rule.colorContrast": "{mode, select, dark {Dunkles Design} other {Helles Design}}: Textfarbe / Hervorhebung {pair} hat einen Kontrast von {ratio}:1, unter 4,5:1"
 }

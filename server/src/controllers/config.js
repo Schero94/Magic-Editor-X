@@ -2,6 +2,7 @@
 
 const { ACTIONS } = require('../permissions');
 const { service } = require('./helpers');
+const { paletteOf } = require('../utils/inline-policy');
 
 /**
  * @route GET /magic-editor-x/config
@@ -62,6 +63,10 @@ module.exports = ({ strapi }) => ({
         rawHtml: conf('rawHtml', 'sanitize'),
         // 2.3: code-registered blocks (custom block SDK): names and field types only.
         codeBlocks: service(strapi, 'blocks').summaries(),
+        // 2.5: colour and highlight tokens (names, labels, display colours; fields opt in) and inline
+        // annotations (built-in abbreviation plus code-registered ones; summaries without functions).
+        palette: paletteOf(strapi),
+        annotations: service(strapi, 'blocks').annotationSummaries(),
         permissions: {
           collaborate: can(ACTIONS.collaborate),
           ai: can(ACTIONS.ai),

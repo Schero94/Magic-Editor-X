@@ -2,7 +2,8 @@
 
 const { renderLinkPattern } = require('../../../shared/link-pattern.mjs');
 const { isPlainObject, normalizeEditorDataSafe } = require('../../../shared/editor-data.mjs');
-const { resolveFieldPreset, allowedInlineTags } = require('../../../shared/presets.mjs');
+const { resolveFieldPreset, inlinePolicy } = require('../../../shared/presets.mjs');
+const { paletteOf } = require('../utils/inline-policy');
 const { SYNCED_LIMITS, containsSynced, expandSynced, syncedRefsOf } = require('../../../shared/synced.mjs');
 const { filterSyncedForField } = require('../../../shared/templates.mjs');
 const { createHash } = require('node:crypto');
@@ -16,6 +17,19 @@ const {
 } = require('../../../shared/resolve-references.mjs');
 const { createLogger } = require('../utils/logger');
 const { signForOutput } = require('../utils/media-signing');
+const { inlineStrings } = require('../../../shared/quality.mjs');
+const {
+  parseInline,
+  walkInlineElements,
+  isAnnotationNode,
+  annotationOf,
+} = require('../../../shared/render/inline.mjs');
+const {
+  activeAnnotation,
+  cleanAnnotationAttributes,
+  ANNOTATION_ATTRIBUTE,
+  ANNOTATION_LIMITS,
+} = require('../../../shared/blocks/annotations.mjs');
 
 /**
  * Permission-safe reference resolution for API output (Content API `?mex=`
@@ -342,12 +356,12 @@ module.exports = ({ strapi }) => {
     const stored = await strapi.plugin('magic-editor-x').service('templates').syncedSources(wanted);
     const rawHtml = strapi.config.get('plugin::magic-editor-x.rawHtml') || 'sanitize';
     const cleaned = new Map();
-    const cleanSource = (ref, inlineTags) => {
-      const key = `${ref}|${inlineTags ? inlineTags.join(',') : '*'}`;
+    const cleanSource = (ref, inline, policyKey) => {
+      const key = `${ref}|${policyKey}`;
       if (!cleaned.has(key)) {
         let clean;
         try {
-          clean = stored.has(ref) ? cleanEditorValue(stored.get(ref), { rawHtml, inlineTags }) : null;
+          clean = stored.has(ref) ? cleanEditorValue(stored.get(ref), { rawHtml, inline }) : null;
         } catch {
           clean = null;
         }
@@ -360,8 +374,17 @@ module.exports = ({ strapi }) => {
       const data = datas[index];
       if (!data) return { value: item.value, origins: new Map() };
       const preset = resolveFieldPreset(item.options);
-      const inlineTags = allowedInlineTags(preset);
-      const result = expandSynced(data, (ref) => cleanSource(ref, inlineTags), {
+      // 2.5: the field's whole inline policy (tags, colour tokens, annotations), as on save.
+      const inline = inlinePolicy(preset, { palette: paletteOf(strapi) });
+      const policyKey = JSON.stringify([
+        inline.tags,
+        inline.footnotes,
+        inline.colors,
+        inline.highlights,
+        [...inline.annotations.keys()],
+        inline.plainTags,
+      ]);
+      const result = expandSynced(data, (ref) => cleanSource(ref, inline, policyKey), {
         filter: (blocks) => filterSyncedForField(blocks, preset).blocks,
       });
       unresolved += result.unresolved;
@@ -396,6 +419,132 @@ module.exports = ({ strapi }) => {
   };
 
   /**
+   * Key of one annotation lookup (2.5): name, sorted values and locale.
+   * @param {string} name - Annotation name.
+   * @param {Record<string, string>} attrs - Clean values.
+   * @param {string|null} locale - Locale of the value.
+   * @returns {string} Key.
+   */
+  const annotationKey = (name, attrs, locale) =>
+    JSON.stringify([
+      name,
+      Object.keys(attrs)
+        .sort()
+        .map((key) => [key, attrs[key]]),
+      locale || null,
+    ]);
+
+  /**
+   * Bounded, permission-aware lookup for annotation `resolve` functions
+   * (2.5): only `api::` types the caller may `find` (same rule as links),
+   * the query sanitised with the caller's auth (filters on fields the caller
+   * may not read are removed), the request's publication status, at most 100
+   * rows, every row through `sanitize.output`.
+   * @param {{ auth?: object, status: string, cache: Map }} input - Caller auth, status, permission cache.
+   * @returns {(uid: string, query?: { filters?: object, fields?: string[], locale?: string|null, limit?: number }) => Promise<object[]>} Finder.
+   */
+  const annotationFinder =
+    ({ auth, status, cache }) =>
+    async (uid, query = {}) => {
+      if (typeof uid !== 'string' || !uid.startsWith('api::')) return [];
+      const contentType = strapi.contentType(uid);
+      if (!contentType || !(await can(auth, `${uid}.find`, cache))) return [];
+      const limit = Math.min(Number.isInteger(query.limit) && query.limit > 0 ? query.limit : 100, 100);
+      const safe = await strapi.contentAPI.sanitize.query(
+        {
+          ...(isPlainObject(query.filters) ? { filters: query.filters } : {}),
+          ...(Array.isArray(query.fields) ? { fields: query.fields.slice(0, MAX_DISPLAY_FIELDS) } : {}),
+        },
+        contentType,
+        { auth }
+      );
+      const rows = await strapi.documents(uid).findMany({
+        ...safe,
+        ...(isLocalized(contentType) && typeof query.locale === 'string' ? { locale: query.locale } : {}),
+        ...(hasDraftAndPublish(contentType) ? { status } : {}),
+        limit,
+      });
+      const out = [];
+      for (const row of (rows || []).slice(0, limit))
+        out.push((await strapi.contentAPI.sanitize.output(row, contentType, { auth })) || {});
+      return out;
+    };
+
+  /**
+   * Resolves the inline annotations of rendered values (2.5): one call per
+   * annotation definition with a `resolve` function and all its distinct
+   * uses in the response (at most `ANNOTATION_LIMITS.resolveItems`), inside
+   * the response's time budget. `resolve(items, context)` gets
+   * `[{ attrs, locale }]` and returns an array of values in the same order
+   * (string up to 2000 characters or a plain object; anything else is
+   * ignored). A definition that throws, or the time running out, leaves its
+   * annotations unresolved (rendered without the value). Logs carry counts only.
+   * @param {Array<{ data: object|null, locale: string|null }>} values - Resolved documents.
+   * @param {{ auth?: object, status?: string, limits?: object }} options - Caller auth, status, limits.
+   * @returns {Promise<Map<string, unknown>>} Values by `annotationKey`.
+   */
+  const resolveAnnotations = async (values, options = {}) => {
+    const out = new Map();
+    const wanted = new Map();
+    for (const { data, locale } of values) {
+      for (const block of (data && data.blocks) || [])
+        for (const { html } of inlineStrings(block)) {
+          if (!html.includes(ANNOTATION_ATTRIBUTE)) continue;
+          walkInlineElements(parseInline(html), (node) => {
+            if (!isAnnotationNode(node)) return;
+            const { name, attrs } = annotationOf(node);
+            const definition = activeAnnotation(name);
+            if (!definition || typeof definition.resolve !== 'function') return;
+            const clean = cleanAnnotationAttributes(definition, attrs);
+            if (!clean) return;
+            if (!wanted.has(name)) wanted.set(name, { definition, items: new Map() });
+            const group = wanted.get(name);
+            const key = annotationKey(name, clean, locale);
+            if (!group.items.has(key) && group.items.size < ANNOTATION_LIMITS.resolveItems)
+              group.items.set(key, { attrs: clean, locale: locale || null });
+          });
+        }
+    }
+    if (!wanted.size) return out;
+    const limits = options.limits || {};
+    const timeoutMs = Math.min(limits.timeoutMs || LIMITS.timeoutMs, LIMITS.timeoutMs);
+    const status = options.status === 'draft' ? 'draft' : 'published';
+    const find = annotationFinder({ auth: options.auth, status, cache: new Map() });
+    let failed = 0;
+    const work = Promise.all(
+      [...wanted.values()].map(async ({ definition, items }) => {
+        const keys = [...items.keys()];
+        const list = keys.map((key) => ({ ...items.get(key), attrs: { ...items.get(key).attrs } }));
+        try {
+          const result = await definition.resolve(list, { status, find });
+          if (!Array.isArray(result)) return;
+          keys.forEach((key, index) => {
+            const value = result[index];
+            if (typeof value === 'string') out.set(key, value.slice(0, 2000));
+            else if (isPlainObject(value)) out.set(key, value);
+          });
+        } catch {
+          failed += 1;
+        }
+      })
+    );
+    let timer;
+    const timeout = new Promise((resolveTimeout) => {
+      timer = setTimeout(() => resolveTimeout('timeout'), timeoutMs);
+    });
+    try {
+      if ((await Promise.race([work.then(() => 'done'), timeout])) === 'timeout') {
+        logger.warn(`output: inline annotation lookup timed out after ${timeoutMs} ms`);
+        return new Map();
+      }
+    } finally {
+      clearTimeout(timer);
+    }
+    if (failed) logger.warn(`output: ${failed} inline annotation lookup(s) failed`);
+    return out;
+  };
+
+  /**
    * Transforms values for output: expands synced blocks, resolves references
    * once for all values, then renders each.
    * @param {Array<{ value: unknown, locale?: string|null, format?: 'html'|'text'|'markdown'|'json', options?: object }>} items - Values (an item's `format` wins over `options.format`; `options` are the field options, for the preset of synced content).
@@ -409,22 +558,37 @@ module.exports = ({ strapi }) => {
     );
     const results = await resolve(refs, { auth, status, limits });
     // 2.5: private upload providers: resolved and expanded files get fresh signed URLs (one batch).
-    const signed = await signForOutput(
+    const appliedAll = await signForOutput(
       strapi,
       prepared.map(({ data, locale }) => applyReferences(data, results, { locale }))
     );
+    // 2.5: inline annotations with a `resolve` function (rendered formats only; JSON keeps the stored form).
+    const formats = items.map((item) => item.format || format);
+    const annotationValues = formats.some((value) => value !== 'json')
+      ? await resolveAnnotations(
+          appliedAll.map((data, index) => ({
+            data: formats[index] === 'json' ? null : data,
+            locale: prepared[index].locale,
+          })),
+          { auth, status, limits }
+        )
+      : new Map();
     return prepared.map(({ locale }, index) => {
-      const outputFormat = items[index].format || format;
-      const applied = signed[index];
+      const outputFormat = formats[index];
+      const applied = appliedAll[index];
       const { origins } = expanded[index];
       // JSON output marks copied blocks with the source they come from.
       if (outputFormat === 'json' && applied && origins.size)
         applied.blocks = applied.blocks.map((block) =>
           origins.has(block.id) ? { ...block, syncedFrom: origins.get(block.id) } : block
         );
-      return renderResolved(applied, outputFormat, renderExtras(applied, locale, outputFormat));
+      const extras = renderExtras(applied, locale, outputFormat);
+      if (annotationValues.size)
+        extras.resolveAnnotation = ({ name, attrs }) =>
+          annotationValues.get(annotationKey(name, attrs, locale));
+      return renderResolved(applied, outputFormat, extras);
     });
   };
 
-  return { LIMITS, resolve, collect, expandAll, transform };
+  return { LIMITS, resolve, collect, expandAll, transform, resolveAnnotations };
 };

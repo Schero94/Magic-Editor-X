@@ -3,6 +3,12 @@
 const { registerBlockDefinition } = require('../../../shared/blocks/registry.mjs');
 const { BlockDefinitionError } = require('../../../shared/blocks/define.mjs');
 const { activeBlocks, activeBlock } = require('../../../shared/blocks/active.mjs');
+const {
+  registerAnnotationDefinition,
+  activeAnnotations,
+  activeAnnotation,
+  annotationSummary,
+} = require('../../../shared/blocks/annotations.mjs');
 
 /**
  * Code-registered blocks (custom block SDK, 2.3).
@@ -118,6 +124,50 @@ module.exports = ({ strapi }) => {
     isRegisteredName(name) {
       const lower = String(name).toLowerCase();
       return activeBlocks().some((definition) => definition.name.toLowerCase() === lower);
+    },
+
+    /**
+     * 2.5: registers an inline annotation (call it in the host app's
+     * `register()`, like blocks). From then on fields that enable it (option
+     * `inlineAnnotations` or the definition's `presets`) keep it on save, the
+     * editor offers it in the inline toolbar, and API output renders it
+     * (with `resolve` for `?mex=` and GraphQL `…Rendered`).
+     * @param {object} definition - Definition from `defineInlineAnnotation` (`magic-editor-x/blocks`).
+     * @returns {Readonly<object>} The definition.
+     * @throws {BlockDefinitionError} Invalid definition, `RESERVED_NAME` (`abbreviation`), `NAME_TAKEN`, or `REGISTRY_SEALED` after bootstrap.
+     */
+    registerInlineAnnotation(definition) {
+      if (sealed)
+        throw new BlockDefinitionError(
+          'Magic Editor X inline annotations must be registered in register(), before the plugin bootstrap',
+          'REGISTRY_SEALED'
+        );
+      return registerAnnotationDefinition(definition);
+    },
+
+    /**
+     * 2.5: known inline annotations (the built-in abbreviation first).
+     * @returns {Array<Readonly<object>>} Definitions.
+     */
+    annotations() {
+      return activeAnnotations();
+    },
+
+    /**
+     * 2.5: one inline annotation by name.
+     * @param {string} name - Name.
+     * @returns {Readonly<object>|null} Definition.
+     */
+    annotation(name) {
+      return activeAnnotation(name);
+    },
+
+    /**
+     * 2.5: summaries for `GET /config` (`data.annotations`): name, label, presets, attribute schema; no functions.
+     * @returns {Array<object>} Summaries.
+     */
+    annotationSummaries() {
+      return activeAnnotations().map(annotationSummary);
     },
   };
 };
