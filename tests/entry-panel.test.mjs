@@ -468,3 +468,20 @@ test('checkDocument ignores the locale the Content Manager sends for a type with
   assert.equal(result.canUpdate, true);
   assert.deepEqual(seen, [undefined, undefined], 'documents are read without a locale');
 });
+
+test('the entry panel skips its leave request after a logout (session state, 2.5)', async () => {
+  const { isLoggedOut, trackSessionAction, createSessionMiddleware } =
+    await import('../admin/src/editor/session-state.mjs');
+  assert.equal(isLoggedOut(), false);
+  const seen = [];
+  const run = createSessionMiddleware()()((action) => seen.push(action.type));
+  run({ type: 'admin/logout' });
+  assert.equal(isLoggedOut(), true);
+  assert.deepEqual(seen, ['admin/logout'], 'actions pass through');
+  trackSessionAction({ type: 'admin/login' });
+  assert.equal(isLoggedOut(), false);
+  trackSessionAction({ type: 'admin/logout' });
+  trackSessionAction({ type: 'admin/setToken' });
+  assert.equal(isLoggedOut(), false);
+  trackSessionAction(null);
+});

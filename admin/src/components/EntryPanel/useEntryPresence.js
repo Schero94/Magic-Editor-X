@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { getFetchClient, useFetchClient } from '@strapi/strapi/admin';
+import { isLoggedOut } from '../../editor/session-state.mjs';
 import { API, readApiError } from '../../utils/api';
 import { IDLE_AFTER_MS, createTabId, nextDelay } from './logic.mjs';
 
@@ -94,9 +95,11 @@ export const useEntryPresence = ({ uid, documentId, locale }) => {
       window.removeEventListener('pointerdown', onInput, true);
       document.removeEventListener('visibilitychange', onVisibility);
       // useFetchClient aborts its requests on unmount; the leave request must outlive the panel.
-      getFetchClient()
-        .post(API.presence, body({ leave: true }))
-        .catch(() => {});
+      // After a logout there is no session to leave with (the row expires after 30 s).
+      if (!isLoggedOut())
+        getFetchClient()
+          .post(API.presence, body({ leave: true }))
+          .catch(() => {});
     };
   }, [uid, documentId, locale, tabId]);
 
