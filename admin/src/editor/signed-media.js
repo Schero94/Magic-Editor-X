@@ -1,5 +1,7 @@
 import { urlBase } from '../../../shared/media-urls.mjs';
 
+export { createMediaSigner } from './media-signer.mjs';
+
 /**
  * Private upload providers (2.5): keeps the Media Library images, videos,
  * audio files, tracks and attachment links shown inside a field working.
@@ -27,12 +29,17 @@ const signable = (value) => /^(https?:\/\/|\/(?!\/))/i.test(value);
 
 /**
  * Starts the refresher.
- * @param {{ root: HTMLElement, request: (urls: string[]) => Promise<Record<string, string>>, ttlMs?: number, retryMs?: number }} options - Field
- *   element to watch and the request (URL bases in, signed URL by base out).
+ * @param {{ root: HTMLElement, request: (urls: string[]) => Promise<Record<string, string>>, ttlMs?: number, retryMs?: number, cache?: Map<string, { url: string, at: number }> }} options - Field
+ *   element to watch, the request (URL bases in, signed URL by base out) and an optional cache shared with `createMediaSigner`.
  * @returns {{ refresh: () => void, destroy: () => void }} Handle.
  */
-export const createSignedMediaRefresher = ({ root, request, ttlMs = 4 * 60 * 1000, retryMs = 30 * 1000 }) => {
-  const cache = new Map();
+export const createSignedMediaRefresher = ({
+  root,
+  request,
+  ttlMs = 4 * 60 * 1000,
+  retryMs = 30 * 1000,
+  cache = new Map(),
+}) => {
   const missed = new Map();
   const pending = new Set();
   let timer = null;

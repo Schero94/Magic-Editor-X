@@ -121,9 +121,11 @@ const withRemovedKeys = async (api, data) => {
  * @param {object} editor - Editor.js instance (ready).
  * @param {{ blocks: Array<{ id: string, type: string, data: object, tunes?: object }> }} target - Desired document.
  * @param {Map<string, string>} known - id -> blockKey of what the editor currently shows (updated in place).
+ * @param {{ display?: (data: object, block: object) => object }} [options] - `display` maps the data handed to
+ *   Editor.js (2.5: signed media URLs of private upload providers); comparisons use the target as given.
  * @returns {Promise<'patched'|'rendered'>} How the change was applied.
  */
-export const applyToEditor = async (editor, target, known) => {
+export const applyToEditor = async (editor, target, known, { display = (data) => data } = {}) => {
   const blocks = target.blocks || [];
   if (blocks.length === 0) {
     await editor.blocks.clear();
@@ -149,8 +151,16 @@ export const applyToEditor = async (editor, target, known) => {
         if (existingIndex !== undefined && existingIndex !== null && existingIndex >= 0) {
           editor.blocks.move(index, existingIndex);
         } else {
-          editor.blocks.insert(block.type, block.data, undefined, index, false, false, block.id);
-          if (block.tunes) await editor.blocks.update(block.id, block.data, block.tunes);
+          editor.blocks.insert(
+            block.type,
+            display(block.data, block),
+            undefined,
+            index,
+            false,
+            false,
+            block.id
+          );
+          if (block.tunes) await editor.blocks.update(block.id, display(block.data, block), block.tunes);
           known.set(block.id, blockKey(block));
           continue;
         }
@@ -176,7 +186,11 @@ export const applyToEditor = async (editor, target, known) => {
           prefix += 1;
         if (prefix < offset) mapped = Math.max(0, offset + (after.length - before.length));
       }
-      await editor.blocks.update(block.id, await withRemovedKeys(api, block.data), block.tunes);
+      await editor.blocks.update(
+        block.id,
+        await withRemovedKeys(api, display(block.data, block)),
+        block.tunes
+      );
       known.set(block.id, key);
       if (mapped !== null) {
         const updated = editor.blocks.getBlockByIndex(index);
@@ -192,7 +206,12 @@ export const applyToEditor = async (editor, target, known) => {
   } catch {
     known.clear();
     if (blocks.length === 0) await editor.blocks.clear();
-    else await editor.render({ time: target.time || Date.now(), blocks, version: target.version });
+    else
+      await editor.render({
+        time: target.time || Date.now(),
+        blocks: blocks.map((block) => ({ ...block, data: display(block.data, block) })),
+        version: target.version,
+      });
     blocks.forEach((block) => known.set(block.id, blockKey(block)));
     return 'rendered';
   }

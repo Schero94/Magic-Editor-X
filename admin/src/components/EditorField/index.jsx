@@ -115,7 +115,7 @@ import { BlockAiDialog } from './BlockAiDialog';
 // 2.5: dropped files (Media Library drop zone) and signed URLs of private upload providers.
 import { MediaDropArea } from './MediaDropArea';
 import { droppedBlock, dropPosition, dropTypesFor, imageBlockData } from '../../editor/drop-insert.mjs';
-import { createSignedMediaRefresher } from '../../editor/signed-media';
+import { createMediaSigner, createSignedMediaRefresher } from '../../editor/signed-media';
 import { applySegments } from '../../../../shared/ai-fields.mjs';
 import {
   isPositionalFieldPath,
@@ -749,6 +749,9 @@ const EditorFieldBody = ({
   }, [ready, scheduleSave]);
 
   /** Applies a document from outside (collaboration, history, form reset). */
+  // 2.5 private upload providers: the field's media signer and its request (set in an effect below).
+  const mediaSignerRef = useRef(null);
+  const signRequestRef = useRef(null);
   const applyExternal = useCallback(
     async (data, { emitToForm }) => {
       const editor = editorRef.current;
@@ -756,7 +759,18 @@ const EditorFieldBody = ({
       applyingRef.current = true;
       if (undoRef.current) undoRef.current.pause();
       try {
-        await applyToEditor(editor, data || { blocks: [] }, knownRef.current);
+        const signer = mediaSignerRef.current;
+        if (signer && data)
+          await Promise.race([
+            signer.prewarm(signer.basesOf(data), signRequestRef.current),
+            new Promise((resolve) => setTimeout(resolve, 3000)),
+          ]);
+        await applyToEditor(editor, data || { blocks: [] }, knownRef.current, {
+          display: signer
+            ? (blockData, block) =>
+                signer.signValue({ blocks: [{ ...block, data: blockData }] }).blocks[0].data
+            : undefined,
+        });
         setStats(computeStats(data));
         setCurrentData(data || null);
         setContentVersion((version) => version + 1);
@@ -1016,6 +1030,46 @@ const EditorFieldBody = ({
     if (Array.isArray(ids) && ids.length) setBlockAiRequest({ ids: [...ids] });
   }, []);
 
+  // 2.5: a private upload provider serves files through expiring signed URLs, and the stored
+  // (unsigned) URL answers 403. Tools request an image as soon as they set `src`, so the field
+  // signs the media of its content first and Editor.js only ever sees signed URLs for display;
+  // `save()` turns them back into the stored ones (createMediaSigner). Nothing is stored signed.
+  const privateFiles = Boolean(config && config.uploads && config.uploads.privateFiles);
+  const signTargetRef = useRef(null);
+  useEffect(() => {
+    signTargetRef.current = target.uid && target.documentId ? fieldTarget : null;
+  });
+  const requestSignedUrls = useCallback(
+    async (urls) => {
+      const body = { urls, ...(signTargetRef.current ? { target: signTargetRef.current } : {}) };
+      const { data } = await post('/magic-editor-x/media/signed-urls', body);
+      return (data && data.data && data.data.urls) || {};
+    },
+    [post]
+  );
+  const mediaSigner = useMemo(() => (privateFiles ? createMediaSigner() : null), [privateFiles]);
+  const initialValueRef = useRef(value);
+  useEffect(() => {
+    mediaSignerRef.current = mediaSigner;
+    signRequestRef.current = requestSignedUrls;
+    initialValueRef.current = value;
+  });
+  const [mediaSigned, setMediaSigned] = useState(false);
+  useEffect(() => {
+    const signer = mediaSigner;
+    if (!privateFiles || !signer || mediaSigned || !lazy.active) return undefined;
+    let cancelled = false;
+    const bases = signer.basesOf(prepareEditorValue(initialValueRef.current).data);
+    // At most 3 s: the refresher still signs what is shown if the request is slow.
+    const timeout = new Promise((resolve) => setTimeout(resolve, 3000));
+    Promise.race([signer.prewarm(bases, requestSignedUrls), timeout]).then(() => {
+      if (!cancelled) setMediaSigned(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [privateFiles, mediaSigner, mediaSigned, lazy.active, requestSignedUrls]);
+
   // Create the editor once the configuration is known; recreate it only when
   // the tool set changes (configuration, custom blocks, permissions).
   const toolsKey = config
@@ -1029,7 +1083,7 @@ const EditorFieldBody = ({
       })
     : null;
   useEffect(() => {
-    if (!config || !holderRef.current || !lazy.active) return undefined;
+    if (!config || !holderRef.current || !lazy.active || (privateFiles && !mediaSigned)) return undefined;
     const prepared = prepareEditorValue(value);
     setValueError(prepared.error);
     const initial = prepared.data;
@@ -1109,7 +1163,7 @@ const EditorFieldBody = ({
       }));
     const editor = new EditorJS({
       holder: holderRef.current,
-      data: initial || undefined,
+      data: (mediaSignerRef.current ? mediaSignerRef.current.signValue(initial) : initial) || undefined,
       readOnly,
       minHeight: 0,
       placeholder: placeholder || t('editor.placeholder', 'Write something, or type / to choose a block'),
@@ -1121,6 +1175,12 @@ const EditorFieldBody = ({
 
       onReady: () => {
         if (destroyed) return;
+        // 2.5: everything save() returns carries the stored (unsigned) media URLs again.
+        const signer = mediaSignerRef.current;
+        if (signer) {
+          const rawSave = editor.save;
+          editor.save = async () => signer.unsignValue(await rawSave());
+        }
         editorRef.current = editor;
         undoRef.current = createUndoManager(editor, {
           holder: holderRef.current,
@@ -1218,7 +1278,7 @@ const EditorFieldBody = ({
     };
     // The editor is rebuilt only when its tools change; value updates are applied below.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- value/readOnly are handled by the effects below
-  }, [toolsKey, adminLocale, lazy.active]);
+  }, [toolsKey, adminLocale, lazy.active, mediaSigned]);
 
   // 2.5: a field started by focusing (Tab) or clicking its placeholder takes the focus once ready.
   useEffect(() => {
@@ -1398,16 +1458,12 @@ const EditorFieldBody = ({
 
   // 2.5: a private upload provider serves files through expiring signed URLs: the media shown in
   // the field (editor, preview) get fresh ones (POST /media/signed-urls; nothing is stored signed).
-  const privateFiles = Boolean(config && config.uploads && config.uploads.privateFiles);
-  const signTargetRef = useRef(null);
-  useEffect(() => {
-    signTargetRef.current = target.uid && target.documentId ? fieldTarget : null;
-  });
   useEffect(() => {
     const area = areaRef.current;
     if (!privateFiles || !area) return undefined;
     const refresher = createSignedMediaRefresher({
       root: area.parentElement || area,
+      cache: mediaSignerRef.current ? mediaSignerRef.current.cache : undefined,
       request: async (urls) => {
         const body = { urls, ...(signTargetRef.current ? { target: signTargetRef.current } : {}) };
         const { data } = await post('/magic-editor-x/media/signed-urls', body);

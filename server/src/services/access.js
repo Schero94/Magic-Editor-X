@@ -199,9 +199,9 @@ module.exports = ({ strapi }) => {
         effectiveLocale =
           locale || (await strapi.plugin('i18n')?.service('locales')?.getDefaultLocale?.()) || null;
         if (!effectiveLocale) throw notFound();
-      } else if (locale) {
-        throw notFound();
       }
+      // A locale sent for a type without i18n is ignored, as in checkField: the Content Manager
+      // keeps `plugins[i18n][locale]` in the URL of every type, so the entry panel sends it.
       const pc = checker(userAbility, uid);
       if (pc.cannot.read()) throw notFound();
       const readable = await findAllowed(pc, 'read', uid, documentId, effectiveLocale || undefined);

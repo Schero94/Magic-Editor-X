@@ -429,3 +429,42 @@ test('admin source contract: one side panel in bootstrap; widgets with RBAC; sec
   );
   assert.match(field, /window\.addEventListener\(OPEN_FIELD_PANEL_EVENT/);
 });
+
+test('checkDocument ignores the locale the Content Manager sends for a type without i18n (2.5)', async () => {
+  const uid = 'api::longform.longform';
+  const seen = [];
+  const strapi = {
+    contentType: (name) =>
+      name === uid
+        ? {
+            uid,
+            pluginOptions: {},
+            attributes: { body: { type: 'json', customField: 'plugin::magic-editor-x.richtext' } },
+          }
+        : undefined,
+    components: {},
+    documents: () => ({
+      findFirst: async (query) => {
+        seen.push(query.locale);
+        return { documentId: 'long1' };
+      },
+    }),
+    plugin: (name) => ({
+      service: (service) => {
+        if (name === 'content-manager' && service === 'permission-checker')
+          return {
+            create: () => ({
+              cannot: { read: () => false, update: () => false },
+              sanitizedQuery: { read: async () => ({}), update: async () => ({}) },
+            }),
+          };
+        throw new Error(`unexpected service ${name}.${service}`);
+      },
+    }),
+  };
+  const access = require('../server/src/services/access.js')({ strapi });
+  const result = await access.checkDocument({ userAbility: {}, uid, documentId: 'long1', locale: 'en' });
+  assert.equal(result.locale, null);
+  assert.equal(result.canUpdate, true);
+  assert.deepEqual(seen, [undefined, undefined], 'documents are read without a locale');
+});

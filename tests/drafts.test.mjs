@@ -207,8 +207,12 @@ test('EditorField wiring: lazy start gates Editor.js; the notice and placeholder
     new URL('../admin/src/components/EditorField/index.jsx', import.meta.url),
     'utf8'
   );
-  assert.match(source, /if \(!config \|\| !holderRef\.current \|\| !lazy\.active\) return undefined;/);
-  assert.match(source, /\[toolsKey, adminLocale, lazy\.active\]/);
+  // 2.5: also waits until the media of a private upload provider are signed (bounded).
+  assert.match(
+    source,
+    /if \(!config \|\| !holderRef\.current \|\| !lazy\.active \|\| \(privateFiles && !mediaSigned\)\)/
+  );
+  assert.match(source, /\[toolsKey, adminLocale, lazy\.active, mediaSigned\]/);
   assert.match(source, /<DraftNotice/);
   assert.match(source, /<LazyPlaceholder/);
   assert.match(source, /useDraftBuffer\(/);
