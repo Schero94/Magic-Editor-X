@@ -25,6 +25,8 @@ const ACTIONS = Object.freeze({
   auditRead: `plugin::${PLUGIN}.audit.read`,
   suggestionsCreate: `plugin::${PLUGIN}.suggestions.create`,
   suggestionsReview: `plugin::${PLUGIN}.suggestions.review`,
+  // 2.5: MCP tools for AI clients (admin tokens).
+  mcpUse: `plugin::${PLUGIN}.mcp.use`,
 });
 
 const ACTION_DEFINITIONS = [
@@ -51,6 +53,8 @@ const ACTION_DEFINITIONS = [
     uid: 'suggestions.review',
     displayName: 'Review block suggestions (accept or reject; needs update access to the entry)',
   },
+  // 2.5: give this to an admin token so AI clients can use the Magic Editor X MCP tools.
+  { uid: 'mcp.use', displayName: 'Use the MCP tools (convert, validate and render content; admin tokens)' },
 ];
 
 /**

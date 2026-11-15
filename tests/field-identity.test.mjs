@@ -733,3 +733,274 @@ test('controllers: keyless positional fields refuse writes, unmapped rows are re
   assert.equal(reply.status, 409);
   assert.equal(db.rows.length, before);
 });
+
+/* ------------------------------------------------- 2.5: emptied entries */
+
+/** In-memory twin of the store's remembered-key methods. */
+const fakeKeyStore = () => {
+  const rows = new Map();
+  return {
+    rows,
+    rememberFieldKeys: async (scope, pairs) => {
+      for (const [id, key] of pairs) rows.set(`fk:${scope}|${id}`, key);
+    },
+    rememberedFieldKeys: async (scope) => {
+      const out = new Map();
+      for (const [key, value] of rows) if (key.startsWith(`fk:${scope}|`)) out.set(key.split('|')[1], value);
+      return out;
+    },
+    forgetFieldKeys: async (scope, ids) => {
+      for (const id of ids) rows.delete(`fk:${scope}|${id}`);
+    },
+  };
+};
+
+/** Save middleware over a stored draft that the writes update (like the Document Service). */
+const createStatefulSave = (initial) => {
+  const register = require('../server/src/register.js');
+  const middlewares = [];
+  const store = fakeKeyStore();
+  const state = { stored: structuredClone(initial) };
+  const strapi = {
+    customFields: { register: () => {} },
+    config: { get: () => undefined },
+    log: { error: () => {}, warn: () => {}, info: () => {}, debug: () => {} },
+    components,
+    contentType: () => article,
+    plugin: (name) => ({
+      service: (service) => {
+        if (name === 'magic-editor-x' && service === 'store') return store;
+        if (name === 'i18n') return { getDefaultLocale: async () => 'en' };
+        return undefined;
+      },
+    }),
+    documents: Object.assign(() => ({ findOne: async () => structuredClone(state.stored) }), {
+      use: (fn) => middlewares.push(fn),
+    }),
+  };
+  register({ strapi });
+  const save = async (data) => {
+    await middlewares[0](
+      { action: 'update', uid: article.uid, params: { documentId: 'doc1', locale: 'en', data } },
+      async () => {
+        state.stored = { documentId: 'doc1', ...structuredClone(data) };
+        return 'saved';
+      }
+    );
+    return data;
+  };
+  return { save, store, state, strapi };
+};
+
+test('2.5: an emptied entry keeps its key (stored null) and gets it back with new content', async () => {
+  const { save, store, strapi } = createStatefulSave({
+    documentId: 'doc1',
+    sections: [
+      { id: 7, body: doc(['a1'], { fieldKey: KEY_A }) },
+      { id: 8, body: doc(['b1'], { fieldKey: KEY_B }) },
+    ],
+  });
+  // All blocks deleted and saved: the value stays null (required checks, renderers, API output).
+  const emptied = await save({
+    sections: [
+      { id: 7, body: null },
+      { id: 8, body: doc(['b1'], { fieldKey: KEY_B }) },
+    ],
+  });
+  assert.equal(emptied.sections[0].body, null);
+  assert.equal(store.rows.size, 1, 'the key of the emptied entry is remembered');
+  assert.deepEqual([...store.rows.values()], [KEY_A]);
+  // While empty, the entry still resolves to its identity (history, comments, rooms).
+  const access = accessService({
+    strapi: {
+      ...strapi,
+      plugin: (name) => ({
+        service: (service) => {
+          if (name === 'content-manager' && service === 'permission-checker')
+            return {
+              create: () => ({
+                cannot: { read: () => false, update: () => false },
+                sanitizedQuery: { read: async () => ({}), update: async () => ({}) },
+              }),
+            };
+          return strapi.plugin(name).service(service);
+        },
+      }),
+      contentType: (uid) => (uid === article.uid ? article : undefined),
+      documents: () => ({
+        findFirst: async () => ({ documentId: 'doc1' }),
+        findOne: async () => ({
+          documentId: 'doc1',
+          sections: [
+            { id: 7, body: null },
+            { id: 8, body: doc(['b1'], { fieldKey: KEY_B }) },
+          ],
+        }),
+      }),
+    },
+  });
+  const resolved = await access.checkField({ ...base, field: 'sections.0.body' });
+  assert.equal(resolved.fieldName, `sections.body#${KEY_A}`);
+  const byKey = await access.checkField({ ...base, field: 'sections.0.body', fieldKey: KEY_A });
+  assert.equal(byKey.unsaved, false);
+  // Saving again while empty changes nothing.
+  await save({
+    sections: [
+      { id: 7, body: null },
+      { id: 8, body: doc(['b1'], { fieldKey: KEY_B }) },
+    ],
+  });
+  assert.deepEqual([...store.rows.values()], [KEY_A]);
+  // New content with a fresh key from the admin (stored nowhere): the remembered key wins.
+  const fresh = 'FFFFFFFFFFFFFFFFFFFFFF';
+  const refilled = await save({
+    sections: [
+      { id: 7, body: doc(['n1'], { fieldKey: fresh }) },
+      { id: 8, body: doc(['b1'], { fieldKey: KEY_B }) },
+    ],
+  });
+  assert.equal(refilled.sections[0].body.fieldKey, KEY_A);
+  assert.equal(store.rows.size, 0, 'forgotten once the entry has content again');
+});
+
+test('2.5: a remembered key never steals a key saved elsewhere; no memory, no extra reads', async () => {
+  const { save, store } = createStatefulSave({
+    documentId: 'doc1',
+    sections: [
+      { id: 7, body: doc(['a1'], { fieldKey: KEY_A }) },
+      { id: 8, body: doc(['b1'], { fieldKey: KEY_B }) },
+    ],
+  });
+  await save({
+    sections: [
+      { id: 7, body: null },
+      { id: 8, body: doc(['b1'], { fieldKey: KEY_B }) },
+    ],
+  });
+  // Entry 8's value moved into row 7 (with its saved key): keys stay unique, B stays B.
+  const moved = await save({
+    sections: [
+      { id: 7, body: doc(['b1'], { fieldKey: KEY_B }) },
+      { id: 8, body: null },
+    ],
+  });
+  assert.equal(moved.sections[0].body.fieldKey, KEY_B);
+  assert.deepEqual(
+    [...store.rows.values()].sort(),
+    [KEY_B].sort(),
+    'row 8 now remembers B; A was dropped from 7'
+  );
+  // A new entry without id: nothing to remember.
+  const added = await save({ sections: [{ heading: 'New', body: doc(['x1']) }] });
+  assert.ok(isValidFieldKey(added.sections[0].body.fieldKey));
+});
+
+/* ---------------------------------------- 2.5: discard keeps the field keys */
+
+test('2.5: positional base paths of a schema', () => {
+  const { positionalBasePaths } = require('../server/src/utils/field-identity.js');
+  assert.deepEqual(positionalBasePaths({ components }, article).sort(), [
+    'groups.items.body',
+    'sections.body',
+    'zone.body',
+    'zone.items.body',
+  ]);
+});
+
+test('2.5: discard plan maps new keyless entries to the old draft keys by block ids', () => {
+  const { discardKeyPlan } = require('../server/src/utils/field-identity.js');
+  const entry = (ids, fieldKey = null) => ({ fieldKey, blockIds: new Set(ids) });
+  const before = [
+    entry(['b1', 'b2', 'new'], KEY_B), // reordered and edited in the draft
+    entry(['a1', 'a9'], KEY_A),
+    entry(['n1'], KEY_C), // added in the draft only
+  ];
+  // Published version saved before 2.4: no keys.
+  const after = [entry(['a1', 'a2']), entry(['b1', 'b2']), entry(['z1']), entry([])];
+  assert.deepEqual(
+    [...discardKeyPlan(before, after)],
+    [
+      [0, KEY_A],
+      [1, KEY_B],
+    ]
+  );
+  // Ambiguous evidence (two old entries share a block id) maps nothing.
+  assert.equal(discardKeyPlan([entry(['x'], KEY_A), entry(['x'], KEY_B)], [entry(['x'])]).size, 0);
+  // A key already present after the discard is never given twice.
+  assert.equal(discardKeyPlan([entry(['x'], KEY_A)], [entry(['y'], KEY_A), entry(['x'])]).size, 0);
+});
+
+test('2.5: discardDraft middleware writes the old keys into the new component rows', async () => {
+  const register = require('../server/src/register.js');
+  const middlewares = [];
+  const updates = [];
+  // Published version from 2.3: positional values without keys (one stored as a 1.x JSON string).
+  const published = {
+    documentId: 'doc1',
+    locale: 'en',
+    sections: [
+      { id: 21, body: doc(['a1', 'a2']) },
+      { id: 22, body: JSON.stringify(doc(['b1'])) },
+    ],
+    zone: [{ id: 23, __component: 'blocks.quote', body: doc(['q1']) }],
+  };
+  let draft = {
+    documentId: 'doc1',
+    locale: 'en',
+    sections: [
+      { id: 11, body: doc(['b1', 'b3'], { fieldKey: KEY_B }) },
+      { id: 12, body: doc(['a1'], { fieldKey: KEY_A }) },
+    ],
+    zone: [{ id: 13, __component: 'blocks.quote', body: doc(['q1', 'q2'], { fieldKey: KEY_C }) }],
+  };
+  const strapi = {
+    customFields: { register: () => {} },
+    config: { get: () => undefined },
+    log: { error: () => {}, warn: () => {}, info: () => {}, debug: () => {} },
+    components,
+    contentType: () => article,
+    plugin: () => ({ service: (name) => (name === 'audit' ? { enabled: () => false } : undefined) }),
+    db: {
+      query: (uid) => ({
+        update: async ({ where, data }) => {
+          updates.push({ uid, id: where.id, data });
+        },
+      }),
+    },
+    documents: Object.assign(() => ({ findMany: async () => [structuredClone(draft)] }), {
+      use: (fn) => middlewares.push(fn),
+    }),
+  };
+  register({ strapi });
+  const ctx = {
+    action: 'discardDraft',
+    uid: article.uid,
+    contentType: article,
+    params: { documentId: 'doc1', locale: 'en' },
+  };
+  const run = (index) =>
+    index < middlewares.length ? middlewares[index](ctx, () => run(index + 1)) : discard();
+  const discard = async () => {
+    draft = {
+      ...structuredClone(published),
+      sections: published.sections.map((row, i) => ({ ...row, id: 31 + i })),
+      zone: [{ ...published.zone[0], id: 33 }],
+    };
+    return { documentId: 'doc1' };
+  };
+  await run(0);
+  const byRow = Object.fromEntries(
+    updates.map((item) => [`${item.uid}#${item.id}`, item.data.body.fieldKey])
+  );
+  assert.deepEqual(byRow, {
+    'blocks.text#31': KEY_A,
+    'blocks.text#32': KEY_B,
+    'blocks.quote#33': KEY_C,
+  });
+  const fromString = updates.find((item) => item.id === 32).data.body;
+  assert.deepEqual(
+    fromString.blocks.map((block) => block.id),
+    ['b1'],
+    'a 1.x string value is written as the normalised object with its key'
+  );
+});

@@ -187,3 +187,18 @@ for (const file of ['../dist/render/index.mjs', '../dist/render/index.js']) {
 }
 
 console.log('Magic Editor X CJS and ESM React and Vue bundles load and render like renderHtml');
+
+// MCP tool worker (2.5): the bundled worker converts in its own thread.
+{
+  const { Worker } = await import('node:worker_threads');
+  const worker = new Worker(new URL('../dist/server/mcp-worker.js', import.meta.url));
+  const reply = await new Promise((resolve, reject) => {
+    worker.once('message', resolve);
+    worker.once('error', reject);
+    worker.postMessage({ id: 1, key: 'fromMarkdown', args: { markdown: '## Hi' }, rawHtml: 'sanitize' });
+  });
+  await worker.terminate();
+  if (reply.failed || reply.result.structuredContent.value.blocks[0].type !== 'header')
+    throw new Error('MCP worker bundle did not convert Markdown');
+  console.log('Magic Editor X MCP worker bundle converts in a worker thread');
+}
