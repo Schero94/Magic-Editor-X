@@ -204,7 +204,7 @@ All screenshots use synthetic data (acceptance host: Strapi 5.61.1).
 | 2.x    | 5.38 or later (acceptance host: Strapi 5.61.1) | 22 or 24 | SQLite, PostgreSQL and MySQL/MariaDB through the Strapi database connection. Acceptance runs used SQLite and PostgreSQL 16. |
 | 1.x    | 5.x                                            | 22       | No longer developed.                                                                                                        |
 
-- `engines.node` is `>=22.0.0 <=26.x.x`; the 2.3 and 2.4 test runs used Node 22.23.1.
+- `engines.node` is `>=22.12.0 <=26.x.x` (2.5 declares the floor that sanitize-html 2.18 already required since 2.4.0); the 2.3 to 2.5 test runs used Node 22.23.1.
 - The admin uses the React, React Router, react-intl, styled-components and Design System versions of the Strapi admin (React 18, Design System 2.2.4).
 - The editor uses Editor.js 2.31.7. Editor.js 2.32.0 is still a release candidate on npm (`2.32.0-rc.3` on the `next` tag, checked 2026-11-12) and is not used. Why the plugin stays on Editor.js is explained in [docs/engine-decision.md](./docs/engine-decision.md).
 - Formulas are rendered with Temml 0.14 (MIT), loaded by the admin only when a field shows math.

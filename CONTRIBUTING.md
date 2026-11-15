@@ -4,7 +4,7 @@ Thanks for helping. Read [AGENTS.md](./AGENTS.md) first: it is the technical con
 
 ## Setup
 
-Requirements: Node 22 or 24, npm 10 or 11.
+Requirements: Node 22.12 or later (22 or 24), npm 10 or 11.
 
 ```bash
 git clone https://github.com/Schero94/Magic-Editor-X.git

@@ -26,15 +26,19 @@ Magic Editor X 2.5 shows who is editing an entry, keeps unsaved work, lets edito
 - Mention e-mails use the recipient's admin language (en, de, fr, es, pt).
 - The inline toolbar wraps inside the field on narrow screens instead of running off the left edge.
 - Focus returns into gallery, video and audio blocks after the Media Library picker closes.
+- Installing on Node 22 no longer warns with EBADENGINE (see the migration notes); CI installs the packed package on Node 22 and fails on any EBADENGINE.
 
 ### Deferred
 
+- Component blocks (Content-Type Builder components as blocks) move to 2.6. They worked in single-editor tests, but a stress test of two editors in one live room (CPU throttled 4x) lost a collaborator's edit: the component form sent all its values on every keystroke, so a value that had arrived from the room but was not drawn yet was overwritten (3 of 8 rounds), and the same happened inside one attribute (1 of 4 rounds). The cause is found and a fix with regression tests is on the branch `feat/2.5-components`; it ships when the stress and cluster runs show no lost edit.
 - Live Preview inline editing for Magic Editor X fields: in Strapi 5.61 the side editor and its messages are internal, live preview is experimental and needs a Growth or Enterprise plan, and content source maps skip JSON custom fields.
 - Columns/layout block: the 2.5 spike measured blockers on Editor.js 2.31 (moving a block between columns while someone edits it loses the edit without a new collaboration schema; nested editors handle keys twice; comments, suggestions, quality, find/replace and AI address top-level blocks only). See `docs/engine-decision.md`.
-- Session-expiry warning: Strapi does not expose when an admin session ends to the browser; local drafts cover lost sessions instead.
+- Session-expiry warning: Strapi does not expose to the browser when an admin session ends; local drafts cover lost sessions instead.
 
 ### Migration notes
 
+- `engines.node` is now `>=22.12.0 <=26.x.x`. This declares the floor that the dependency sanitize-html 2.18 already required since 2.4.0; installs on Node 22.12 or later no longer warn with EBADENGINE.
+- `@editorjs/embed` is pinned to 2.7.7, because 2.8.0 requires Node 24. YouTube Shorts and Figma embeds, which 2.8.0 added, are defined by the plugin, so nothing changes for editors; the Figma pattern now requires a Figma document URL.
 - No breaking changes and nothing to do for public upload providers.
 - With a private upload provider, migration `2.5.0-media-file-ids` adds `fileId` to media in Magic Editor X values once at startup (idempotent, under the migration lease). Dry run: `npx magic-editor-x media-file-ids`; apply again: `--apply`.
 - Fields start lazily: scripts and tests that wait for `[data-mex-ready="true"]` must scroll the field into view first, or set `lazyInit.enabled: false`.

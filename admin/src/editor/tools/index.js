@@ -5,6 +5,7 @@ import Quote from '@editorjs/quote';
 import Warning from '@editorjs/warning';
 import Code from '@editorjs/code';
 import Embed from '@editorjs/embed';
+import { EMBED_SERVICES } from './embed-services.mjs';
 import Raw from '@editorjs/raw';
 import Attaches from '@editorjs/attaches';
 import InlineCode from '@editorjs/inline-code';
@@ -259,7 +260,8 @@ export function buildTools(ctx) {
       inlineToolbar: true,
       config: {
         services: {
-          youtube: true,
+          // 2.5: YouTube (with Shorts) and Figma are defined by the plugin (embed-services.mjs).
+          youtube: EMBED_SERVICES.youtube,
           vimeo: true,
           twitter: true,
           instagram: true,
@@ -269,7 +271,7 @@ export function buildTools(ctx) {
           pinterest: true,
           twitch: true,
           miro: true,
-          figma: true,
+          figma: EMBED_SERVICES.figma,
           facebook: true,
         },
       },
