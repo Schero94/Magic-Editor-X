@@ -256,7 +256,10 @@ const SMTP_PORT = Number(process.env.MEX_FIXES_SMTP_PORT || 2583);
 const startSmtp = () =>
   new Promise((resolve, reject) => {
     const mails = [];
+    const sockets = new Set();
     const server = net.createServer((socket) => {
+      sockets.add(socket);
+      socket.on('close', () => sockets.delete(socket));
       let buffer = '';
       let inData = false;
       const send = (line) => socket.write(`${line}\r\n`);
@@ -291,7 +294,16 @@ const startSmtp = () =>
       socket.on('error', () => {});
     });
     server.on('error', reject);
-    server.listen(SMTP_PORT, '127.0.0.1', () => resolve({ mails, close: () => server.close() }));
+    server.listen(SMTP_PORT, '127.0.0.1', () =>
+      resolve({
+        mails,
+        // The host's mail transport may keep its connection open: end it, or the test run never exits.
+        close: () => {
+          for (const socket of sockets) socket.destroy();
+          server.close();
+        },
+      })
+    );
   });
 
 /** Decodes RFC 2047 encoded words (UTF-8, B or Q) in a header value. */
