@@ -18,4 +18,5 @@ module.exports = {
   audit: require('./audit'),
   // 2.5 entry panel and homepage widgets
   entryPanel: require('./entry-panel'),
+  reuse: require('./reuse'),
 };

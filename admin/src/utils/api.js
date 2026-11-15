@@ -67,6 +67,9 @@ export const API = {
   entrySummary: '/magic-editor-x/entry-summary',
   widgetOpenThreads: '/magic-editor-x/widgets/open-threads',
   widgetBrokenLinks: '/magic-editor-x/widgets/broken-links',
+  // 2.5 "Use existing content".
+  reuseTypes: '/magic-editor-x/reuse/types',
+  reuseSource: '/magic-editor-x/reuse/source',
 };
 
 /**

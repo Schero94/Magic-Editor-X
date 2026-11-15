@@ -12,6 +12,7 @@ import {
   filterBlocks,
   mediaBlockData,
 } from './paste-logic.mjs';
+import { EDITOR_CLIPBOARD_TYPE, parseEditorClipboard } from '../../../shared/reuse.mjs';
 
 /**
  * Paste cleanup: turns clipboard content from Word, Google Docs, LibreOffice,
@@ -57,6 +58,10 @@ const EXTENSIONS = {
  * @param {(notice: { type: 'info'|'warning'|'danger', message: string }) => void} [options.notify] - Shows a notification.
  * @param {() => void} [options.onInserted] - Called after blocks were inserted (save the field).
  * @param {(name: string) => boolean} [options.hasTool] - Whether the editor has a block tool (Editor.js block clipboard, 2.4).
+ * @param {(blocks: Array<{ id?: string, type: string, data: object, tunes?: object }>, position: { index: number, block: object|null }) => (Promise<void>|void)} [options.onEditorBlocks] - 2.5: takes over
+ *   pastes of Editor.js blocks (`application/x-editor-js`, from any Magic Editor X field): the field
+ *   inserts them itself (fresh ids, tunes kept, preset check). Without it Editor.js inserts them
+ *   when every block fits (2.4 behaviour).
  * @returns {{ destroy: () => void }} Handle.
  */
 export function createPasteHandler(options) {
@@ -73,6 +78,7 @@ export function createPasteHandler(options) {
     notify = () => {},
     onInserted = () => {},
     hasTool = () => false,
+    onEditorBlocks,
   } = options;
   const allow = (type) => type === 'paragraph' || typeof isAllowed !== 'function' || isAllowed(type) === true;
   // Pasted videos and audio need the upload permission, the route helper and a field that takes the block.
@@ -335,6 +341,23 @@ export function createPasteHandler(options) {
     const html = data.getData('text/html') || '';
     const text = data.getData('text/plain') || '';
     const position = current();
+    // 2.5: Editor.js blocks copied from a Magic Editor X field go through the field's own insertion.
+    if (typeof onEditorBlocks === 'function' && !plainOnly && !isProtected(event.target, position.block)) {
+      const copied = parseEditorClipboard(data.getData(EDITOR_CLIPBOARD_TYPE));
+      if (copied) {
+        event.preventDefault();
+        event.stopPropagation();
+        Promise.resolve()
+          .then(() => onEditorBlocks(copied, position))
+          .catch(() => {
+            notify({
+              type: 'danger',
+              message: t('editor.paste.failed', 'The pasted content could not be converted.'),
+            });
+          });
+        return;
+      }
+    }
     const mode = decidePaste({
       html,
       text,
