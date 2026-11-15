@@ -2196,7 +2196,8 @@ export const editorStyles = css`
     /* A column, so the wrapped item rows give the toolbar its height. */
     flex-direction: column;
     min-width: 0;
-    max-width: calc(100vw - 3.2rem);
+    /* Narrower than the editor's text column (screen minus the field's gutters), so Editor.js keeps it inside. */
+    max-width: calc(100vw - 6.4rem);
     /* max-content, not auto: Editor.js sets both top and bottom on this box. */
     height: max-content;
     min-height: var(--height);

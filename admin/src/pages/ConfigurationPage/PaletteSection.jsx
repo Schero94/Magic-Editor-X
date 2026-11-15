@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { Alert, Box, Flex, IconButton, Typography } from '@strapi/design-system';
 import { Duplicate } from '@strapi/icons';
 import { useIntl } from 'react-intl';
@@ -85,6 +85,7 @@ export const PaletteSection = ({ palette }) => {
   const { locale } = useIntl();
   const { copy } = useClipboard();
   const codeRef = useRef(null);
+  const [alertOpen, setAlertOpen] = useState(true);
   if (!palette) return null;
   const colors = Array.isArray(palette.colors) ? palette.colors : [];
   const highlights = Array.isArray(palette.highlights) ? palette.highlights : [];
@@ -133,9 +134,11 @@ export const PaletteSection = ({ palette }) => {
         </Typography>
       ) : (
         <>
-          {issues.length ? (
+          {issues.length && alertOpen ? (
             <Alert
               variant="warning"
+              closeLabel={t('settings.close', 'Close')}
+              onClose={() => setAlertOpen(false)}
               title={t(
                 'settings.palette.issuesTitle',
                 '{count, plural, one {# combination is} other {# combinations are}} hard to read',

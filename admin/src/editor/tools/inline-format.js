@@ -144,6 +144,59 @@ export const wrapSelection = (range, tag, attrs, nested) => {
   return wrapper;
 };
 
+/**
+ * Text offsets of a range inside its editable element. A range object would
+ * go stale: Editor.js rewraps the selected text (fake background) while the
+ * toolbar menu is open.
+ * @param {Range|null} range - Range.
+ * @returns {{ root: HTMLElement, start: number, end: number }|null} Offsets.
+ */
+const saveOffsets = (range) => {
+  if (!range || range.collapsed) return null;
+  const node = range.commonAncestorContainer;
+  const element = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
+  const root = element && element.closest('[contenteditable="true"]');
+  if (!root) return null;
+  const offset = (container, at) => {
+    const probe = document.createRange();
+    probe.selectNodeContents(root);
+    probe.setEnd(container, at);
+    return probe.toString().length;
+  };
+  return {
+    root,
+    start: offset(range.startContainer, range.startOffset),
+    end: offset(range.endContainer, range.endOffset),
+  };
+};
+
+/**
+ * Range from saved text offsets (null when the element is gone).
+ * @param {{ root: HTMLElement, start: number, end: number }|null} saved - Offsets.
+ * @returns {Range|null} Range.
+ */
+const restoreOffsets = (saved) => {
+  if (!saved || !saved.root.isConnected) return null;
+  const range = document.createRange();
+  const walker = document.createTreeWalker(saved.root, NodeFilter.SHOW_TEXT);
+  let position = 0;
+  let node;
+  let started = false;
+  while ((node = walker.nextNode())) {
+    const next = position + node.data.length;
+    if (!started && saved.start <= next) {
+      range.setStart(node, saved.start - position);
+      started = true;
+    }
+    if (started && saved.end <= next) {
+      range.setEnd(node, saved.end - position);
+      return range;
+    }
+    position = next;
+  }
+  return null;
+};
+
 /** Text colour and highlight from the configured palette (2.5). */
 export class ColorTool {
   static get isInline() {
@@ -161,9 +214,8 @@ export class ColorTool {
   constructor({ api, config }) {
     this.api = api;
     this.config = config || {};
-    // The selection when the toolbar opened (the menu takes the focus).
-    const range = currentRange();
-    this.range = range ? range.cloneRange() : null;
+    // The selection when the toolbar opened (a click in the menu moves the selection).
+    this.saved = saveOffsets(currentRange());
   }
 
   t(id, fallback, values) {
@@ -172,9 +224,23 @@ export class ColorTool {
 
   /** @returns {Range|null} Selection to format. */
   target() {
+    // A click in the menu can move the selection into the popover (or collapse it): then the
+    // selection from when the toolbar opened is used.
+    const inEditable = (range) => {
+      const node = range.commonAncestorContainer;
+      const element = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
+      return Boolean(element && element.closest('[contenteditable="true"]'));
+    };
     const range = currentRange();
-    if (range && !range.collapsed) return range;
-    return this.range && !this.range.collapsed ? this.range : null;
+    if (range && !range.collapsed && inEditable(range)) return range;
+    const restored = restoreOffsets(this.saved);
+    if (!restored) return null;
+    const selection = window.getSelection();
+    if (selection) {
+      selection.removeAllRanges();
+      selection.addRange(restored);
+    }
+    return restored;
   }
 
   /**
@@ -206,8 +272,11 @@ export class ColorTool {
     wrapSelection(range, tag, { [attribute]: token }, selector);
   }
 
-  /** Removes text colour and highlight from the selection. */
-  clear() {
+  /**
+   * Removes text colour and highlight from the selection. Not named `clear`:
+   * Editor.js calls a tool's `clear()` whenever the inline toolbar closes.
+   */
+  removeAll() {
     this.apply('color', null);
     this.apply('highlight', null);
   }
@@ -251,7 +320,7 @@ export class ColorTool {
         icon: FORMAT_ICONS.clear,
         title: this.t('tools.color.remove', 'Remove colour'),
         name: 'color-remove',
-        onActivate: () => this.clear(),
+        onActivate: () => this.removeAll(),
       },
     ];
     // Icon only (the hint shows the translated tool name), like the other inline tools.
