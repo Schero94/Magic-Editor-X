@@ -564,6 +564,10 @@ export const BLOCK_POLICIES = {
     if (typeof file.extension === 'string') cleanFile.extension = plain(file.extension, 16);
     if (Number.isFinite(file.size)) cleanFile.size = file.size;
     if (typeof file.title === 'string') cleanFile.title = plain(file.title, 255);
+    // 2.5: the Media Library file (private providers sign its URL when it is read).
+    if (file.id !== undefined && (Number.isInteger(file.id) || typeof file.id === 'string'))
+      cleanFile.id = file.id;
+    if (typeof file.documentId === 'string') cleanFile.documentId = plain(file.documentId, 64);
     return { file: cleanFile, title: plain(d.title, 255) };
   },
   embed: (d, inline) => ({

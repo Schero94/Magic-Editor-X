@@ -15,6 +15,7 @@ const {
   entryKey,
 } = require('../../../shared/resolve-references.mjs');
 const { createLogger } = require('../utils/logger');
+const { signForOutput } = require('../utils/media-signing');
 
 /**
  * Permission-safe reference resolution for API output (Content API `?mex=`
@@ -407,9 +408,14 @@ module.exports = ({ strapi }) => {
       expanded.map((entry, index) => ({ value: entry.value, locale: items[index].locale }))
     );
     const results = await resolve(refs, { auth, status, limits });
-    return prepared.map(({ data, locale }, index) => {
+    // 2.5: private upload providers: resolved and expanded files get fresh signed URLs (one batch).
+    const signed = await signForOutput(
+      strapi,
+      prepared.map(({ data, locale }) => applyReferences(data, results, { locale }))
+    );
+    return prepared.map(({ locale }, index) => {
       const outputFormat = items[index].format || format;
-      const applied = applyReferences(data, results, { locale });
+      const applied = signed[index];
       const { origins } = expanded[index];
       // JSON output marks copied blocks with the source they come from.
       if (outputFormat === 'json' && applied && origins.size)

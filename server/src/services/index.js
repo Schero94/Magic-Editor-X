@@ -26,4 +26,6 @@ module.exports = {
   // 2.5 entry panel and homepage widgets
   'entry-panel': require('./entry-panel'),
   reuse: require('./reuse'),
+  // 2.5: private upload providers (signed Media Library URLs)
+  media: require('./media'),
 };

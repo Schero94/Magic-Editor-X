@@ -147,6 +147,8 @@ const adminRoutes = [
   // 2.5 "Use existing content": the source side of "Insert from another entry" (CM read checked in the handler).
   ['GET', '/reuse/types', 'reuse.types', [ACTIONS.access]],
   ['GET', '/reuse/source', 'reuse.source', [ACTIONS.access]],
+  // 2.5: fresh signed URLs for a private upload provider (Media Library read or the field's own files; handler).
+  ['POST', '/media/signed-urls', 'media.signedUrls', [ACTIONS.access]],
 ].map(([method, path, handler, actions]) => ({
   method,
   path,

@@ -5,6 +5,7 @@ const { registerPermissions } = require('./permissions');
 const { subscribeCommentAuthorCleanup } = require('./utils/comment-retention');
 const { subscribeAuditActorCleanup } = require('./utils/audit-trail');
 const { wrapAiLocalizations } = require('./utils/ai-localization-guard');
+const { registerMediaSigning } = require('./utils/media-signing');
 
 /**
  * Bootstrap: RBAC actions, plugin tables, migrations, the response parser
@@ -59,6 +60,14 @@ module.exports = async ({ strapi }) => {
     wrapAiLocalizations(strapi);
   } catch (error) {
     logger.error('Strapi AI translations could not be guarded', error);
+  }
+
+  // 2.5: private upload providers: Media Library URLs in editor values are signed on read and
+  // never stored signed (Document Service middleware, like Strapi's own for media fields).
+  try {
+    if (await registerMediaSigning(strapi)) logger.info('private upload provider: media URLs are signed');
+  } catch (error) {
+    logger.error('media URL signing could not be registered', error);
   }
 
   // Opt-in output transform (`?mex=`); registered first so it runs after the 1.x string parser below.
