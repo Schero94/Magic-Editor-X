@@ -135,22 +135,31 @@ export const PaletteSection = ({ palette }) => {
       ) : (
         <>
           {issues.length && alertOpen ? (
-            <Alert
-              variant="warning"
-              closeLabel={t('settings.close', 'Close')}
-              onClose={() => setAlertOpen(false)}
-              title={t(
-                'settings.palette.issuesTitle',
-                '{count, plural, one {# combination is} other {# combinations are}} hard to read',
-                { count: issues.length }
-              )}
-            >
+            // The Alert renders its children inside a paragraph: the list follows it (no <ul> in <p>).
+            <Flex direction="column" alignItems="stretch" gap={2}>
+              <Alert
+                variant="warning"
+                closeLabel={t('settings.close', 'Close')}
+                onClose={() => setAlertOpen(false)}
+              >
+                {t(
+                  'settings.palette.issuesTitle',
+                  '{count, plural, one {# combination is} other {# combinations are}} hard to read',
+                  { count: issues.length }
+                )}
+              </Alert>
               <Box tag="ul" paddingLeft={4} margin={0}>
                 {issues.slice(0, 20).map((issue) => (
-                  <li key={`${issue.mode}|${issue.color}|${issue.highlight}`}>{pairText(issue)}</li>
+                  <Typography
+                    key={`${issue.mode}|${issue.color}|${issue.highlight}`}
+                    tag="li"
+                    variant="omega"
+                  >
+                    {pairText(issue)}
+                  </Typography>
                 ))}
               </Box>
-            </Alert>
+            </Flex>
           ) : null}
           {colors.length ? (
             <Flex direction="column" alignItems="stretch" gap={2}>
