@@ -301,6 +301,22 @@ export interface MathData {
   _mex: number;
 }
 
+/**
+ * Component block (2.5): a Content-Type Builder component with scalar
+ * attributes (string, text, richtext, email, enumeration, date, datetime,
+ * time, integer, biginteger, float, decimal, boolean). Values are plain text,
+ * numbers and booleans, checked against the current component schema on save.
+ * Renderers output nothing unless the site passes `componentBlocks[uid]`.
+ */
+export interface ComponentData {
+  /** Component uid (`category.name`); '' when invalid. */
+  uid: string;
+  /** Attribute values; attributes without a value are left out. */
+  values: Record<string, string | number | boolean>;
+  /** Built-in block marker (2.5 writes 1; also the shape version). */
+  _mex: number;
+}
+
 /** Data per built-in block type. */
 export interface BlockDataMap {
   paragraph: ParagraphData;
@@ -329,6 +345,7 @@ export interface BlockDataMap {
   toc: TocData;
   synced: SyncedData;
   math: MathData;
+  component: ComponentData;
 }
 
 export type BuiltInBlockType = keyof BlockDataMap;

@@ -15,6 +15,7 @@ const {
   entryKey,
 } = require('../../../shared/resolve-references.mjs');
 const { createLogger } = require('../utils/logger');
+const { createComponentOutput } = require('../utils/component-blocks');
 
 /**
  * Permission-safe reference resolution for API output (Content API `?mex=`
@@ -61,6 +62,8 @@ const STORED_SYSTEM_KEYS = new Set(['id', 'documentId', 'title', 'href']);
 const LIMITS = Object.freeze({ maxReferences: 500, timeoutMs: 5000 });
 
 module.exports = ({ strapi }) => {
+  // 2.5: component blocks follow the current component schemas in every output.
+  const componentOutput = createComponentOutput(strapi);
   const logger = createLogger(strapi);
 
   /**
@@ -404,7 +407,7 @@ module.exports = ({ strapi }) => {
   const transform = async (items, { format = 'json', auth, status, limits } = {}) => {
     const expanded = await expandAll(items);
     const { prepared, refs } = collect(
-      expanded.map((entry, index) => ({ value: entry.value, locale: items[index].locale }))
+      expanded.map((entry, index) => ({ value: componentOutput(entry.value), locale: items[index].locale }))
     );
     const results = await resolve(refs, { auth, status, limits });
     return prepared.map(({ data, locale }, index) => {

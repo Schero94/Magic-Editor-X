@@ -2,14 +2,18 @@
 
 const { ACTIONS } = require('../permissions');
 const { service } = require('./helpers');
+const { createComponentLookup } = require('../utils/component-blocks');
 
 /**
  * @route GET /magic-editor-x/config
  * @auth admin; plugin::magic-editor-x.access
  * @returns {{ data: object }} Editor runtime configuration and the caller's capabilities. No secrets.
+ *   2.5: `data.components` describes every Content-Type Builder component for component blocks
+ *   (uid, display name, icon, supported attributes with their rules, unsupported ones); schema only, no content.
  */
 module.exports = ({ strapi }) => ({
   async get(ctx) {
+    const lookup = createComponentLookup(strapi);
     const ability = ctx.state.userAbility;
     const can = (action) => {
       try {
@@ -76,6 +80,10 @@ module.exports = ({ strapi }) => ({
           suggestionsCreate: can(ACTIONS.suggestionsCreate),
           suggestionsReview: can(ACTIONS.suggestionsReview),
         },
+        components: Object.keys(strapi.components || {})
+          .sort()
+          .map(lookup)
+          .filter(Boolean),
       },
     };
   },

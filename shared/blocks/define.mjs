@@ -114,7 +114,7 @@ export const RESERVED_BLOCK_NAMES = Object.freeze([
  * A code block of that name replaces the built-in editor tool in that host; data
  * with the built-in marker (`_mex`) or exactly the built-in shape stays built-in.
  */
-export const SDK_COMPATIBLE_NAMES = Object.freeze(['math']);
+export const SDK_COMPATIBLE_NAMES = Object.freeze(['math', 'component']);
 
 const RESERVED = new Set(RESERVED_BLOCK_NAMES.map((name) => name.toLowerCase()));
 

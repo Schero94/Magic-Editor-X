@@ -38,6 +38,7 @@ import { buildCustomBlockTools } from './custom-block';
 import { MexImageTool } from './alt-text';
 import { GalleryTool, VideoTool, AudioTool } from './media';
 import { MathTool } from './math';
+import { createComponentTool } from './component';
 import { InlineMathTool } from './inline-math';
 import { FootnoteTool } from './footnote';
 import { CommentInlineTool } from './comment';
@@ -98,6 +99,20 @@ const INLINE_FALLBACK_KEYS = Object.freeze({ inlineMath: 'inlineMath$mex', footn
  */
 const hasCustomBlock = (blocks, name) =>
   Array.isArray(blocks) && blocks.some((block) => block && block.name === name && block.enabled !== false);
+
+/** Built-in component block tool classes (2.5): exempt from the preset block list. */
+const COMPONENT_TOOLS = new WeakSet();
+
+/**
+ * Component block tool of one field (2.5), marked as built-in.
+ * @param {Array<{ uid: string, displayName: string }>} [components] - Allowed, supported components.
+ * @returns {Function} Tool class.
+ */
+const componentToolClass = (components) => {
+  const ToolClass = markedTool(createComponentTool(components), 'component');
+  COMPONENT_TOOLS.add(ToolClass);
+  return ToolClass;
+};
 
 /**
  * Builds the `tools` object for `new EditorJS({ tools })`.
@@ -220,6 +235,11 @@ export function buildTools(ctx) {
     toc: { class: markedTool(TocTool, 'toc'), config: { t, levels } },
     // Math block (2.4): TeX with a live preview (Temml, loaded on demand).
     math: { class: markedTool(MathTool, 'math'), config: { t } },
+    // 2.5: component blocks. The toolbox lists the components this field allows (none: no entry).
+    component: {
+      class: componentToolClass(ctx.componentBlocks),
+      config: { t, mount: ctx.mountComponent },
+    },
     // Synced block (2.3): inserted from the template dialog; the field renders its view (`ctx.mountSynced`).
     synced: { class: markedTool(SyncedTool, 'synced'), config: { t, mount: ctx.mountSynced } },
     // 2.4: own table tool (header row and column, alignment, merged cells, caption).
@@ -434,6 +454,11 @@ export function applyPreset(tools, preset) {
   for (const [name, tool] of Object.entries(tools)) {
     if (preset.inline && INLINE.includes(name) && !preset.inline.includes(name)) continue;
     if (name === 'mediaLib' && !isBlockAllowed(preset, 'image')) continue;
+    // 2.5: component blocks follow the field's `allowedComponents`, not the block list.
+    if (tool && COMPONENT_TOOLS.has(tool.class)) {
+      out[name] = tool;
+      continue;
+    }
     if (NOT_BLOCKS.has(name) || isBlockAllowed(preset, name)) {
       out[name] = tool;
       continue;

@@ -5,6 +5,10 @@ import { PERMISSIONS } from './permissions';
 import { getTranslation } from './utils/getTranslation';
 import { registerBlock } from './editor/block-registry';
 import { createReactTool } from './editor/react-tool';
+import { AllowedComponentsInput } from './components/AllowedComponentsInput';
+
+/** Content-Type Builder input type of the "Component blocks" field option (2.5). */
+const ALLOWED_COMPONENTS_INPUT = 'magic-editor-x-allowed-components';
 
 /**
  * Translations are split by area (common, editor, tools, settings); each
@@ -299,6 +303,28 @@ export default {
               },
             ],
           },
+          // 2.5: component blocks (Content-Type Builder components editors insert from the + menu).
+          {
+            sectionTitle: {
+              id: getTranslation('field.options.components'),
+              defaultMessage: 'Component blocks',
+            },
+            items: [
+              {
+                intlLabel: {
+                  id: getTranslation('field.options.allowedComponents.label'),
+                  defaultMessage: 'Components editors can insert',
+                },
+                description: {
+                  id: getTranslation('field.options.allowedComponents.description'),
+                  defaultMessage:
+                    'Each one appears in the + menu of this field under its name. Checked again when saving.',
+                },
+                name: 'options.allowedComponents',
+                type: ALLOWED_COMPONENTS_INPUT,
+              },
+            ],
+          },
         ],
       },
     });
@@ -341,7 +367,17 @@ export default {
     );
   },
 
-  bootstrap() {},
+  /**
+   * Registers the Content-Type Builder input of the "Component blocks" field option (2.5,
+   * CTB forms API `apis.forms.components.add`, as the i18n plugin does for its inputs).
+   * @param {object} app - Strapi admin app.
+   */
+  bootstrap(app) {
+    const ctb = app && typeof app.getPlugin === 'function' ? app.getPlugin('content-type-builder') : null;
+    const forms = ctb && ctb.apis && ctb.apis.forms;
+    if (forms && forms.components && typeof forms.components.add === 'function')
+      forms.components.add({ id: ALLOWED_COMPONENTS_INPUT, component: AllowedComponentsInput });
+  },
 
   /**
    * @param {{ locales: string[] }} options - Admin locales.

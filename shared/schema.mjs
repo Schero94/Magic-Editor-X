@@ -10,6 +10,7 @@
 import { BUILT_IN_MARKER, MARKED_BLOCKS } from './sanitize-policy.mjs';
 import { FIELD_KEY_PATTERN } from './field-identity.mjs';
 import { TABLE_ALIGNS, TABLE_LIMITS } from './table.mjs';
+import { COMPONENT_ATTRIBUTE, COMPONENT_LIMITS, COMPONENT_UID } from './components.mjs';
 
 export const SCHEMA_ID = 'https://schero94.github.io/Magic-Editor-X/schema/magic-editor-x.schema.json';
 
@@ -352,6 +353,29 @@ export const BLOCK_DATA_SCHEMAS = Object.freeze({
     ['tex', 'display', '_mex'],
     'Math block (2.4).'
   ),
+  component: obj(
+    {
+      uid: {
+        type: 'string',
+        pattern: `^(${COMPONENT_UID.source.slice(1, -1)})?$`,
+        description:
+          'Uid of the Content-Type Builder component (category.name); empty when invalid. The field option allowedComponents lists the uids editors may insert.',
+      },
+      values: {
+        type: 'object',
+        maxProperties: COMPONENT_LIMITS.attributes,
+        propertyNames: { pattern: COMPONENT_ATTRIBUTE.source },
+        additionalProperties: {
+          anyOf: [{ ...str(COMPONENT_LIMITS.text) }, { type: 'number' }, bool],
+        },
+        description:
+          'Attribute values (plain text, numbers, booleans; never HTML). Checked against the current component schema on save: unknown attributes are dropped, values are coerced to their type.',
+      },
+      _mex: marker,
+    },
+    ['uid', 'values', '_mex'],
+    'Component block (2.5): a Content-Type Builder component with scalar attributes. Renderers output nothing unless the site passes `componentBlocks[uid]`.'
+  ),
   synced: obj(
     {
       ref: {
@@ -496,7 +520,7 @@ export const buildEditorSchema = () => ({
       required: ['id', 'type', 'data'],
       additionalProperties: false,
       allOf: Object.keys(BLOCK_DATA_SCHEMAS).map((type) => ({
-        // `MARKED_BLOCKS` types (2.3, math 2.4): data without the marker or the exact shape is custom block data.
+        // `MARKED_BLOCKS` types (2.3, math 2.4, component 2.5): data without the marker or the exact shape is custom block data.
         if: MARKED_BLOCKS[type]
           ? markedCondition(type)
           : { properties: { type: { const: type } }, required: ['type'] },

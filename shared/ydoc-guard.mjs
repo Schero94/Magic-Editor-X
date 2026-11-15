@@ -20,6 +20,7 @@ import { EDITOR_DATA_LIMITS, normalizeEditorData } from './editor-data.mjs';
 import { readBlock } from './ydoc.mjs';
 import { BUILT_IN_MARKER, isBuiltInMarker, isMarkedBuiltIn } from './built-in-marker.mjs';
 import { isTableDataShapeValid } from './table.mjs';
+import { COMPONENT_ATTRIBUTE, COMPONENT_LIMITS } from './components.mjs';
 
 const ROOTS = new Set(['meta', 'order', 'blocks']);
 const FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
@@ -157,7 +158,7 @@ const rootName = (type) => {
 export const touchedBy = (transaction, blocks) => {
   const ids = new Set();
   // Blocks whose structure changed: added (or replaced), new `type`, or a new
-  // `data.level`. Field preset rules apply to these only, so blocks that were
+  // `data.level` (or `data.uid` of a component block, 2.5). Field preset rules apply to these only, so blocks that were
   // already there (for example before a preset was tightened) stay editable.
   const structural = new Set();
   let order = false;
@@ -181,7 +182,9 @@ export const touchedBy = (transaction, blocks) => {
         // path (innermost first): [blockId] = the entry map, [ 'data', blockId ] = its data map.
         if (
           (path.length === 1 && keys.has('type')) ||
-          (path.length === 2 && path[0] === 'data' && keys.has('level'))
+          (path.length === 2 && path[0] === 'data' && (keys.has('level') || keys.has('uid'))) ||
+          // 2.5: the text of a component block's uid changed.
+          (path.length === 3 && path[0] === 'uid' && path[1] === 'data')
         )
           structural.add(child.parentSub);
       } else
@@ -215,6 +218,31 @@ const validSyncedData = (block) => {
 };
 
 /**
+ * A built-in component block (2.5) holds `{ uid, values, _mex? }`: a string
+ * uid and a plain object of at most `COMPONENT_LIMITS.attributes` scalar
+ * values (strings up to the text limit, finite numbers, booleans). The schema
+ * rules are checked on save. Other blocks pass.
+ * @param {{ type: string, data: object }} block - Normalised block.
+ * @returns {boolean} Valid.
+ */
+const validComponentData = (block) => {
+  if (block.type !== 'component' || !isMarkedBuiltIn('component', block.data)) return true;
+  const { uid, values } = block.data;
+  if (Object.keys(block.data).some((key) => !['uid', 'values', BUILT_IN_MARKER].includes(key))) return false;
+  if (typeof uid !== 'string' || uid.length > 201) return false;
+  if (values === undefined) return true;
+  if (!values || typeof values !== 'object' || Array.isArray(values)) return false;
+  const keys = Object.keys(values);
+  if (keys.length > COMPONENT_LIMITS.attributes) return false;
+  return keys.every((key) => {
+    const value = values[key];
+    if (!COMPONENT_ATTRIBUTE.test(key)) return false;
+    if (typeof value === 'string') return value.length <= COMPONENT_LIMITS.text;
+    return typeof value === 'boolean' || (typeof value === 'number' && Number.isFinite(value));
+  });
+};
+
+/**
  * Validates the parts of a document a transaction changed.
  * @param {Y.Doc} doc - Room document after the update.
  * @param {{ ids: Set<string>, order: boolean, meta: boolean }} touched - Result of `touchedBy`.
@@ -245,6 +273,8 @@ export const validateTouched = (doc, touched, options = {}) => {
       if (!normalized || normalized.blocks.length !== 1) return 'INVALID_BLOCK';
       // Synced block (2.3): a reference only (`{ ref }`), never copied content.
       if (!validSyncedData(normalized.blocks[0])) return 'INVALID_BLOCK';
+      // Component block (2.5): uid and scalar values only.
+      if (!validComponentData(normalized.blocks[0])) return 'INVALID_BLOCK';
       // Table (2.4): types and bounds of the cells, header column, alignment, merges and caption.
       if (normalized.blocks[0].type === 'table' && !isTableDataShapeValid(normalized.blocks[0].data))
         return 'INVALID_BLOCK';

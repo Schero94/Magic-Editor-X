@@ -858,6 +858,48 @@
           "if": {
             "properties": {
               "type": {
+                "const": "component"
+              },
+              "data": {
+                "type": "object",
+                "anyOf": [
+                  {
+                    "required": ["_mex"],
+                    "properties": {
+                      "_mex": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Built-in block marker (2.3: 1). Tells the built-in block apart from a custom block created before 2.3 under the same name."
+                      }
+                    }
+                  },
+                  {
+                    "properties": {
+                      "uid": {
+                        "type": "string"
+                      },
+                      "values": {}
+                    },
+                    "additionalProperties": false,
+                    "required": ["uid"]
+                  }
+                ]
+              }
+            },
+            "required": ["type", "data"]
+          },
+          "then": {
+            "properties": {
+              "data": {
+                "$ref": "#/$defs/data_component"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
                 "const": "synced"
               },
               "data": {
@@ -1607,6 +1649,46 @@
         }
       },
       "required": ["tex", "display", "_mex"],
+      "additionalProperties": false
+    },
+    "data_component": {
+      "type": "object",
+      "description": "Component block (2.5): a Content-Type Builder component with scalar attributes. Renderers output nothing unless the site passes `componentBlocks[uid]`.",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "pattern": "^([A-Za-z0-9_-]{1,100}\\.[A-Za-z0-9_-]{1,100})?$",
+          "description": "Uid of the Content-Type Builder component (category.name); empty when invalid. The field option allowedComponents lists the uids editors may insert."
+        },
+        "values": {
+          "type": "object",
+          "maxProperties": 50,
+          "propertyNames": {
+            "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,63}$"
+          },
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 20000
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              }
+            ]
+          },
+          "description": "Attribute values (plain text, numbers, booleans; never HTML). Checked against the current component schema on save: unknown attributes are dropped, values are coerced to their type."
+        },
+        "_mex": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Built-in block marker (2.3: 1). Tells the built-in block apart from a custom block created before 2.3 under the same name."
+        }
+      },
+      "required": ["uid", "values", "_mex"],
       "additionalProperties": false
     },
     "data_synced": {

@@ -36,5 +36,17 @@
   "field.options.linkTargets.all": "Entradas y direcciones web",
   "field.options.linkTargets.internal": "Solo entradas de este sitio",
   "field.options.linkTargets.external": "Solo direcciones web",
-  "field.options.linkTargets.none": "Sin enlaces"
+  "field.options.linkTargets.none": "Sin enlaces",
+  "field.options.components": "Bloques de componentes",
+  "field.options.allowedComponents.label": "Componentes que los editores pueden insertar",
+  "field.options.allowedComponents.description": "Cada uno aparece en el menú + de este campo con su nombre. Se comprueba de nuevo al guardar.",
+  "field.options.allowedComponents.placeholder": "Sin bloques de componentes",
+  "field.options.allowedComponents.loadError": "No se pudieron cargar los componentes.",
+  "field.options.allowedComponents.empty": "Esta aplicación aún no tiene componentes. Cree primero uno en el Content-Type Builder.",
+  "field.options.allowedComponents.unsupported": "No se pueden usar como bloques (solo se admiten campos de texto, número, fecha, opción y sí/no):",
+  "field.options.allowedComponents.reason.type": "{name} ({type})",
+  "field.options.allowedComponents.reason.private": "{name} (privado)",
+  "field.options.allowedComponents.reason.name": "{name} (nombre)",
+  "field.options.allowedComponents.reason.enum": "{name} (sin opciones)",
+  "field.options.allowedComponents.reason.tooMany": "más de 50 campos"
 }

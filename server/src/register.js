@@ -12,6 +12,7 @@ const { registerCommentRetention } = require('./utils/comment-retention');
 const { registerAuditTrail } = require('./utils/audit-trail');
 const { OUTPUT_FORMATS } = require('../../shared/resolve-references.mjs');
 const { registerGraphql } = require('./graphql');
+const { createComponentChecker } = require('./utils/component-blocks');
 const { readPositionalEntries } = require('./utils/field-identity');
 const {
   assignFieldKeys,
@@ -97,6 +98,8 @@ module.exports = ({ strapi }) => {
 
   const logger = createLogger(strapi);
   const cache = new Map();
+  // 2.5: component blocks are checked against the field's allowed list and the current schemas.
+  const checkComponents = createComponentChecker(strapi);
   const saveMiddleware = async (ctx, next) => {
     const sanitize = strapi.config.get('plugin::magic-editor-x.sanitizeOnSave') !== false;
     if (!sanitize || !['create', 'update'].includes(ctx.action) || !ctx.params || !ctx.params.data)
@@ -111,7 +114,12 @@ module.exports = ({ strapi }) => {
       transformEditorFields(strapi, contentType, ctx.params.data, (value, attribute, path, container) => {
         current = path;
         const preset = resolveFieldPreset(attribute && attribute.options);
-        const clean = cleanEditorValue(value, { rawHtml, inlineTags: allowedInlineTags(preset) });
+        const sanitized = cleanEditorValue(value, { rawHtml, inlineTags: allowedInlineTags(preset) });
+        const checked = checkComponents(sanitized, preset);
+        const clean = checked.data;
+        for (const violation of checked.violations) {
+          if (violations.length < 50) violations.push({ field: path, ...violation });
+        }
         if (preset.restricted) {
           for (const violation of checkPreset(clean, preset)) {
             if (violations.length < 50) violations.push({ field: path, ...violation });

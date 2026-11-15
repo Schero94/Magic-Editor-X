@@ -99,6 +99,8 @@ import { highlightMatch, clearHighlight } from '../../editor/find-highlight';
 import { createAltTextSuggester } from '../../editor/ai-alt-text';
 import { insertSuggestion } from '../../editor/ai-selection';
 import { GrammarPanel } from './GrammarPanel';
+import { ComponentBlockView } from './ComponentBlockView';
+import { setActiveComponents } from '../../../../shared/components.mjs';
 import { FieldAiDialog } from './FieldAiDialog';
 import { BlockAiDialog } from './BlockAiDialog';
 import { applySegments } from '../../../../shared/ai-fields.mjs';
@@ -496,6 +498,36 @@ const EditorFieldBody = ({
   // eslint-disable-next-line react-hooks/exhaustive-deps -- recomputed when the options change (presetKey)
   const preset = useMemo(() => resolveFieldPreset(fieldOptions), [presetKey]);
   const presetRef = useRef(preset);
+  // 2.5: component blocks. Descriptors of every component (GET /config), the ones this field allows.
+  const componentList = config && Array.isArray(config.components) ? config.components : null;
+  const componentsByUid = useMemo(
+    () => new Map((componentList || []).map((descriptor) => [descriptor.uid, descriptor])),
+    [componentList]
+  );
+  useEffect(() => {
+    if (componentList) setActiveComponents(componentList);
+  }, [componentList]);
+  const allowedComponents = useMemo(
+    () =>
+      preset.components
+        .map((uid) => componentsByUid.get(uid))
+        .filter((descriptor) => descriptor && descriptor.supported),
+    [preset, componentsByUid]
+  );
+  const [componentMounts, setComponentMounts] = useState(() => new Map());
+  const componentKeyRef = useRef(0);
+  const mountComponent = useCallback((element, info) => {
+    componentKeyRef.current += 1;
+    const key = componentKeyRef.current;
+    setComponentMounts((current) => new Map(current).set(key, { element, ...info }));
+    return () =>
+      setComponentMounts((current) => {
+        if (!current.has(key)) return current;
+        const next = new Map(current);
+        next.delete(key);
+        return next;
+      });
+  }, []);
   useEffect(() => {
     presetRef.current = preset;
   }, [preset]);
@@ -990,6 +1022,8 @@ const EditorFieldBody = ({
       placeholder,
       attachmentTypes: config.uploads.attachmentTypes,
       mountSynced,
+      componentBlocks: allowedComponents,
+      mountComponent,
       onFootnoteEdit: (marker, info) => footnoteEditRef.current && footnoteEditRef.current(marker, info),
       // 2.4: "Comment" in the inline toolbar for admins who may write comments.
       onComment:
@@ -2389,6 +2423,8 @@ const EditorFieldBody = ({
                 placeholder,
                 attachmentTypes: config && config.uploads.attachmentTypes,
                 mountSynced,
+                componentBlocks: allowedComponents,
+                mountComponent,
               }}
               preset={preset}
               direction={direction}
@@ -2781,6 +2817,25 @@ const EditorFieldBody = ({
           comments={commentsEnabled}
         />
       ) : null}
+      {[...componentMounts].map(([key, mount]) =>
+        createPortal(
+          <ComponentBlockView
+            t={t}
+            blockId={mount.blockId}
+            uid={mount.uid}
+            values={mount.values}
+            fresh={mount.fresh}
+            readOnly={Boolean(mount.readOnly || readOnly)}
+            descriptor={componentsByUid.get(mount.uid) || null}
+            allowed={preset.components.includes(mount.uid)}
+            focus={mount.focus}
+            onChange={mount.onChange}
+            subscribe={mount.subscribe}
+          />,
+          mount.element,
+          `component-${key}`
+        )
+      )}
       {[...syncedMounts].map(([key, mount]) =>
         createPortal(
           <SyncedBlockView

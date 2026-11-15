@@ -331,5 +331,11 @@ export const xssDocument = (payload) =>
         text: `<span data-mex-math>${payload}</span><sup data-mex-footnote="fn1" data-mex-note="${escapeHtml(payload)}">1</sup>`,
       },
     },
+    // 2.5: component blocks (nothing by default; `componentBlocks` renders them in the parity test).
+    {
+      type: 'component',
+      data: { uid: 'blocks.cta', values: { title: payload, url: payload, n: 1 }, _mex: 1 },
+    },
+    { type: 'component', data: { uid: payload, values: { [payload]: payload, ok: payload }, _mex: 1 } },
     { type: 'custom-x', data: { title: payload, url: payload, nested: { a: payload } } }
   );

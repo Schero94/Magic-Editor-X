@@ -25,7 +25,16 @@ const UID = 'plugin::magic-editor-x.custom-block';
  * nor the built-in shape (`isBuiltInBlock`), so it is never rewritten, and its
  * own editor tool keeps the name.
  */
-const LEGACY_BUILT_IN_NAMES = new Set(['toc', 'gallery', 'video', 'audio', 'synced', 'mention', 'math']);
+const LEGACY_BUILT_IN_NAMES = new Set([
+  'toc',
+  'gallery',
+  'video',
+  'audio',
+  'synced',
+  'mention',
+  'math',
+  'component',
+]);
 
 /** Built-in tool names a custom block must not shadow. */
 const RESERVED_NAMES = new Set(
