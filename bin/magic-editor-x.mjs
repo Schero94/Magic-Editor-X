@@ -3,11 +3,14 @@
  * Magic Editor X command line.
  *
  *   npx magic-editor-x migrate --uid api::article.article --from body --to content [--apply]
+ *   npx magic-editor-x media-file-ids [--apply]   (2.5)
  *
  * Run it from the root of the Strapi project. It loads the project with
  * Strapi's programmatic API (compileStrapi, createStrapi().load(), destroy()),
  * without starting the HTTP server, runs the plugin's `migrate` service and
  * prints the report. Without `--apply` nothing is written (dry run).
+ * `media-file-ids` runs the plugin's `media` service `migrateFileIds`
+ * (the 2.5 migration, re-runnable).
  */
 
 import { createRequire } from 'node:module';
@@ -36,7 +39,14 @@ Options:
   --out <file>        Also write the JSON report to a file
   -h, --help          Show this help
 
-Exit code 1 when an option is invalid or a document failed.`;
+Exit code 1 when an option is invalid or a document failed.
+
+Usage: magic-editor-x media-file-ids [--apply] [--json] [--batch <n>]
+
+Links the Media Library files of every Magic Editor X field (image, gallery,
+video, audio, poster, track and attachment files) to their Media Library
+entry by URL, and removes stored signatures of a private upload provider.
+Safe to run again; without --apply nothing is written (dry run).`;
 
 /**
  * Parses and validates the command line.
@@ -65,14 +75,25 @@ export const parseCommand = (argv) => {
     },
   });
   if (values.help) return { help: true };
-  if (positionals.length !== 1 || positionals[0] !== 'migrate')
-    throw new Error('Unknown command (expected "migrate")');
-  for (const name of ['uid', 'from', 'to']) if (!values[name]) throw new Error(`--${name} is required`);
   const integer = (name) => {
     if (values[name] === undefined) return undefined;
     if (!/^\d{1,7}$/.test(values[name])) throw new Error(`--${name} must be a positive integer`);
     return Number(values[name]);
   };
+  if (positionals.length === 1 && positionals[0] === 'media-file-ids') {
+    for (const name of ['uid', 'from', 'to', 'format', 'locale', 'overwrite', 'limit', 'out'])
+      if (values[name] !== undefined) throw new Error(`--${name} is not an option of media-file-ids`);
+    const batch = integer('batch');
+    return {
+      help: false,
+      command: 'media-file-ids',
+      json: Boolean(values.json),
+      options: { dryRun: !values.apply, ...(batch !== undefined ? { batchSize: batch } : {}) },
+    };
+  }
+  if (positionals.length !== 1 || positionals[0] !== 'migrate')
+    throw new Error('Unknown command (expected "migrate" or "media-file-ids")');
+  for (const name of ['uid', 'from', 'to']) if (!values[name]) throw new Error(`--${name} is required`);
   const options = {
     uid: values.uid,
     from: values.from,
@@ -87,6 +108,26 @@ export const parseCommand = (argv) => {
   const limit = integer('limit');
   if (limit !== undefined) options.limit = limit;
   return { help: false, json: Boolean(values.json), out: values.out, options };
+};
+
+/**
+ * Formats a media file id report for people (2.5).
+ * @param {object} report - `media.migrateFileIds` report.
+ * @returns {string} Text.
+ */
+export const formatMediaReport = (report) => {
+  const lines = [
+    `${report.dryRun ? 'Dry run' : 'Migration'}: Media Library file ids`,
+    `  models            ${report.models}`,
+    `  rows scanned      ${report.scanned}`,
+    `  ${report.dryRun ? 'would change' : 'changed     '}      ${report.changedValues}`,
+    `  files linked      ${report.linked}`,
+    `  signatures removed ${report.unsigned}`,
+    `  not in library    ${report.unmatched}`,
+    `  failed            ${report.failed}`,
+  ];
+  if (report.dryRun) lines.push('Nothing was written. Run again with --apply to write.');
+  return lines.join('\n');
 };
 
 /**
@@ -153,10 +194,16 @@ export const main = async (argv) => {
       throw Object.assign(new Error('Magic Editor X is not installed in this project'), {
         code: 'NO_PLUGIN',
       });
-    const report = await plugin.service('migrate').run(command.options);
-    if (command.out) writeFileSync(command.out, `${JSON.stringify(report, null, 2)}\n`);
-    print(`${command.json ? JSON.stringify(report, null, 2) : formatReport(report)}\n`);
-    code = report.failed.length > 0 ? 1 : 0;
+    if (command.command === 'media-file-ids') {
+      const report = await plugin.service('media').migrateFileIds(command.options);
+      print(`${command.json ? JSON.stringify(report, null, 2) : formatMediaReport(report)}\n`);
+      code = report.failed > 0 ? 1 : 0;
+    } else {
+      const report = await plugin.service('migrate').run(command.options);
+      if (command.out) writeFileSync(command.out, `${JSON.stringify(report, null, 2)}\n`);
+      print(`${command.json ? JSON.stringify(report, null, 2) : formatReport(report)}\n`);
+      code = report.failed.length > 0 ? 1 : 0;
+    }
   } catch (error) {
     process.stderr.write(`${error && error.message ? error.message : 'Migration failed'}\n`);
     code = 1;

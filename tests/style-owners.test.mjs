@@ -33,6 +33,8 @@ test('the field renders the global editor styles through the shared owner only',
     'utf8'
   );
   assert.equal((source.match(/<EditorStyles \/>/g) || []).length, 1);
-  assert.match(source, /return owner \? <EditorStyles \/> : null;/);
-  assert.match(source, /<SharedEditorStyles \/>/);
+  // 2.5: the owner also renders the palette styles (colour tokens), only when a palette exists.
+  assert.match(source, /if \(!owner\) return null;\s*return \(\s*<>\s*<EditorStyles \/>/);
+  assert.equal((source.match(/<PaletteStyles /g) || []).length, 1);
+  assert.match(source, /<SharedEditorStyles palette=\{palette\} \/>/);
 });

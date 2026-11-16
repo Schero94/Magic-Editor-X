@@ -1,10 +1,14 @@
-import { Bell } from '@strapi/icons';
+import { Bell, Discuss, Link as LinkIcon } from '@strapi/icons';
+import { EntryPanel } from './components/EntryPanel';
 import { PLUGIN_ID } from './pluginId';
 import { PluginIcon } from './components/PluginIcon';
 import { PERMISSIONS } from './permissions';
 import { getTranslation } from './utils/getTranslation';
 import { registerBlock } from './editor/block-registry';
 import { createReactTool } from './editor/react-tool';
+import { createLogoutMiddleware } from './editor/drafts-logic.mjs';
+import { createSessionMiddleware } from './editor/session-state.mjs';
+import { clearDrafts } from './editor/draft-store';
 
 /**
  * Translations are split by area (common, editor, tools, settings); each
@@ -100,6 +104,37 @@ export default {
           { action: 'plugin::magic-editor-x.comments.read' },
         ],
       });
+    }
+
+    // 2.5: homepage widgets "My open threads" and "Broken links" (the server checks every request).
+    if (app.widgets && typeof app.widgets.register === 'function') {
+      app.widgets.register([
+        {
+          id: 'open-threads',
+          pluginId: PLUGIN_ID,
+          icon: Discuss,
+          title: { id: getTranslation('widget.openThreads.title'), defaultMessage: 'My open threads' },
+          component: async () => {
+            const { OpenThreadsWidget } = await import('./components/EntryWidgets');
+            return OpenThreadsWidget;
+          },
+          permissions: [
+            { action: 'plugin::magic-editor-x.access' },
+            { action: 'plugin::magic-editor-x.comments.read' },
+          ],
+        },
+        {
+          id: 'broken-links',
+          pluginId: PLUGIN_ID,
+          icon: LinkIcon,
+          title: { id: getTranslation('widget.brokenLinks.title'), defaultMessage: 'Broken links' },
+          component: async () => {
+            const { BrokenLinksWidget } = await import('./components/EntryWidgets');
+            return BrokenLinksWidget;
+          },
+          permissions: [{ action: 'plugin::magic-editor-x.access' }],
+        },
+      ]);
     }
 
     app.customFields.register({
@@ -237,6 +272,53 @@ export default {
               },
             ],
           },
+          // 2.5: extra inline formatting, off unless turned on here.
+          {
+            sectionTitle: {
+              id: getTranslation('field.options.formatting'),
+              defaultMessage: 'Extra formatting',
+            },
+            items: [
+              {
+                intlLabel: {
+                  id: getTranslation('field.options.inlineColors.label'),
+                  defaultMessage: 'Text colour and highlight',
+                },
+                description: {
+                  id: getTranslation('field.options.inlineColors.description'),
+                  defaultMessage:
+                    'Editors pick from the colours your developer set in the plugin configuration (palette). Without a palette nothing is shown.',
+                },
+                name: 'options.inlineColors',
+                type: 'checkbox',
+              },
+              {
+                intlLabel: {
+                  id: getTranslation('field.options.inlineScript.label'),
+                  defaultMessage: 'Superscript and subscript',
+                },
+                description: {
+                  id: getTranslation('field.options.inlineScript.description'),
+                  defaultMessage: 'For formulas and units such as m² or H₂O',
+                },
+                name: 'options.inlineScript',
+                type: 'checkbox',
+              },
+              {
+                intlLabel: {
+                  id: getTranslation('field.options.inlineAnnotations.label'),
+                  defaultMessage: 'Annotations',
+                },
+                description: {
+                  id: getTranslation('field.options.inlineAnnotations.description'),
+                  defaultMessage:
+                    'Comma-separated annotation names, for example: abbreviation. Your developer can add more, such as glossary.',
+                },
+                name: 'options.inlineAnnotations',
+                type: 'text',
+              },
+            ],
+          },
           {
             sectionTitle: { id: getTranslation('field.options.features'), defaultMessage: 'Features' },
             items: [
@@ -339,9 +421,26 @@ export default {
         },
       ]
     );
+
+    // 2.5 local draft buffers: removed from this browser when the admin logs out on purpose
+    // (Redux middleware of the admin store; see editor/drafts-logic.mjs createLogoutMiddleware).
+    if (typeof app.addMiddlewares === 'function')
+      app.addMiddlewares([
+        createLogoutMiddleware({ onLogout: () => clearDrafts() }),
+        createSessionMiddleware,
+      ]);
   },
 
-  bootstrap() {},
+  /**
+   * 2.5: the one Magic Editor X side panel of the Content Manager edit view (presence, comments,
+   * quality). Other features add a section to `components/EntryPanel/sections.jsx`, never a panel.
+   * @param {object} app - Strapi admin app.
+   */
+  bootstrap(app) {
+    const contentManager = app.getPlugin && app.getPlugin('content-manager');
+    const apis = contentManager && contentManager.apis;
+    if (apis && typeof apis.addEditViewSidePanel === 'function') apis.addEditViewSidePanel([EntryPanel]);
+  },
 
   /**
    * @param {{ locales: string[] }} options - Admin locales.

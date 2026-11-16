@@ -98,7 +98,7 @@
 
     <main class="layout" id="main-content">
       <nav class="side-nav" aria-label="Documentation sections">
-        <a href="#whats-new">New in 2.4</a>
+        <a href="#whats-new">New in 2.5</a>
         <a href="#features">Features</a>
         <a href="#screens">Screens</a>
         <a href="#install">Install</a>
@@ -114,28 +114,24 @@
 
       <div class="content">
         <section class="section" id="whats-new" aria-labelledby="whats-new-title">
-          <h2 id="whats-new-title">What's new in 2.4</h2>
+          <h2 id="whats-new-title">What's new in 2.5</h2>
           <p class="section-lead">
-            No breaking changes: stored content keeps working and Editor.js stays at 2.31.7. The full list, with
-            notes on existing data, is in the
+            No breaking changes: stored content keeps working, the field toolbar is unchanged and everything new is
+            off by default or appears only when it is relevant. The full list, with migration notes, is in the
             <a href="https://github.com/Schero94/Magic-Editor-X/blob/main/CHANGELOG.md">CHANGELOG</a>.
           </p>
           <ul class="check-list">
-            <li>A short field toolbar: undo, redo, a <strong>More tools</strong> menu (Review, Write, View) and full screen. Tools appear only where they can work.</li>
-            <li>Tables with a header row and header column, alignment per column, merged cells and a caption; spreadsheet and Word paste keep them.</li>
-            <li>Formulas in TeX as a block or inside text, rendered as MathML, and footnotes numbered in reading order.</li>
-            <li>Comments on selected text that stay on the passage while people edit, @mentions of colleagues, and a Mentions and replies widget on the admin home page, with optional e-mails.</li>
-            <li>Block suggestions: reviewers propose changes in a separate copy, editors accept or reject each block.</li>
-            <li>AI for chosen blocks: rewrite, shorten, translate or change the tone of just those blocks, with a word diff before applying.</li>
-            <li>An audit trail of who changed what and when, without content; versions of synced blocks; Run now and a time zone for the scheduled link check.</li>
-            <li>Fields in repeatable components and dynamic zones have history, comments and live editing again (stable <code>fieldKey</code>).</li>
-            <li><code>@</code> in text inserts a mention, code blocks get a file name, pasted videos and audio are copied into the Media Library.</li>
-            <li>Strapi AI translations send only text and keep the field structure; Releases show entries the publishing guard refuses as not ready.</li>
+            <li>A Magic Editor X panel next to every entry: who else is editing it, open comments and quality per field, and an optional soft lock that asks once and never locks anyone out.</li>
+            <li>Unsaved changes stay in your browser and come back after a reload, crash or closed tab: Restore or Discard.</li>
+            <li>Insert from another entry: copy chosen blocks from any entry, field or language you can read, with a preview. Copy and paste blocks between fields with everything they contain.</li>
+            <li>Long entries open faster: fields start when they come near the screen.</li>
+            <li>Text colour and highlight from your own named palette (no inline styles), superscript, subscript and inline annotations such as abbreviations.</li>
+            <li>Private upload providers: files are signed on every read and never stored signed. Drop files onto a field to upload and insert them.</li>
+            <li>Homepage widgets "My open threads" and "Broken links", and optional tools for Strapi's MCP server.</li>
           </ul>
           <p>
-            Also fixed: a collaboration bug that could delete blocks an editor had not rendered yet when it typed
-            right after joining a room. Why the plugin stays on Editor.js:
-            <a href="https://github.com/Schero94/Magic-Editor-X/blob/main/docs/engine-decision.md">engine decision</a>.
+            Also fixed: Tab in dialogs, live editing of empty fields, history after discarding or emptying sections,
+            synced block versions without changes, and mention e-mails in the recipient's language.
           </p>
         </section>
 
@@ -287,6 +283,66 @@
           <h2 id="screens-title">Screens</h2>
           <p class="section-lead">All screenshots use synthetic data (acceptance host: Strapi 5.61.1).</p>
           <div class="gallery">
+            <figure class="shot">
+              <img
+                src="./img/entry-panel-after-1440.png"
+                alt="The Magic Editor X entry panel: Editing now, open comments and quality per field"
+                width="742"
+                height="464"
+                loading="lazy"
+              />
+              <figcaption>Entry panel (2.5)</figcaption>
+            </figure>
+            <figure class="shot">
+              <img
+                src="./img/home-widgets-after-1440.png"
+                alt="Admin home with the My open threads and Broken links widgets"
+                width="742"
+                height="464"
+                loading="lazy"
+              />
+              <figcaption>Homepage widgets (2.5)</figcaption>
+            </figure>
+            <figure class="shot">
+              <img
+                src="./img/drafts-after-1440.png"
+                alt="Restore notice: unsaved changes found, with Restore and Discard"
+                width="742"
+                height="464"
+                loading="lazy"
+              />
+              <figcaption>Unsaved changes (2.5)</figcaption>
+            </figure>
+            <figure class="shot">
+              <img
+                src="./img/reuse-dialog-after-1440.png"
+                alt="Insert from another entry: entry, field and a preview of the blocks with checkboxes"
+                width="742"
+                height="464"
+                loading="lazy"
+              />
+              <figcaption>Insert from another entry (2.5)</figcaption>
+            </figure>
+            <figure class="shot">
+              <img
+                src="./img/inline-settings-palette-light-1440.png"
+                alt="Settings: the colour palette with the CSS to copy and contrast warnings"
+                width="742"
+                height="533"
+                loading="lazy"
+              />
+              <figcaption>Colour palette (2.5)</figcaption>
+            </figure>
+            <figure class="shot">
+              <img
+                src="./img/media-drop-after-1440.png"
+                alt="Dropping an image onto a field"
+                width="742"
+                height="464"
+                loading="lazy"
+              />
+              <figcaption>Drop files onto a field (2.5)</figcaption>
+            </figure>
             <figure class="shot">
               <img
                 src="./img/toolbar-after-1440.png"
@@ -1018,7 +1074,8 @@
             <li>Suggestions are cleaned and checked against the field's rules; accepting needs update access and each suggestion is decided once.</li>
             <li>The audit trail keeps ids and counts, never content, e-mail or IP addresses.</li>
             <li>Strapi AI translations receive only the text of a field; the publishing guard also covers direct published writes and Releases readiness.</li>
-            <li>Reviews: <a href="https://github.com/Schero94/Magic-Editor-X/blob/main/docs/security-audit-2.4.md">security-audit-2.4.md</a> and <a href="https://github.com/Schero94/Magic-Editor-X/blob/main/docs/security-audit-2.3.md">security-audit-2.3.md</a>.</li>
+            <li>The entry panel shows names only and only to admins who can read the entry; inserting from another entry needs read access to the source; local drafts stay in the admin's browser and are removed at logout; private files are never stored signed.</li>
+            <li>Reviews: <a href="https://github.com/Schero94/Magic-Editor-X/blob/main/docs/security-audit-2.5.md">security-audit-2.5.md</a>, <a href="https://github.com/Schero94/Magic-Editor-X/blob/main/docs/security-audit-2.4.md">security-audit-2.4.md</a> and <a href="https://github.com/Schero94/Magic-Editor-X/blob/main/docs/security-audit-2.3.md">security-audit-2.3.md</a>.</li>
           </ul>
         </section>
 

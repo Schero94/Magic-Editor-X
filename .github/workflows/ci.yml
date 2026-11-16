@@ -55,6 +55,14 @@ jobs:
         run: npm run verify:runtime
       - name: Package contents
         run: npm pack --dry-run
+      - name: Packed package installs without EBADENGINE (Node 22)
+        if: matrix.node == '22'
+        run: |
+          npm pack --ignore-scripts --pack-destination "$RUNNER_TEMP"
+          mkdir -p "$RUNNER_TEMP/install-check" && cd "$RUNNER_TEMP/install-check"
+          npm init -y > /dev/null
+          npm install "$RUNNER_TEMP"/magic-editor-x-*.tgz --ignore-scripts --no-audit --no-fund --legacy-peer-deps --dry-run 2>&1 | tee install.log
+          if grep -q EBADENGINE install.log; then echo "EBADENGINE on Node 22"; exit 1; fi
       - name: Production audit
         run: npm audit --omit=dev --audit-level=high
 

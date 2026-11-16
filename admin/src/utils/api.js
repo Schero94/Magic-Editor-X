@@ -62,6 +62,14 @@ export const API = {
   settings: '/magic-editor-x/settings',
   settingsAiTest: '/magic-editor-x/settings/ai/test',
   settingsLanguageToolTest: '/magic-editor-x/settings/language-tool/test',
+  // 2.5: entry side panel and homepage widgets.
+  presence: '/magic-editor-x/presence',
+  entrySummary: '/magic-editor-x/entry-summary',
+  widgetOpenThreads: '/magic-editor-x/widgets/open-threads',
+  widgetBrokenLinks: '/magic-editor-x/widgets/broken-links',
+  // 2.5 "Use existing content".
+  reuseTypes: '/magic-editor-x/reuse/types',
+  reuseSource: '/magic-editor-x/reuse/source',
 };
 
 /**

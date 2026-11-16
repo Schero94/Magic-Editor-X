@@ -171,11 +171,26 @@ class MediaBaseTool {
       ...request,
       onSelect: (assets) => {
         if (Array.isArray(assets) && assets.length) onPicked(assets);
-        window.setTimeout(() => {
-          const target = this.focusAfterPick || trigger;
-          this.focusAfterPick = null;
+        // A redraw replaces the trigger: focus its successor (same `data-mex-action`) in this block.
+        const restore = () => {
+          let target = trigger;
+          const action = trigger && trigger.dataset ? trigger.dataset.mexAction : '';
+          if ((!target || !target.isConnected) && action && this.wrapper)
+            target = this.wrapper.querySelector(`[data-mex-action="${action}"]`);
           if (target && target.isConnected && !target.disabled) target.focus();
-        }, 0);
+        };
+        window.setTimeout(restore, 0);
+        // 2.5: the Media Library picker returns focus to the element that opened it once its close
+        // animation ends; the redrawn block replaced that element, so focus fell to the page body.
+        // Watch for that for a moment (only while nothing else has focus).
+        let checks = 0;
+        const settle = () => {
+          const active = document.activeElement;
+          if (!active || active === document.body) restore();
+          checks += 1;
+          if (checks < 30) window.setTimeout(settle, 50);
+        };
+        window.setTimeout(settle, 50);
       },
     });
   }

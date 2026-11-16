@@ -113,7 +113,7 @@ export const AiDialog = ({ t, request, config, target, onApply, onClose }) => {
 
   return (
     <Modal.Root open onOpenChange={(open) => !open && onClose()}>
-      <Modal.Content>
+      <Modal.Content aria-describedby={undefined}>
         <Modal.Header closeLabel={t('editor.ai.close', 'Close')}>
           <Modal.Title>{t('editor.ai.title', 'AI assistant')}</Modal.Title>
         </Modal.Header>

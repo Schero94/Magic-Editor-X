@@ -124,7 +124,7 @@ export const BlockFormModal = ({
         if (!next && !saving) onClose();
       }}
     >
-      <Modal.Content>
+      <Modal.Content aria-describedby={undefined}>
         <Modal.Header closeLabel={t('settings.close', 'Close')}>
           <Modal.Title>{title}</Modal.Title>
         </Modal.Header>

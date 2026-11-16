@@ -291,9 +291,18 @@ export const BLOCK_DATA_SCHEMAS = Object.freeze({
   ),
   attaches: obj(
     {
-      file: obj({ url, name: str(255), extension: str(16), size: { type: 'number' }, title: str(255) }, [
-        'url',
-      ]),
+      file: obj(
+        {
+          url,
+          id: { type: ['integer', 'string'], description: 'Media Library file id (2.5).' },
+          documentId: str(64),
+          name: str(255),
+          extension: str(16),
+          size: { type: 'number' },
+          title: str(255),
+        },
+        ['url']
+      ),
       title: str(255),
     },
     ['file', 'title']
@@ -398,7 +407,7 @@ export const buildEditorSchema = () => ({
     inlineHtml: {
       type: 'string',
       description:
-        'Inline HTML limited to b, strong, i, em, u, s, mark, code, a, br, span, sub, sup with the attributes of the sanitising policy. Internal links carry data-mex-uid, data-mex-document-id and data-mex-locale; mentions (inline entry references) also data-mex-mention="true". Inline math (2.4): <span data-mex-math="true">TeX source</span> (text only). Footnote markers (2.4): <sup data-mex-footnote="id" data-mex-note="inline HTML of the note">n</sup> (the note follows the same rules without footnotes and entry references; the marker text is a placeholder).',
+        'Inline HTML limited to b, strong, i, em, u, s, mark, code, a, br, span, sub, sup with the attributes of the sanitising policy. Internal links carry data-mex-uid, data-mex-document-id and data-mex-locale; mentions (inline entry references) also data-mex-mention="true". Inline math (2.4): <span data-mex-math="true">TeX source</span> (text only). Footnote markers (2.4): <sup data-mex-footnote="id" data-mex-note="inline HTML of the note">n</sup> (the note follows the same rules without footnotes and entry references; the marker text is a placeholder). Since 2.5: text colour <span data-mex-color="token"> and highlight <mark data-mex-highlight="token"> (token /^[a-z][a-z0-9-]{0,31}$/ from the configured palette, never a style), inline annotations <span data-mex-annotation="name" data-mex-a-<key>="value"> (name /^[a-z][a-z0-9-]{1,39}$/, at most 8 values of at most 1000 characters; the attribute schema of a registered annotation is annotationJsonSchema(definition) from magic-editor-x/blocks), and plain <sup>/<sub>.',
     },
     url: {
       type: 'string',

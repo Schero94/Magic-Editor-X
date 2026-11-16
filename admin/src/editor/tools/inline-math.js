@@ -121,7 +121,7 @@ export class InlineMathTool {
   }
 
   static get sanitize() {
-    return { span: { ...SPAN_SANITIZE } };
+    return { span: SPAN_SANITIZE };
   }
 
   constructor({ api, config }) {

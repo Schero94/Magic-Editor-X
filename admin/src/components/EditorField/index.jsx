@@ -19,6 +19,7 @@ import {
   Discuss,
   Eye,
   Feather,
+  Files,
   Layout,
   Monitor,
   SealCheck,
@@ -27,9 +28,12 @@ import {
 } from '@strapi/icons';
 import { useFetchClient, useNotification, useStrapiApp } from '@strapi/strapi/admin';
 import { Lightbulb, Pencil } from '@strapi/icons';
-import styled, { createGlobalStyle } from 'styled-components';
+import styled, { createGlobalStyle, useTheme } from 'styled-components';
 import { buildTools, editorI18n, createUndoManager, createDragDrop } from '../../editor/tools';
 import { editorStyles } from '../../editor/tools/styles';
+import { isDarkTheme, paletteEditorCss } from '../../editor/palette-style.mjs';
+import { normalizePalette } from '../../../../shared/inline-format.mjs';
+import { abbreviationAnnotation, annotationsFromSummaries } from '../../../../shared/blocks/annotations.mjs';
 import { createCspGuard } from '../../editor/tools/csp-guard';
 import { prepareEditorValue, prepareRemoteData, sanitizeInline } from '../../editor/sanitize';
 import { applyToEditor, blockKey, rememberBlocks } from '../../editor/apply-remote';
@@ -39,6 +43,7 @@ import { useEditorConfig } from '../../hooks/useEditorConfig';
 import { getTranslation } from '../../utils/getTranslation';
 import { API, readApiError } from '../../utils/api';
 import { useFieldTarget } from './useFieldTarget';
+import { useSavedValues } from './useSavedValues';
 import { useCollaboration } from './useCollaboration';
 import { EditorToolbar } from './EditorToolbar';
 import { HistoryModal } from './HistoryModal';
@@ -80,6 +85,9 @@ import { replaceBlocks, sourceBlocksOf, syncedRefOf, syncedRefsOf } from '../../
 import { loadSynced, primeSynced, useSyncedSources } from '../../editor/synced-store';
 import { SyncedBlockView } from './SyncedBlockView';
 import { createPasteHandler } from '../../editor/paste';
+import { writeBlocksToClipboard } from '../../editor/block-clipboard';
+import { ReuseDialog } from './ReuseDialog';
+import { planReuseInsertion, spliceReuse } from '../../../../shared/reuse.mjs';
 import { createMarkdownShortcuts } from '../../editor/markdown-shortcuts';
 import { MentionTool, createMentionKeys } from '../../editor/tools/mention';
 import { createMentionTrigger } from '../../editor/mention-trigger';
@@ -93,6 +101,9 @@ import {
 import { FootnoteDialog } from './FootnoteDialog';
 import { FootnotesPanel } from './FootnotesPanel';
 import { restoreBlockInEditor } from '../../editor/restore-block.mjs';
+import { OPEN_FIELD_PANEL_EVENT, matchesFieldRequest } from '../../editor/entry-panel-events.mjs';
+import { installEditorKeyGuard } from '../../editor/focus-guard.mjs';
+import { restrictView } from '../../../../shared/collab-replica.mjs';
 import { markInputReady, trackUserInput } from '../../editor/input-tracking.mjs';
 import { createStyleOwners } from '../../editor/style-owners.mjs';
 import { highlightMatch, clearHighlight } from '../../editor/find-highlight';
@@ -101,6 +112,10 @@ import { insertSuggestion } from '../../editor/ai-selection';
 import { GrammarPanel } from './GrammarPanel';
 import { FieldAiDialog } from './FieldAiDialog';
 import { BlockAiDialog } from './BlockAiDialog';
+// 2.5: dropped files (Media Library drop zone) and signed URLs of private upload providers.
+import { MediaDropArea } from './MediaDropArea';
+import { droppedBlock, dropPosition, dropTypesFor, imageBlockData } from '../../editor/drop-insert.mjs';
+import { createMediaSigner, createSignedMediaRefresher } from '../../editor/signed-media';
 import { applySegments } from '../../../../shared/ai-fields.mjs';
 import {
   isPositionalFieldPath,
@@ -109,8 +124,16 @@ import {
   identityTarget,
 } from '../../editor/field-path.mjs';
 import { escapeHtml } from '../../../../shared/render/inline.mjs';
+// 2.5: local draft buffer (protect unsaved work) and lazy start of fields (performance).
+import { useDraftBuffer } from './useDraftBuffer';
+import { DraftNotice } from './DraftNotice';
+import { useLazyActivation } from './useLazyActivation';
+import { LazyPlaceholder } from './LazyPlaceholder';
+import { savedValueOf } from '../../editor/drafts-logic.mjs';
+import { lazyMarginOf } from '../../editor/lazy-init.mjs';
 import {
   resolveFieldPreset,
+  enabledAnnotations,
   checkPreset,
   fixPresetViolations,
   isBlockAllowed,
@@ -128,7 +151,18 @@ import {
 
 const SAVE_DEBOUNCE_MS = 150;
 
+/** 2.5: a lazily started editor renders out of view until ready; its static placeholder keeps the place. */
+const WAITING_HOLDER_STYLE = {
+  position: 'absolute',
+  visibility: 'hidden',
+  insetInline: 0,
+  top: 0,
+  pointerEvents: 'none',
+};
+
 const EditorStyles = createGlobalStyle`${editorStyles}`;
+// 2.5: the configured colour tokens in the editor and the preview (light or dark values by admin theme).
+const PaletteStyles = createGlobalStyle`${({ $palette, theme }) => paletteEditorCss($palette, isDarkTheme(theme))}`;
 const styleOwners = createStyleOwners();
 
 /**
@@ -137,7 +171,7 @@ const styleOwners = createStyleOwners();
  * layout effect, so the styles are in place before the browser paints.
  * @returns {JSX.Element|null} Styles of the owning field.
  */
-const SharedEditorStyles = () => {
+const SharedEditorStyles = ({ palette = null }) => {
   const id = useId();
   const [owner, setOwner] = useState(false);
   useLayoutEffect(() => {
@@ -150,7 +184,13 @@ const SharedEditorStyles = () => {
       styleOwners.remove(id);
     };
   }, [id]);
-  return owner ? <EditorStyles /> : null;
+  if (!owner) return null;
+  return (
+    <>
+      <EditorStyles />
+      {palette ? <PaletteStyles $palette={palette} /> : null}
+    </>
+  );
 };
 
 /** Locales written right to left (language subtag). */
@@ -196,6 +236,11 @@ const SHORTCUT_LABELS = {
   hyperlink: ['tools.names.link', 'Link'],
   mention: ['tools.names.mention', 'Mention'],
   aiAssistant: ['tools.names.ai', 'AI assistant'],
+  // 2.5 (only when the field turns them on)
+  superscript$mex: ['tools.names.superscript', 'Superscript'],
+  subscript$mex: ['tools.names.subscript', 'Subscript'],
+  color$mex: ['tools.names.color', 'Colour'],
+  annotation$abbreviation: ['tools.names.abbreviation', 'Abbreviation'],
 };
 
 const PanelSlot = styled(Box)`
@@ -329,11 +374,17 @@ const EditorFieldBody = ({
   disabled,
   error,
   labelAction,
+  savedValues,
 }) => {
   const { formatMessage, locale: adminLocale } = useIntl();
   const { get, post } = useFetchClient();
   const { toggleNotification } = useNotification();
   const MediaLibraryDialog = useStrapiApp('MagicEditorX', (state) => state.components['media-library']);
+  // 2.5: Strapi 5.61+ Media Library drop zone (absent on older hosts and with the legacy Media Library).
+  const FileDropZone = useStrapiApp(
+    'MagicEditorX',
+    (state) => (state.components && state.components['media-library-file-drop-zone']) || null
+  );
   const { config, customBlocks, error: configError, loading: configLoading, retry } = useEditorConfig();
   const navigate = useNavigate();
   const settingsHref = useHref(SETTINGS_PATH);
@@ -348,6 +399,9 @@ const EditorFieldBody = ({
     (id, defaultMessage, values) => formatMessage({ id: getTranslation(id), defaultMessage }, values),
     [formatMessage]
   );
+
+  // 2.5: keys typed outside the editors (dialogs, popovers, other fields) never reach Editor.js.
+  useEffect(() => installEditorKeyGuard(), []);
 
   const holderRef = useRef(null);
   const editorRef = useRef(null);
@@ -393,6 +447,12 @@ const EditorFieldBody = ({
   const [focusMode, setFocusMode] = useState(false);
   const [toolShortcuts, setToolShortcuts] = useState([]);
   const frameRef = useRef(null);
+  // 2.5: Editor.js (and the live room, which waits for `ready`) start when the field nears the viewport.
+  const lazy = useLazyActivation(frameRef, {
+    enabled: Boolean(target.uid) && !(config && config.lazyInit && config.lazyInit.enabled === false),
+    marginPx: lazyMarginOf(config && config.lazyInit && config.lazyInit.marginPx),
+  });
+  const focusOnStartRef = useRef(false);
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [commentFocusThread, setCommentFocusThread] = useState(null);
   const [currentBlockId, setCurrentBlockId] = useState(null);
@@ -445,6 +505,12 @@ const EditorFieldBody = ({
   const [saveTemplate, setSaveTemplate] = useState(null);
   const previewRef = useRef(null);
   const lastBlockIdRef = useRef(null);
+  // 2.5 "Use existing content": insert dialog, block clipboard (paste and the "Copy block" tune).
+  const [reuseOpen, setReuseOpen] = useState(false);
+  const toolNamesRef = useRef(new Set());
+  const pasteBlocksRef = useRef(null);
+  const copyBlockRef = useRef(null);
+  const reuseFocusRef = useRef(null);
   // Synced blocks (2.3): the tool hands its element to the field, which renders the view through a portal.
   const [syncedMounts, setSyncedMounts] = useState(() => new Map());
   const syncedKeyRef = useRef(0);
@@ -499,6 +565,30 @@ const EditorFieldBody = ({
   useEffect(() => {
     presetRef.current = preset;
   }, [preset]);
+  // 2.5: colour palette (config), extra inline formatting and annotations this field offers.
+  const theme = useTheme();
+  const darkRef = useRef(false);
+  const palette = useMemo(() => normalizePalette(config && config.palette), [config]);
+  const fieldAnnotations = useMemo(
+    () =>
+      enabledAnnotations(preset, [
+        abbreviationAnnotation,
+        ...annotationsFromSummaries(config && config.annotations),
+      ]),
+    [config, preset]
+  );
+  const inlineExtrasRef = useRef({});
+  useEffect(() => {
+    darkRef.current = isDarkTheme(theme);
+  }, [theme]);
+  useEffect(() => {
+    inlineExtrasRef.current = {
+      inlineExtras: { colors: preset.colors, script: preset.script },
+      palette,
+      annotations: fieldAnnotations,
+      isDark: () => darkRef.current,
+    };
+  }, [preset, palette, fieldAnnotations]);
   const direction = directionOf(target.locale);
   // 2.3 AI features: owner switches (config), RBAC and the field preset; the server checks all three again.
   const aiAllowed = Boolean(config && config.ai.enabled && permissions.ai && preset.ai);
@@ -659,6 +749,9 @@ const EditorFieldBody = ({
   }, [ready, scheduleSave]);
 
   /** Applies a document from outside (collaboration, history, form reset). */
+  // 2.5 private upload providers: the field's media signer and its request (set in an effect below).
+  const mediaSignerRef = useRef(null);
+  const signRequestRef = useRef(null);
   const applyExternal = useCallback(
     async (data, { emitToForm }) => {
       const editor = editorRef.current;
@@ -666,7 +759,18 @@ const EditorFieldBody = ({
       applyingRef.current = true;
       if (undoRef.current) undoRef.current.pause();
       try {
-        await applyToEditor(editor, data || { blocks: [] }, knownRef.current);
+        const signer = mediaSignerRef.current;
+        if (signer && data)
+          await Promise.race([
+            signer.prewarm(signer.basesOf(data), signRequestRef.current),
+            new Promise((resolve) => setTimeout(resolve, 3000)),
+          ]);
+        await applyToEditor(editor, data || { blocks: [] }, knownRef.current, {
+          display: signer
+            ? (blockData, block) =>
+                signer.signValue({ blocks: [{ ...block, data: blockData }] }).blocks[0].data
+            : undefined,
+        });
         setStats(computeStats(data));
         setCurrentData(data || null);
         setContentVersion((version) => version + 1);
@@ -926,6 +1030,46 @@ const EditorFieldBody = ({
     if (Array.isArray(ids) && ids.length) setBlockAiRequest({ ids: [...ids] });
   }, []);
 
+  // 2.5: a private upload provider serves files through expiring signed URLs, and the stored
+  // (unsigned) URL answers 403. Tools request an image as soon as they set `src`, so the field
+  // signs the media of its content first and Editor.js only ever sees signed URLs for display;
+  // `save()` turns them back into the stored ones (createMediaSigner). Nothing is stored signed.
+  const privateFiles = Boolean(config && config.uploads && config.uploads.privateFiles);
+  const signTargetRef = useRef(null);
+  useEffect(() => {
+    signTargetRef.current = target.uid && target.documentId ? fieldTarget : null;
+  });
+  const requestSignedUrls = useCallback(
+    async (urls) => {
+      const body = { urls, ...(signTargetRef.current ? { target: signTargetRef.current } : {}) };
+      const { data } = await post('/magic-editor-x/media/signed-urls', body);
+      return (data && data.data && data.data.urls) || {};
+    },
+    [post]
+  );
+  const mediaSigner = useMemo(() => (privateFiles ? createMediaSigner() : null), [privateFiles]);
+  const initialValueRef = useRef(value);
+  useEffect(() => {
+    mediaSignerRef.current = mediaSigner;
+    signRequestRef.current = requestSignedUrls;
+    initialValueRef.current = value;
+  });
+  const [mediaSigned, setMediaSigned] = useState(false);
+  useEffect(() => {
+    const signer = mediaSigner;
+    if (!privateFiles || !signer || mediaSigned || !lazy.active) return undefined;
+    let cancelled = false;
+    const bases = signer.basesOf(prepareEditorValue(initialValueRef.current).data);
+    // At most 3 s: the refresher still signs what is shown if the request is slow.
+    const timeout = new Promise((resolve) => setTimeout(resolve, 3000));
+    Promise.race([signer.prewarm(bases, requestSignedUrls), timeout]).then(() => {
+      if (!cancelled) setMediaSigned(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [privateFiles, mediaSigner, mediaSigned, lazy.active, requestSignedUrls]);
+
   // Create the editor once the configuration is known; recreate it only when
   // the tool set changes (configuration, custom blocks, permissions).
   const toolsKey = config
@@ -939,7 +1083,7 @@ const EditorFieldBody = ({
       })
     : null;
   useEffect(() => {
-    if (!config || !holderRef.current) return undefined;
+    if (!config || !holderRef.current || !lazy.active || (privateFiles && !mediaSigned)) return undefined;
     const prepared = prepareEditorValue(value);
     setValueError(prepared.error);
     const initial = prepared.data;
@@ -997,8 +1141,13 @@ const EditorFieldBody = ({
           ? (request) => startRangeCommentRef.current && startRangeCommentRef.current(request)
           : undefined,
       commentsAvailable: () => commentsWritableRef.current,
+      // 2.5: "Copy block" in the block menu.
+      onCopyBlock: (blockId) => copyBlockRef.current && copyBlockRef.current(blockId),
+      // 2.5: extra inline formatting the field turns on (off by default).
+      ...inlineExtrasRef.current,
     });
     const toolNames = new Set(Object.keys(tools));
+    toolNamesRef.current = toolNames;
     // User input is tracked before Editor.js renders the blocks: after the
     // create -> edit redirect several fields mount at once, and text typed
     // before this field's effects ran was never reported to the form.
@@ -1014,7 +1163,7 @@ const EditorFieldBody = ({
       }));
     const editor = new EditorJS({
       holder: holderRef.current,
-      data: initial || undefined,
+      data: (mediaSignerRef.current ? mediaSignerRef.current.signValue(initial) : initial) || undefined,
       readOnly,
       minHeight: 0,
       placeholder: placeholder || t('editor.placeholder', 'Write something, or type / to choose a block'),
@@ -1026,6 +1175,12 @@ const EditorFieldBody = ({
 
       onReady: () => {
         if (destroyed) return;
+        // 2.5: everything save() returns carries the stored (unsigned) media URLs again.
+        const signer = mediaSignerRef.current;
+        if (signer) {
+          const rawSave = editor.save;
+          editor.save = async () => signer.unsignValue(await rawSave());
+        }
         editorRef.current = editor;
         undoRef.current = createUndoManager(editor, {
           holder: holderRef.current,
@@ -1051,6 +1206,9 @@ const EditorFieldBody = ({
           notify: ({ type, message }) => toggleNotification({ type, message }),
           onInserted: markTouched,
           hasTool: (name) => toolNames.has(name),
+          // 2.5: blocks copied from a Magic Editor X field keep their data and tunes.
+          onEditorBlocks: (blocks, position) =>
+            pasteBlocksRef.current && pasteBlocksRef.current(blocks, position),
         });
         shortcuts = createMarkdownShortcuts({
           holder: holderRef.current,
@@ -1090,8 +1248,12 @@ const EditorFieldBody = ({
           editor
             .save()
             .then((data) => {
+              // Only stored blocks: the default paragraph of an empty field is not in any room (2.5).
               if (!destroyed && !userTouchedRef.current && data && Array.isArray(data.blocks))
-                viewRef.current = data;
+                viewRef.current = restrictView(
+                  data,
+                  ((initial && initial.blocks) || []).map((block) => block.id)
+                );
             })
             .catch(() => null);
       },
@@ -1116,7 +1278,18 @@ const EditorFieldBody = ({
     };
     // The editor is rebuilt only when its tools change; value updates are applied below.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- value/readOnly are handled by the effects below
-  }, [toolsKey, adminLocale]);
+  }, [toolsKey, adminLocale, lazy.active, mediaSigned]);
+
+  // 2.5: a field started by focusing (Tab) or clicking its placeholder takes the focus once ready.
+  useEffect(() => {
+    if (!ready || !focusOnStartRef.current || !editorRef.current) return;
+    focusOnStartRef.current = false;
+    try {
+      editorRef.current.focus();
+    } catch {
+      // nothing to focus
+    }
+  }, [ready]);
 
   // Read-only switches (permission changes, collaboration role) without rebuilding.
   useEffect(() => {
@@ -1217,23 +1390,7 @@ const EditorFieldBody = ({
       images.forEach((asset, offset) => {
         editor.blocks.insert(
           'image',
-          {
-            file: {
-              url: asset.url,
-              mime: asset.mime,
-              width: asset.width,
-              height: asset.height,
-              size: asset.size,
-              alt: asset.alternativeText || asset.name || '',
-              formats: asset.formats || undefined,
-              id: asset.id,
-              documentId: asset.documentId,
-            },
-            caption: asset.caption || '',
-            withBorder: false,
-            withBackground: false,
-            stretched: false,
-          },
+          imageBlockData(asset),
           undefined,
           start + offset,
           offset === images.length - 1
@@ -1263,6 +1420,58 @@ const EditorFieldBody = ({
       if (block && block.name === 'mediaLib') editor.blocks.delete(request.blockIndex);
     }
   }, [mediaRequest]);
+
+  // 2.5: files dropped onto the field become image, video or audio blocks at the drop point.
+  const dropAllowed = useMemo(
+    () => ({
+      image: Boolean(permissions.upload) && isBlockAllowed(preset, 'image'),
+      video: Boolean(permissions.upload && permissions.mediaLibrary) && isBlockAllowed(preset, 'video'),
+      audio: Boolean(permissions.upload && permissions.mediaLibrary) && isBlockAllowed(preset, 'audio'),
+    }),
+    [permissions.upload, permissions.mediaLibrary, preset]
+  );
+  const dropTypes = useMemo(() => dropTypesFor(dropAllowed), [dropAllowed]);
+  const onDroppedAsset = useCallback(
+    (asset, drop) => {
+      const editor = editorRef.current;
+      const planned = droppedBlock(asset, dropAllowed);
+      if (!editor || !planned) return;
+      const count = editor.blocks.getBlocksCount();
+      if (drop.next === null) {
+        const position = dropPosition(drop.target, count);
+        drop.next = position.index;
+        drop.replace = position.replace;
+      }
+      const at = Math.min(drop.next, count);
+      editor.blocks.insert(planned.type, planned.data, undefined, at, false);
+      if (drop.replace) {
+        drop.replace = false;
+        const empty = editor.blocks.getBlockByIndex(at + 1);
+        if (empty && empty.isEmpty) editor.blocks.delete(at + 1);
+      }
+      drop.next = at + 1;
+      userTouchedRef.current = true;
+      scheduleSave();
+    },
+    [dropAllowed, scheduleSave]
+  );
+
+  // 2.5: a private upload provider serves files through expiring signed URLs: the media shown in
+  // the field (editor, preview) get fresh ones (POST /media/signed-urls; nothing is stored signed).
+  useEffect(() => {
+    const area = areaRef.current;
+    if (!privateFiles || !area) return undefined;
+    const refresher = createSignedMediaRefresher({
+      root: area.parentElement || area,
+      cache: mediaSignerRef.current ? mediaSignerRef.current.cache : undefined,
+      request: async (urls) => {
+        const body = { urls, ...(signTargetRef.current ? { target: signTargetRef.current } : {}) };
+        const { data } = await post('/magic-editor-x/media/signed-urls', body);
+        return (data && data.data && data.data.urls) || {};
+      },
+    });
+    return () => refresher.destroy();
+  }, [privateFiles, post]);
 
   /** Replaces the editor content with a snapshot; the form becomes dirty and the user saves as usual. */
   const restoreSnapshot = useCallback(
@@ -1336,12 +1545,43 @@ const EditorFieldBody = ({
     [applyExternal]
   );
 
+  // 2.5 local draft buffer: unsaved content survives a reload, a crash, a closed tab and an ended session.
+  const savedValue = useMemo(() => savedValueOf(savedValues, name, savedKey), [savedValues, name, savedKey]);
+  const draft = useDraftBuffer({
+    enabled: Boolean(target.uid && config && config.drafts && config.drafts.enabled !== false),
+    ttlHours: config && config.drafts ? config.drafts.ttlHours : undefined,
+    target: {
+      uid: target.uid,
+      documentId: target.documentId,
+      locale: target.locale,
+      field: name,
+      fieldKey: savedKey,
+    },
+    value,
+    savedValue,
+    shownData: currentData,
+    ready,
+    readOnly,
+    collaboration: {
+      active: collaboration.active,
+      status: collaboration.status,
+      pending: collaboration.pending,
+    },
+    onRestore: async (data) => {
+      await replaceContent(data);
+      toggleNotification({
+        type: 'success',
+        message: t('editor.drafts.restored', 'Changes restored. Save the entry to keep them.'),
+      });
+    },
+  });
+
   // Field preset problems of the current content (saving fails while any remain).
   const violations = useMemo(
     () => (preset.restricted && currentData ? checkPreset(prepareEditorValue(currentData).data, preset) : []),
     [currentData, preset]
   );
-  const quality = useQualityIssues(currentData, fieldOptions || undefined);
+  const quality = useQualityIssues(currentData, fieldOptions || undefined, palette);
   const qualityFetch = useMemo(() => ({ get, post }), [get, post]);
   const qualityCount = {
     errors: quality.stats.errors + violations.length,
@@ -1776,6 +2016,29 @@ const EditorFieldBody = ({
     [comments.threads]
   );
 
+  // 2.5: the Magic Editor X side panel opens this field's comments or quality check.
+  const panelRequestRef = useRef(null);
+  useEffect(() => {
+    panelRequestRef.current = { path: target.field, savedKey, commentsEnabled, ready, suggestMode };
+  });
+  useEffect(() => {
+    const onRequest = (event) => {
+      const state = panelRequestRef.current;
+      if (!state || !state.ready || state.suggestMode || !matchesFieldRequest(event.detail, state)) return;
+      if (event.detail.panel === 'comments') {
+        if (!state.commentsEnabled) return;
+        setCommentFocusThread(null);
+        setCommentsOpen(true);
+      } else {
+        setQualityOpen(true);
+      }
+      event.detail.handled = true;
+      if (frameRef.current) frameRef.current.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    };
+    window.addEventListener(OPEN_FIELD_PANEL_EVENT, onRequest);
+    return () => window.removeEventListener(OPEN_FIELD_PANEL_EVENT, onRequest);
+  }, []);
+
   // Block suggestions (2.4) -------------------------------------------------
   const suggestionCounts = useMemo(
     () => (suggestionsEnabled ? openSuggestionsByBlock(suggestions.suggestions, commentBlockIds) : new Map()),
@@ -2133,6 +2396,207 @@ const EditorFieldBody = ({
     [insertSynced, preset, readOnly, replaceContent, selectBlock, t, toggleNotification]
   );
 
+  /** Whether this editor has a tool for a block type (a disabled custom block has none). */
+  const hasBlockTool = useCallback((type) => toolNamesRef.current.has(type), []);
+
+  /**
+   * 2.5 "Use existing content": inserts blocks from another entry, field or
+   * locale (dialog) or from the block clipboard (paste). Blocks are cleaned
+   * like a save, get fresh ids (comments and suggestions stay with the
+   * source), are checked against this field's preset and go in through the
+   * same path as templates: Editor.js block API, the shared document, one
+   * undo step, the form and the normal save.
+   * @param {Array<object>} sourceBlocks - Blocks to insert (source order).
+   * @param {{ syncedAvailable?: (ref: string) => boolean|undefined, position?: { index: number, block: object|null }|null, title?: string }} [context] - Synced
+   *   source state; `position` = paste at the caret (else after the block worked on last).
+   * @returns {Promise<boolean>} True when blocks were inserted.
+   */
+  const insertReused = useCallback(
+    async (sourceBlocks, context = {}) => {
+      const { syncedAvailable, position = null, title = '' } = context;
+      const editor = editorRef.current;
+      if (!editor || readOnly) return false;
+      const saved = (await editor.save().catch(() => null)) || { blocks: [] };
+      const clean = prepareEditorValue({ blocks: sourceBlocks }).data;
+      const empty = isEmptyDocument(saved);
+      const plan = planReuseInsertion(clean ? clean.blocks : [], {
+        preset: preset.restricted ? preset : null,
+        hasTool: hasBlockTool,
+        syncedAvailable,
+        existing: empty ? [] : saved.blocks,
+      });
+      const count = (reason) =>
+        plan.omitted.filter((item) => item.reason === reason).reduce((sum, item) => sum + item.count, 0);
+      const notes = [
+        count('notAllowed')
+          ? t(
+              'editor.templates.omitted',
+              '{count, plural, one {# block was left out} other {# blocks were left out}} because this field does not allow {count, plural, one {its type} other {their types}}.',
+              { count: count('notAllowed') }
+            )
+          : null,
+        count('unavailable')
+          ? t(
+              'editor.reuse.omitted.unavailable',
+              '{count, plural, one {# block was left out} other {# blocks were left out}} because this editor has no tool for {count, plural, one {its type} other {their types}}.',
+              { count: count('unavailable') }
+            )
+          : null,
+        count('syncedMissing')
+          ? t(
+              'editor.reuse.omitted.syncedMissing',
+              '{count, plural, one {# synced block was left out} other {# synced blocks were left out}} because {count, plural, one {its source was} other {their sources were}} removed or {count, plural, one {is} other {are}} no longer offered.',
+              { count: count('syncedMissing') }
+            )
+          : null,
+        count('unfixable')
+          ? t(
+              'editor.reuse.omitted.unfixable',
+              '{count, plural, one {# block was left out} other {# blocks were left out}} because {count, plural, one {it} other {they}} could not be adjusted to the settings of this field.',
+              { count: count('unfixable') }
+            )
+          : null,
+        plan.truncated
+          ? t(
+              'editor.templates.truncated',
+              '{count, plural, one {# block was left out} other {# blocks were left out}} because of the block limit of this field.',
+              { count: plan.truncated }
+            )
+          : null,
+        plan.adjusted
+          ? t(
+              'editor.templates.adjusted',
+              '{count, plural, one {# block was adjusted} other {# blocks were adjusted}} to the settings of this field.',
+              { count: plan.adjusted }
+            )
+          : null,
+      ].filter(Boolean);
+      if (!plan.blocks.length) {
+        toggleNotification({
+          type: 'warning',
+          message: [
+            t('editor.reuse.nothing', 'None of these blocks can be inserted into this field.'),
+            ...notes,
+          ].join(' '),
+        });
+        return false;
+      }
+      let next;
+      if (empty) next = { time: Date.now(), version: saved.version || '2.31.7', blocks: plan.blocks };
+      else if (position) {
+        const index = position.block ? saved.blocks.findIndex((block) => block.id === position.block.id) : -1;
+        const replace = index >= 0 && position.block.name === 'paragraph' && position.block.isEmpty;
+        next = spliceReuse(
+          saved,
+          plan.blocks,
+          replace ? { replaceIndex: index } : { afterIndex: index >= 0 ? index : saved.blocks.length - 1 }
+        );
+      } else {
+        const anchor = lastBlockIdRef.current
+          ? saved.blocks.findIndex((block) => block.id === lastBlockIdRef.current)
+          : -1;
+        next = spliceReuse(saved, plan.blocks, {
+          afterIndex: anchor >= 0 ? anchor : saved.blocks.length - 1,
+        });
+      }
+      await replaceContent(next);
+      const last = plan.blocks[plan.blocks.length - 1].id;
+      lastBlockIdRef.current = last;
+      if (position) {
+        try {
+          editor.caret.setToBlock(last, 'end');
+        } catch {
+          // blocks without a caret position (images) keep the focus where it is
+        }
+      } else {
+        // The dialog closes next: the caret goes to the first inserted block after it (closeReuse).
+        reuseFocusRef.current = plan.blocks[0].id;
+        toggleNotification({
+          type: 'success',
+          message: title
+            ? t(
+                'editor.reuse.inserted',
+                '{count, plural, one {# block} other {# blocks}} from {name} inserted.',
+                {
+                  count: plan.blocks.length,
+                  name: title,
+                }
+              )
+            : t(
+                'editor.reuse.insertedPlain',
+                '{count, plural, one {# block inserted} other {# blocks inserted}}.',
+                {
+                  count: plan.blocks.length,
+                }
+              ),
+        });
+      }
+      if (notes.length) toggleNotification({ type: 'warning', message: notes.join(' ') });
+      return true;
+    },
+    [hasBlockTool, preset, readOnly, replaceContent, t, toggleNotification]
+  );
+
+  /** Paste of Editor.js blocks (any Magic Editor X field, entry or tab): synced sources are checked first. */
+  const pasteEditorBlocks = useCallback(
+    async (blocks, position) => {
+      const refs = syncedRefsOf({ blocks }).slice(0, 100);
+      const states = new Map();
+      for (const ref of refs) {
+        const entry = await loadSynced(get, ref);
+        // Gone (404) or disabled (no longer offered for insertion): left out; a failed load is not known.
+        if (entry.status === 'ready')
+          states.set(ref, Boolean(entry.template) && entry.template.enabled !== false);
+        else if (entry.status === 'missing') states.set(ref, false);
+      }
+      await insertReused(blocks, { position, syncedAvailable: (ref) => states.get(ref) });
+    },
+    [get, insertReused]
+  );
+
+  /** "Copy block" in the block menu: the block with its data and tunes goes to the clipboard. */
+  const copyBlock = useCallback(
+    async (blockId) => {
+      const editor = editorRef.current;
+      if (!editor) return;
+      const saved = await editor.save().catch(() => null);
+      const block = saved && saved.blocks.find((item) => item.id === blockId);
+      if (!block) return;
+      const clean = prepareEditorValue({ blocks: [block] }).data;
+      const ok = writeBlocksToClipboard(clean && clean.blocks.length ? clean.blocks : [block]);
+      toggleNotification(
+        ok
+          ? {
+              type: 'success',
+              message: t('editor.reuse.copied', 'Block copied. Paste it into any Magic Editor X field.'),
+            }
+          : {
+              type: 'warning',
+              message: t(
+                'editor.reuse.copyFailed',
+                'The block could not be copied. Select it and press Ctrl+C (Cmd+C on a Mac).'
+              ),
+            }
+      );
+    },
+    [t, toggleNotification]
+  );
+
+  useEffect(() => {
+    pasteBlocksRef.current = pasteEditorBlocks;
+    copyBlockRef.current = copyBlock;
+  }, [pasteEditorBlocks, copyBlock]);
+
+  const closeReuse = useCallback(() => {
+    setReuseOpen(false);
+    const inserted = reuseFocusRef.current;
+    reuseFocusRef.current = null;
+    // After the modal returned focus: the first inserted block, or the More tools trigger.
+    window.requestAnimationFrame(() =>
+      window.requestAnimationFrame(() => (inserted ? selectBlock(inserted) : focusToolsMenu()))
+    );
+  }, [focusToolsMenu, selectBlock]);
+
   /** "Save as pattern" from the block selection bar (template managers). */
   const saveSelection = useCallback(async (ids) => {
     const editor = editorRef.current;
@@ -2352,6 +2816,17 @@ const EditorFieldBody = ({
       movesFocus: true,
       onSelect: () => setShortcutsOpen(true),
     },
+    // 2.5 "Use existing content": blocks from another entry, field or language.
+    {
+      id: 'reuse',
+      group: 'write',
+      label: t('editor.toolbar.reuse', 'Insert from another entry'),
+      icon: <Files />,
+      movesFocus: true,
+      visible: Boolean(config && config.reuse && config.reuse.enabled) && !readOnly,
+      disabled: previewOpen || !ready,
+      onSelect: () => setReuseOpen(true),
+    },
   ];
 
   const fieldHint = valueError
@@ -2360,11 +2835,12 @@ const EditorFieldBody = ({
 
   return (
     <Field.Root name={name} id={name} error={error} hint={fieldHint} required={required}>
-      <SharedEditorStyles />
+      <SharedEditorStyles palette={palette} />
       <Flex direction="column" alignItems="stretch" gap={1}>
         <Field.Label action={labelAction}>{label}</Field.Label>
         <Frame
           ref={frameRef}
+          data-mex-frame="true"
           $error={Boolean(error)}
           $fullscreen={fullscreen}
           role={fullscreen ? 'dialog' : undefined}
@@ -2389,6 +2865,11 @@ const EditorFieldBody = ({
                 placeholder,
                 attachmentTypes: config && config.uploads.attachmentTypes,
                 mountSynced,
+                // 2.5: the same extra inline formatting as the field.
+                inlineExtras: { colors: preset.colors, script: preset.script },
+                palette,
+                annotations: fieldAnnotations,
+                isDark: () => darkRef.current,
               }}
               preset={preset}
               direction={direction}
@@ -2430,6 +2911,16 @@ const EditorFieldBody = ({
             tools={fieldTools}
             moreButtonRef={moreButtonRef}
           />
+          {draft.notice && ready && !suggestMode ? (
+            <DraftNotice
+              t={t}
+              notice={draft.notice}
+              onRestore={draft.restore}
+              onDiscard={draft.discard}
+              busy={draft.busy}
+              disabled={!ready || readOnly}
+            />
+          ) : null}
           {suggestionsOpen && suggestionsEnabled && ready && !suggestMode ? (
             <PanelSlot padding={2} $fullscreen={fullscreen}>
               <SuggestionsPanel
@@ -2487,6 +2978,7 @@ const EditorFieldBody = ({
                 onClose={closeQuality}
                 violations={violations}
                 onFixViolations={readOnly ? null : fixViolations}
+                palette={palette}
               />
             </PanelSlot>
           ) : null}
@@ -2563,19 +3055,44 @@ const EditorFieldBody = ({
               onSaveSelection={canManageTemplates ? saveSelection : undefined}
               onAi={aiAllowed && target.uid ? onBlockAiRequest : undefined}
             />
-            <Holder
-              ref={holderRef}
-              className="mex-editor"
-              lang={target.locale || undefined}
-              dir={direction}
-              $minHeight={minHeight}
-              $fullscreen={fullscreen}
-              $focus={focusMode}
-              $gutter={markerColumns}
-              data-testid="magic-editor-x"
-              aria-busy={!ready}
-              aria-describedby={`${name}-mex-keyboard`}
-            />
+            {lazy.deferred && !ready && !configError ? (
+              <LazyPlaceholder
+                t={t}
+                value={value}
+                minHeight={minHeight}
+                placeholder={placeholder}
+                allowRaw={allowRawPreview}
+                lang={target.locale || undefined}
+                dir={direction}
+                onStart={() => {
+                  focusOnStartRef.current = true;
+                  lazy.activate();
+                }}
+              />
+            ) : null}
+            <MediaDropArea
+              FileDropZone={FileDropZone}
+              enabled={Boolean(ready && !readOnly && dropTypes.length)}
+              allowedTypes={dropTypes}
+              fullscreen={fullscreen}
+              holderRef={holderRef}
+              onAsset={onDroppedAsset}
+            >
+              <Holder
+                ref={holderRef}
+                style={lazy.deferred && !ready ? WAITING_HOLDER_STYLE : undefined}
+                className="mex-editor"
+                lang={target.locale || undefined}
+                dir={direction}
+                $minHeight={minHeight}
+                $fullscreen={fullscreen}
+                $focus={focusMode}
+                $gutter={markerColumns}
+                data-testid="magic-editor-x"
+                aria-busy={!ready}
+                aria-describedby={`${name}-mex-keyboard`}
+              />
+            </MediaDropArea>
             {commentsWritable && readOnly && ready && !previewOpen ? (
               <SelectionCommentButton
                 containerRef={areaRef}
@@ -2810,6 +3327,21 @@ const EditorFieldBody = ({
           allowRaw={allowRawPreview}
         />
       ) : null}
+      {reuseOpen ? (
+        <ReuseDialog
+          t={t}
+          get={get}
+          target={target}
+          preset={preset}
+          hasTool={hasBlockTool}
+          known={{ customBlocks, codeBlocks: (config && config.codeBlocks) || [] }}
+          onInsert={(blocks, context) => insertReused(blocks, context)}
+          onClose={closeReuse}
+          allowRaw={allowRawPreview}
+          lang={target.locale || undefined}
+          dir={direction}
+        />
+      ) : null}
       {footnoteEdit ? (
         <FootnoteDialog
           t={t}
@@ -2863,7 +3395,8 @@ const EditorFieldBody = ({
  */
 const EditorField = (props) => {
   const target = useFieldTarget(props.name);
-  return <EditorFieldBody {...props} target={target} />;
+  const savedValues = useSavedValues();
+  return <EditorFieldBody {...props} target={target} savedValues={savedValues} />;
 };
 
 export { EditorField, EditorFieldBody };

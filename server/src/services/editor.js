@@ -1,5 +1,6 @@
 'use strict';
 
+const { mediaService } = require('../utils/media-signing');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
@@ -316,6 +317,14 @@ module.exports = ({ strapi }, dependencies = {}) => {
       .upload({ data: {}, files: fileData }, { user });
     const file = Array.isArray(uploaded) ? uploaded[0] : uploaded;
     if (!file) throw new Error('Media upload did not return a file');
+    // 2.5: a private provider's file is shown through a signed URL (the editor stores the
+    // file id; the signature is removed again when the content is saved).
+    const media = mediaService(strapi);
+    if (media && (await media.isPrivate())) {
+      const fileService = strapi.plugin('upload').service('file');
+      if (fileService && typeof fileService.signFileUrls === 'function')
+        return fileService.signFileUrls(JSON.parse(JSON.stringify(file)));
+    }
     return file;
   };
 
@@ -530,6 +539,9 @@ module.exports = ({ strapi }, dependencies = {}) => {
         success: 1,
         file: {
           url: uploaded.url,
+          // 2.5: the Media Library file, so a private provider's URL can be signed when read.
+          id: uploaded.id,
+          documentId: uploaded.documentId,
           name: uploaded.name,
           title: uploaded.name,
           size,

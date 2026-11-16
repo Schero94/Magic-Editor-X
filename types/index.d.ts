@@ -230,7 +230,16 @@ export interface LinkToolData {
   meta: { title: string; description: string; site_name?: string; image?: { url: Url } };
 }
 export interface AttachesData {
-  file: { url: Url; name?: string; extension?: string; size?: number; title?: string };
+  file: {
+    url: Url;
+    /** Media Library file id (2.5). */
+    id?: number | string;
+    documentId?: string;
+    name?: string;
+    extension?: string;
+    size?: number;
+    title?: string;
+  };
   title: string;
 }
 export interface EmbedData {

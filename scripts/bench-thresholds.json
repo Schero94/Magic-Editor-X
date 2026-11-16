@@ -1,5 +1,5 @@
 {
-  "$comment": "Thresholds of scripts/bench.mjs (npm run bench, CI job bench). budgetMs5000: max(250, about 10x the slowest of 6 local medians at 5000 blocks, rounded up to 50 ms; Apple M-series, Node 22.23, 2026-11-12). maxScaling: bound of time(5000)/time(500); linear work measured 8.5 to 13.9, quadratic work would be about 100. counters: deterministic results per size. See CONTRIBUTING.md, Performance benchmark.",
+  "$comment": "Thresholds of scripts/bench.mjs (npm run bench, CI job bench). budgetMs5000: max(250, about 10x the slowest of 6 local medians at 5000 blocks, rounded up to 50 ms; Apple M-series, Node 22.23, 2026-11-12). maxScaling: bound of time(5000)/time(500); linear work measured 8.5 to 13.9, quadratic work would be about 100. counters: deterministic results per size. See CONTRIBUTING.md, Performance benchmark. documents (2.5): whole documents with 20 top-level editor fields plus 25/100/250 items in a repeatable component and in a dynamic zone (20 blocks per field); budgetMs250: max(250, about 10x the slowest of 5 local medians at 250 items, rounded up to 50 ms; Apple M-series, Node 22, 2026-11-12, machine shared with other jobs); maxScaling bounds time(250)/time(25) (linear work about 7, measured 5 to 13).",
   "operations": {
     "normalize+sanitize": {
       "budgetMs5000": 500,
@@ -89,6 +89,44 @@
         "500": 2,
         "2000": 7,
         "5000": 14
+      }
+    }
+  },
+  "documents": {
+    "doc fieldWalk": {
+      "budgetMs250": 250,
+      "maxScaling": 30,
+      "counters": {
+        "25": 70,
+        "100": 220,
+        "250": 520
+      }
+    },
+    "doc saveNormalize": {
+      "budgetMs250": 1800,
+      "maxScaling": 30,
+      "counters": {
+        "25": 70000,
+        "100": 220000,
+        "250": 520000
+      }
+    },
+    "doc fieldKeys": {
+      "budgetMs250": 250,
+      "maxScaling": 30,
+      "counters": {
+        "25": 50,
+        "100": 200,
+        "250": 500
+      }
+    },
+    "doc outputRender": {
+      "budgetMs250": 1400,
+      "maxScaling": 30,
+      "counters": {
+        "25": 70,
+        "100": 220,
+        "250": 520
       }
     }
   }

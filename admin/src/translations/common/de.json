@@ -36,5 +36,12 @@
   "field.options.linkTargets.all": "Einträge und Webadressen",
   "field.options.linkTargets.internal": "Nur Einträge dieser Website",
   "field.options.linkTargets.external": "Nur Webadressen",
-  "field.options.linkTargets.none": "Keine Links"
+  "field.options.linkTargets.none": "Keine Links",
+  "field.options.formatting": "Zusätzliche Formatierung",
+  "field.options.inlineColors.label": "Textfarbe und Hervorhebung",
+  "field.options.inlineColors.description": "Redakteure wählen aus den Farben, die Ihr Entwickler in der Plugin-Konfiguration festgelegt hat (Palette). Ohne Palette wird nichts angezeigt.",
+  "field.options.inlineScript.label": "Hochgestellt und tiefgestellt",
+  "field.options.inlineScript.description": "Für Formeln und Einheiten wie m² oder H₂O",
+  "field.options.inlineAnnotations.label": "Anmerkungen",
+  "field.options.inlineAnnotations.description": "Durch Kommas getrennte Namen von Anmerkungen, zum Beispiel: abbreviation. Ihr Entwickler kann weitere hinzufügen, etwa glossary."
 }

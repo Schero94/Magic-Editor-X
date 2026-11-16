@@ -167,3 +167,127 @@ export const BLOCK_LIMITS: Readonly<{
   maxValues: number;
   maxUrl: number;
 }>;
+
+/* ------------------------------------------------------------------ 2.5 */
+
+/** Attribute types of an inline annotation. */
+export type InlineAnnotationFieldType = 'text' | 'enum' | 'url';
+
+export interface InlineAnnotationAttributeInput {
+  type: InlineAnnotationFieldType;
+  label?: string;
+  /** Without a required value the annotation is unwrapped on save (its text stays). */
+  required?: boolean;
+  /** `text`: 1-1000 characters (default 200). */
+  max?: number;
+  /** `enum`: 1-50 distinct strings. */
+  values?: readonly string[];
+  /** `url`: subset of http, https, mailto, tel (default http + https). */
+  schemes?: ReadonlyArray<'http' | 'https' | 'mailto' | 'tel'>;
+  /** `url`: allow site-relative URLs (default true). */
+  relative?: boolean;
+}
+
+/** What `render` and `resolve` see of one annotation (clean values). */
+export interface InlineAnnotationUse {
+  name: string;
+  attrs: Record<string, string>;
+  text: string;
+  /** Value from `resolve` (server output) or the `resolveAnnotation` render option. */
+  resolved?: string | Record<string, unknown>;
+}
+
+/** The one element that wraps the annotated text (validated: allowed tags and attributes only). */
+export interface InlineAnnotationWrapper {
+  tag:
+    | 'abbr'
+    | 'dfn'
+    | 'span'
+    | 'a'
+    | 'mark'
+    | 'cite'
+    | 'q'
+    | 'small'
+    | 'em'
+    | 'strong'
+    | 'b'
+    | 'i'
+    | 'u'
+    | 's'
+    | 'time'
+    | 'data'
+    | 'bdi'
+    | 'kbd'
+    | 'var'
+    | 'ins'
+    | 'del';
+  /** `title`, `class`, `lang`, `dir`, `href` (only on `a`), `datetime`, `value`, `cite`, `aria-label`, `data-*` (not `data-mex-*`). */
+  attrs?: Record<string, string | number | null | undefined | false>;
+}
+
+/** Context of a server-side `resolve` call (Content API `?mex=`, GraphQL `…Rendered`). */
+export interface InlineAnnotationResolveContext {
+  status: 'draft' | 'published';
+  /**
+   * Permission-aware lookup: only `api::` types the caller may `find`, the
+   * query sanitised with the caller's auth, the request's publication status,
+   * at most 100 rows, every row sanitised for output.
+   */
+  find(
+    uid: string,
+    query?: { filters?: Record<string, unknown>; fields?: string[]; locale?: string | null; limit?: number }
+  ): Promise<Array<Record<string, unknown>>>;
+}
+
+export interface InlineAnnotationDefinitionInput {
+  /** `/^[a-z][a-z0-9-]{1,39}$/`; `abbreviation` is built in. */
+  name: string;
+  label?: string;
+  description?: string;
+  /** 0-8 attributes, keys `/^[a-z][a-z0-9]{0,23}$/`, stored as `data-mex-a-<key>`. */
+  attributes: Record<string, InlineAnnotationAttributeInput>;
+  /** Presets that offer the annotation without the field option `inlineAnnotations`. */
+  presets?: ReadonlyArray<'full' | 'article' | 'basic' | 'minimal'>;
+  /** Keyboard shortcut of the editor tool: one of `ANNOTATION_SHORTCUTS` (Ctrl on Windows/Linux). */
+  shortcut?: 'CMD+SHIFT+0' | 'CMD+SHIFT+1' | 'CMD+SHIFT+8';
+  /**
+   * Server only: one call per response with every distinct use (at most 200);
+   * return the values in the same order (string up to 2000 characters or a plain object).
+   */
+  resolve?: (
+    items: ReadonlyArray<{ attrs: Record<string, string>; locale: string | null }>,
+    context: InlineAnnotationResolveContext
+  ) => Promise<ReadonlyArray<unknown>> | ReadonlyArray<unknown>;
+  /** Wrapper of the annotated text; `false` renders the text only; null/undefined/throw = default span. */
+  render?: (annotation: InlineAnnotationUse) => InlineAnnotationWrapper | false | null | undefined;
+}
+
+export type InlineAnnotationDefinition = Readonly<
+  Required<Pick<InlineAnnotationDefinitionInput, 'name' | 'label'>> &
+    Omit<InlineAnnotationDefinitionInput, 'name' | 'label' | 'attributes' | 'presets'> & {
+      attributes: Readonly<Record<string, Readonly<InlineAnnotationAttributeInput & { required: boolean }>>>;
+      presets: readonly string[];
+    }
+>;
+
+export function defineInlineAnnotation(
+  definition: InlineAnnotationDefinitionInput
+): InlineAnnotationDefinition;
+export function annotationJsonSchema(definition: InlineAnnotationDefinition): Record<string, unknown>;
+/** The built-in abbreviation (`title`, required): renders `<abbr title>`. */
+export const abbreviationAnnotation: InlineAnnotationDefinition;
+export const ANNOTATION_ATTRIBUTE: 'data-mex-annotation';
+export const ANNOTATION_VALUE_PREFIX: 'data-mex-a-';
+export const ANNOTATION_FIELD_TYPES: readonly InlineAnnotationFieldType[];
+export const ANNOTATION_PRESETS: readonly ['full', 'article', 'basic', 'minimal'];
+export const ANNOTATION_SHORTCUTS: readonly ['CMD+SHIFT+0', 'CMD+SHIFT+1', 'CMD+SHIFT+8'];
+export const ANNOTATION_RENDER_TAGS: readonly InlineAnnotationWrapper['tag'][];
+export const ANNOTATION_LIMITS: Readonly<{
+  attributes: number;
+  text: number;
+  textDefault: number;
+  values: number;
+  registered: number;
+  label: number;
+  resolveItems: number;
+}>;

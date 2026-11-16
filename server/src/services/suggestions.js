@@ -1,11 +1,13 @@
 'use strict';
 
 const { errors } = require('@strapi/utils');
+const { unsignStoredAll } = require('../utils/media-signing');
 const { createRateLimiter } = require('../utils/rate-limit');
 const { cleanEditorValue } = require('../utils/sanitizer');
 const { resolveEditorField } = require('../utils/editor-fields');
 const { displayName } = require('./comments');
-const { resolveFieldPreset, allowedInlineTags, checkPreset } = require('../../../shared/presets.mjs');
+const { resolveFieldPreset, checkPreset } = require('../../../shared/presets.mjs');
+const { fieldInlinePolicy } = require('../utils/inline-policy');
 const { canonicalJson } = require('../../../shared/diff.mjs');
 const { parseFieldIdentity } = require('../../../shared/field-identity.mjs');
 const {
@@ -138,7 +140,7 @@ module.exports = ({ strapi }) => {
     try {
       clean = cleanEditorValue(
         { time: Date.now(), version: '2.31.7', blocks: [{ ...block, id: blockId }] },
-        { rawHtml, inlineTags: allowedInlineTags(preset) }
+        { rawHtml, inline: fieldInlinePolicy(strapi, attribute && attribute.options) }
       );
     } catch (error) {
       if (error && error.name === 'EditorDataError')
@@ -271,6 +273,14 @@ module.exports = ({ strapi }) => {
           afterBlockId: item.op === 'insert' ? item.afterBlockId || null : null,
           proposed: cleanProposed(item.proposed, item.blockId, resolved.attribute),
         };
+      });
+      // 2.5: a private upload provider's signatures are never stored (they expire).
+      const unsigned = await unsignStoredAll(
+        strapi,
+        prepared.map((item) => (item.proposed ? { blocks: [item.proposed] } : null))
+      );
+      unsigned.forEach((value, index) => {
+        if (value && prepared[index].proposed) prepared[index].proposed = value.blocks[0];
       });
       const where = whereTarget(target);
       const own = await query().findMany({

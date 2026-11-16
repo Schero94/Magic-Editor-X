@@ -77,9 +77,15 @@ test('remote collaboration content is sanitised before the editor renders it (ME
 
 test('internal-link attributes survive the admin sanitiser (DOMPurify treats them as URI-safe)', () => {
   const source = sources.find(([file]) => file === 'editor/sanitize.js')[1];
-  assert.match(source, /ADD_URI_SAFE_ATTR:\s*\[\.\.\.INTERNAL_LINK_ATTRIBUTES[,\]]/);
+  assert.match(source, /ADD_URI_SAFE_ATTR:\s*\[\s*\.\.\.INTERNAL_LINK_ATTRIBUTES[,\]]/);
   // 2.4: math and footnote attributes too (a note such as "See: …" looks like a URI scheme).
-  assert.match(source, /ADD_URI_SAFE_ATTR:[^\n]*MATH_ATTRIBUTE, \.\.\.FOOTNOTE_ATTRIBUTES\]/);
+  assert.match(source, /ADD_URI_SAFE_ATTR:[^\]]*MATH_ATTRIBUTE,\s*\.\.\.FOOTNOTE_ATTRIBUTES[,\]]/);
+  // 2.5: colour, highlight and annotation attributes; annotation values are kept by a hook.
+  assert.match(
+    source,
+    /ADD_URI_SAFE_ATTR:[^\]]*COLOR_ATTRIBUTE,\s*HIGHLIGHT_ATTRIBUTE,\s*ANNOTATION_ATTRIBUTE/
+  );
+  assert.match(source, /data\.forceKeepAttr = true/);
 });
 
 test('the gallery offers the AI alternative text suggestion per image like the image block', () => {
@@ -127,4 +133,14 @@ test('code block colours every Prism token itself, so host themes cannot lower t
   for (const token of ['builtin', 'url', 'entity', 'namespace']) {
     assert.match(styles, new RegExp(`\\.mex-code__pre \\.mex-code__code \\.token\\.${token}\\b`), token);
   }
+});
+
+test('every plugin Modal opts out of the Radix description (no console warning on Strapi 5.62)', () => {
+  // Radix Dialog 1.1.5 (Design System 2.3.1) warns when DialogContent keeps its default
+  // aria-describedby without a Description element; aria-describedby={undefined} is the opt-out.
+  const missing = [];
+  for (const [file, source] of sources)
+    for (const match of source.matchAll(/<Modal\.Content\b[^>]*>/g))
+      if (!match[0].includes('aria-describedby')) missing.push(file);
+  assert.deepEqual(missing, []);
 });

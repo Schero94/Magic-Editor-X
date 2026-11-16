@@ -36,5 +36,12 @@
   "field.options.linkTargets.all": "Entradas e endereços da web",
   "field.options.linkTargets.internal": "Somente entradas deste site",
   "field.options.linkTargets.external": "Somente endereços da web",
-  "field.options.linkTargets.none": "Sem links"
+  "field.options.linkTargets.none": "Sem links",
+  "field.options.formatting": "Formatação adicional",
+  "field.options.inlineColors.label": "Cor do texto e destaque",
+  "field.options.inlineColors.description": "Os editores escolhem entre as cores que o seu desenvolvedor definiu na configuração do plugin (paleta). Sem paleta, nada é mostrado.",
+  "field.options.inlineScript.label": "Sobrescrito e subscrito",
+  "field.options.inlineScript.description": "Para fórmulas e unidades como m² ou H₂O",
+  "field.options.inlineAnnotations.label": "Anotações",
+  "field.options.inlineAnnotations.description": "Nomes de anotações separados por vírgulas, por exemplo: abbreviation. O seu desenvolvedor pode adicionar mais, como glossary."
 }

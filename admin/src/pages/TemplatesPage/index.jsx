@@ -354,7 +354,7 @@ const TemplatesPage = () => {
             requestAnimationFrame(() => refocusIfLost(previewOpenerRef.current, createRef.current));
           }}
         >
-          <Modal.Content>
+          <Modal.Content aria-describedby={undefined}>
             <Modal.Header closeLabel={t('settings.close', 'Close')}>
               <Modal.Title>
                 {t('settings.templates.preview.title', 'Preview of {name}', { name: preview.name })}

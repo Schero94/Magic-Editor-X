@@ -117,12 +117,24 @@ export const MAX_INLINE_TEX = 2000;
 /** Longest note of a footnote (inline HTML, before cleaning; longer input is cut). */
 export const MAX_FOOTNOTE_NOTE = 4000;
 
+/**
+ * 2.5: text colour, highlight and inline annotation attributes (see
+ * `inline-format.mjs` and `blocks/annotations.mjs`). `data-mex-a-*` holds the
+ * attribute values of an annotation (sanitize-html prefix wildcard; the
+ * admin keeps them in a DOMPurify hook). Values are validated afterwards by
+ * `canonicalInlineExtras`.
+ */
+export const INLINE_FORMAT_ATTRIBUTES = Object.freeze({
+  span: ['data-mex-color', 'data-mex-annotation', 'data-mex-a-*'],
+  mark: ['data-mex-highlight'],
+});
+
 /** Attributes allowed per inline tag. */
 export const INLINE_ATTRIBUTES = Object.freeze({
   a: ['href', 'target', 'rel', 'title', ...INTERNAL_LINK_ATTRIBUTES],
-  span: ['class', 'data-tooltip', MATH_ATTRIBUTE],
+  span: ['class', 'data-tooltip', MATH_ATTRIBUTE, ...INLINE_FORMAT_ATTRIBUTES.span],
   sup: [...FOOTNOTE_ATTRIBUTES],
-  mark: ['class'],
+  mark: ['class', ...INLINE_FORMAT_ATTRIBUTES.mark],
   u: ['class'],
   s: ['class'],
   code: ['class'],
@@ -564,6 +576,10 @@ export const BLOCK_POLICIES = {
     if (typeof file.extension === 'string') cleanFile.extension = plain(file.extension, 16);
     if (Number.isFinite(file.size)) cleanFile.size = file.size;
     if (typeof file.title === 'string') cleanFile.title = plain(file.title, 255);
+    // 2.5: the Media Library file (private providers sign its URL when it is read).
+    if (file.id !== undefined && (Number.isInteger(file.id) || typeof file.id === 'string'))
+      cleanFile.id = file.id;
+    if (typeof file.documentId === 'string') cleanFile.documentId = plain(file.documentId, 64);
     return { file: cleanFile, title: plain(d.title, 255) };
   },
   embed: (d, inline) => ({

@@ -13,6 +13,7 @@ Live docs: <https://schero94.github.io/Magic-Editor-X/>
 
 ## Contents
 
+- [Getting started in 3 steps](#getting-started-in-3-steps)
 - [Features](#features)
 - [Screenshots](#screenshots)
 - [Core concepts](#core-concepts)
@@ -33,6 +34,7 @@ Live docs: <https://schero94.github.io/Magic-Editor-X/>
 - [Version history](#version-history)
 - [Quality checks](#quality-checks)
 - [Audit trail](#audit-trail)
+- [Working together and reusing content (2.5)](#working-together-and-reusing-content-25)
 - [Data format](#data-format)
 - [Rendering content](#rendering-content)
 - [Content API and GraphQL output](#content-api-and-graphql-output)
@@ -41,6 +43,7 @@ Live docs: <https://schero94.github.io/Magic-Editor-X/>
 - [Admin API and permissions](#admin-api-and-permissions)
 - [Security and privacy](#security-and-privacy)
 - [Troubleshooting](#troubleshooting)
+- [Upgrading from 2.4](#upgrading-from-24)
 - [Upgrading from 2.3](#upgrading-from-23)
 - [Upgrading from 2.2](#upgrading-from-22)
 - [Migrating from 1.x](#migrating-from-1x)
@@ -48,6 +51,14 @@ Live docs: <https://schero94.github.io/Magic-Editor-X/>
 - [Maintenance status](#maintenance-status)
 - [Languages](#languages)
 - [License](#license)
+
+## Getting started in 3 steps
+
+For editors who open an entry with a Magic Editor X field for the first time:
+
+1. **Write.** Click into the field and type. Press **+** at the start of an empty line, or type **/**, to add a heading, list, image, table or any other block. Select text to make it bold, add a link or start a comment.
+2. **Find the extras.** Everything beyond writing is in one place: **More tools** above the field (Review: comments, history, quality, suggestions; Write: AI, templates, insert from another entry; View: preview, focus, shortcuts). A block's own menu (**⋮⋮** next to it) moves, copies or changes that block.
+3. **Save.** Use **Save** in the Content Manager as usual. The **Magic Editor X** panel next to the entry shows who else is editing it, open comments and quality problems. If your browser crashes before you save, the field offers your unsaved changes back the next time you open the entry.
 
 ## Features
 
@@ -78,6 +89,13 @@ Every feature is available in every installation. There is nothing to activate, 
 - **Live collaboration:** several admins edit the same field at the same time with character-level merging, presence avatars and read-only viewers. Works with several Node processes behind a load balancer without sticky sessions.
 - **AI assistant:** improve, fix grammar, shorten, expand, summarize, simplify, translate, change tone and continue writing, using Anthropic, OpenAI or any OpenAI-compatible server (for example a local model) with your own key, on selected text or on chosen blocks. Optional, each behind its own owner switch: alternative text suggestions for images and translate or summarize a whole field. See [AI assistant](#ai-assistant).
 - **Grammar check:** spelling and grammar of a whole field with a LanguageTool server (self-hosted or hosted), off until the owner turns it on. See [Grammar check (LanguageTool)](#grammar-check-languagetool).
+- **Entry panel (2.5):** a Magic Editor X panel next to every entry shows who else is editing it, open comment threads and quality problems per field; optional soft lock that asks once before you edit an entry someone else is editing. Homepage widgets "My open threads" and "Broken links".
+- **Unsaved work is kept (2.5):** unsaved field content stays in your browser and is offered back after a reload, crash, closed tab or ended session.
+- **Reuse (2.5):** insert blocks from another entry, field or language with a preview, and copy blocks between fields with everything they contain.
+- **Many fields (2.5):** fields start only when they come near the screen, so long entries open fast.
+- **Colours from your palette (2.5):** text colour and highlight from named tokens you define (no free colours, no inline styles), superscript and subscript, and inline annotations such as abbreviations. All off until a field turns them on.
+- **Private upload providers (2.5):** files of private storage (for example a private S3 bucket) are signed on every read and never stored signed. Drop files onto a field to upload and insert them.
+- **Tools for AI clients (2.5):** optional tools, preset schemas and a content guide for Strapi's MCP server.
 - **Strapi-native admin:** built with the Strapi Design System, light and dark mode, keyboard accessible, admin in English, German, French, Spanish and Portuguese.
 - **Safe content:** every value is normalised and sanitised on the server when it is saved, from the Content Manager, the Content API or code.
 - **Strapi AI translations and Releases:** Strapi's AI translation sends only the text of Magic Editor X fields and rebuilds other locales from the source structure; Releases show entries the publishing guard would refuse as not ready. See [Strapi AI translations and Releases](#strapi-ai-translations-and-releases).
@@ -126,6 +144,16 @@ New in 2.4:
 | ![Versions of a synced block source with a comparison against the current content and Restore](docs/site/img/synced-versions-1440.png)                     | ![Settings, Configuration: the scheduled link check with its time zone, next run and the Run now button](docs/site/img/link-run-now-1440.png) |
 | ![Typing @ in a paragraph opens entry suggestions at the caret](docs/site/img/mention-trigger-1440.png)                                                    | ![Code block with the file name config/plugins.js above the code](docs/site/img/code-filename-1440.png)                                       |
 
+New in 2.5:
+
+|                                                                                                                                                |                                                                                                                                  |
+| ---------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| ![The Magic Editor X entry panel: Editing now with a colleague, open comments and quality per field](docs/site/img/entry-panel-after-1440.png) | ![The entry panel in dark mode on a 390 px wide screen](docs/site/img/entry-panel-after-dark-390.png)                            |
+| ![Admin home with the My open threads and Broken links widgets](docs/site/img/home-widgets-after-1440.png)                                     | ![Restore notice: unsaved changes found, with Restore and Discard](docs/site/img/drafts-after-1440.png)                          |
+| ![Insert from another entry: entry, field and a preview of the blocks with checkboxes](docs/site/img/reuse-dialog-after-1440.png)              | ![More tools with Insert from another entry in the Write group](docs/site/img/reuse-menu-after-1440.png)                         |
+| ![The Colour menu with palette tokens and highlights](docs/site/img/inline-colour-menu-dark-390.png)                                           | ![Settings: the colour palette with the CSS to copy and contrast warnings](docs/site/img/inline-settings-palette-light-1440.png) |
+| ![Dropping an image onto a field](docs/site/img/media-drop-after-1440.png)                                                                     | ![A field whose images come from private storage](docs/site/img/private-media-after-1440.png)                                    |
+
 All screenshots use synthetic data (acceptance host: Strapi 5.61.1).
 
 ## Core concepts
@@ -171,13 +199,15 @@ All screenshots use synthetic data (acceptance host: Strapi 5.61.1).
 
 ## Compatibility
 
-| Plugin | Strapi                                         | Node     | Notes                                                                                                                       |
-| ------ | ---------------------------------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------- |
-| 2.x    | 5.38 or later (acceptance host: Strapi 5.61.1) | 22 or 24 | SQLite, PostgreSQL and MySQL/MariaDB through the Strapi database connection. Acceptance runs used SQLite and PostgreSQL 16. |
-| 1.x    | 5.x                                            | 22       | No longer developed.                                                                                                        |
+| Plugin | Strapi                                                                     | Node                      | Notes                                                                                                                       |
+| ------ | -------------------------------------------------------------------------- | ------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| 2.x    | 5.38 or later (acceptance host: Strapi 5.61.1; 2.5 also checked on 5.62.0) | 22.12 or later (22 or 24) | SQLite, PostgreSQL and MySQL/MariaDB through the Strapi database connection. Acceptance runs used SQLite and PostgreSQL 16. |
+| 1.x    | 5.x                                                                        | 22                        | No longer developed.                                                                                                        |
 
-- `engines.node` is `>=22.0.0 <=26.x.x`; the 2.3 and 2.4 test runs used Node 22.23.1.
-- The admin uses the React, React Router, react-intl, styled-components and Design System versions of the Strapi admin (React 18, Design System 2.2.4).
+- `engines.node` is `>=22.12.0 <=26.x.x` (2.5 declares the floor that sanitize-html 2.18 already required since 2.4.0); the 2.3 to 2.5 test runs used Node 22.23.1.
+- The admin uses the React, React Router, react-intl, styled-components and Design System versions of the Strapi admin (React 18, Design System 2.2.4 in Strapi 5.61, 2.3.1 in 5.62).
+- Dropping files onto a field uses the Media Library drop zone that Strapi registers from 5.61; with an older Strapi or the legacy Media Library (`useLegacyMediaLibrary`) Editor.js keeps its own file drop.
+- Console messages you may see in the admin that come from Strapi itself, not from the plugin: the `useRBAC` deprecation warning, React Router future-flag warnings, the styled-components `attribute` prop warning, and the upgrade check to api.github.com when outgoing requests are blocked.
 - The editor uses Editor.js 2.31.7. Editor.js 2.32.0 is still a release candidate on npm (`2.32.0-rc.3` on the `next` tag, checked 2026-11-12) and is not used. Why the plugin stays on Editor.js is explained in [docs/engine-decision.md](./docs/engine-decision.md).
 - Formulas are rendered with Temml 0.14 (MIT), loaded by the admin only when a field shows math.
 - `magic-editor-x/react` works with React 18 and 19 (peer `^18.0.0 || ^19.0.0`), in the browser and in server rendering, including React Server Components.
@@ -280,6 +310,18 @@ All keys are optional. Infrastructure options live in `config/plugins`; the AI p
 | `qualityChecks.externalLinks.schedule.perHostConcurrency` | integer                                  | `2`                                                                                               | Requests in flight per host (1 to 8).                                                                                                                                                                                                                                                                                                                                           |
 | `audit.enabled`                                           | boolean                                  | `true`                                                                                            | Records the [audit trail](#audit-trail) (2.4). It holds no content. `false` stops recording and the extra reads it needs.                                                                                                                                                                                                                                                       |
 | `audit.retentionDays`                                     | integer                                  | `180`                                                                                             | Days an audit event is kept (0 keeps everything, at most 3660). One process prunes once an hour.                                                                                                                                                                                                                                                                                |
+| `presence.enabled`                                        | boolean                                  | `true`                                                                                            | The Magic Editor X entry panel shows who else has the entry open (2.5). Names only, never e-mail addresses. Works without live collaboration.                                                                                                                                                                                                                                   |
+| `presence.softLock`                                       | boolean                                  | `false`                                                                                           | Asks once per tab before you edit an entry someone else is editing ("Continue editing"). Never blocks anyone (2.5).                                                                                                                                                                                                                                                             |
+| `presence.perMinute`                                      | integer                                  | `30`                                                                                              | Presence requests per admin per minute, shared by all processes.                                                                                                                                                                                                                                                                                                                |
+| `mcp.enabled`                                             | boolean                                  | `false`                                                                                           | Registers the Magic Editor X tools, preset schemas and content guide with Strapi's MCP server. Strapi's own `server.mcp.enabled` must be on too (2.5).                                                                                                                                                                                                                          |
+| `reuse.enabled`                                           | boolean                                  | `true`                                                                                            | "Insert from another entry" in More tools > Write (2.5).                                                                                                                                                                                                                                                                                                                        |
+| `reuse.perMinute`                                         | integer                                  | `60`                                                                                              | Requests of "Insert from another entry" per admin per minute.                                                                                                                                                                                                                                                                                                                   |
+| `palette.colors`                                          | `{ name, label, light, dark }[]`         | `[]`                                                                                              | Named text colours editors may pick in fields with "Text colour and highlight" (2.5). `name` becomes the class `mex-color-<name>`; `light`/`dark` are hex colours for the editor display and the contrast check. At most 24.                                                                                                                                                    |
+| `palette.highlights`                                      | `{ name, label, light, dark }[]`         | `[]`                                                                                              | Named highlight colours (`<mark>`, class `mex-highlight-<name>`), same rules (2.5). Optional `palette.background` and `palette.text` (`{ light, dark }`) set the page colours the contrast check compares with.                                                                                                                                                                 |
+| `drafts.enabled`                                          | boolean                                  | `true`                                                                                            | Keeps unsaved field content in the admin's browser (IndexedDB) and offers it back after a reload, crash, closed tab or ended session: one notice with Restore or Discard (2.5). Removed on save, discard, expiry and logout.                                                                                                                                                    |
+| `drafts.ttlHours`                                         | integer                                  | `72`                                                                                              | Lifetime of a local draft in hours (1 to 720).                                                                                                                                                                                                                                                                                                                                  |
+| `lazyInit.enabled`                                        | boolean                                  | `true`                                                                                            | Starts the editor and the live room of a field only when it comes near the screen or gets focus; until then the saved content is shown (2.5).                                                                                                                                                                                                                                   |
+| `lazyInit.marginPx`                                       | integer                                  | `800`                                                                                             | Distance above and below the screen at which a field starts (0 to 10000 CSS pixels).                                                                                                                                                                                                                                                                                            |
 
 The validator rejects wrong types and ranges at startup and names the key, never the value. Keys from 1.x that no longer exist are ignored with a warning; see [Migrating from 1.x](#migrating-from-1x).
 
@@ -554,6 +596,63 @@ Settings > Magic Editor X > **Audit trail** lists who changed what and when: per
 - **Coverage:** field changes are recorded from the Document Service, so the Content Manager, the Content API, imports and code are all covered; writes around it (`db.query`, raw SQL) are not. Content API writes are recorded without a person. With Strapi's Enterprise audit logs available, the events are also sent there.
 - The events are stored in the table `magic_editor_x_audit`, not in a content type.
 
+## Working together and reusing content (2.5)
+
+### Entry panel and who is editing
+
+Every entry with a Magic Editor X field gets a **Magic Editor X** panel in the Content Manager (in the actions drawer on narrow screens):
+
+- **Editing now** lists the other admins who have the entry open, with names only. It works across several server processes and also without live collaboration (`presence.enabled`, default `true`). Only admins who can read the entry see the list.
+- **Comments** shows the open threads per field; **Show** opens that field's comments.
+- **Quality** shows issues and broken links per field of the saved draft; **Check** opens that field's quality panel.
+- Soft lock (`presence.softLock: true`, off by default): when someone else is editing, a dialog says so once per tab and you choose **Continue editing**. Nobody is ever locked out.
+
+The admin home can show **My open threads** (threads you started or were mentioned in) and **Broken links** (entries you can read with broken links from the scheduled link check).
+
+### Unsaved changes
+
+While a field has unsaved changes, Magic Editor X keeps them in your browser (IndexedDB, `drafts.enabled`, default `true`). After a reload, a crash, a closed tab or an ended session the field shows "Unsaved changes from … were found." Choose **Restore** (one Undo reverts it) or **Discard**. If the saved content changed in the meantime, the notice says so and never restores automatically. Local drafts are removed when you save, discard, after `drafts.ttlHours` (72) and when you log out. While a field is live in a collaboration room the room keeps your edits, so nothing is stored locally; a draft is kept only during connection gaps. Strapi does not tell the browser when a session will end, so there is no countdown; the local draft covers that case.
+
+### Insert from another entry and copy blocks
+
+**More tools > Insert from another entry** copies blocks from any entry, field or language you can read: choose the entry (type, language and field are preselected and hidden when there is only one choice), tick the blocks in the preview and choose **Insert N blocks**. The source is the entry as last saved. Blocks the field does not allow are listed with the reason. Every inserted block gets a new id, so comments and suggestions stay with the source; synced blocks stay synced; images keep their Media Library file.
+
+Copy blocks between fields, entries and browser tabs with Ctrl/Cmd+C (after selecting blocks) or **Copy block** in the block menu, and paste with Ctrl/Cmd+V: custom blocks, blocks registered in code and alignment are kept. Turn the dialog off with `reuse.enabled: false`.
+
+### Long entries
+
+Editors start when a field comes within `lazyInit.marginPx` (800 px) of the screen or gets focus; until then the field shows its saved content. With 20 fields plus a dynamic zone, 4 editors and live connections start instead of 20 and the page has fewer than 40 % of the DOM nodes. Turn it off with `lazyInit.enabled: false`.
+
+### Colours, superscript, subscript and annotations
+
+Define a palette in the plugin configuration and turn the tools on per field in the Content-Type Builder (Advanced settings > Extra formatting). All of them are off by default.
+
+```js
+// config/plugins.js
+'magic-editor-x': {
+  config: {
+    palette: {
+      colors: [{ name: 'accent', label: 'Accent', light: '#b3261e', dark: '#ffb4ab' }],
+      highlights: [{ name: 'note', label: 'Note', light: '#fff3b0', dark: '#5c4a00' }],
+    },
+  },
+},
+```
+
+- **Text colour and highlight** (`inlineColors`): one **Colour** button (Ctrl/Cmd+Shift+7) with your tokens. Content stores the token name (`<span data-mex-color="accent">`, `<mark data-mex-highlight="note">`), never a colour or a style; the renderers add the classes `mex-color-<name>` and `mex-highlight-<name>`, which your site styles. Settings > Magic Editor X > Configuration shows the CSS to copy and lists combinations below 4.5:1 contrast; the quality rule `color-contrast` flags them in fields.
+- **Superscript and subscript** (`inlineScript`): Ctrl/Cmd+. and Ctrl/Cmd+Shift+. (footnote markers are not affected).
+- **Inline annotations** (`inlineAnnotations`, a comma list): the built-in `abbreviation` (Ctrl/Cmd+Shift+9) renders `<abbr title="…">`. Register your own in code with `registerInlineAnnotation` (`magic-editor-x/blocks`, see [Custom blocks in code (SDK)](#custom-blocks-in-code-sdk)), for example a glossary term whose definition is looked up when content is read.
+
+### Private upload providers and dropped files
+
+With a private upload provider (`isPrivate()`, for example a private S3 bucket), Magic Editor X stores each Media Library file with its id and its unsigned URL and signs it fresh on every Content API, GraphQL and `?mex=` read and in the editor. Content saved before 2.5 is updated once at startup; run `npx magic-editor-x media-file-ids` to see what would change and `--apply` to run it again. Public providers are not affected.
+
+On Strapi 5.61 and later, drag images, videos or audio files onto a field: they are uploaded to the Media Library and inserted as blocks. Older Strapi versions keep the previous behaviour.
+
+### Tools for AI clients (MCP)
+
+With `mcp.enabled: true` and Strapi's own MCP server on (`server.mcp.enabled`), Magic Editor X adds the tools `mex_from_markdown`, `mex_from_html`, `mex_validate` and `mex_render`, one JSON Schema resource per preset and the prompt `mex_content_guide`. They only convert and check content; they read and write no entries. The admin token of the AI client needs the action `plugin::magic-editor-x.mcp.use`.
+
 ## Data format
 
 The field stores an Editor.js document as JSON:
@@ -818,6 +917,7 @@ Both run only when your Strapi plan includes the feature; on a Community Edition
 | `plugin::magic-editor-x.audit.read`           | Read the audit trail (who changed what and when)                              | The Activity tab of a field (with Content Manager read), Settings > Audit trail (with `settings.read`)                                                                                                                                                 |
 | `plugin::magic-editor-x.suggestions.create`   | Suggest block changes (read access to the entry is enough; withdraw own)      | Suggest mode, sending suggestions, withdrawing your own                                                                                                                                                                                                |
 | `plugin::magic-editor-x.suggestions.review`   | Review block suggestions (accept or reject; needs update access to the entry) | Accepting and rejecting suggestions (with Content Manager update)                                                                                                                                                                                      |
+| `plugin::magic-editor-x.mcp.use`              | Use the Magic Editor X tools of the MCP server                                | The MCP tools, resources and prompt; the admin token that calls Strapi's `/mcp` needs this action (2.5)                                                                                                                                                |
 
 Uploads also need the Media Library action `plugin::upload.assets.create`. Version history and collaboration also apply the Content Manager permissions of the document: read access (including conditions such as "is creator", locale and field permissions) to list versions and join a room, update access to save versions, restore and type. A document you cannot read answers 404, the same as a document that does not exist.
 
@@ -896,6 +996,13 @@ All routes are admin routes served at `/magic-editor-x/...` and need an admin se
 | POST   | `/magic-editor-x/settings/language-tool/test`               | settings.read, settings.update                                                       | `{ languageTool: {...} }`                                                                                                                                                                                                                                         | `{ data: { ok: true } }`                                                                                                                                                                   |
 | GET    | `/magic-editor-x/audit`                                     | audit.read (field: + Content Manager read, 404; all documents: + settings.read, 403) | `?uid&documentId&locale&field&fieldKey&actor&event&from&to&page&pageSize` (`pageSize` 1-100, default 25)                                                                                                                                                          | `{ data: [event], meta: { scope: 'field' \| 'global', enabled, pagination } }`, newest first (2.4)                                                                                         |
 | GET    | `/magic-editor-x/audit/actors`                              | audit.read, settings.read                                                            |                                                                                                                                                                                                                                                                   | `{ data: [{ id, name }] }` (people in the trail, up to 200)                                                                                                                                |
+| POST   | `/magic-editor-x/presence`                                  | access (+ Content Manager read)                                                      | `{ uid, documentId, locale?, tabId, idle?, leave? }`                                                                                                                                                                                                              | `{ data: { enabled, softLock, canEdit, editors: [{ id, name, color, idle, live }] } }`; names only (2.5)                                                                                   |
+| GET    | `/magic-editor-x/entry-summary`                             | access (+ Content Manager read)                                                      | `?uid&documentId&locale`                                                                                                                                                                                                                                          | `{ data: { fields, comments, quality, links } }`: open threads, issues and broken links per readable field (2.5)                                                                           |
+| GET    | `/magic-editor-x/widgets/open-threads`                      | access, comments.read                                                                | `?pageSize` (1 to 20)                                                                                                                                                                                                                                             | `{ data: [{ threadId, started, mentioned, excerpt, updatedAt, target }], meta: { more } }` (2.5 homepage widget)                                                                           |
+| GET    | `/magic-editor-x/widgets/broken-links`                      | access                                                                               | `?pageSize` (1 to 20)                                                                                                                                                                                                                                             | `{ data: [{ problems, target }], meta: { enabled, lastRun, more, truncated } }` (2.5 homepage widget; entries you can read)                                                                |
+| GET    | `/magic-editor-x/reuse/types`                               | access                                                                               |                                                                                                                                                                                                                                                                   | `{ data: [{ uid, kind, displayName, localized, locales }] }`: types with an editor field and an entry you can read (2.5)                                                                   |
+| GET    | `/magic-editor-x/reuse/source`                              | access (+ Content Manager read on document, locale and field)                        | `?uid&documentId&locale&field`                                                                                                                                                                                                                                    | `{ data: { uid, documentId, locale, title, status: 'draft', fields: [{ field, fieldKey, preset, blockCount, truncated, blocks }] } }` (2.5)                                                |
+| POST   | `/magic-editor-x/media/signed-urls`                         | access (+ Content Manager read when `target` is sent)                                | `{ target?, urls: string[1..100] }`                                                                                                                                                                                                                               | `{ data: { private, urls: { <url>: <signed url> } } }` (2.5, private upload providers)                                                                                                     |
 
 `upload` means `plugin::upload.assets.create`.
 
@@ -1041,6 +1148,22 @@ Add only the services you use. Instead of `https:` in `img-src` you can list you
 | No Suggest changes or Suggestions entry                                                 | The role lacks `suggestions.create` / `suggestions.review`, `suggestions.enabled` is false, or the field is a new section that was never saved                                        | Grant the action, turn the feature on, or save the entry once.                                                          |
 | Mention e-mails do not arrive                                                           | `comments.notifications.email` is off, the Strapi email plugin has no working provider, or the hourly limit per person was reached                                                    | Turn it on, configure the email provider (Settings > Configuration shows whether e-mails are on).                       |
 | Settings > Audit trail answers 403                                                      | Listings across documents need `settings.read` next to `audit.read`                                                                                                                   | Grant both, or use the Activity tab of a field.                                                                         |
+
+## Upgrading from 2.4
+
+2.5 is a minor release. Stored content, routes and configuration keep working; there are no breaking changes.
+
+1. Update and rebuild the admin: `npm install magic-editor-x@latest && npm run build`.
+2. Nothing else is required. New features are off by default or appear only when they are relevant: the entry panel shows only when there is something to show, local drafts only when there is something to restore, colours and annotations only in fields that turn them on, MCP only with `mcp.enabled: true`.
+3. Optional: `presence.softLock: true`, a `palette`, the new action `plugin::magic-editor-x.mcp.use` for admin tokens of AI clients (no role gets it automatically).
+
+What changes for existing data and clients:
+
+- With a private upload provider, media in Magic Editor X values gets a `fileId` once at startup (migration `2.5.0-media-file-ids`, idempotent; `npx magic-editor-x media-file-ids [--apply]`) and Content API output carries freshly signed URLs. Stored values never contain signatures.
+- Fields start when they come near the screen. Scripts and tests that wait for `[data-mex-ready="true"]` must scroll the field into view first, or run with `lazyInit.enabled: false`.
+- Mention e-mails use the recipient's admin language.
+- A field emptied and saved keeps its `fieldKey` (the value stays `null`), and discarding a draft whose published version predates 2.4 keeps the keys.
+- Editor.js stays at 2.31.7.
 
 ## Upgrading from 2.3
 
