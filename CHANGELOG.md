@@ -26,6 +26,7 @@ Magic Editor X 2.5 shows who is editing an entry, keeps unsaved work, lets edito
 - Mention e-mails use the recipient's admin language (en, de, fr, es, pt).
 - The inline toolbar wraps inside the field on narrow screens instead of running off the left edge.
 - Focus returns into gallery, video and audio blocks after the Media Library picker closes.
+- No Radix accessibility warning in the console for the plugin's dialogs on Strapi 5.62 (Design System 2.3.1).
 - Installing on Node 22 no longer warns with EBADENGINE (see the migration notes); CI installs the packed package on Node 22 and fails on any EBADENGINE.
 
 ### Deferred
