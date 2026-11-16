@@ -1,6 +1,12 @@
 # Changelog
 
-## [Unreleased]
+# [2.5.0](https://github.com/Schero94/Magic-Editor-X/compare/v2.4.0...v2.5.0) (2026-11-16)
+
+
+### Features
+
+* entry panel with presence, unsaved-work protection, reuse, palette colours, private media and MCP tools ([#9](https://github.com/Schero94/Magic-Editor-X/issues/9)) ([23d3127](https://github.com/Schero94/Magic-Editor-X/commit/23d31270a8d13aae90c91734af844be1171281d3))
+
 
 Magic Editor X 2.5 shows who is editing an entry, keeps unsaved work, lets editors reuse content from other entries, starts long entries faster, adds palette colours, superscript, subscript and inline annotations, supports private upload providers and dropped files, and adds optional tools for Strapi's MCP server. Everything new is off by default or appears only when it is relevant; the field toolbar is unchanged.
 
