@@ -1,6 +1,12 @@
 # Changelog
 
-## [Unreleased]
+## [2.5.3](https://github.com/Schero94/Magic-Editor-X/compare/v2.5.2...v2.5.3) (2026-11-17)
+
+
+### Bug Fixes
+
+* **collaboration:** load one copy of Yjs in the ES module server entry ([#14](https://github.com/Schero94/Magic-Editor-X/issues/14)) ([58718e7](https://github.com/Schero94/Magic-Editor-X/commit/58718e7fdc672ac705549a8f2862ac51cdb79c37))
+
 
 ### Fixed
 
