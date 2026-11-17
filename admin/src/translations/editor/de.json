@@ -734,5 +734,6 @@
   "editor.drafts.conflictPlain": "Der gespeicherte Inhalt wurde seitdem geändert. Beim Wiederherstellen wird er im Editor ersetzt.",
   "editor.drafts.discard": "Verwerfen",
   "editor.drafts.restore": "Wiederherstellen",
-  "editor.drafts.restored": "Änderungen wiederhergestellt. Speichern Sie den Eintrag, um sie zu behalten."
+  "editor.drafts.restored": "Änderungen wiederhergestellt. Speichern Sie den Eintrag, um sie zu behalten.",
+  "editor.quality.rule.columnsEmptyColumn": "Spalte {column} eines Spaltenblocks hat keinen Text"
 }

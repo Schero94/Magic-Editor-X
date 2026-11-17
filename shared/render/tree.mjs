@@ -37,7 +37,8 @@ import {
   annotateHeadings,
 } from './common.mjs';
 import { buildTocTree } from '../toc.mjs';
-import { tableLayout } from '../table.mjs';
+import { tableLayout, isBlankInlineHtml } from '../table.mjs';
+import { groupColumnItems } from '../columns.mjs';
 
 /**
  * @typedef {import('./nodes.mjs').RenderNode} RenderNode
@@ -361,6 +362,39 @@ const copyBlock = (pre, copy) =>
   ]);
 
 /**
+ * Renders a columns block (2.6).
+ * @param {{ data: { columns: Array<{ items: object[] }>, layout?: string, gap?: string, valign?: string }, tunes?: object }} b - Prepared block.
+ * @param {object} o - Render options.
+ * @returns {RenderNode} Wrapper node.
+ */
+const columnsElement = (b, o) => {
+  const { columns } = b.data;
+  const cls = ['mex-columns', `mex-columns-${columns.length}`];
+  if (b.data.layout) cls.push(`mex-columns-${b.data.layout}`);
+  if (b.data.gap) cls.push(`mex-columns-gap-${b.data.gap}`);
+  if (b.data.valign) cls.push(`mex-columns-valign-${b.data.valign}`);
+  const runs = (items) =>
+    groupColumnItems(items.filter((item) => !isBlankInlineHtml(item.text))).map((run) => {
+      if (run.kind === 'list')
+        return el(
+          run.style === 'ordered' ? 'ol' : 'ul',
+          { class: 'mex-list' },
+          run.items.map((item) => el('li', {}, inlineToNodes(item.text, o)))
+        );
+      if (run.kind === 'heading')
+        return el(`h${run.item.level}`, { class: 'mex-header' }, inlineToNodes(run.item.text, o));
+      return el('p', { class: 'mex-paragraph' }, inlineToNodes(run.item.text, o));
+    });
+  return el(
+    'div',
+    { class: classes(cls, b.tunes), 'data-mex-columns': String(columns.length) },
+    columns.map((column, index) =>
+      el('div', { class: 'mex-column', 'data-mex-column': String(index + 1) }, runs(column.items))
+    )
+  );
+};
+
+/**
  * Default nodes per block type. Each entry returns a node, an array of nodes,
  * or null to omit the block. This is the single place to add a block type
  * for HTML, React and Vue.
@@ -473,6 +507,9 @@ const RENDERERS = {
       [caption, head, body.length ? el('tbody', {}, body) : null]
     );
   },
+  // Columns (2.6): one wrapper with a class per option, one `div.mex-column` per column in
+  // reading order (stack them on narrow screens), simple items inside; empty items are left out.
+  columns: (b, o) => columnsElement(b, o),
   image: (b, o) => {
     const file = resolveMedia(b.data.file, b, o);
     if (!file.url) return null;

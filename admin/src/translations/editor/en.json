@@ -734,5 +734,6 @@
   "editor.drafts.conflictPlain": "The saved content changed since then. Restoring replaces it in the editor.",
   "editor.drafts.discard": "Discard",
   "editor.drafts.restore": "Restore",
-  "editor.drafts.restored": "Changes restored. Save the entry to keep them."
+  "editor.drafts.restored": "Changes restored. Save the entry to keep them.",
+  "editor.quality.rule.columnsEmptyColumn": "Column {column} of a columns block has no text"
 }

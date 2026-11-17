@@ -310,6 +310,42 @@ export interface MathData {
   _mex: number;
 }
 
+/** Item of a column (2.6). Ids are unique inside the block and stay the same while it is edited. */
+export interface ColumnItem {
+  /** Item id (`/^[A-Za-z0-9_-]{1,32}$/`). */
+  id: string;
+  /** Item kind. Consecutive `list` items of one style render as one list. */
+  type: 'paragraph' | 'heading' | 'list';
+  /** Inline HTML. */
+  text: string;
+  /** Heading level 1-6 (heading items only, default 3). */
+  level?: number;
+  /** List style (list items only). */
+  style?: 'unordered' | 'ordered';
+}
+
+/** One column (2.6). */
+export interface Column {
+  /** Column id (`/^[A-Za-z0-9_-]{1,32}$/`). */
+  id: string;
+  /** At most 50 items. */
+  items: ColumnItem[];
+}
+
+/** Columns block (2.6): 2 to 4 columns of simple items, no nested blocks. */
+export interface ColumnsData {
+  /** Columns in reading order (2-4). */
+  columns: Column[];
+  /** Width preset; omitted = equal. `wide-center` needs 3 columns; 4 columns are always equal. */
+  layout?: 'wide-left' | 'wide-center' | 'wide-right';
+  /** Space between the columns; omitted = medium. */
+  gap?: 'small' | 'large';
+  /** Vertical alignment; omitted = top. */
+  valign?: 'center' | 'bottom';
+  /** Built-in block marker (2.6 writes 1); a custom block named `columns` from before 2.6 has none. */
+  _mex: number;
+}
+
 /** Data per built-in block type. */
 export interface BlockDataMap {
   paragraph: ParagraphData;
@@ -338,6 +374,7 @@ export interface BlockDataMap {
   toc: TocData;
   synced: SyncedData;
   math: MathData;
+  columns: ColumnsData;
 }
 
 export type BuiltInBlockType = keyof BlockDataMap;

@@ -734,5 +734,6 @@
   "editor.drafts.conflictPlain": "Le contenu enregistré a changé depuis. La restauration le remplace dans l’éditeur.",
   "editor.drafts.discard": "Ignorer",
   "editor.drafts.restore": "Restaurer",
-  "editor.drafts.restored": "Modifications restaurées. Enregistrez l’entrée pour les conserver."
+  "editor.drafts.restored": "Modifications restaurées. Enregistrez l’entrée pour les conserver.",
+  "editor.quality.rule.columnsEmptyColumn": "La colonne {column} d’un bloc de colonnes n’a pas de texte"
 }

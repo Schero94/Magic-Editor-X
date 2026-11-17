@@ -19,6 +19,7 @@
 import { normalizeEditorDataSafe } from './editor-data.mjs';
 import { inlineToText } from './render/inline.mjs';
 import { registeredBlockOf, isBuiltInBlock, BUILT_IN_MARKER } from './sanitize-policy.mjs';
+import { COLUMN_ID } from './columns.mjs';
 
 /** Largest number of blocks compared per side. */
 export const MAX_DIFF_BLOCKS = 5000;
@@ -101,6 +102,34 @@ const cellName = (row, col) =>
     : '?';
 
 /**
+ * Columns (2.6) as they are compared: items keyed by their id inside their
+ * column (`columns.<n>.<itemId>.text`), so adding or removing one item does
+ * not show every later item as changed; the item order of a column is one
+ * value (`columns.<n>.order`).
+ * @param {object} data - Columns block data.
+ * @returns {object} Data.
+ */
+const comparableColumns = (data) => {
+  const out = { ...data };
+  if (!Array.isArray(data.columns)) return out;
+  out.columns = data.columns.map((column) => {
+    const items = column && typeof column === 'object' && Array.isArray(column.items) ? column.items : [];
+    const keyed = {};
+    const order = [];
+    items.forEach((item, index) => {
+      if (!item || typeof item !== 'object') return;
+      let key = typeof item.id === 'string' && COLUMN_ID.test(item.id) ? item.id : `item${index + 1}`;
+      if (Object.prototype.hasOwnProperty.call(keyed, key)) key = `${key}_${index + 1}`;
+      const { id: _id, ...rest } = item;
+      keyed[key] = rest;
+      order.push(key);
+    });
+    return { order: order.join(', '), items: keyed };
+  });
+  return out;
+};
+
+/**
  * Data of a block as it is compared. Table merges and column alignments
  * (2.4) are one readable value each (`A1:B2, C3:C4`; `left, -, center`),
  * not a field per number.
@@ -109,6 +138,8 @@ const cellName = (row, col) =>
  */
 const comparableData = (block) => {
   const data = block.data && typeof block.data === 'object' ? block.data : {};
+  if (block.type === 'columns' && !Array.isArray(data) && isBuiltInBlock(block))
+    return comparableColumns(data);
   if (block.type !== 'table' || Array.isArray(data)) return data;
   const out = { ...data };
   if (Array.isArray(data.merges))
@@ -147,6 +178,8 @@ const leafKind = (block, path, value) => {
   // Synced block (2.3): the reference is an id; the diff view shows the source name.
   if (type === 'synced' && key === 'ref') return 'value';
   if (MEDIA_TYPES.has(type) && MEDIA_VALUE_KEY.test(key)) return 'value';
+  // Columns (2.6): options and the item order of a column are values; `type`/`style` stay plain.
+  if (type === 'columns' && (/^(layout|gap|valign)$/.test(path) || /\.order$/.test(path))) return 'value';
   // Table (2.4): merged cells and column alignments are compared as values.
   if (type === 'table' && (path === 'merges' || path === 'align')) return 'value';
   if (PLAIN_TYPES.has(type) || PLAIN_KEYS.has(key)) return 'plain';

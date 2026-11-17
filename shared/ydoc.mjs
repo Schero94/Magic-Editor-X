@@ -764,13 +764,98 @@ const alignIndexes = (base, current) => {
   const map = new Array(base.length).fill(-1);
   if (base.length === current.length && equal(base, current)) return base.map((_, i) => i);
   for (const [i, j] of lcsPairs(base.map(stableStringify), current.map(stableStringify))) map[i] = j;
+  // Items with an id (2.6: the items and columns of a columns block) are the same item only
+  // when the id is the same, wherever the shared list has moved them.
+  const currentIds = itemIds(current);
+  if (currentIds) {
+    const taken = new Set(map.filter((j) => j >= 0));
+    base.forEach((item, i) => {
+      const id = itemId(item);
+      if (map[i] >= 0 || id === null || !currentIds.has(id)) return;
+      const j = currentIds.get(id);
+      if (!taken.has(j)) {
+        map[i] = j;
+        taken.add(j);
+      }
+    });
+  }
   for (const hunk of diffHunks(base, current)) {
     const n = Math.min(hunk.a1 - hunk.a0, hunk.b1 - hunk.b0);
     for (let k = 0; k < n; k += 1) {
-      if (kindOf(base[hunk.a0 + k]) === kindOf(current[hunk.b0 + k])) map[hunk.a0 + k] = hunk.b0 + k;
+      const a = base[hunk.a0 + k];
+      const b = current[hunk.b0 + k];
+      if (map[hunk.a0 + k] >= 0 || kindOf(a) !== kindOf(b)) continue;
+      if (itemId(a) !== null || itemId(b) !== null) continue;
+      if (!map.includes(hunk.b0 + k)) map[hunk.a0 + k] = hunk.b0 + k;
     }
   }
   return map;
+};
+
+/**
+ * Id of a list item that is an object with a string `id` (null otherwise).
+ * @param {unknown} value - Item (plain JSON).
+ * @returns {string|null} Id.
+ */
+const itemId = (value) => (isPlainObject(value) && typeof value.id === 'string' ? value.id : null);
+
+/**
+ * Index of every item by id when the ids of a list are unique (null otherwise).
+ * @param {unknown[]} list - Items (plain JSON).
+ * @returns {Map<string, number>|null} Ids.
+ */
+const itemIds = (list) => {
+  const ids = new Map();
+  for (let i = 0; i < list.length; i += 1) {
+    const id = itemId(list[i]);
+    if (id === null) continue;
+    if (ids.has(id)) return null;
+    ids.set(id, i);
+  }
+  return ids.size ? ids : null;
+};
+
+/**
+ * Pairs the base and local items of one hunk: by id when both items have
+ * one (an item that kept its id is the same item, also when an item was
+ * inserted before it), else by position like before 2.6.
+ * @param {unknown[]} base - Old list.
+ * @param {unknown[]} local - New list.
+ * @param {{ a0: number, a1: number, b0: number, b1: number }} hunk - Hunk.
+ * @returns {{ pairs: Array<[number, number]>, deleted: number[], inserted: number[] }} Base/local index pairs, deleted base indexes, inserted local indexes.
+ */
+const pairHunk = (base, local, hunk) => {
+  const baseIds = new Map();
+  for (let i = hunk.a0; i < hunk.a1; i += 1) {
+    const id = itemId(base[i]);
+    if (id !== null && !baseIds.has(id)) baseIds.set(id, i);
+  }
+  const pairs = [];
+  const usedBase = new Set();
+  const usedLocal = new Set();
+  for (let j = hunk.b0; j < hunk.b1; j += 1) {
+    const id = itemId(local[j]);
+    if (id !== null && baseIds.has(id) && !usedBase.has(baseIds.get(id))) {
+      pairs.push([baseIds.get(id), j]);
+      usedBase.add(baseIds.get(id));
+      usedLocal.add(j);
+    }
+  }
+  if (!pairs.length) {
+    // No common id: positional pairing of items without ids (pre-2.6 behaviour).
+    const n = Math.min(hunk.a1 - hunk.a0, hunk.b1 - hunk.b0);
+    for (let k = 0; k < n; k += 1) {
+      if (itemId(base[hunk.a0 + k]) !== null && itemId(local[hunk.b0 + k]) !== null) continue;
+      pairs.push([hunk.a0 + k, hunk.b0 + k]);
+      usedBase.add(hunk.a0 + k);
+      usedLocal.add(hunk.b0 + k);
+    }
+  }
+  const deleted = [];
+  for (let i = hunk.a0; i < hunk.a1; i += 1) if (!usedBase.has(i)) deleted.push(i);
+  const inserted = [];
+  for (let j = hunk.b0; j < hunk.b1; j += 1) if (!usedLocal.has(j)) inserted.push(j);
+  return { pairs, deleted, inserted };
 };
 
 /**
@@ -842,25 +927,42 @@ const mergeArray = (yarray, base, local, depth) => {
   const target = alignIndexes(base, current);
   const ops = [];
   for (const hunk of diffHunks(base, local)) {
-    const n = Math.min(hunk.a1 - hunk.a0, hunk.b1 - hunk.b0);
-    for (let k = 0; k < n; k += 1) {
-      const bi = hunk.a0 + k;
-      if (target[bi] >= 0)
-        ops.push({ at: target[bi], rank: 0, kind: 'modify', bi, value: local[hunk.b0 + k] });
+    const { pairs, deleted, inserted } = pairHunk(base, local, hunk);
+    const pairedBase = new Map(pairs.map(([bi, li]) => [li, bi]));
+    for (const [bi, li] of pairs) {
+      if (target[bi] >= 0) ops.push({ at: target[bi], rank: 0, kind: 'modify', bi, value: local[li] });
     }
-    for (let bi = hunk.a0 + n; bi < hunk.a1; bi += 1) {
+    for (const bi of deleted) {
       if (target[bi] >= 0) ops.push({ at: target[bi], rank: 0, kind: 'delete' });
     }
-    if (hunk.b1 - hunk.b0 > n) {
-      // Insert after the closest preceding base item that still exists.
-      let at = 0;
-      for (let bi = hunk.a0 + n - 1; bi >= 0; bi -= 1) {
-        if (target[bi] >= 0) {
-          at = target[bi] + 1;
-          break;
+    // Runs of new items are inserted after the closest preceding item that still exists:
+    // a paired item of this hunk, else the closest preceding base item.
+    for (let r = 0; r < inserted.length;) {
+      let end = r + 1;
+      while (end < inserted.length && inserted[end] === inserted[end - 1] + 1) end += 1;
+      const first = inserted[r];
+      let at = -1;
+      for (let li = first - 1; li >= hunk.b0 && at < 0; li -= 1) {
+        const bi = pairedBase.get(li);
+        if (bi !== undefined && target[bi] >= 0) at = target[bi] + 1;
+      }
+      if (at < 0) {
+        at = 0;
+        for (let bi = hunk.a0 - 1; bi >= 0; bi -= 1) {
+          if (target[bi] >= 0) {
+            at = target[bi] + 1;
+            break;
+          }
         }
       }
-      ops.push({ at, rank: 1, order: hunk.b0, kind: 'insert', values: local.slice(hunk.b0 + n, hunk.b1) });
+      ops.push({
+        at,
+        rank: 1,
+        order: first,
+        kind: 'insert',
+        values: inserted.slice(r, end).map((li) => local[li]),
+      });
+      r = end;
     }
   }
   // Highest position first so earlier indexes stay valid; at the same

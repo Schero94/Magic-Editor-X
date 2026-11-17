@@ -21,6 +21,7 @@ import { isPlainObject, computeStats } from './editor-data.mjs';
 import { parseInline, walkInlineElements, mapFootnoteNotes } from './render/inline.mjs';
 import { activeBlocks } from './blocks/active.mjs';
 import { registeredBlockOf, isBuiltInBlock } from './sanitize-policy.mjs';
+import { columnsTextFields } from './columns.mjs';
 import { activeAnnotations, ANNOTATION_NAME } from './blocks/annotations.mjs';
 
 /** Built-in block types (stored names). `mediaLib` only inserts `image` blocks. */
@@ -39,6 +40,7 @@ export const BUILTIN_BLOCKS = Object.freeze([
   'toc',
   'synced',
   'math',
+  'columns',
   'table',
   'embed',
   'raw',
@@ -90,6 +92,7 @@ export const PRESETS = Object.freeze({
       'toc',
       'synced',
       'math',
+      'columns',
       'table',
       'embed',
       'image',
@@ -432,6 +435,13 @@ export const checkBlockStructure = (preset, block) => {
     const level = Number(block.data && block.data.level);
     if (!preset.headingLevels.includes(level)) return { code: 'HEADING_LEVEL', params: { level } };
   }
+  // 2.6: heading items of a columns block follow the field's heading levels too.
+  if (block.type === 'columns' && isBuiltInBlock(block))
+    for (const field of columnsTextFields(block.data)) {
+      if (field.item.type !== 'heading') continue;
+      const level = Number(field.item.level);
+      if (!preset.headingLevels.includes(level)) return { code: 'HEADING_LEVEL', params: { level } };
+    }
   if (preset.linkTargets !== 'all') {
     for (const kind of blockLinkKinds(block)) {
       if (preset.linkTargets === 'none' || kind !== preset.linkTargets)
@@ -556,7 +566,10 @@ export const fixPresetViolations = (data, preset) => {
     }
     fixed += 1;
     let next = { ...block, data: fixStrings(block.data) };
-    if (violation.code === 'HEADING_LEVEL') {
+    if (violation.code === 'HEADING_LEVEL' && block.type === 'columns') {
+      // 2.6: heading items move to the nearest allowed level, or become paragraphs.
+      next = { ...next, data: fixColumnHeadings(next.data, preset.headingLevels) };
+    } else if (violation.code === 'HEADING_LEVEL') {
       const level = nearestHeadingLevel(Number(block.data && block.data.level) || 2, preset.headingLevels);
       next =
         level === null
@@ -583,6 +596,30 @@ export const fixPresetViolations = (data, preset) => {
 };
 
 /**
+ * Heading items of columns data moved to the nearest allowed level (paragraphs when none is allowed).
+ * @param {object} data - Columns block data.
+ * @param {number[]} levels - Allowed heading levels.
+ * @returns {object} New data.
+ */
+const fixColumnHeadings = (data, levels) => ({
+  ...data,
+  columns: (Array.isArray(data.columns) ? data.columns : []).map((column) =>
+    isPlainObject(column) && Array.isArray(column.items)
+      ? {
+          ...column,
+          items: column.items.map((item) => {
+            if (!isPlainObject(item) || item.type !== 'heading') return item;
+            const level = nearestHeadingLevel(Number(item.level) || 3, levels);
+            if (level !== null) return { ...item, level };
+            const { level: _level, ...rest } = item;
+            return { ...rest, type: 'paragraph' };
+          }),
+        }
+      : column
+  ),
+});
+
+/**
  * Inline text of a block that can become a paragraph, or null.
  * @param {{ type: string, data: object }} block - Block.
  * @returns {string|null} Inline HTML.
@@ -590,6 +627,12 @@ export const fixPresetViolations = (data, preset) => {
 const textOfBlock = (block) => {
   const data = isPlainObject(block.data) ? block.data : {};
   if (['header', 'quote', 'toggle'].includes(block.type) && typeof data.text === 'string') return data.text;
+  // 2.6: a columns block becomes one paragraph with its items in reading order.
+  if (block.type === 'columns')
+    return columnsTextFields(data)
+      .map((field) => field.value)
+      .filter(Boolean)
+      .join('<br>');
   if (block.type === 'warning') return [data.title, data.message].filter(Boolean).join('<br>');
   if (block.type === 'alert' && typeof data.message === 'string') return data.message;
   if ((block.type === 'code' || block.type === 'codeFlask') && typeof data.code === 'string')

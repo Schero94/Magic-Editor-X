@@ -62,6 +62,10 @@ const RULES = {
     key: 'editor.quality.rule.footnoteEmpty',
     text: 'Footnote without text',
   },
+  'columns-empty-column': {
+    key: 'editor.quality.rule.columnsEmptyColumn',
+    text: 'Column {column} of a columns block has no text',
+  },
   'color-contrast': {
     key: 'editor.quality.rule.colorContrast',
     text: '{mode, select, dark {Dark theme} other {Light theme}}: text colour / highlight {pair} has contrast {ratio}:1, below 4.5:1',

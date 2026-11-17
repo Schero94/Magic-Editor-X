@@ -734,5 +734,6 @@
   "editor.drafts.conflictPlain": "El contenido guardado ha cambiado desde entonces. Al restaurar se reemplaza en el editor.",
   "editor.drafts.discard": "Descartar",
   "editor.drafts.restore": "Restaurar",
-  "editor.drafts.restored": "Cambios restaurados. Guarde la entrada para conservarlos."
+  "editor.drafts.restored": "Cambios restaurados. Guarde la entrada para conservarlos.",
+  "editor.quality.rule.columnsEmptyColumn": "La columna {column} de un bloque de columnas no tiene texto"
 }

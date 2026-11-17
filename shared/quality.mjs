@@ -22,6 +22,7 @@ import { sanitizeUrl, isBuiltInBlock, registeredBlockOf } from './sanitize-polic
 import { mediaSlots } from './resolve-references.mjs';
 import { tocRange } from './toc.mjs';
 import { normalizeMerges, tableLayout } from './table.mjs';
+import { columnsTextFields } from './columns.mjs';
 
 /** Rule ids and their default severity. */
 export const QUALITY_RULES = Object.freeze({
@@ -40,6 +41,8 @@ export const QUALITY_RULES = Object.freeze({
   'footnote-empty': 'warning',
   // 2.5: text colour / highlight token combination below WCAG AA (4.5:1) in the light or dark site theme.
   'color-contrast': 'warning',
+  // 2.6: a column of a columns block without text.
+  'columns-empty-column': 'warning',
 });
 
 /**
@@ -338,6 +341,9 @@ export const inlineStrings = (block) => {
     case 'alert':
       add('message', d.message);
       break;
+    case 'columns':
+      for (const field of columnsTextFields(d)) add(field.path.join('.'), field.value);
+      break;
     case 'table':
       if (Array.isArray(d.content))
         d.content.forEach(
@@ -484,19 +490,47 @@ export const lintDocument = (value, options = {}) => {
   blocks.forEach((block, index) => {
     const d = isPlainObject(block.data) ? block.data : {};
 
-    if (block.type === 'header') {
-      const level = Number.isInteger(d.level) && d.level >= 1 && d.level <= 6 ? d.level : 2;
-      if (!textOf(d.text)) push('empty-heading', block, index, { params: { level } });
-      else headingLevels.push(level);
+    /**
+     * Heading rules for one heading (a header block, or 2.6 a heading item of a column).
+     * @param {number} level - Level.
+     * @param {unknown} text - Inline HTML.
+     * @param {string} [path] - Path of a heading inside a block.
+     * @param {boolean} [listed] - Whether a table of contents lists it (top-level headings only).
+     */
+    const heading = (level, text, path, listed) => {
+      const at = path ? { path } : {};
+      if (!textOf(text)) push('empty-heading', block, index, { ...at, params: { level } });
+      else if (listed) headingLevels.push(level);
       if (level === 1) {
         h1Count += 1;
-        if (h1Count === 2) push('multiple-h1', block, index);
+        if (h1Count === 2) push('multiple-h1', block, index, at);
       }
       if (previousLevel && level > previousLevel + 1)
-        push('heading-order', block, index, { params: { level, previous: previousLevel } });
+        push('heading-order', block, index, { ...at, params: { level, previous: previousLevel } });
       else if (!previousLevel && level > 2)
-        push('heading-order', block, index, { params: { level, previous: 0 } });
+        push('heading-order', block, index, { ...at, params: { level, previous: 0 } });
       previousLevel = level;
+    };
+
+    if (block.type === 'header')
+      heading(Number.isInteger(d.level) && d.level >= 1 && d.level <= 6 ? d.level : 2, d.text, '', true);
+
+    // 2.6: headings inside columns follow the reading order (column by column); a column
+    // without text is reported (an empty column usually is a leftover).
+    if (block.type === 'columns' && isBuiltInBlock(block)) {
+      for (const field of columnsTextFields(d)) {
+        if (field.item.type !== 'heading') continue;
+        const level = Number.isInteger(field.item.level) ? field.item.level : 3;
+        heading(level, field.value, field.path.join('.'), false);
+      }
+      (Array.isArray(d.columns) ? d.columns : []).forEach((column, column0) => {
+        const items = isPlainObject(column) && Array.isArray(column.items) ? column.items : [];
+        if (!items.some((item) => isPlainObject(item) && textOf(item.text)))
+          push('columns-empty-column', block, index, {
+            path: `columns.${column0}`,
+            params: { column: column0 + 1 },
+          });
+      });
     }
 
     if (block.type === 'image') {

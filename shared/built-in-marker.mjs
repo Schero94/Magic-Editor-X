@@ -60,6 +60,11 @@ export const MARKED_BLOCKS = Object.freeze({
   synced: Object.freeze({ keys: Object.freeze(['ref']), anchor: Object.freeze(['ref', 'string']) }),
   // 2.4: math block. A Settings custom block named `math` could exist before 2.4.
   math: Object.freeze({ keys: Object.freeze(['tex', 'display']), anchor: Object.freeze(['tex', 'string']) }),
+  // 2.6: columns block. A Settings custom block named `columns` could exist before 2.6.
+  columns: Object.freeze({
+    keys: Object.freeze(['columns', 'layout', 'gap', 'valign']),
+    anchor: Object.freeze(['columns', 'array']),
+  }),
 });
 
 /**

@@ -31,7 +31,7 @@ const customBlocks = require('../server/src/services/custom-blocks.js');
 
 /** Output of magic-editor-x 2.2.0 for `legacyDocument()` (see `generatedBy`). */
 const V22 = JSON.parse(readFileSync(new URL('./fixtures/reserved-names-2.2.json', import.meta.url), 'utf8'));
-const NEW_NAMES = ['toc', 'gallery', 'video', 'audio', 'synced', 'math'];
+const NEW_NAMES = ['toc', 'gallery', 'video', 'audio', 'synced', 'math', 'columns'];
 const doc = (...blocks) => ({ time: 1, version: '2.31.7', blocks });
 
 test('every 2.3/2.4 block name that a custom block could have is a marked block type', () => {
@@ -198,6 +198,7 @@ test('Yjs guard accepts legacy custom data under every new name', () => {
 test('custom blocks: new blocks cannot take a 2.3 name, an existing one keeps it', () => {
   assert.deepEqual([...customBlocks.LEGACY_BUILT_IN_NAMES].sort(), [
     'audio',
+    'columns',
     'gallery',
     'math',
     'mention',

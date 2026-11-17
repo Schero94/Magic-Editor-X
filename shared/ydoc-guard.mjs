@@ -20,6 +20,7 @@ import { EDITOR_DATA_LIMITS, normalizeEditorData } from './editor-data.mjs';
 import { readBlock } from './ydoc.mjs';
 import { BUILT_IN_MARKER, isBuiltInMarker, isMarkedBuiltIn } from './built-in-marker.mjs';
 import { isTableDataShapeValid } from './table.mjs';
+import { isColumnsDataShapeValid } from './columns.mjs';
 
 const ROOTS = new Set(['meta', 'order', 'blocks']);
 const FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
@@ -247,6 +248,14 @@ export const validateTouched = (doc, touched, options = {}) => {
       if (!validSyncedData(normalized.blocks[0])) return 'INVALID_BLOCK';
       // Table (2.4): types and bounds of the cells, header column, alignment, merges and caption.
       if (normalized.blocks[0].type === 'table' && !isTableDataShapeValid(normalized.blocks[0].data))
+        return 'INVALID_BLOCK';
+      // Columns (2.6): keys, item kinds, ids and bounds of a built-in columns block (custom block
+      // data under the name `columns`, written before 2.6, keeps the generic rules).
+      if (
+        normalized.blocks[0].type === 'columns' &&
+        isMarkedBuiltIn('columns', normalized.blocks[0].data) &&
+        !isColumnsDataShapeValid(normalized.blocks[0].data)
+      )
         return 'INVALID_BLOCK';
       if (typeof options.checkBlock === 'function' && touched.structural && touched.structural.has(id)) {
         const code = options.checkBlock(normalized.blocks[0]);

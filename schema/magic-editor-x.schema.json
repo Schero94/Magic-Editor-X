@@ -858,6 +858,50 @@
           "if": {
             "properties": {
               "type": {
+                "const": "columns"
+              },
+              "data": {
+                "type": "object",
+                "anyOf": [
+                  {
+                    "required": ["_mex"],
+                    "properties": {
+                      "_mex": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Built-in block marker (2.3: 1). Tells the built-in block apart from a custom block created before 2.3 under the same name."
+                      }
+                    }
+                  },
+                  {
+                    "properties": {
+                      "columns": {
+                        "type": "array"
+                      },
+                      "layout": {},
+                      "gap": {},
+                      "valign": {}
+                    },
+                    "additionalProperties": false,
+                    "required": ["columns"]
+                  }
+                ]
+              }
+            },
+            "required": ["type", "data"]
+          },
+          "then": {
+            "properties": {
+              "data": {
+                "$ref": "#/$defs/data_columns"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
                 "const": "synced"
               },
               "data": {
@@ -1615,6 +1659,85 @@
         }
       },
       "required": ["tex", "display", "_mex"],
+      "additionalProperties": false
+    },
+    "data_columns": {
+      "type": "object",
+      "description": "Columns block (2.6): 2 to 4 columns of paragraphs, headings and list items. No nested blocks.",
+      "properties": {
+        "columns": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 4,
+          "description": "Columns in reading order (also the order when renderers stack them on narrow screens). Ids are unique inside the block and stay the same while it is edited.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_-]{1,32}$"
+              },
+              "items": {
+                "type": "array",
+                "maxItems": 50,
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9_-]{1,32}$"
+                    },
+                    "type": {
+                      "type": "string",
+                      "enum": ["paragraph", "heading", "list"]
+                    },
+                    "text": {
+                      "$ref": "#/$defs/inlineHtml",
+                      "description": "Inline HTML of the item."
+                    },
+                    "level": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 6,
+                      "description": "Heading level (heading items only, default 3)."
+                    },
+                    "style": {
+                      "type": "string",
+                      "enum": ["unordered", "ordered"],
+                      "description": "List style (list items only). Consecutive list items of one style render as one list."
+                    }
+                  },
+                  "required": ["id", "type", "text"],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": ["id", "items"],
+            "additionalProperties": false
+          }
+        },
+        "layout": {
+          "type": "string",
+          "enum": ["wide-left", "wide-center", "wide-right"],
+          "description": "Width preset (only written when not equal): wide-left / wide-right (2 or 3 columns), wide-center (3 columns)."
+        },
+        "gap": {
+          "type": "string",
+          "enum": ["small", "large"],
+          "description": "Space between columns (default medium)."
+        },
+        "valign": {
+          "type": "string",
+          "enum": ["center", "bottom"],
+          "description": "Vertical alignment of the columns (default top)."
+        },
+        "_mex": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Built-in block marker (2.3: 1). Tells the built-in block apart from a custom block created before 2.3 under the same name."
+        }
+      },
+      "required": ["columns", "_mex"],
       "additionalProperties": false
     },
     "data_synced": {
