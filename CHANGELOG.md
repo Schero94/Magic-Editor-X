@@ -1,6 +1,12 @@
 # Changelog
 
-## [Unreleased]
+## [2.5.2](https://github.com/Schero94/Magic-Editor-X/compare/v2.5.1...v2.5.2) (2026-11-17)
+
+
+### Bug Fixes
+
+* **link-check:** show the next scheduled run on Strapi before 5.61 ([#13](https://github.com/Schero94/Magic-Editor-X/issues/13)) ([2228217](https://github.com/Schero94/Magic-Editor-X/commit/22282172f528840747a6f867546ab6d0c176af64))
+
 
 ### Fixed
 
