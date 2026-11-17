@@ -102,13 +102,13 @@ export function createPasteHandler(options) {
     return { index: -1, block: null };
   };
 
-  /** Code, raw HTML, table cells and form inputs keep the default paste. */
+  /** Code, raw HTML, table cells, column items (2.6, own paste) and form inputs keep the default paste. */
   const isProtected = (target, block) => {
     const element = target && target.nodeType === 1 ? target : target && target.parentElement;
     if (
       element &&
       element.closest &&
-      element.closest('input, textarea, select, .tc-table, .tc-wrap, .mex-table-tool')
+      element.closest('input, textarea, select, .tc-table, .tc-wrap, .mex-table-tool, .mex-columns-tool')
     )
       return true;
     return Boolean(block && PROTECTED_TOOLS.includes(block.name));

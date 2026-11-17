@@ -116,6 +116,59 @@ const Prose = styled.div`
     max-width: 100%;
     overflow-x: auto;
   }
+  /* 2.6: columns stack in reading order on narrow screens and sit side by side from the
+     DS medium (two columns) and large (three or four) breakpoints. */
+  & [data-mex-columns] {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: ${({ theme }) => theme.spaces[4]};
+  }
+  & [data-mex-columns] > .mex-column > * + * {
+    margin-top: ${({ theme }) => theme.spaces[2]};
+  }
+  & [data-mex-columns].mex-columns-gap-small {
+    gap: ${({ theme }) => theme.spaces[2]};
+  }
+  & [data-mex-columns].mex-columns-gap-large {
+    gap: ${({ theme }) => theme.spaces[7]};
+  }
+  & [data-mex-columns].mex-columns-valign-center {
+    align-items: center;
+  }
+  & [data-mex-columns].mex-columns-valign-bottom {
+    align-items: end;
+  }
+  & .mex-column {
+    min-width: 0;
+  }
+  ${({ theme }) => theme.breakpoints.medium} {
+    & [data-mex-columns='2'] {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    & [data-mex-columns='2'].mex-columns-wide-left {
+      grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+    }
+    & [data-mex-columns='2'].mex-columns-wide-right {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+    }
+  }
+  ${({ theme }) => theme.breakpoints.large} {
+    & [data-mex-columns='3'] {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+    & [data-mex-columns='3'].mex-columns-wide-left {
+      grid-template-columns: minmax(0, 2fr) repeat(2, minmax(0, 1fr));
+    }
+    & [data-mex-columns='3'].mex-columns-wide-center {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) minmax(0, 1fr);
+    }
+    & [data-mex-columns='3'].mex-columns-wide-right {
+      grid-template-columns: repeat(2, minmax(0, 1fr)) minmax(0, 2fr);
+    }
+    & [data-mex-columns='4'] {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+  }
   & table {
     border-collapse: collapse;
     min-width: 50%;

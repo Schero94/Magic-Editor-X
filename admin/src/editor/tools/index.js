@@ -34,6 +34,7 @@ import { SyncedTool } from './synced';
 import { MentionTool } from './mention';
 import { ToggleTool } from './toggle';
 import { TableTool } from './table';
+import { ColumnsTool } from './columns';
 import { ChecklistTool } from './checklist';
 import { buildCustomBlockTools } from './custom-block';
 import { MexImageTool } from './alt-text';
@@ -248,6 +249,8 @@ export function buildTools(ctx) {
     math: { class: markedTool(MathTool, 'math'), config: { t } },
     // Synced block (2.3): inserted from the template dialog; the field renders its view (`ctx.mountSynced`).
     synced: { class: markedTool(SyncedTool, 'synced'), config: { t, mount: ctx.mountSynced } },
+    // 2.6: columns of simple items (no nested editors); built-in marker like the 2.3 blocks.
+    columns: { class: markedTool(ColumnsTool, 'columns'), inlineToolbar: inline, config: { t } },
     // 2.4: own table tool (header row and column, alignment, merged cells, caption).
     table: {
       class: TableTool,
@@ -557,6 +560,9 @@ export function editorI18n(t) {
         Delimiter: tr('tools.names.delimiter', 'Delimiter'),
         'Table of contents': tr('tools.names.toc', 'Table of contents'),
         Table: tr('tools.names.table', 'Table'),
+        Columns: tr('tools.names.columns', 'Columns'),
+        '2 columns': tr('tools.names.columns2', '2 columns'),
+        '3 columns': tr('tools.names.columns3', '3 columns'),
         'Raw HTML': tr('tools.names.raw', 'Raw HTML'),
         Image: tr('tools.names.image', 'Image'),
         'Image by URL': tr('tools.names.simpleImage', 'Image by URL'),
