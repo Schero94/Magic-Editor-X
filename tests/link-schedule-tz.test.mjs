@@ -136,6 +136,9 @@ test('fire times: the installed Strapi cron service schedules the rule in the co
     for (const [tz, localHour, utcHour] of cases) {
       const one = createProcess(knex, { tz }, cron);
       assert.equal(one.schedule.schedule(), true);
+      // Strapi starts the cron service after the plugins' bootstrap; node-schedule
+      // (Strapi before 5.61) schedules added jobs only then, croner at once.
+      cron.start();
       const next = one.schedule.nextRun();
       assert.ok(next instanceof Date, tz);
       assert.equal(next.getUTCHours(), utcHour, tz);
@@ -149,9 +152,15 @@ test('fire times: the installed Strapi cron service schedules the rule in the co
       one.schedule.stop();
     }
     // Daylight saving: America/New_York 03:00 is 07:00 UTC in summer and 08:00 UTC in winter.
+    // Only croner (Strapi 5.61+) can ask for the next run after a given date.
     const ny = createProcess(knex, { tz: 'America/New_York' }, cron);
     ny.schedule.schedule();
     const entry = cron.jobs.find((job) => job.name === ny.schedule.CRON_NAME);
+    if (typeof entry.job.nextRun !== 'function') {
+      ny.schedule.stop();
+      assert.deepEqual(logs, []);
+      return;
+    }
     const summer = entry.job.nextRun(new Date('2026-07-01T00:00:00Z'));
     const winter = entry.job.nextRun(new Date('2026-12-01T00:00:00Z'));
     assert.equal(summer.toISOString(), '2026-07-01T07:00:00.000Z');
@@ -198,4 +207,38 @@ test('status: running is true while any process holds the run lease, and lists t
   assert.deepEqual(await two.schedule.runNow(), { started: false, reason: 'RUNNING' });
   await one.services.store.release('links:schedule', 'other-process');
   assert.equal((await two.schedule.status()).running, false);
+});
+
+test('next run: a cron-parser CronDate from node-schedule (Strapi before 5.61) is read as a Date', () => {
+  // Strapi up to 5.60 schedules with node-schedule 2, whose Job#nextInvocation()
+  // returns a cron-parser CronDate with toDate(); 5.61+ (croner) returns a Date.
+  const fire = new Date('2026-11-18T18:00:00.000Z');
+  const cronWith = (nextInvocation) => {
+    const jobs = [];
+    return {
+      add: (tasks) => {
+        for (const name of Object.keys(tasks)) jobs.push({ name, job: { nextInvocation } });
+      },
+      remove: () => {},
+      jobs,
+    };
+  };
+  for (const value of [{ toDate: () => new Date(fire) }, new Date(fire)]) {
+    const one = createProcess(
+      null,
+      { tz: 'Asia/Tokyo' },
+      cronWith(() => value)
+    );
+    assert.equal(one.schedule.schedule(), true);
+    assert.equal(one.schedule.nextRun()?.toISOString(), fire.toISOString());
+  }
+  for (const value of [null, { toDate: () => new Date(Number.NaN) }, 'tomorrow', { toDate: () => 'x' }]) {
+    const one = createProcess(
+      null,
+      {},
+      cronWith(() => value)
+    );
+    one.schedule.schedule();
+    assert.equal(one.schedule.nextRun(), null, String(value));
+  }
 });

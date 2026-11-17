@@ -430,7 +430,9 @@ module.exports = ({ strapi }, dependencies = {}) => {
 
     /**
      * Next planned run of this process's cron job (from the job handle's
-     * `nextInvocation()`), or null.
+     * `nextInvocation()`), or null. Strapi 5.61+ (croner) returns a Date;
+     * earlier 5.x releases (node-schedule 2) return a cron-parser `CronDate`,
+     * which is converted with its `toDate()`.
      * @returns {Date|null} Next fire time.
      */
     nextRun() {
@@ -438,7 +440,8 @@ module.exports = ({ strapi }, dependencies = {}) => {
         const entry = (strapi.cron && Array.isArray(strapi.cron.jobs) ? strapi.cron.jobs : []).find(
           (job) => job && job.name === CRON_NAME
         );
-        const next = entry && entry.job && entry.job.nextInvocation ? entry.job.nextInvocation() : null;
+        const raw = entry && entry.job && entry.job.nextInvocation ? entry.job.nextInvocation() : null;
+        const next = raw && typeof raw.toDate === 'function' ? raw.toDate() : raw;
         return next instanceof Date && !Number.isNaN(next.getTime()) ? next : null;
       } catch {
         return null;

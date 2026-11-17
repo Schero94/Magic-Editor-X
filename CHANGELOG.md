@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- Settings > Configuration shows the next run of the scheduled link check on Strapi 5.38 to 5.60 again. Those releases schedule cron jobs with node-schedule, whose next run is a cron-parser date object instead of a `Date`, so `nextRunAt` was always empty there.
+
 ## [2.5.1](https://github.com/Schero94/Magic-Editor-X/compare/v2.5.0...v2.5.1) (2026-11-17)
 
 
