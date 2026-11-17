@@ -58,7 +58,14 @@ test('README starts with the six-badge row in the shared order', () => {
   const row = badgeRow();
   assert.deepEqual(
     row.map((badge) => badge.alt),
-    ['npm version', 'npm downloads', 'CI', `License: ${pkg.license}`, `Strapi ${strapiFloor()}+`, 'Docs']
+    [
+      'npm version',
+      'npm downloads',
+      'CI build status',
+      `License: ${pkg.license}`,
+      `Strapi ${strapiFloor()}+`,
+      'Documentation site',
+    ]
   );
 });
 
