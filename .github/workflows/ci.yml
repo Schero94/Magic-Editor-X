@@ -1,8 +1,11 @@
 # Checks every pull request and push to a non-main branch on the Node versions
-# Strapi 5.61 supports: lint, formatting, build (with the server bundle runtime
-# check), unit tests, package verification, package contents and a production
-# audit. A second job checks that the lockfile installs with npm 10 and npm 11;
-# a third runs the performance benchmark against scripts/bench-thresholds.json.
+# Strapi 5.62 supports (22, 24 and 26, as engines.node declares): lint,
+# formatting, build (with the server bundle runtime check), unit tests, package
+# verification, package contents and a production audit. A second job checks
+# that the lockfile installs with npm 10 and npm 11; a third runs the
+# performance benchmark against scripts/bench-thresholds.json; a fourth builds
+# and tests against the lowest declared peer versions (Strapi 5.38.0, Design
+# System 2.2.0), so the peer floor is tested and not only declared.
 # The integration and multi-process suites need a Strapi host; CONTRIBUTING.md
 # describes how to run them.
 name: CI
@@ -28,7 +31,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: ['22', '24']
+        node: ['22', '24', '26']
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -101,3 +104,51 @@ jobs:
       # The benchmark imports the shared sources directly; no build is needed.
       - name: Benchmark (budgets, scaling, counters)
         run: npm run bench
+
+  peer-floor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      # Keep in sync with the lowest versions in package.json peerDependencies.
+      FLOOR_STRAPI: '5.38.0'
+      FLOOR_DESIGN_SYSTEM: '2.2.0'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          # Strapi 5.38 declares node <=24.x; 22 is the floor of engines.node.
+          node-version: '22'
+          cache: npm
+      - name: Install dependencies (no lifecycle scripts)
+        run: npm ci --ignore-scripts
+      - name: Install the peer floor (no lifecycle scripts)
+        run: >-
+          npm install --no-save --ignore-scripts --no-audit --no-fund
+          "@strapi/strapi@$FLOOR_STRAPI" "@strapi/utils@$FLOOR_STRAPI"
+          "@strapi/design-system@$FLOOR_DESIGN_SYSTEM" "@strapi/icons@$FLOOR_DESIGN_SYSTEM"
+      - name: Peer floor is installed
+        run: |
+          node -e '
+            const want = { "@strapi/strapi": process.env.FLOOR_STRAPI, "@strapi/utils": process.env.FLOOR_STRAPI,
+              "@strapi/design-system": process.env.FLOOR_DESIGN_SYSTEM, "@strapi/icons": process.env.FLOOR_DESIGN_SYSTEM };
+            for (const [name, version] of Object.entries(want)) {
+              const installed = require(name + "/package.json").version;
+              console.log(name, installed);
+              if (installed !== version) throw new Error(name + " is " + installed + ", expected " + version);
+            }'
+      - name: Peer range starts at the floor
+        run: |
+          node -e '
+            const peers = require("./package.json").peerDependencies;
+            const want = { "@strapi/strapi": "^" + process.env.FLOOR_STRAPI, "@strapi/utils": "^" + process.env.FLOOR_STRAPI,
+              "@strapi/design-system": "^" + process.env.FLOOR_DESIGN_SYSTEM, "@strapi/icons": "^" + process.env.FLOOR_DESIGN_SYSTEM };
+            for (const [name, range] of Object.entries(want))
+              if (peers[name] !== range) throw new Error(name + " peer is " + peers[name] + ", the floor job tests " + range);'
+      - name: Build (includes verify:runtime)
+        run: npm run build
+      - name: Tests
+        run: npm test
