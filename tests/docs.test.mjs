@@ -81,13 +81,58 @@ test('the Pages site has the required structure and references only existing loc
     assert.ok(existsSync(path.join(root, 'docs/site', ref)), `missing docs/site/${ref}`);
 });
 
-test('README images and local links resolve', () => {
-  for (const [, file] of readme.matchAll(/!\[[^\]]*\]\(([^)\s]+)\)/g)) {
-    if (/^https?:/.test(file)) continue;
-    assert.ok(existsSync(path.join(root, file)), `README image missing: ${file}`);
+// The README is rendered outside GitHub: on npm and on the Strapi marketplace
+// (community.strapi.io/marketplace/magic-editor-x), which resolves relative
+// paths against its own URL. Images and links must therefore be absolute.
+const PAGES_IMG = 'https://schero94.github.io/Magic-Editor-X/img/';
+const REPO_BLOB = 'https://github.com/Schero94/Magic-Editor-X/blob/main/';
+const MAX_README_SCREENSHOTS = 8;
+/** README without fenced code blocks and inline code, which are not rendered as links. */
+const readmeProse = readme.replace(/^```[\s\S]*?^```/gm, '').replace(/`[^`\n]*`/g, '');
+const readmeImages = [
+  ...[...readmeProse.matchAll(/!\[([^\]]*)\]\(([^)\s]+)\)/g)].map(([, alt, src]) => ({ alt, src })),
+  ...[...readmeProse.matchAll(/<img\b[^>]*>/g)].map(([tag]) => ({
+    alt: tag.match(/\balt="([^"]*)"/)?.[1] ?? '',
+    src: tag.match(/\bsrc="([^"]*)"/)?.[1] ?? '',
+  })),
+];
+
+test('README images use absolute URLs that resolve to committed files and carry alt text', () => {
+  assert.ok(readmeImages.length > 0);
+  for (const { alt, src } of readmeImages) {
+    assert.match(src, /^https:\/\//, `README image must be absolute for npm and the marketplace: ${src}`);
+    assert.ok(alt.trim(), `README image needs alt text: ${src}`);
+    if (src.startsWith(PAGES_IMG)) {
+      const file = path.join(root, 'docs/site/img', src.slice(PAGES_IMG.length));
+      assert.ok(existsSync(file), `README image not in docs/site/img: ${src}`);
+    } else {
+      assert.match(src, /^https:\/\/img\.shields\.io\//, `README image must come from Pages: ${src}`);
+    }
   }
-  for (const [, file] of readme.matchAll(/\]\(\.\/([^)#]+)\)/g)) {
-    assert.ok(existsSync(path.join(root, file)), `README link missing: ${file}`);
+});
+
+test('README shows a curated set of screenshots and links the full gallery', () => {
+  const screenshots = readmeImages.filter(({ src }) => src.startsWith(PAGES_IMG) && src.endsWith('.png'));
+  assert.ok(screenshots.length >= 4, `README shows ${screenshots.length} screenshots`);
+  assert.ok(
+    screenshots.length <= MAX_README_SCREENSHOTS,
+    `README shows ${screenshots.length} screenshots, at most ${MAX_README_SCREENSHOTS}`
+  );
+  assert.match(readme, /\(https:\/\/schero94\.github\.io\/Magic-Editor-X\/[^)]*\)/);
+});
+
+test('README links are absolute or in-page anchors, and repository links resolve', () => {
+  const links = [
+    ...[...readmeProse.matchAll(/\]\(([^)\s]+)\)/g)].map((match) => match[1]),
+    ...[...readmeProse.matchAll(/<a\b[^>]*\bhref="([^"]*)"/g)].map((match) => match[1]),
+  ];
+  assert.ok(links.length > 0);
+  for (const href of links) {
+    assert.match(href, /^(#|https:\/\/|mailto:)/, `README link must be absolute or #anchor: ${href}`);
+    if (href.startsWith(REPO_BLOB)) {
+      const file = href.slice(REPO_BLOB.length).split('#')[0];
+      assert.ok(existsSync(path.join(root, file)), `README links a missing file: ${file}`);
+    }
   }
   assert.ok(readme.includes('https://schero94.github.io/Magic-Editor-X/'));
 });
