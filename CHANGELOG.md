@@ -1,5 +1,12 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- The ES module server entry (`magic-editor-x/strapi-server` with `import`) loaded two copies of Yjs: the collaboration service used the CommonJS build and the shared document code the ES module build, so documents of one failed the other's constructor checks. CommonJS server code now takes Yjs from one shared module, and each entry loads exactly one build. Strapi itself loads the CommonJS entry, which was not affected.
+- `npm run verify:runtime` loads each server bundle format in its own process and fails when a process prints "Yjs was already imported", instead of printing the warning as noise.
+
 ## [2.5.2](https://github.com/Schero94/Magic-Editor-X/compare/v2.5.1...v2.5.2) (2026-11-17)
 
 
