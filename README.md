@@ -6,8 +6,12 @@
 
 Block editor for Strapi 5: an [Editor.js](https://editorjs.io/) custom field with Media Library uploads, custom blocks, templates, tables with merged cells, math and footnotes, comments on blocks and on selected text with @mentions, block suggestions, version history, an audit trail, live collaboration across several servers, rendered Content API and GraphQL output, React and Vue components, and optional AI and grammar assistants that use your own provider. Free and open source under the MIT license.
 
-[![npm](https://img.shields.io/npm/v/magic-editor-x)](https://www.npmjs.com/package/magic-editor-x)
-[![license: MIT](https://img.shields.io/badge/license-MIT-blue)](https://github.com/Schero94/Magic-Editor-X/blob/main/LICENSE)
+[![npm version](https://img.shields.io/npm/v/magic-editor-x.svg)](https://www.npmjs.com/package/magic-editor-x)
+[![npm downloads](https://img.shields.io/npm/dm/magic-editor-x.svg)](https://www.npmjs.com/package/magic-editor-x)
+[![CI build status](https://img.shields.io/github/actions/workflow/status/Schero94/Magic-Editor-X/release.yml?branch=main&label=CI&logo=github)](https://github.com/Schero94/Magic-Editor-X/actions/workflows/release.yml?query=branch%3Amain)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/Schero94/Magic-Editor-X/blob/main/LICENSE)
+[![Strapi 5.38+](https://img.shields.io/badge/Strapi-5.38%2B-4945FF.svg)](https://github.com/Schero94/Magic-Editor-X#compatibility)
+[![Documentation site](https://img.shields.io/badge/docs-project%20site-6d4aff.svg)](https://schero94.github.io/Magic-Editor-X/)
 
 Live docs: <https://schero94.github.io/Magic-Editor-X/>
 
