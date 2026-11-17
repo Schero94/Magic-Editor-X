@@ -89,9 +89,14 @@ test('the release job runs the full gate before publishing with OIDC, token fall
   assert.ok(text.indexOf('npm audit --omit=dev') < text.indexOf('npx --no-install semantic-release'));
 });
 
-test('CI covers Node 22 and 24 and checks the lockfile with npm 10 and 11', () => {
+test('CI covers every LTS Node major engines.node allows and checks the lockfile with npm 10 and 11', () => {
   const text = read('.github/workflows/ci.yml');
-  assert.match(text, /node: \['22', '24'\]/);
+  const { engines } = JSON.parse(read('package.json'));
+  const [, low, high] = engines.node.match(/^>=(\d+)\.\d+\.\d+ <=(\d+)\.x\.x$/);
+  const majors = [];
+  for (let major = Number(low); major <= Number(high); major += 1)
+    if (major % 2 === 0) majors.push(`'${major}'`);
+  assert.ok(text.includes(`node: [${majors.join(', ')}]`), `ci.yml matrix is [${majors.join(', ')}]`);
   for (const step of [
     'npm run lint',
     'npm run format:check',
@@ -105,6 +110,20 @@ test('CI covers Node 22 and 24 and checks the lockfile with npm 10 and 11', () =
   ]) {
     assert.ok(text.includes(step), `ci.yml runs ${step}`);
   }
+});
+
+test('CI builds and tests the lowest declared Strapi and Design System peers', () => {
+  const text = read('.github/workflows/ci.yml');
+  const peers = JSON.parse(read('package.json')).peerDependencies;
+  const strapi = text.match(/FLOOR_STRAPI: '([\d.]+)'/)?.[1];
+  const designSystem = text.match(/FLOOR_DESIGN_SYSTEM: '([\d.]+)'/)?.[1];
+  assert.equal(peers['@strapi/strapi'], `^${strapi}`);
+  assert.equal(peers['@strapi/utils'], `^${strapi}`);
+  assert.equal(peers['@strapi/design-system'], `^${designSystem}`);
+  assert.equal(peers['@strapi/icons'], `^${designSystem}`);
+  const job = text.slice(text.indexOf('  peer-floor:'));
+  for (const step of ['npm install --no-save', 'npm run build', 'npm test'])
+    assert.ok(job.includes(step), step);
 });
 
 test('Dependabot waits before proposing releases and never proposes versions the Strapi admin cannot run', () => {
