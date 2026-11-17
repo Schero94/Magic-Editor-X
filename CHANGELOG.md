@@ -1,6 +1,12 @@
 # Changelog
 
-## [Unreleased]
+## [2.5.1](https://github.com/Schero94/Magic-Editor-X/compare/v2.5.0...v2.5.1) (2026-11-17)
+
+
+### Bug Fixes
+
+* **readme:** make images and links work on the Strapi marketplace ([#12](https://github.com/Schero94/Magic-Editor-X/issues/12)) ([85a95eb](https://github.com/Schero94/Magic-Editor-X/commit/85a95eb620ef8609de691f766cabf97bceaba7b4))
+
 
 ### Fixed
 
