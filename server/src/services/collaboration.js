@@ -2,7 +2,7 @@
 
 const { randomUUID } = require('node:crypto');
 const { Server } = require('socket.io');
-const Y = require('yjs');
+const Y = require('../../../shared/yjs.mjs');
 const { unsignStored } = require('../utils/media-signing');
 const { errors } = require('@strapi/utils');
 const { createLogger } = require('../utils/logger');

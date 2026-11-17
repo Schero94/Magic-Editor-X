@@ -1,36 +1,14 @@
 import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
+import { fileURLToPath } from 'node:url';
+import { runIsolated } from './run-isolated.mjs';
 
 const require = createRequire(import.meta.url);
-const cjsModule = require('../dist/server/index.js');
-const esmModule = await import('../dist/server/index.mjs');
-const cjsPlugin = cjsModule.default || cjsModule;
-const esmPlugin = esmModule.default || esmModule;
-const expectedTypes = {
-  bootstrap: 'function',
-  destroy: 'function',
-  register: 'function',
-  config: 'object',
-  contentTypes: 'object',
-  controllers: 'object',
-  middlewares: 'object',
-  policies: 'object',
-  routes: 'object',
-  services: 'object',
-};
 
-for (const [format, plugin] of [
-  ['CJS', cjsPlugin],
-  ['ESM', esmPlugin],
-]) {
-  for (const [key, expected] of Object.entries(expectedTypes)) {
-    if (typeof plugin?.[key] !== expected) {
-      throw new Error(
-        `${format} server bundle export ${key} must be ${expected}, received ${typeof plugin?.[key]}`
-      );
-    }
-  }
-}
+// Each server bundle format loads in its own process: Strapi loads only one,
+// both keep yjs external, and a process that loads Yjs twice fails the check.
+const serverEntry = fileURLToPath(new URL('./verify-server-entry.mjs', import.meta.url));
+for (const format of ['cjs', 'esm']) runIsolated([serverEntry, format]);
 
 console.log('Magic Editor X CJS and ESM server bundles load with all Strapi plugin exports');
 
