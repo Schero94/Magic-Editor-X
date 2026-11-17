@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- The README now works outside GitHub, on npm and on the Strapi marketplace: images load from the docs site (absolute URLs) and links to the license, guides, security reviews and other repository files point to GitHub instead of relative paths that led nowhere. The Screenshots section shows eight chosen screens and links the full gallery on the docs site instead of 61 images. A test fails on any relative image or link in the README and caps the number of screenshots.
+
 # [2.5.0](https://github.com/Schero94/Magic-Editor-X/compare/v2.4.0...v2.5.0) (2026-11-16)
 
 

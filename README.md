@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/Schero94/Magic-Editor-X/main/docs/site/img/icon.svg" alt="Magic Editor X" width="96" height="96" />
+  <img src="https://schero94.github.io/Magic-Editor-X/img/icon.svg" alt="Magic Editor X" width="96" height="96" />
 </p>
 
 # Magic Editor X
@@ -7,7 +7,7 @@
 Block editor for Strapi 5: an [Editor.js](https://editorjs.io/) custom field with Media Library uploads, custom blocks, templates, tables with merged cells, math and footnotes, comments on blocks and on selected text with @mentions, block suggestions, version history, an audit trail, live collaboration across several servers, rendered Content API and GraphQL output, React and Vue components, and optional AI and grammar assistants that use your own provider. Free and open source under the MIT license.
 
 [![npm](https://img.shields.io/npm/v/magic-editor-x)](https://www.npmjs.com/package/magic-editor-x)
-[![license: MIT](https://img.shields.io/badge/license-MIT-blue)](./LICENSE)
+[![license: MIT](https://img.shields.io/badge/license-MIT-blue)](https://github.com/Schero94/Magic-Editor-X/blob/main/LICENSE)
 
 Live docs: <https://schero94.github.io/Magic-Editor-X/>
 
@@ -102,59 +102,14 @@ Every feature is available in every installation. There is nothing to activate, 
 
 ## Screenshots
 
-|                                                                                   |                                                                                |
-| --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| ![Editor in the Content Manager, light mode](docs/site/img/editor-light-1440.png) | ![Editor in dark mode](docs/site/img/editor-dark-1440.png)                     |
-| ![Two admins editing the same field](docs/site/img/collaboration-1440.png)        | ![Version history dialog](docs/site/img/history-1440.png)                      |
-| ![AI assistant dialog](docs/site/img/ai-1440.png)                                 | ![Settings, configuration page](docs/site/img/settings-configuration-1440.png) |
-| ![Settings, custom blocks list](docs/site/img/settings-custom-blocks-1440.png)    | ![Custom block form](docs/site/img/custom-block-modal-1440.png)                |
+|                                                                                                                                                                           |                                                                                                                                                       |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ![The editor in the Content Manager, light mode](https://schero94.github.io/Magic-Editor-X/img/editor-light-1440.png)                                                     | ![The editor in the Content Manager, dark mode](https://schero94.github.io/Magic-Editor-X/img/editor-dark-1440.png)                                   |
+| ![Live collaboration: the named cursor and selection of a second editor in the same field](https://schero94.github.io/Magic-Editor-X/img/collaboration-presence-1440.png) | ![Version history: a comparison with the current content and restore per block](https://schero94.github.io/Magic-Editor-X/img/history-diff-1440.png)  |
+| ![Comments panel with an open thread and its reply, and a comment marker next to a block](https://schero94.github.io/Magic-Editor-X/img/comments-1440.png)                | ![The entry panel: who is editing now, open comments and quality per field](https://schero94.github.io/Magic-Editor-X/img/entry-panel-after-1440.png) |
+| ![Settings > Magic Editor X > Configuration](https://schero94.github.io/Magic-Editor-X/img/settings-configuration-1440.png)                                               | ![The editor on a 390 px wide screen](https://schero94.github.io/Magic-Editor-X/img/editor-mobile-390.png)                                            |
 
-| ![Field presets in the Content-Type Builder](docs/site/img/field-presets-1440.png) | ![Content that does not match its field settings](docs/site/img/preset-problems-1440.png) |
-| ![Find and replace](docs/site/img/find-replace-1440.png) | ![Quality checks and link check](docs/site/img/quality-panel-1440.png) |
-| ![Version comparison with per-block restore](docs/site/img/history-diff-1440.png) | ![Image block with alternative text](docs/site/img/image-alt-1440.png) |
-| ![Actions for several selected blocks](docs/site/img/block-actions-1440.png) | ![Keyboard shortcuts](docs/site/img/shortcuts-1440.png) |
-
-New in 2.3:
-
-|                                                                                                                                                                       |                                                                                                                                                         |
-| --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| ![Comments panel with an open thread and its reply, a resolved thread whose block was removed, and a comment marker next to a block](docs/site/img/comments-1440.png) | ![Comments panel in dark mode](docs/site/img/comments-dark-1440.png)                                                                                    |
-| ![Insert a template or pattern dialog with a search, the pattern Release notes and its rendered preview](docs/site/img/templates-insert-1440.png)                     | ![Settings, Templates: patterns and a template with where they are offered, on/off switches and row actions](docs/site/img/templates-settings-1440.png) |
-| ![The field as a rendered preview: heading, list, code with line numbers, table, image and quote](docs/site/img/preview-1440.png)                                     | ![A synced block Opening hours in the editor with the Edit source and Detach buttons](docs/site/img/synced-blocks-1440.png)                             |
-| ![Gallery block in grid layout with two columns: three images with alternative texts, captions and focal points](docs/site/img/gallery-1440.png)                      | ![Video block with title, poster image and an English captions track, and an audio block](docs/site/img/video-audio-1440.png)                           |
-| ![Focal point picker: the point marked on the image, its position in percent and a Reset focal point button](docs/site/img/focal-point-1440.png)                      | ![Table of contents block with its settings and the live list of headings, and two mention chips in the text](docs/site/img/toc-mentions-1440.png)      |
-| ![Code block with the language Python and line numbers](docs/site/img/code-block-1440.png)                                                                            | ![Editor tool of a block defined in code with title, text, link and tone fields](docs/site/img/block-sdk-1440.png)                                      |
-| ![Quality panel with the last scheduled link check: one broken link with status 404](docs/site/img/link-schedule-1440.png)                                            | ![Image block with an AI suggestion for the alternative text and the Use suggestion and Dismiss buttons](docs/site/img/ai-alt-text-1440.png)            |
-| ![AI for the whole field dialog: translation into German, a note on what is sent and a preview per text](docs/site/img/ai-field-1440.png)                             | ![Grammar check panel with two LanguageTool issues and suggested replacements](docs/site/img/grammar-1440.png)                                          |
-
-|                                                                        |                                                                           |                                                                   |
-| ---------------------------------------------------------------------- | ------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| ![Editor on a 390 px wide screen](docs/site/img/editor-mobile-390.png) | ![Comments panel on a 390 px wide screen](docs/site/img/comments-390.png) | ![Preview on a 390 px wide screen](docs/site/img/preview-390.png) |
-
-New in 2.4:
-
-|                                                                                                                                                            |                                                                                                                                               |
-| ---------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| ![The field toolbar with undo, redo, the More tools menu and full screen](docs/site/img/toolbar-after-1440.png)                                            | ![The More tools menu grouped into Review, Write and View](docs/site/img/toolbar-more-menu-1440.png)                                          |
-| ![Table with a header row and a header column, right-aligned numbers, a merged cell, a caption and the table toolbar](docs/site/img/table-v2-1440.png)     | ![The same table in dark mode on a 390 px wide screen](docs/site/img/table-v2-dark-390.png)                                                   |
-| ![A math block with its TeX source, style select and rendered formula, and two inline formulas](docs/site/img/math-1440.png)                               | ![Three numbered footnote markers in the text and the footnote list under the field](docs/site/img/footnotes-1440.png)                        |
-| ![Comments panel with a thread on selected text, a mention of a colleague and the highlighted passages in the text](docs/site/img/range-comments-1440.png) | ![Mentions and replies widget on the admin home page with one unread mention](docs/site/img/mentions-notifications-1440.png)                  |
-| ![Suggestions panel with a changed, an outdated, a new and a removed block, each with Accept and Reject](docs/site/img/suggestions-1440.png)               | ![Suggest mode: the field is a separate copy with Stop suggesting and Send 1 suggestion](docs/site/img/suggest-mode-1440.png)                 |
-| ![AI for the chosen blocks: translation into German with a word diff and Apply to blocks](docs/site/img/ai-blocks-1440.png)                                | ![Settings, Audit trail: filters and a list of events with who changed what and how many blocks](docs/site/img/audit-1440.png)                |
-| ![Versions of a synced block source with a comparison against the current content and Restore](docs/site/img/synced-versions-1440.png)                     | ![Settings, Configuration: the scheduled link check with its time zone, next run and the Run now button](docs/site/img/link-run-now-1440.png) |
-| ![Typing @ in a paragraph opens entry suggestions at the caret](docs/site/img/mention-trigger-1440.png)                                                    | ![Code block with the file name config/plugins.js above the code](docs/site/img/code-filename-1440.png)                                       |
-
-New in 2.5:
-
-|                                                                                                                                                |                                                                                                                                  |
-| ---------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| ![The Magic Editor X entry panel: Editing now with a colleague, open comments and quality per field](docs/site/img/entry-panel-after-1440.png) | ![The entry panel in dark mode on a 390 px wide screen](docs/site/img/entry-panel-after-dark-390.png)                            |
-| ![Admin home with the My open threads and Broken links widgets](docs/site/img/home-widgets-after-1440.png)                                     | ![Restore notice: unsaved changes found, with Restore and Discard](docs/site/img/drafts-after-1440.png)                          |
-| ![Insert from another entry: entry, field and a preview of the blocks with checkboxes](docs/site/img/reuse-dialog-after-1440.png)              | ![More tools with Insert from another entry in the Write group](docs/site/img/reuse-menu-after-1440.png)                         |
-| ![The Colour menu with palette tokens and highlights](docs/site/img/inline-colour-menu-dark-390.png)                                           | ![Settings: the colour palette with the CSS to copy and contrast warnings](docs/site/img/inline-settings-palette-light-1440.png) |
-| ![Dropping an image onto a field](docs/site/img/media-drop-after-1440.png)                                                                     | ![A field whose images come from private storage](docs/site/img/private-media-after-1440.png)                                    |
-
-All screenshots use synthetic data (acceptance host: Strapi 5.61.1).
+All screenshots use synthetic data (acceptance host: Strapi 5.61.1). Every screen, from tables, math and footnotes to suggestions, templates and the AI assistant, is in the [full gallery on the docs site](https://schero94.github.io/Magic-Editor-X/#screens).
 
 ## Core concepts
 
@@ -208,7 +163,7 @@ All screenshots use synthetic data (acceptance host: Strapi 5.61.1).
 - The admin uses the React, React Router, react-intl, styled-components and Design System versions of the Strapi admin (React 18, Design System 2.2.4 in Strapi 5.61, 2.3.1 in 5.62).
 - Dropping files onto a field uses the Media Library drop zone that Strapi registers from 5.61; with an older Strapi or the legacy Media Library (`useLegacyMediaLibrary`) Editor.js keeps its own file drop.
 - Console messages you may see in the admin that come from Strapi itself, not from the plugin: the `useRBAC` deprecation warning, React Router future-flag warnings, the styled-components `attribute` prop warning, and the upgrade check to api.github.com when outgoing requests are blocked.
-- The editor uses Editor.js 2.31.7. Editor.js 2.32.0 is still a release candidate on npm (`2.32.0-rc.3` on the `next` tag, checked 2026-11-12) and is not used. Why the plugin stays on Editor.js is explained in [docs/engine-decision.md](./docs/engine-decision.md).
+- The editor uses Editor.js 2.31.7. Editor.js 2.32.0 is still a release candidate on npm (`2.32.0-rc.3` on the `next` tag, checked 2026-11-12) and is not used. Why the plugin stays on Editor.js is explained in [docs/engine-decision.md](https://github.com/Schero94/Magic-Editor-X/blob/main/docs/engine-decision.md).
 - Formulas are rendered with Temml 0.14 (MIT), loaded by the admin only when a field shows math.
 - `magic-editor-x/react` works with React 18 and 19 (peer `^18.0.0 || ^19.0.0`), in the browser and in server rendering, including React Server Components.
 - `magic-editor-x/vue` needs Vue 3.5 or later (optional peer `^3.5.0`; it is never installed by the plugin).
@@ -392,7 +347,7 @@ The plugin creates these tables on startup. They are not content types, so Strap
 
 Behind a proxy, also set `server.proxy` in `config/server` (`koa: true` and the number of trusted hops in `maxIpsCount`) so Strapi sees the real client address.
 
-The acceptance run with several processes is described in [CONTRIBUTING.md](./CONTRIBUTING.md).
+The acceptance run with several processes is described in [CONTRIBUTING.md](https://github.com/Schero94/Magic-Editor-X/blob/main/CONTRIBUTING.md).
 
 ## AI assistant
 
@@ -814,7 +769,7 @@ import { MagicEditorXContent } from 'magic-editor-x/react';
 
 - Props: `value`, `options` (every option above) and `components` (per block type, receives `{ block, helpers, children }`; `children` is the default output). Vue also takes scoped slots `block-<type>`, which win over `components`.
 - React 18 and 19, server rendering and React Server Components (the copy button needs a client component or `enhanceCodeBlocks()`); Vue 3.5 or later, also with Nuxt server rendering.
-- Guides: [React](docs/guides/react.md), [Vue and Nuxt](docs/guides/vue-nuxt.md), [Astro](docs/guides/astro.md) (`renderHtml` with `set:html`, or the components as server-rendered islands, plus the CSS for line numbers and copy buttons).
+- Guides: [React](https://github.com/Schero94/Magic-Editor-X/blob/main/docs/guides/react.md), [Vue and Nuxt](https://github.com/Schero94/Magic-Editor-X/blob/main/docs/guides/vue-nuxt.md), [Astro](https://github.com/Schero94/Magic-Editor-X/blob/main/docs/guides/astro.md) (`renderHtml` with `set:html`, or the components as server-rendered islands, plus the CSS for line numbers and copy buttons).
 
 ## Content API and GraphQL output
 
@@ -887,7 +842,7 @@ export const calloutCard = defineBlock({
 - **Frontend:** pass `blocks: [calloutCard]` to `renderHtml`, `renderText`, `renderMarkdown` or the React/Vue components; give the definition a `render`, `text` or `markdown` function for your own output, or get a neutral default.
 - Field types: `text`, `inline`, `url`, `enum`, `number`, `boolean`, `array`, `object`. `blockJsonSchema(definition)` returns the JSON Schema of the stored shape.
 
-The full guide with the admin tool, field types and security notes is [docs/guides/custom-blocks-sdk.md](docs/guides/custom-blocks-sdk.md).
+The full guide with the admin tool, field types and security notes is [docs/guides/custom-blocks-sdk.md](https://github.com/Schero94/Magic-Editor-X/blob/main/docs/guides/custom-blocks-sdk.md).
 
 ## Strapi AI translations and Releases
 
@@ -1055,17 +1010,17 @@ Content-Type: application/json
   Link previews, images and media by URL and the link checks only fetch public http(s) addresses: the host is resolved once, every address must be public, the connection is pinned to that address, redirects are re-checked (at most 3), and size, type and time are limited. AI and LanguageTool base URLs must be public https URLs unless `ai.allowPrivateBaseUrl` or `languageTool.allowPrivateBaseUrl` is on; origins on private networks need `qualityChecks.externalLinks.allowPrivateOrigins` (link checks), `uploads.allowPrivateOrigins` (images and media by URL) or `ai.altText.allowPrivateOrigins` (alt text images); redirects from them are never followed.
 
 - **Uploads** are checked by their first bytes (not by the file name or the browser's MIME type) and stored through the Media Library with the admin as creator.
-- **Collaboration:** tokens are signed, bound to admin, document, locale and field, expire after `collaboration.tokenTtlSeconds` and work once on any process; the socket accepts the admin and server origins and `collaboration.allowedOrigins` and only clients of the current protocol; every update is checked (allowed structures only, no prototype keys, dependencies present, touched blocks valid) before it is stored or relayed, and a socket that keeps sending invalid updates is closed; names and colours of other people come from the server, never from a client; remote content is sanitised before the editor renders it; updates, sessions, sockets and rooms per admin are rate limited; viewers cannot write. See [docs/security-audit-2.1.md](./docs/security-audit-2.1.md).
+- **Collaboration:** tokens are signed, bound to admin, document, locale and field, expire after `collaboration.tokenTtlSeconds` and work once on any process; the socket accepts the admin and server origins and `collaboration.allowedOrigins` and only clients of the current protocol; every update is checked (allowed structures only, no prototype keys, dependencies present, touched blocks valid) before it is stored or relayed, and a socket that keeps sending invalid updates is closed; names and colours of other people come from the server, never from a client; remote content is sanitised before the editor renders it; updates, sessions, sockets and rooms per admin are rate limited; viewers cannot write. See [docs/security-audit-2.1.md](https://github.com/Schero94/Magic-Editor-X/blob/main/docs/security-audit-2.1.md).
 - **Field presets** are enforced on the server (save middleware and realtime guard), not only in the editor; see [Field presets](#field-presets).
-- **Paste, import and rendering:** pasted and imported HTML/Markdown is parsed into an inert document and rebuilt from the editor's own tags only, then sanitised again on save; `magic-editor-x/render` re-parses stored inline HTML and never trusts it. The link check fetches external URLs only when the owner turns it on, through the SSRF-protected fetcher, rate limited, without logging URLs. See [docs/security-audit-2.2.md](./docs/security-audit-2.2.md).
+- **Paste, import and rendering:** pasted and imported HTML/Markdown is parsed into an inert document and rebuilt from the editor's own tags only, then sanitised again on save; `magic-editor-x/render` re-parses stored inline HTML and never trusts it. The link check fetches external URLs only when the owner turns it on, through the SSRF-protected fetcher, rate limited, without logging URLs. See [docs/security-audit-2.2.md](https://github.com/Schero94/Magic-Editor-X/blob/main/docs/security-audit-2.2.md).
 - **Content API and GraphQL output (2.3):** `?mex=` and the GraphQL fields resolve internal links, mentions, embedded entries, media and synced blocks with the caller's own permissions (`find` on the target type, upload `find` for media), read published versions unless the request asks for drafts, and pass every row through Strapi's output sanitising. Targets the caller may not read are handled like missing ones, so the output reveals neither their existence nor their titles or slugs. Without `?mex` the response is the stored value, which still carries stored hrefs and embedded-entry snapshots, as in 2.2.
 - **React and Vue components (2.3)** use the same render tree as `renderHtml`; text is rendered as text and raw HTML only through your `sanitizeRaw`. The XSS corpus is rendered through all three outputs in the tests.
 - **Comments, templates and synced blocks (2.3):** comment routes check the plugin actions and Content Manager read on the document, locale and field (404 otherwise); admin ids are never returned; comment text is plain text. Templates and synced sources are cleaned with the field sanitiser on every write and filtered by the field preset when inserted or expanded; a synced source cannot contain another synced block. Synced sources have no Draft & Publish, so an edit is live in published output at once.
-- **2.4 surfaces:** field keys come from the server, are checked against the stored draft and never decide access on their own; legacy rows are mapped only on block-id evidence and are otherwise read-only. Table merges, alignment and captions are validated and bounded on save and on the live channel. Math is rendered by Temml with `trust: false` and every renderer passes MathML through an allow-list (no links, styles, ids or event handlers); footnote notes follow the inline policy. Comment anchors, mentions and notifications are checked server-side (Content Manager read on the field for every mentioned person, ids only in notification rows, e-mails without comment text and with header-safe names). Suggestions are sanitised and preset-checked, decided once (conditional updates) and need update access to accept. The audit trail holds no content. AI translations by Strapi receive only text. See [docs/security-audit-2.4.md](./docs/security-audit-2.4.md).
+- **2.4 surfaces:** field keys come from the server, are checked against the stored draft and never decide access on their own; legacy rows are mapped only on block-id evidence and are otherwise read-only. Table merges, alignment and captions are validated and bounded on save and on the live channel. Math is rendered by Temml with `trust: false` and every renderer passes MathML through an allow-list (no links, styles, ids or event handlers); footnote notes follow the inline policy. Comment anchors, mentions and notifications are checked server-side (Content Manager read on the field for every mentioned person, ids only in notification rows, e-mails without comment text and with header-safe names). Suggestions are sanitised and preset-checked, decided once (conditional updates) and need update access to accept. The audit trail holds no content. AI translations by Strapi receive only text. See [docs/security-audit-2.4.md](https://github.com/Schero94/Magic-Editor-X/blob/main/docs/security-audit-2.4.md).
 - **Secrets:** the AI key and the LanguageTool key are encrypted with AES-256-GCM (random IV, versioned format, separate key derivation per purpose) and never returned. Changing the AI provider or base URL, or the LanguageTool base URL or user name, requires entering the key again, so a stored key cannot be sent to another host.
 - **Logs** contain operation names and error codes only, never content, URLs with queries, tokens, user ids or email addresses.
 - **Stored data:** custom block definitions, versions (field content and the admin who saved it), live rooms (Yjs updates, removed `collaboration.roomTtlMinutes` after the last person left), presence rows (admin display name, colour, caret position; removed when the socket closes or after missed heartbeats), comments (text, author id and display name; deleted with the document locale, anonymised when the admin is deleted), templates, patterns and synced sources (with the creator's display name) and their versions (with the saver's name), suggestions (proposed blocks, author and decider names; deleted with the document locale, anonymised when the admin is deleted), notifications (ids only), the audit trail (event, target, counts, block ids, admin id and name; pruned after `audit.retentionDays`) and, with the scheduled link check, the external URLs of editor fields with their last status.
-- **Reviews:** [docs/security-audit-2.4.md](./docs/security-audit-2.4.md) covers every 2.4 surface (findings MEX-24-01 to MEX-24-18), [docs/security-audit-2.3.md](./docs/security-audit-2.3.md) every 2.3 surface (MEX-23-01 to MEX-23-15), each with controls, tests and residual risks.
+- **Reviews:** [docs/security-audit-2.4.md](https://github.com/Schero94/Magic-Editor-X/blob/main/docs/security-audit-2.4.md) covers every 2.4 surface (findings MEX-24-01 to MEX-24-18), [docs/security-audit-2.3.md](https://github.com/Schero94/Magic-Editor-X/blob/main/docs/security-audit-2.3.md) every 2.3 surface (MEX-23-01 to MEX-23-15), each with controls, tests and residual risks.
 - **Content Security Policy:** Editor.js and the Design System add inline styles, which Strapi's default `style-src 'unsafe-inline'` allows. The socket connects to the same origin as the admin, which `connect-src 'self'` covers; add the `wss:` origin only when the admin runs on another host. Embeds and external images in the editor preview need `frame-src` and `img-src` sources; see [Content Security Policy](#content-security-policy) below.
 
 Report vulnerabilities privately through GitHub security advisories on the repository.
@@ -1195,7 +1150,7 @@ A custom block named `toc`, `gallery`, `video`, `audio`, `synced` or `mention` t
 
 ## Migrating from 1.x
 
-2.0 is a major release. Stored content keeps working; routes, permissions and configuration changed. The full guide is in the [CHANGELOG](./CHANGELOG.md). In short:
+2.0 is a major release. Stored content keeps working; routes, permissions and configuration changed. The full guide is in the [CHANGELOG](https://github.com/Schero94/Magic-Editor-X/blob/main/CHANGELOG.md). In short:
 
 1. Update the package and rebuild the admin: `npm install magic-editor-x@2 && npm run build`.
 2. Remove 1.x configuration keys (`enabledTools`, `linkPreviewTimeout`, `maxImageSize`, `maxFileSize`, `allowedImageTypes`, `collaboration.wsPath`, `wsUrl`, `sessionTTL`, `allowedAdminRoles`, `allowedAdminUserIds`, `cors`) and use the new keys above.
@@ -1218,7 +1173,7 @@ npm run verify
 MEX_HOST_URL=http://127.0.0.1:1421 MEX_CREDS=/path/to/creds.json npm run test:integration
 ```
 
-[docs/engine-decision.md](./docs/engine-decision.md) records why the plugin stays on Editor.js for 2.x. [CONTRIBUTING.md](./CONTRIBUTING.md) explains the isolated acceptance host, the integration suite on SQLite and PostgreSQL and the multi-process acceptance run. [AGENTS.md](./AGENTS.md) is the contract for coding agents.
+[docs/engine-decision.md](https://github.com/Schero94/Magic-Editor-X/blob/main/docs/engine-decision.md) records why the plugin stays on Editor.js for 2.x. [CONTRIBUTING.md](https://github.com/Schero94/Magic-Editor-X/blob/main/CONTRIBUTING.md) explains the isolated acceptance host, the integration suite on SQLite and PostgreSQL and the multi-process acceptance run. [AGENTS.md](https://github.com/Schero94/Magic-Editor-X/blob/main/AGENTS.md) is the contract for coding agents.
 
 ## Maintenance status
 
@@ -1230,4 +1185,4 @@ The admin is translated into English, German (formal Sie), French, Spanish and P
 
 ## License
 
-[MIT](./LICENSE) © 2025-2026 Schero D.
+[MIT](https://github.com/Schero94/Magic-Editor-X/blob/main/LICENSE) © 2025-2026 Schero D.
