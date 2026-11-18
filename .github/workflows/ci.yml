@@ -1,5 +1,5 @@
 # Checks every pull request and push to a non-main branch on the Node versions
-# Strapi 5.62 supports (22, 24 and 26, as engines.node declares): lint,
+# Strapi 5.63 supports (22, 24 and 26, as engines.node declares): lint,
 # formatting, build (with the server bundle runtime check), unit tests, package
 # verification, package contents and a production audit. A second job checks
 # that the lockfile installs with npm 10 and npm 11; a third runs the

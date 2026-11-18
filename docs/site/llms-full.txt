@@ -123,7 +123,7 @@ Every feature is available in every installation. There is nothing to activate, 
 | ![Comments panel with an open thread and its reply, and a comment marker next to a block](https://schero94.github.io/Magic-Editor-X/img/comments-1440.png)                | ![The entry panel: who is editing now, open comments and quality per field](https://schero94.github.io/Magic-Editor-X/img/entry-panel-after-1440.png)              |
 | ![A columns block with a wide left column and the width toolbar](https://schero94.github.io/Magic-Editor-X/img/columns-block.png)                                         | ![A Call to action component block: a form with the component's fields inside the editor](https://schero94.github.io/Magic-Editor-X/img/components-after-1440.png) |
 
-All screenshots use synthetic data (acceptance hosts: Strapi 5.61.1 and 5.62.0). Every screen, from tables, math and footnotes to suggestions, templates and the AI assistant, is in the [full gallery on the docs site](https://schero94.github.io/Magic-Editor-X/#screens).
+All screenshots use synthetic data (captured on Strapi 5.61.1 and 5.62.0; acceptance host: Strapi 5.63.0). Every screen, from tables, math and footnotes to suggestions, templates and the AI assistant, is in the [full gallery on the docs site](https://schero94.github.io/Magic-Editor-X/#screens).
 
 ## Core concepts
 
@@ -170,11 +170,11 @@ All screenshots use synthetic data (acceptance hosts: Strapi 5.61.1 and 5.62.0).
 
 | Plugin | Strapi                                                                                | Node                               | Notes                                                                                                                       |
 | ------ | ------------------------------------------------------------------------------------- | ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| 2.x    | 5.38 or later (CI builds and tests 5.38.0 and 5.62.0; acceptance host: Strapi 5.61.1) | 22.12 or later (CI: 22, 24 and 26) | SQLite, PostgreSQL and MySQL/MariaDB through the Strapi database connection. Acceptance runs used SQLite and PostgreSQL 16. |
+| 2.x    | 5.38 or later (CI builds and tests 5.38.0 and 5.63.0; acceptance host: Strapi 5.63.0) | 22.12 or later (CI: 22, 24 and 26) | SQLite, PostgreSQL and MySQL/MariaDB through the Strapi database connection. Acceptance runs used SQLite and PostgreSQL 16. |
 | 1.x    | 5.x                                                                                   | 22                                 | No longer developed.                                                                                                        |
 
 - `engines.node` is `>=22.12.0 <=26.x.x` (2.5 declares the floor that sanitize-html 2.18 already required since 2.4.0); the 2.3 to 2.5 test runs used Node 22.23.1.
-- The admin uses the React, React Router, react-intl, styled-components and Design System versions of the Strapi admin (React 18, Design System 2.2.4 in Strapi 5.61, 2.3.1 in 5.62).
+- The admin uses the React, React Router, react-intl, styled-components and Design System versions of the Strapi admin (React 18, Design System 2.2.4 in Strapi 5.61, 2.3.1 in 5.62 and 5.63).
 - Dropping files onto a field uses the Media Library drop zone that Strapi registers from 5.61; with an older Strapi or the legacy Media Library (`useLegacyMediaLibrary`) Editor.js keeps its own file drop.
 - Console messages you may see in the admin that come from Strapi itself, not from the plugin: the `useRBAC` deprecation warning, React Router future-flag warnings, the styled-components `attribute` prop warning, and the upgrade check to api.github.com when outgoing requests are blocked.
 - The editor uses Editor.js 2.31.7. Editor.js 2.32.0 is still a release candidate on npm (`2.32.0-rc.3` on the `next` tag, checked 2026-11-12) and is not used. Why the plugin stays on Editor.js is explained in [docs/engine-decision.md](https://github.com/Schero94/Magic-Editor-X/blob/main/docs/engine-decision.md).
