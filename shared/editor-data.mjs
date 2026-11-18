@@ -16,6 +16,7 @@
 /** Hard limits for one field value. Bigger values are rejected, never truncated. */
 import { activeBlock } from './blocks/active.mjs';
 import { isMarkedBuiltIn } from './built-in-marker.mjs';
+import { columnsTextFields } from './columns.mjs';
 import { isValidFieldKey } from './field-identity.mjs';
 
 export const EDITOR_DATA_LIMITS = Object.freeze({
@@ -321,6 +322,9 @@ export const computeStats = (data) => {
     // Code-registered blocks (custom block SDK) count their text and inline fields only.
     const definition = block && activeBlock(block.type);
     if (definition) definition.fields(block.data).forEach((field) => collect(field.value));
+    // 2.6: a columns block counts the text of its items only (not its layout options).
+    else if (block && block.type === 'columns' && isMarkedBuiltIn('columns', block.data))
+      columnsTextFields(block.data).forEach((field) => collect(field.value));
     else collect(block.data);
   });
   const normalized = text.replace(/\s+/g, ' ').trim();

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useIntl } from 'react-intl';
 import { Badge, Box, Button, Flex, Loader, Typography } from '@strapi/design-system';
 import { ArrowClockwise } from '@strapi/icons';
-import { useFetchClient } from '@strapi/strapi/admin';
+import { useFetchClient } from '../../utils/fetch-client';
 import { API } from '../../utils/api';
 import { actorLabel, changeSummary, eventLabel } from '../audit/auditText';
 

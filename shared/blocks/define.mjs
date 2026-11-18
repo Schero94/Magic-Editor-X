@@ -110,11 +110,11 @@ export const RESERVED_BLOCK_NAMES = Object.freeze([
 
 /**
  * Built-in names added after the block SDK shipped (2.3) that stay open to code
- * blocks, so a host that registered such a name before keeps starting (2.4: `math`).
+ * blocks, so a host that registered such a name before keeps starting (2.4: `math`, 2.6: `columns`).
  * A code block of that name replaces the built-in editor tool in that host; data
  * with the built-in marker (`_mex`) or exactly the built-in shape stays built-in.
  */
-export const SDK_COMPATIBLE_NAMES = Object.freeze(['math']);
+export const SDK_COMPATIBLE_NAMES = Object.freeze(['math', 'component', 'columns']);
 
 const RESERVED = new Set(RESERVED_BLOCK_NAMES.map((name) => name.toLowerCase()));
 

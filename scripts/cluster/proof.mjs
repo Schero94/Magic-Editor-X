@@ -42,6 +42,8 @@ const CLIENTS = Number(process.env.MEX_CLUSTER_CLIENTS || 12);
 // ones, as on a loaded machine); 0 by default.
 const RENDER_DELAY_MS = Number(process.env.MEX_CLUSTER_RENDER_DELAY_MS || 0);
 const PERMISSION_SLA_MS = 5000;
+// 2.6: component blocks in the room (a component uid the app allows in `body`, e.g. blocks.cta).
+const COMPONENT_UID = process.env.MEX_CLUSTER_COMPONENT || '';
 const url = (port) => `http://127.0.0.1:${port}`;
 const results = [];
 const record = (check, ok, detail) => {
@@ -99,6 +101,15 @@ const seed = {
       data: { style: 'unordered', meta: {}, items: [{ content: 'one', meta: {}, items: [] }] },
     },
     { id: 'p2', type: 'paragraph', data: { text: 'End' } },
+    ...(COMPONENT_UID
+      ? [
+          {
+            id: 'k1',
+            type: 'component',
+            data: { uid: COMPONENT_UID, values: { title: 'Go', text: 'Note', url: '/start' } },
+          },
+        ]
+      : []),
   ],
 };
 response = await call(BALANCER, 'POST', '/content-manager/collection-types/api::article.article', {
@@ -169,6 +180,11 @@ const slotEdit = (sim) => {
         block.data.content.forEach((row) => row.forEach((_, k) => slots.push((f) => (row[k] = f(row[k])))));
       if (block.type === 'list')
         block.data.items.forEach((item) => slots.push((f) => (item.content = f(item.content))));
+      // 2.6: two text attributes of a component block (concurrent edits of one and of both).
+      if (block.type === 'component' && block.data && block.data.values)
+        for (const key of ['title', 'text'])
+          if (typeof block.data.values[key] === 'string')
+            slots.push((f) => (block.data.values[key] = f(block.data.values[key])));
     });
     const r = Math.random();
     const table = doc.blocks.find((block) => block.type === 'table');
@@ -279,6 +295,17 @@ record(
   seedKept === seed.blocks.length,
   `seed blocks kept: ${seedKept}/${seed.blocks.length}`
 );
+if (COMPONENT_UID) {
+  const component = clients[0].client.getData().blocks.find((block) => block.id === 'k1');
+  const componentMarkers = markers.filter((marker) =>
+    component ? JSON.stringify(component.data.values).includes(marker) : false
+  );
+  record(
+    'component block kept its component and received edits',
+    Boolean(component && component.data.uid === COMPONENT_UID && componentMarkers.length > 0),
+    component ? `${componentMarkers.length} edits in its attributes` : 'block missing'
+  );
+}
 const dupes = markers.filter((marker) => finalText.split(marker).length > 2);
 record('no duplicated edits', dupes.length === 0, `${dupes.length} duplicates`);
 const rendered = clients.map((sim) => JSON.stringify(sim.editor.blocks));

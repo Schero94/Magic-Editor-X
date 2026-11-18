@@ -7,6 +7,7 @@
 import { inlineToText as plainText, nodesToText } from './inline.mjs';
 import { prepareBlocks, overrideFor, scalarFields, annotateHeadings } from './common.mjs';
 import { buildTocTree } from '../toc.mjs';
+import { groupColumnItems } from '../columns.mjs';
 import { footnoteOptions, createFootnoteNumbers } from './math-notes.mjs';
 
 /**
@@ -110,6 +111,22 @@ const RENDERERS = {
       ? [b.data.filename, b.data.code].filter(Boolean).join('\n')
       : b.data.code,
   raw: () => '',
+  // Columns (2.6): column by column (the reading order), items as lines, lists with markers.
+  columns: (b) =>
+    b.data.columns
+      .map((column) =>
+        groupColumnItems(column.items.filter((item) => t(item.text)))
+          .map((run) =>
+            run.kind === 'list'
+              ? run.items
+                  .map((item, i) => `${run.style === 'ordered' ? `${i + 1}.` : '-'} ${t(item.text)}`)
+                  .join('\n')
+              : t(run.item.text)
+          )
+          .join('\n')
+      )
+      .filter(Boolean)
+      .join('\n\n'),
   // Tab-separated rows; merged cells leave their covered cells empty; the caption (2.4) is the first line.
   table: (b) => {
     const rows = b.data.content
@@ -139,6 +156,8 @@ const RENDERERS = {
   button: (b) => (b.data.link ? `${b.data.text} (${b.data.link})` : b.data.text),
   delimiter: () => '---',
   math: (b) => b.data.tex.trim(),
+  // Component blocks (2.5): site-specific; nothing unless `overrides.component` returns text.
+  component: () => '',
   toc: (b) => {
     const tree = buildTocTree(b.headings || [], b.data);
     if (!tree.length) return '';

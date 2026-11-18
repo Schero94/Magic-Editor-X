@@ -3,7 +3,9 @@ import { useIntl } from 'react-intl';
 import { Link as RouterLink } from 'react-router-dom';
 import { Box, Button, Flex, IconButton, Typography, VisuallyHidden } from '@strapi/design-system';
 import { Bell, Check } from '@strapi/icons';
-import { Widget, useFetchClient } from '@strapi/strapi/admin';
+import { Widget } from '@strapi/strapi/admin';
+import { useFetchClient } from '../../utils/fetch-client';
+import { useSessionActive } from '../../editor/useSessionGuard';
 import styled from 'styled-components';
 import { API } from '../../utils/api';
 import { getTranslation } from '../../utils/getTranslation';
@@ -105,7 +107,10 @@ export const MentionsWidget = () => {
     );
   }, [get]);
 
+  // 2.6: no polling while the admin session has ended.
+  const sessionActive = useSessionActive();
   useEffect(() => {
+    if (!sessionActive) return undefined;
     let timer = null;
     const schedule = () => {
       window.clearTimeout(timer);
@@ -132,7 +137,7 @@ export const MentionsWidget = () => {
       window.removeEventListener('focus', onWake);
       document.removeEventListener('visibilitychange', onWake);
     };
-  }, [load]);
+  }, [load, sessionActive]);
 
   const act = async (request, message) => {
     try {

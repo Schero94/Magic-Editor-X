@@ -9,6 +9,7 @@ const { createLogger } = require('../utils/logger');
 const { getTokenKey, signToken, verifyToken } = require('../utils/crypto');
 const { cleanEditorValue } = require('../utils/sanitizer');
 const { createRateLimiter } = require('../utils/rate-limit');
+const { createSessionCheck, cleanSessionId, SESSION_CHECK_MS } = require('../utils/admin-session');
 const {
   createSeedUpdate,
   docToEditorData,
@@ -216,11 +217,15 @@ module.exports = ({ strapi }) => {
    * (allowed block types, heading levels, link targets). Limits and alternative
    * texts are checked on save only, so typing is never refused half-way.
    * @param {{ uid: string, field: string }} target - Room target.
-   * @returns {((block: object) => string|null) | undefined} Rule, or undefined for unrestricted fields.
+   * Component blocks (2.5) are checked in every field: their component must be listed
+   * in the field's `allowedComponents`.
+   * @returns {(block: object) => string|null} Rule.
    */
   const blockRuleFor = (target) => {
     const preset = presetOf(target);
-    if (!preset.restricted) return undefined;
+    if (!preset.restricted)
+      return (block) =>
+        block && block.type === 'component' && checkBlockStructure(preset, block) ? 'PRESET_VIOLATION' : null;
     return (block) => (checkBlockStructure(preset, block) ? 'PRESET_VIOLATION' : null);
   };
 
@@ -232,6 +237,8 @@ module.exports = ({ strapi }) => {
   let polling = false;
   let permissionSignal = null;
   let revalidating = null;
+  // 2.6: is the admin session behind a socket still active (true/false, null = unknown)?
+  const sessionActive = createSessionCheck(strapi);
   const sessionLimiter = createRateLimiter({ max: 60, windowMs: 60000 });
 
   const roomState = (room) => {
@@ -807,8 +814,21 @@ module.exports = ({ strapi }) => {
     if (revalidating) return revalidating;
     revalidating = (async () => {
       const abilities = new Map();
+      const sessions = new Map();
       for (const state of Array.from(rooms.values())) {
         for (const socket of Array.from(state.sockets)) {
+          // 2.6: a socket of an admin session that ended (logout, revoked, expired) is closed.
+          const sid = socket.data.sid;
+          if (sid) {
+            if (!sessions.has(sid))
+              sessions.set(sid, await sessionActive(sid, (newest) => (socket.data.sid = newest)));
+            socket.data.sessionCheckedAt = Date.now();
+            if (sessions.get(sid) === false) {
+              socket.emit('mx:error', { code: 'SESSION_ENDED' });
+              socket.disconnect(true);
+              continue;
+            }
+          }
           try {
             const userId = socket.data.userId;
             if (!abilities.has(userId)) abilities.set(userId, await access().abilityForUser(userId));
@@ -909,6 +929,9 @@ module.exports = ({ strapi }) => {
         Math.max(1000, claims.exp - Date.now() + 60000)
       );
       if (!fresh) return next(handshakeError('INVALID_TOKEN'));
+      // 2.6: the token was issued for an admin session; refuse it once that session ended.
+      if (claims.sid && (await sessionActive(claims.sid)) === false)
+        return next(handshakeError('SESSION_ENDED'));
       const usage = await store().presenceOfUser(claims.userId, Date.now() - PRESENCE_TTL_MS);
       if (usage.sockets >= Number(conf('maxConnectionsPerAdmin', 20)))
         return next(handshakeError('TOO_MANY_CONNECTIONS'));
@@ -940,6 +963,8 @@ module.exports = ({ strapi }) => {
     socket.data.color = claims.color;
     socket.data.cursor = null;
     socket.data.presenceId = randomUUID();
+    socket.data.sid = cleanSessionId(claims.sid);
+    socket.data.sessionCheckedAt = Date.now();
     const state = roomState(room);
     state.target = claims.target;
     state.sockets.add(socket);
@@ -992,6 +1017,16 @@ module.exports = ({ strapi }) => {
     socket.on('mx:update', async (payload, ack) => {
       const reply = typeof ack === 'function' ? ack : () => {};
       if (!socket.data.canEdit) return reply({ ok: false, code: 'READ_ONLY' });
+      // 2.6: edits of an admin session that ended are refused (checked at most every SESSION_CHECK_MS).
+      if (socket.data.sid && Date.now() - socket.data.sessionCheckedAt >= SESSION_CHECK_MS) {
+        socket.data.sessionCheckedAt = Date.now();
+        if ((await sessionActive(socket.data.sid, (newest) => (socket.data.sid = newest))) === false) {
+          reply({ ok: false, code: 'SESSION_ENDED' });
+          socket.emit('mx:error', { code: 'SESSION_ENDED' });
+          socket.disconnect(true);
+          return undefined;
+        }
+      }
       const update = toBytes(payload, maxBytes);
       if (!update) return reply({ ok: false, code: 'INVALID_UPDATE' });
       const now = Date.now();
@@ -1134,12 +1169,22 @@ module.exports = ({ strapi }) => {
      * keyed by the entry's identity. A key that is not saved yet is accepted for callers who can
      * update the document (the room is private to whoever holds the key until the entry is saved;
      * it is seeded from `initialValue`).
-     * @param {{ userAbility: object, user: object, uid: string, documentId: string, locale?: string|null, field: string, fieldKey?: string, initialValue?: unknown }} input - Request.
+     * @param {{ userAbility: object, user: object, uid: string, documentId: string, locale?: string|null, field: string, fieldKey?: string, initialValue?: unknown, sessionId?: string|null }} input - Request (`sessionId` 2.6: the caller's admin session).
      * @returns {Promise<object>} Token and connection details.
      * @throws {errors.NotFoundError|errors.ForbiddenError|errors.RateLimitError|errors.ApplicationError} Access denied,
      *   collaboration off, too many sessions, `code: 'FIELD_KEY_REQUIRED'` for a positional field without a key.
      */
-    async createSession({ userAbility, user, uid, documentId, locale, field, fieldKey, initialValue }) {
+    async createSession({
+      userAbility,
+      user,
+      uid,
+      documentId,
+      locale,
+      field,
+      fieldKey,
+      initialValue,
+      sessionId,
+    }) {
       if (conf('enabled', true) === false || !io)
         throw new errors.ForbiddenError('Live collaboration is disabled');
       const limit = Number((conf('rateLimit', {}) || {}).sessionsPerMinute) || 60;
@@ -1212,6 +1257,8 @@ module.exports = ({ strapi }) => {
         protocol: PROTOCOL,
         nonce: randomUUID(),
         exp: Date.now() + ttl,
+        // 2.6: the admin session behind this token (sockets end with it); absent before Strapi sessions.
+        ...(cleanSessionId(sessionId) ? { sid: sessionId } : {}),
       };
       return {
         token: signToken(claims, getTokenKey(strapi)),

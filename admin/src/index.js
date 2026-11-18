@@ -8,7 +8,12 @@ import { registerBlock } from './editor/block-registry';
 import { createReactTool } from './editor/react-tool';
 import { createLogoutMiddleware } from './editor/drafts-logic.mjs';
 import { createSessionMiddleware } from './editor/session-state.mjs';
+import { createSessionGuardMiddleware, createSignInTabCloser } from './editor/session-guard.mjs';
 import { clearDrafts } from './editor/draft-store';
+import { AllowedComponentsInput } from './components/AllowedComponentsInput';
+
+/** Content-Type Builder input type of the "Component blocks" field option (2.5). */
+const ALLOWED_COMPONENTS_INPUT = 'magic-editor-x-allowed-components';
 
 /**
  * Translations are split by area (common, editor, tools, settings); each
@@ -381,6 +386,28 @@ export default {
               },
             ],
           },
+          // 2.5: component blocks (Content-Type Builder components editors insert from the + menu).
+          {
+            sectionTitle: {
+              id: getTranslation('field.options.components'),
+              defaultMessage: 'Component blocks',
+            },
+            items: [
+              {
+                intlLabel: {
+                  id: getTranslation('field.options.allowedComponents.label'),
+                  defaultMessage: 'Components editors can insert',
+                },
+                description: {
+                  id: getTranslation('field.options.allowedComponents.description'),
+                  defaultMessage:
+                    'Each one appears in the + menu of this field under its name. Checked again when saving.',
+                },
+                name: 'options.allowedComponents',
+                type: ALLOWED_COMPONENTS_INPUT,
+              },
+            ],
+          },
         ],
       },
     });
@@ -428,6 +455,9 @@ export default {
       app.addMiddlewares([
         createLogoutMiddleware({ onLogout: () => clearDrafts() }),
         createSessionMiddleware,
+        // 2.6: session-expiry detection (rejected admin requests with 401, ended sessions, signing in again).
+        createSessionGuardMiddleware,
+        createSignInTabCloser,
       ]);
   },
 
@@ -440,6 +470,12 @@ export default {
     const contentManager = app.getPlugin && app.getPlugin('content-manager');
     const apis = contentManager && contentManager.apis;
     if (apis && typeof apis.addEditViewSidePanel === 'function') apis.addEditViewSidePanel([EntryPanel]);
+    // 2.5: Content-Type Builder input of the "Component blocks" field option (CTB forms API
+    // `apis.forms.components.add`, as the i18n plugin does for its inputs).
+    const ctb = app.getPlugin && app.getPlugin('content-type-builder');
+    const forms = ctb && ctb.apis && ctb.apis.forms;
+    if (forms && forms.components && typeof forms.components.add === 'function')
+      forms.components.add({ id: ALLOWED_COMPONENTS_INPUT, component: AllowedComponentsInput });
   },
 
   /**

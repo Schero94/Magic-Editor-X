@@ -1,7 +1,18 @@
 import { useEffect, useRef, useState } from 'react';
-import { useFetchClient } from '@strapi/strapi/admin';
+import { useFetchClient } from '../../utils/fetch-client';
 import { createCollabClient } from '../../editor/collab-client';
+import { sessionGuard } from '../../editor/session-guard.mjs';
 import { API } from '../../utils/api';
+
+/**
+ * 2.6: room content acknowledged when a field's client paused (signed out), by room key. Kept in
+ * memory only, so a field that Strapi remounts after signing in again can merge the buffered text
+ * onto the room instead of replacing it.
+ */
+const pausedBases = new Map();
+
+/** Delay between signing in again and reconnecting the room (2.6). */
+const RESUME_DELAY_MS = 1500;
 
 const INITIAL = {
   status: 'off',
@@ -19,6 +30,9 @@ const INITIAL = {
  *
  * Session tokens are requested through the admin fetch client, so an
  * expired admin access token is refreshed by Strapi before a reconnect.
+ * 2.6: while the admin session has ended (`editor/session-guard.mjs`) the
+ * client is paused (socket closed, no reconnects, edits kept); it resumes
+ * with a fresh token after signing in again.
  * @param {object} options - Options.
  * @param {{ uid: string, documentId: string, locale: string|null, field: string, fieldKey?: string }|null} options.target - Field, or
  *   null when collaboration is off (`fieldKey` for fields inside a repeatable component or dynamic zone, 2.4).
@@ -79,6 +93,8 @@ export const useCollaboration = ({
         });
         return data.data;
       },
+      // 2.6: the server closed the socket because the admin session ended (revoked, logged out elsewhere).
+      onSessionEnded: () => sessionGuard.reportError({ status: 401 }, 'collaboration'),
       onRemoteData: () => onRemoteRef.current(),
       getInitialView: () => (getInitialViewRef.current ? getInitialViewRef.current() : null),
       onFirstSync: (seeded) => (onFirstSyncRef.current ? onFirstSyncRef.current(seeded, instance) : null),
@@ -86,14 +102,30 @@ export const useCollaboration = ({
       onUndoState: (undo) => setState((previous) => ({ ...previous, ...undo })),
     });
     setClient(instance);
+    // Resume a moment later: Strapi reloads the edit view after signing in again, and a socket
+    // opened just before the field unmounts would only be closed while connecting.
+    let resumeTimer = null;
+    const follow = (session) => {
+      clearTimeout(resumeTimer);
+      if (session.status === 'active') resumeTimer = setTimeout(() => instance.resume(), RESUME_DELAY_MS);
+      else {
+        instance.pause();
+        const base = instance.pausedBase();
+        if (base) pausedBases.set(key, base);
+      }
+    };
+    if (!sessionGuard.isActive()) instance.pause();
+    const unsubscribe = sessionGuard.subscribe(follow);
     return () => {
+      unsubscribe();
+      clearTimeout(resumeTimer);
       instance.destroy();
       setClient(null);
       setState(INITIAL);
     };
   }, [key, post]);
 
-  if (!key) return { ...INITIAL, active: false, client: null };
+  if (!key) return { ...INITIAL, active: false, client: null, takePausedBase: () => null };
   return {
     active: !['off', 'denied', 'error'].includes(state.status),
     status: state.status === 'off' ? 'connecting' : state.status,
@@ -105,5 +137,11 @@ export const useCollaboration = ({
     canUndo: state.canUndo,
     canRedo: state.canRedo,
     client,
+    /** 2.6: the room content when this field's previous client paused, once (null when none). */
+    takePausedBase: () => {
+      const base = pausedBases.get(key) || null;
+      pausedBases.delete(key);
+      return base;
+    },
   };
 };

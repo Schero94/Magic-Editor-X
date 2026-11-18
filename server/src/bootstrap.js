@@ -8,6 +8,7 @@ const { subscribeCommentAuthorCleanup } = require('./utils/comment-retention');
 const { subscribeAuditActorCleanup } = require('./utils/audit-trail');
 const { wrapAiLocalizations } = require('./utils/ai-localization-guard');
 const { registerMediaSigning } = require('./utils/media-signing');
+const { registerComponentOutputOnRead } = require('./utils/component-read');
 
 /**
  * Bootstrap: RBAC actions, plugin tables, migrations, the response parser
@@ -76,6 +77,12 @@ module.exports = async ({ strapi }) => {
     if (await registerMediaSigning(strapi)) logger.info('private upload provider: media URLs are signed');
   } catch (error) {
     logger.error('media URL signing could not be registered', error);
+  }
+  // 2.6: plain Content API and GraphQL reads return component blocks like `?mex=` does (current schema only).
+  try {
+    registerComponentOutputOnRead(strapi);
+  } catch (error) {
+    logger.error('component block output could not be registered', error);
   }
 
   // Opt-in output transform (`?mex=`); registered first so it runs after the 1.x string parser below.

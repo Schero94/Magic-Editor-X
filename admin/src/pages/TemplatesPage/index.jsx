@@ -14,7 +14,8 @@ import {
 } from '@strapi/design-system';
 import { Plus } from '@strapi/icons';
 import { EmptyDocuments } from '@strapi/icons/symbols';
-import { Page, useFetchClient, useNotification, useRBAC } from '@strapi/strapi/admin';
+import { Page, useNotification, useRBAC } from '@strapi/strapi/admin';
+import { useFetchClient } from '../../utils/fetch-client';
 import { PERMISSIONS } from '../../permissions';
 import { API, readApiError } from '../../utils/api';
 import { PageShell, SectionCard, refocusIfLost, useT } from '../../components/ui';

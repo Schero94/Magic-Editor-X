@@ -10,7 +10,7 @@ import * as reactEntry from '../shared/frameworks/react.mjs';
 import * as vueEntry from '../shared/frameworks/vue.mjs';
 
 const read = (name) => readFileSync(new URL(`../docs/guides/${name}`, import.meta.url), 'utf8');
-const GUIDES = ['astro.md', 'react.md', 'vue-nuxt.md'];
+const GUIDES = ['astro.md', 'react.md', 'vue-nuxt.md', 'live-preview.md'];
 const ENTRIES = { render, react: reactEntry, vue: vueEntry };
 const ARTICLE = {
   blocks: [

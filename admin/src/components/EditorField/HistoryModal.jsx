@@ -15,7 +15,8 @@ import {
   Typography,
 } from '@strapi/design-system';
 import { ArrowClockwise, Eye, Pencil } from '@strapi/icons';
-import { ConfirmDialog, useFetchClient, useNotification } from '@strapi/strapi/admin';
+import { ConfirmDialog, useNotification } from '@strapi/strapi/admin';
+import { useFetchClient } from '../../utils/fetch-client';
 import styled from 'styled-components';
 import { API, readApiError } from '../../utils/api';
 import { VersionDiff } from './VersionDiff';

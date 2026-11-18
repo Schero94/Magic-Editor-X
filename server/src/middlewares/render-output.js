@@ -22,6 +22,14 @@ const { createLogger } = require('../utils/logger');
  */
 
 const PARAM = 'mex';
+/**
+ * 2.6: `?mex=html&mexBlockIds=true` marks every top-level block element with
+ * `data-mex-block-id` and `data-mex-field-path` (renderer option `blockIds`);
+ * with Strapi's preview header `strapi-encode-source-maps: true` also with
+ * `data-strapi-source`. Other formats ignore it.
+ */
+const IDS_PARAM = 'mexBlockIds';
+const IDS_VALUES = Object.freeze(['true', 'false']);
 
 /**
  * @param {object} strapi - Strapi instance.
@@ -53,6 +61,17 @@ const middleware = (_config, { strapi }) => {
         param: PARAM,
       });
     }
+    const ids = query[IDS_PARAM];
+    if (ids !== undefined && (typeof ids !== 'string' || !IDS_VALUES.includes(ids))) {
+      throw new errors.ValidationError(`Invalid query param ${IDS_PARAM}`, {
+        key: IDS_PARAM,
+        path: null,
+        source: 'query',
+        param: IDS_PARAM,
+      });
+    }
+    const withIds = ids === 'true' && format === 'html';
+    const withSource = withIds && Boolean(ctx.headers) && ctx.headers['strapi-encode-source-maps'] === 'true';
     await next();
 
     if (ctx.status !== 200 || !ctx.body || typeof ctx.body !== 'object' || !('data' in ctx.body)) return;
@@ -62,8 +81,13 @@ const middleware = (_config, { strapi }) => {
     const service = strapi.plugin('magic-editor-x').service('references');
 
     const targets = [];
-    walkOutput(strapi, schema, ctx.body.data, (holder, key, attribute, locale) => {
-      targets.push({ holder, key, value: holder[key], locale, options: attribute && attribute.options });
+    walkOutput(strapi, schema, ctx.body.data, (holder, key, attribute, locale, where) => {
+      const target = { holder, key, value: holder[key], locale, options: attribute && attribute.options };
+      if (withIds)
+        target.render = {
+          blockIds: { field: where.path, ...(withSource ? { strapiSource: where.entry } : {}) },
+        };
+      targets.push(target);
     });
     if (!targets.length) return;
     try {
@@ -89,3 +113,5 @@ const middleware = (_config, { strapi }) => {
 
 module.exports = middleware;
 module.exports.PARAM = PARAM;
+module.exports.IDS_PARAM = IDS_PARAM;
+module.exports.IDS_VALUES = IDS_VALUES;

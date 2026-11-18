@@ -43,5 +43,17 @@
   "field.options.inlineScript.label": "Hochgestellt und tiefgestellt",
   "field.options.inlineScript.description": "Für Formeln und Einheiten wie m² oder H₂O",
   "field.options.inlineAnnotations.label": "Anmerkungen",
-  "field.options.inlineAnnotations.description": "Durch Kommas getrennte Namen von Anmerkungen, zum Beispiel: abbreviation. Ihr Entwickler kann weitere hinzufügen, etwa glossary."
+  "field.options.inlineAnnotations.description": "Durch Kommas getrennte Namen von Anmerkungen, zum Beispiel: abbreviation. Ihr Entwickler kann weitere hinzufügen, etwa glossary.",
+  "field.options.components": "Komponenten-Blöcke",
+  "field.options.allowedComponents.label": "Komponenten, die Redakteure einfügen können",
+  "field.options.allowedComponents.description": "Jede erscheint im +-Menü dieses Felds unter ihrem Namen. Wird beim Speichern erneut geprüft.",
+  "field.options.allowedComponents.placeholder": "Keine Komponenten-Blöcke",
+  "field.options.allowedComponents.loadError": "Die Komponenten konnten nicht geladen werden.",
+  "field.options.allowedComponents.empty": "Diese App hat noch keine Komponenten. Legen Sie zuerst eine im Content-Type Builder an.",
+  "field.options.allowedComponents.unsupported": "Nicht als Blöcke nutzbar (nur Text-, Zahl-, Datums-, Auswahl- und Ein/Aus-Felder werden unterstützt):",
+  "field.options.allowedComponents.reason.type": "{name} ({type})",
+  "field.options.allowedComponents.reason.private": "{name} (privat)",
+  "field.options.allowedComponents.reason.name": "{name} (Name)",
+  "field.options.allowedComponents.reason.enum": "{name} (keine Optionen)",
+  "field.options.allowedComponents.reason.tooMany": "mehr als 50 Felder"
 }

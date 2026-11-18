@@ -571,3 +571,99 @@ test('the resolver limits cannot be raised by callers', () => {
   const service = createReferences({ strapi });
   assert.deepEqual(service.LIMITS, { maxReferences: 500, timeoutMs: 5000 });
 });
+
+test('2.6: the response walk reports the field path and the entry that holds it', () => {
+  const seen = [];
+  walkOutput(
+    walkStrapi,
+    { ...WALK_ARTICLE, kind: 'collectionType' },
+    [
+      {
+        documentId: 'art1',
+        locale: 'de',
+        body: {},
+        sections: [{ heading: 'h' }, { body: {} }],
+        zone: [{ __component: 'blocks.text-section', body: {} }],
+        category: [{ documentId: 'cat1', body: {} }],
+      },
+      { documentId: 'art2', body: {} },
+    ],
+    (_holder, _key, _attribute, _locale, where) => seen.push([where.path, where.entry])
+  );
+  const art1 = { documentId: 'art1', model: ARTICLE, kind: 'collectionType', locale: 'de' };
+  assert.deepEqual(seen, [
+    ['body', art1],
+    ['sections.1.body', art1],
+    ['zone.0.body', art1],
+    ['body', { documentId: 'cat1', model: CATEGORY, kind: null, locale: 'de' }],
+    ['body', { documentId: 'art2', model: ARTICLE, kind: 'collectionType', locale: null }],
+  ]);
+});
+
+test('2.6: ?mex=html&mexBlockIds=true passes block id options; the preview header adds the entry', async () => {
+  const calls = [];
+  const strapi = middlewareStrapi([]);
+  strapi.plugin = () => ({
+    service: () => ({
+      transform: async (items, options) => {
+        calls.push({ items, options });
+        return items.map(() => '<p>x</p>');
+      },
+    }),
+  });
+  const mw = renderOutput({}, { strapi });
+  const route = { handler: 'api::article.article.findOne', info: { type: 'content-api' } };
+  const run = async (query, headers = {}) => {
+    const ctx = { method: 'GET', path: '/api/articles/abc', query, headers, status: 200, state: { route } };
+    await mw(ctx, async () => {
+      ctx.body = {
+        data: { documentId: 'abc', locale: 'en', body: { blocks: [] }, sections: [{ body: {} }] },
+      };
+    });
+    return ctx;
+  };
+  await run({ mex: 'html' });
+  assert.equal(calls[0].items[0].render, undefined, 'off by default');
+  await run({ mex: 'html', mexBlockIds: 'true' });
+  assert.deepEqual(
+    calls[1].items.map((item) => item.render),
+    [{ blockIds: { field: 'body' } }, { blockIds: { field: 'sections.0.body' } }]
+  );
+  await run({ mex: 'html', mexBlockIds: 'true' }, { 'strapi-encode-source-maps': 'true' });
+  assert.deepEqual(calls[2].items[1].render.blockIds.strapiSource, {
+    documentId: 'abc',
+    model: ARTICLE,
+    kind: null,
+    locale: 'en',
+  });
+  await run({ mex: 'text', mexBlockIds: 'true' });
+  await run({ mex: 'html', mexBlockIds: 'false' });
+  assert.equal(calls[3].items[0].render, undefined, 'text output ignores it');
+  assert.equal(calls[4].items[0].render, undefined);
+  for (const mexBlockIds of ['yes', ['true', 'true'], '']) {
+    await assert.rejects(run({ mex: 'html', mexBlockIds }), (error) => error.name === 'ValidationError');
+  }
+  assert.equal(calls.length, 5);
+});
+
+test('2.6: transform renders block ids for HTML items with render.blockIds only', async () => {
+  const { strapi } = fakeStrapi({ allowed: new Set([`${ARTICLE}.find`]), rows: ROWS });
+  const service = createReferences({ strapi });
+  const render = {
+    blockIds: { field: 'body', strapiSource: { documentId: 'abc', model: ARTICLE, locale: 'de' } },
+  };
+  const [marked, plain, text] = await service.transform(
+    [
+      { value: value(), locale: 'de', render },
+      { value: value(), locale: 'de' },
+      { value: value(), locale: 'de', format: 'text', render },
+    ],
+    { format: 'html', auth }
+  );
+  assert.match(
+    marked,
+    /<p class="mex-paragraph" data-mex-block-id="p1" data-mex-field-path="body" data-strapi-source="documentId=abc&amp;type=json&amp;model=api%3A%3Aarticle.article&amp;locale=de&amp;fieldPath=body">/
+  );
+  assert.equal(marked.replace(/ data-(?:mex-block-id|mex-field-path|strapi-source)="[^"]*"/g, ''), plain);
+  assert.doesNotMatch(text, /data-/);
+});

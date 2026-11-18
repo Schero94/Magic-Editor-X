@@ -221,6 +221,28 @@ export const xssDocument = (payload) =>
         ],
       },
     },
+    // Columns (2.6): every item kind, ids, options and the column list carry the payload too.
+    {
+      type: 'columns',
+      data: {
+        layout: payload,
+        gap: payload,
+        valign: payload,
+        columns: [
+          {
+            id: payload,
+            items: [
+              { id: payload, type: 'heading', level: payload, text: payload },
+              { id: 'p1', type: 'paragraph', text: payload },
+              { id: 'l1', type: 'list', style: payload, text: payload },
+              { id: 'l2', type: payload, text: payload },
+            ],
+          },
+          { id: 'c2', items: [{ id: 'q', type: 'list', style: 'ordered', text: payload }, payload] },
+          payload,
+        ],
+      },
+    },
     {
       type: 'image',
       data: {
@@ -347,5 +369,11 @@ export const xssDocument = (payload) =>
         text: `<mark data-mex-highlight="note"><span data-mex-color="accent">${payload}</span></mark><span data-mex-annotation="abbreviation" data-mex-a-title="${escapeHtml(payload)}">${payload}</span>`,
       },
     },
+    // 2.5: component blocks (nothing by default; `componentBlocks` renders them in the parity test).
+    {
+      type: 'component',
+      data: { uid: 'blocks.cta', values: { title: payload, url: payload, n: 1 }, _mex: 1 },
+    },
+    { type: 'component', data: { uid: payload, values: { [payload]: payload, ok: payload }, _mex: 1 } },
     { type: 'custom-x', data: { title: payload, url: payload, nested: { a: payload } } }
   );

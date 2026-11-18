@@ -12,6 +12,8 @@
 import { isPlainObject } from './editor-data.mjs';
 import { activeBlock } from './blocks/active.mjs';
 import { TABLE_LIMITS, cleanTableExtras } from './table.mjs';
+import { cleanComponentData } from './components.mjs';
+import { cleanColumnsData } from './columns.mjs';
 import {
   BUILT_IN_MARKER,
   BUILT_IN_MARKER_VERSION,
@@ -614,6 +616,11 @@ export const BLOCK_POLICIES = {
     display: d.display !== false,
     _mex: BUILT_IN_MARKER_VERSION,
   }),
+  // Component block (2.5): a Content-Type Builder component's uid and plain values. The
+  // schema checks (allowed uid, attribute types and rules) run on save (`shared/components.mjs`).
+  component: (d) => cleanComponentData(d, BUILT_IN_MARKER_VERSION),
+  // Columns (2.6): 2-4 columns of simple items (shared/columns.mjs), no nested blocks.
+  columns: (d, inline) => cleanColumnsData(d, inline, BUILT_IN_MARKER_VERSION),
   toc: (d) => {
     const minLevel = int(d.minLevel, 1, 6, 2);
     const maxLevel = int(d.maxLevel, 1, 6, 4);

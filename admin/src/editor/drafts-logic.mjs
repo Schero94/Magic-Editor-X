@@ -153,11 +153,16 @@ export const restoreDecision = ({ record, now, readOnly = false, recordKey, show
  * Whether the field writes, removes or leaves its buffer after a change.
  * Live collaboration that is connected and has nothing unsent already keeps
  * the content in the room, so nothing is buffered then; while the socket is
- * disconnected (reconnecting, offline) or edits are unsent, the buffer covers the gap.
- * @param {{ dirty: boolean, collaboration?: { active: boolean, status: string, pending: boolean } }} input - State.
- * @returns {'write'|'delete'} Action.
+ * disconnected (reconnecting, offline, paused) or edits are unsent, the buffer covers the gap.
+ * 2.6: while the admin session has ended (`sessionEnded`), a changed field is
+ * always buffered, whatever the room says, and a clean field keeps its buffer
+ * (`keep`): Strapi resets the form from the server after signing in again, and
+ * the buffer is what brings the typed text back.
+ * @param {{ dirty: boolean, collaboration?: { active: boolean, status: string, pending: boolean }, sessionEnded?: boolean }} input - State.
+ * @returns {'write'|'delete'|'keep'} Action.
  */
-export const bufferAction = ({ dirty, collaboration }) => {
+export const bufferAction = ({ dirty, collaboration, sessionEnded = false }) => {
+  if (sessionEnded) return dirty ? 'write' : 'keep';
   const synced =
     collaboration && collaboration.active && collaboration.status === 'live' && !collaboration.pending;
   return dirty && !synced ? 'write' : 'delete';

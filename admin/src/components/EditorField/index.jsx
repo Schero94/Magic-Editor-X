@@ -26,7 +26,8 @@ import {
   Search,
   Sparkle,
 } from '@strapi/icons';
-import { useFetchClient, useNotification, useStrapiApp } from '@strapi/strapi/admin';
+import { useNotification, useStrapiApp } from '@strapi/strapi/admin';
+import { useFetchClient } from '../../utils/fetch-client';
 import { Lightbulb, Pencil } from '@strapi/icons';
 import styled, { createGlobalStyle, useTheme } from 'styled-components';
 import { buildTools, editorI18n, createUndoManager, createDragDrop } from '../../editor/tools';
@@ -37,6 +38,12 @@ import { abbreviationAnnotation, annotationsFromSummaries } from '../../../../sh
 import { createCspGuard } from '../../editor/tools/csp-guard';
 import { prepareEditorValue, prepareRemoteData, sanitizeInline } from '../../editor/sanitize';
 import { applyToEditor, blockKey, rememberBlocks } from '../../editor/apply-remote';
+import { holdSelection } from '../../editor/selection-keeper.mjs';
+import {
+  componentRoomView,
+  markComponentsPushed,
+  reportUnpushedComponents,
+} from '../../editor/tools/component';
 import { computeStats } from '../../../../shared/editor-data.mjs';
 import { stableStringify } from '../../../../shared/ydoc.mjs';
 import { useEditorConfig } from '../../hooks/useEditorConfig';
@@ -102,6 +109,12 @@ import { FootnoteDialog } from './FootnoteDialog';
 import { FootnotesPanel } from './FootnotesPanel';
 import { restoreBlockInEditor } from '../../editor/restore-block.mjs';
 import { OPEN_FIELD_PANEL_EVENT, matchesFieldRequest } from '../../editor/entry-panel-events.mjs';
+import {
+  parseLocateMessage,
+  parseLocateQuery,
+  LOCATED_MESSAGE_TYPE,
+} from '../../../../shared/preview-locate.mjs';
+import { isEmbeddedFrameWindow } from '../../editor/frame-source.mjs';
 import { installEditorKeyGuard } from '../../editor/focus-guard.mjs';
 import { restrictView } from '../../../../shared/collab-replica.mjs';
 import { markInputReady, trackUserInput } from '../../editor/input-tracking.mjs';
@@ -110,6 +123,8 @@ import { highlightMatch, clearHighlight } from '../../editor/find-highlight';
 import { createAltTextSuggester } from '../../editor/ai-alt-text';
 import { insertSuggestion } from '../../editor/ai-selection';
 import { GrammarPanel } from './GrammarPanel';
+import { ComponentBlockView } from './ComponentBlockView';
+import { setActiveComponents } from '../../../../shared/components.mjs';
 import { FieldAiDialog } from './FieldAiDialog';
 import { BlockAiDialog } from './BlockAiDialog';
 // 2.5: dropped files (Media Library drop zone) and signed URLs of private upload providers.
@@ -127,6 +142,7 @@ import { escapeHtml } from '../../../../shared/render/inline.mjs';
 // 2.5: local draft buffer (protect unsaved work) and lazy start of fields (performance).
 import { useDraftBuffer } from './useDraftBuffer';
 import { DraftNotice } from './DraftNotice';
+import { SessionBanner } from './SessionBanner';
 import { useLazyActivation } from './useLazyActivation';
 import { LazyPlaceholder } from './LazyPlaceholder';
 import { savedValueOf } from '../../editor/drafts-logic.mjs';
@@ -414,6 +430,8 @@ const EditorFieldBody = ({
   const collabRef = useRef(null);
   const pendingLocalRef = useRef(false);
   const syncedOnceRef = useRef(false);
+  // 2.6: the editor shows the room (after its first render), so a found buffer is compared with the room.
+  const [roomRendered, setRoomRendered] = useState(false);
   // What the editor shows as far as live collaboration knows: the content it was created with
   // (in the editor's own serialisation once available), then the last room state it rendered.
   // A new collaboration client diffs edits made before its first render against this.
@@ -562,6 +580,36 @@ const EditorFieldBody = ({
   // eslint-disable-next-line react-hooks/exhaustive-deps -- recomputed when the options change (presetKey)
   const preset = useMemo(() => resolveFieldPreset(fieldOptions), [presetKey]);
   const presetRef = useRef(preset);
+  // 2.5: component blocks. Descriptors of every component (GET /config), the ones this field allows.
+  const componentList = config && Array.isArray(config.components) ? config.components : null;
+  const componentsByUid = useMemo(
+    () => new Map((componentList || []).map((descriptor) => [descriptor.uid, descriptor])),
+    [componentList]
+  );
+  useEffect(() => {
+    if (componentList) setActiveComponents(componentList);
+  }, [componentList]);
+  const allowedComponents = useMemo(
+    () =>
+      preset.components
+        .map((uid) => componentsByUid.get(uid))
+        .filter((descriptor) => descriptor && descriptor.supported),
+    [preset, componentsByUid]
+  );
+  const [componentMounts, setComponentMounts] = useState(() => new Map());
+  const componentKeyRef = useRef(0);
+  const mountComponent = useCallback((element, info) => {
+    componentKeyRef.current += 1;
+    const key = componentKeyRef.current;
+    setComponentMounts((current) => new Map(current).set(key, { element, ...info }));
+    return () =>
+      setComponentMounts((current) => {
+        if (!current.has(key)) return current;
+        const next = new Map(current);
+        next.delete(key);
+        return next;
+      });
+  }, []);
   useEffect(() => {
     presetRef.current = preset;
   }, [preset]);
@@ -668,7 +716,10 @@ const EditorFieldBody = ({
             return;
           }
           emit(data);
-          if (collabRef.current) collabRef.current.pushLocal(data);
+          if (collabRef.current) {
+            collabRef.current.pushLocal(data);
+            markComponentsPushed(data);
+          }
           if (undoRef.current) undoRef.current.record();
         } catch {
           // Editor.js rejects saves while a block is being re-rendered; the next change saves again.
@@ -753,7 +804,7 @@ const EditorFieldBody = ({
   const mediaSignerRef = useRef(null);
   const signRequestRef = useRef(null);
   const applyExternal = useCallback(
-    async (data, { emitToForm }) => {
+    async (data, { emitToForm, live = false }) => {
       const editor = editorRef.current;
       if (!editor) return;
       applyingRef.current = true;
@@ -766,6 +817,7 @@ const EditorFieldBody = ({
             new Promise((resolve) => setTimeout(resolve, 3000)),
           ]);
         await applyToEditor(editor, data || { blocks: [] }, knownRef.current, {
+          live,
           display: signer
             ? (blockData, block) =>
                 signer.signValue({ blocks: [{ ...block, data: blockData }] }).blocks[0].data
@@ -797,6 +849,7 @@ const EditorFieldBody = ({
     try {
       const local = await editor.save();
       client.pushLocal(local);
+      markComponentsPushed(local);
     } catch {
       // the next change is saved again
     }
@@ -813,8 +866,10 @@ const EditorFieldBody = ({
       const editor = editorRef.current;
       if (!seeded || !editor) return;
       const local = await editor.save().catch(() => null);
-      if (local && local.blocks.length > 0 && contentKey(local) !== contentKey(client.getData()))
+      if (local && local.blocks.length > 0 && contentKey(local) !== contentKey(client.getData())) {
         client.pushLocal(local);
+        markComponentsPushed(local);
+      }
     },
     onRemoteData: async () => {
       const client = collabRef.current;
@@ -838,11 +893,14 @@ const EditorFieldBody = ({
       // not mark the form as changed. Later remote edits do.
       const first = !syncedOnceRef.current;
       syncedOnceRef.current = true;
-      await applyExternal(shared, { emitToForm: !first });
-      // The editor's own serialisation of what it now shows is the base of the next local diff.
-      const shown = await editor.save().catch(() => null);
+      await applyExternal(shared, { emitToForm: !first, live: true });
+      // The editor's own serialisation of what it now shows is the base of the next local diff;
+      // 2.6: component blocks count with the room's values, so edits not pushed yet stay a difference.
+      const shown = componentRoomView(await editor.save().catch(() => null));
       client.markShown(catchUp, shown || shared);
       viewRef.current = shown || shared;
+      reportUnpushedComponents();
+      if (first) setRoomRendered(true);
     },
     getInitialView: () => viewRef.current,
   });
@@ -1134,6 +1192,8 @@ const EditorFieldBody = ({
       placeholder,
       attachmentTypes: config.uploads.attachmentTypes,
       mountSynced,
+      componentBlocks: allowedComponents,
+      mountComponent,
       onFootnoteEdit: (marker, info) => footnoteEditRef.current && footnoteEditRef.current(marker, info),
       // 2.4: "Comment" in the inline toolbar for admins who may write comments.
       onComment:
@@ -1161,6 +1221,9 @@ const EditorFieldBody = ({
         shortcut: tool.shortcut,
         label: t(SHORTCUT_LABELS[name][0], SHORTCUT_LABELS[name][1]),
       }));
+    // 2.6: Editor.js clears the document selection while it starts; keep the caret of a field the
+    // user is typing in (a lazily started field must not move it, see editor/selection-keeper.mjs).
+    const selectionHold = holdSelection(holderRef.current);
     const editor = new EditorJS({
       holder: holderRef.current,
       data: (mediaSignerRef.current ? mediaSignerRef.current.signValue(initial) : initial) || undefined,
@@ -1174,6 +1237,7 @@ const EditorFieldBody = ({
       onChange: () => scheduleSave(),
 
       onReady: () => {
+        selectionHold.release();
         if (destroyed) return;
         // 2.5: everything save() returns carries the stored (unsigned) media URLs again.
         const signer = mediaSignerRef.current;
@@ -1274,6 +1338,7 @@ const EditorFieldBody = ({
       if (footnoteKeys) footnoteKeys.destroy();
       if (mentionTrigger) mentionTrigger.destroy();
       editorRef.current = null;
+      selectionHold.release();
       editor.isReady.then(() => editor.destroy()).catch(() => {});
     };
     // The editor is rebuilt only when its tools change; value updates are applied below.
@@ -1483,6 +1548,7 @@ const EditorFieldBody = ({
         const shown = await editorRef.current.save().catch(() => prepared.data);
         collabRef.current.stopCapturing();
         collabRef.current.pushLocal(shown);
+        markComponentsPushed(shown);
       }
       if (undoRef.current) undoRef.current.record();
       return true;
@@ -1539,6 +1605,7 @@ const EditorFieldBody = ({
         const shown = await editorRef.current.save().catch(() => data);
         collabRef.current.stopCapturing();
         collabRef.current.pushLocal(shown);
+        markComponentsPushed(shown);
       }
       if (undoRef.current) undoRef.current.record();
     },
@@ -1560,12 +1627,40 @@ const EditorFieldBody = ({
     value,
     savedValue,
     shownData: currentData,
+    roomRendered,
     ready,
     readOnly,
     collaboration: {
       active: collaboration.active,
       status: collaboration.status,
       pending: collaboration.pending,
+    },
+    // 2.6: signed in again and the form was reset from the server: the typed text comes back (the banner says so).
+    // Without a live room the buffer replaces what the reset form shows. In a live room nothing is
+    // replaced (others may have edited meanwhile): a field that stayed mounted still shows the text
+    // (the paused client kept and sends it), so only the form gets it back; a remounted field merges
+    // the buffered edit (room at the pause -> buffer) onto the room, or throws (the notice is shown).
+    onRecover: async (data, { remounted = false } = {}) => {
+      if (!collabRef.current) {
+        await replaceContent(data);
+        return;
+      }
+      const until = Date.now() + 10000;
+      while (collabRef.current && !syncedOnceRef.current && Date.now() < until) {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+      const client = collabRef.current;
+      const editor = editorRef.current;
+      if (!client || !editor) throw new Error('not ready');
+      if (remounted) {
+        const base = collaboration.takePausedBase();
+        if (!base) throw new Error('no base');
+        client.mergeLocal(base, data);
+        return;
+      }
+      const shown = await editor.save();
+      lastEmittedRawRef.current = null;
+      emit(shown);
     },
     onRestore: async (data) => {
       await replaceContent(data);
@@ -2038,6 +2133,62 @@ const EditorFieldBody = ({
     window.addEventListener(OPEN_FIELD_PANEL_EVENT, onRequest);
     return () => window.removeEventListener(OPEN_FIELD_PANEL_EVENT, onRequest);
   }, []);
+
+  // 2.6 click-to-locate: `?mexField=<path>&mexBlock=<id>` in the edit view URL, or a
+  // `magic-editor-x:locate` message from a frame of this page (Strapi's preview iframe).
+  const [locateRequest, setLocateRequest] = useState(() => {
+    const request = typeof window === 'undefined' ? null : parseLocateQuery(window.location.search);
+    return request && request.field === target.field ? request : null;
+  });
+  const locatePathRef = useRef(target.field);
+  useEffect(() => {
+    locatePathRef.current = target.field;
+  });
+  useEffect(() => {
+    const onMessage = (event) => {
+      const request = parseLocateMessage(event.data);
+      if (!request || request.field !== locatePathRef.current || !isEmbeddedFrameWindow(event.source)) return;
+      setLocateRequest({ ...request });
+      // Tell the frame that a field handles it (it does not navigate the admin then).
+      try {
+        event.source.postMessage({ type: LOCATED_MESSAGE_TYPE, field: request.field }, event.origin);
+      } catch {
+        // a frame without a usable origin gets no answer
+      }
+    };
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  }, []);
+  const activateLazy = lazy.activate;
+  const handledLocateRef = useRef(null);
+  useEffect(() => {
+    if (!locateRequest || handledLocateRef.current === locateRequest) return;
+    // A field that waits for the viewport (lazy start) starts now.
+    if (!ready) {
+      activateLazy();
+      return;
+    }
+    if (suggestMode) return;
+    handledLocateRef.current = locateRequest;
+    const editor = editorRef.current;
+    const block = locateRequest.blockId && editor ? editor.blocks.getById(locateRequest.blockId) : null;
+    // After a click in the preview iframe the frame keeps the focus: give it back to the admin page first.
+    const active = document.activeElement;
+    if (active && active.tagName === 'IFRAME' && typeof active.blur === 'function') active.blur();
+    if (block) {
+      selectBlock(locateRequest.blockId);
+      return;
+    }
+    if (frameRef.current) frameRef.current.scrollIntoView({ block: 'start' });
+    if (locateRequest.blockId)
+      toggleNotification({
+        type: 'info',
+        message: t(
+          'editor.locate.missing',
+          'This block is no longer in the field. It may have been moved or deleted.'
+        ),
+      });
+  }, [locateRequest, ready, suggestMode, activateLazy, selectBlock, t, toggleNotification]);
 
   // Block suggestions (2.4) -------------------------------------------------
   const suggestionCounts = useMemo(
@@ -2870,6 +3021,8 @@ const EditorFieldBody = ({
                 palette,
                 annotations: fieldAnnotations,
                 isDark: () => darkRef.current,
+                componentBlocks: allowedComponents,
+                mountComponent,
               }}
               preset={preset}
               direction={direction}
@@ -2911,6 +3064,7 @@ const EditorFieldBody = ({
             tools={fieldTools}
             moreButtonRef={moreButtonRef}
           />
+          {target.uid ? <SessionBanner t={t} /> : null}
           {draft.notice && ready && !suggestMode ? (
             <DraftNotice
               t={t}
@@ -3298,6 +3452,25 @@ const EditorFieldBody = ({
           comments={commentsEnabled}
         />
       ) : null}
+      {[...componentMounts].map(([key, mount]) =>
+        createPortal(
+          <ComponentBlockView
+            t={t}
+            blockId={mount.blockId}
+            uid={mount.uid}
+            values={mount.values}
+            fresh={mount.fresh}
+            readOnly={Boolean(mount.readOnly || readOnly)}
+            descriptor={componentsByUid.get(mount.uid) || null}
+            allowed={preset.components.includes(mount.uid)}
+            focus={mount.focus}
+            onChange={mount.onChange}
+            subscribe={mount.subscribe}
+          />,
+          mount.element,
+          `component-${key}`
+        )
+      )}
       {[...syncedMounts].map(([key, mount]) =>
         createPortal(
           <SyncedBlockView

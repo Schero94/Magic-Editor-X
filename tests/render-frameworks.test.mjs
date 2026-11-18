@@ -78,6 +78,15 @@ test('XSS corpus: React and Vue output equals renderHtml and is safe', async () 
         sanitizeRaw: SANITIZE,
         code: { lineNumbers: true, copyButton: { label: payload, copiedLabel: payload } },
       },
+      // 2.5: component blocks rendered by the site.
+      {
+        componentBlocks: {
+          'blocks.cta': (block, h) =>
+            h.h('a', { href: block.data.values.url, title: block.data.values.title, class: 'cta' }, [
+              h.textNode(block.data.values.title),
+            ]),
+        },
+      },
     ]) {
       const expected = renderHtml(value, options);
       const react = await reactHtml({ value, options });

@@ -37,7 +37,9 @@ import {
   annotateHeadings,
 } from './common.mjs';
 import { buildTocTree } from '../toc.mjs';
-import { tableLayout } from '../table.mjs';
+import { annotateBlockSources, blockIdOptions } from './source.mjs';
+import { tableLayout, isBlankInlineHtml } from '../table.mjs';
+import { groupColumnItems } from '../columns.mjs';
 
 /**
  * @typedef {import('./nodes.mjs').RenderNode} RenderNode
@@ -361,6 +363,39 @@ const copyBlock = (pre, copy) =>
   ]);
 
 /**
+ * Renders a columns block (2.6).
+ * @param {{ data: { columns: Array<{ items: object[] }>, layout?: string, gap?: string, valign?: string }, tunes?: object }} b - Prepared block.
+ * @param {object} o - Render options.
+ * @returns {RenderNode} Wrapper node.
+ */
+const columnsElement = (b, o) => {
+  const { columns } = b.data;
+  const cls = ['mex-columns', `mex-columns-${columns.length}`];
+  if (b.data.layout) cls.push(`mex-columns-${b.data.layout}`);
+  if (b.data.gap) cls.push(`mex-columns-gap-${b.data.gap}`);
+  if (b.data.valign) cls.push(`mex-columns-valign-${b.data.valign}`);
+  const runs = (items) =>
+    groupColumnItems(items.filter((item) => !isBlankInlineHtml(item.text))).map((run) => {
+      if (run.kind === 'list')
+        return el(
+          run.style === 'ordered' ? 'ol' : 'ul',
+          { class: 'mex-list' },
+          run.items.map((item) => el('li', {}, inlineToNodes(item.text, o)))
+        );
+      if (run.kind === 'heading')
+        return el(`h${run.item.level}`, { class: 'mex-header' }, inlineToNodes(run.item.text, o));
+      return el('p', { class: 'mex-paragraph' }, inlineToNodes(run.item.text, o));
+    });
+  return el(
+    'div',
+    { class: classes(cls, b.tunes), 'data-mex-columns': String(columns.length) },
+    columns.map((column, index) =>
+      el('div', { class: 'mex-column', 'data-mex-column': String(index + 1) }, runs(column.items))
+    )
+  );
+};
+
+/**
  * Default nodes per block type. Each entry returns a node, an array of nodes,
  * or null to omit the block. This is the single place to add a block type
  * for HTML, React and Vue.
@@ -473,6 +508,9 @@ const RENDERERS = {
       [caption, head, body.length ? el('tbody', {}, body) : null]
     );
   },
+  // Columns (2.6): one wrapper with a class per option, one `div.mex-column` per column in
+  // reading order (stack them on narrow screens), simple items inside; empty items are left out.
+  columns: (b, o) => columnsElement(b, o),
   image: (b, o) => {
     const file = resolveMedia(b.data.file, b, o);
     if (!file.url) return null;
@@ -655,6 +693,9 @@ const RENDERERS = {
           ),
         })
       : null,
+  // Component block (2.5): nothing by default; sites render it with `componentBlocks[uid]`
+  // (any output) or the React/Vue `components.component` / `block-component` slot.
+  component: () => null,
   toc: (b, o) => {
     const tree = buildTocTree(b.headings || [], b.data);
     if (!tree.length) return null;
@@ -861,6 +902,22 @@ const cleanOverrideNodes = (input, trusted) => {
 /* ------------------------------------------------------------- builder */
 
 /**
+ * Renderer of a component block from `options.componentBlocks[uid]` (2.5),
+ * used like an override (nodes, or a string under the override rules).
+ * @param {object} options - Render options.
+ * @param {object} block - Prepared block.
+ * @returns {Function|null} Renderer.
+ */
+const componentRendererFor = (options, block) => {
+  if (!block.known || block.type !== 'component') return null;
+  const map = options && options.componentBlocks;
+  const uid = block.data && block.data.uid;
+  if (!map || typeof map !== 'object' || typeof uid !== 'string' || !uid) return null;
+  if (!Object.prototype.hasOwnProperty.call(map, uid)) return null;
+  return typeof map[uid] === 'function' ? map[uid] : null;
+};
+
+/**
  * Whether raw HTML (raw blocks, string overrides in a tree) may be used.
  * @param {object} options - Render options.
  * @returns {boolean} True with `rawHtml: 'allow'` and a `sanitizeRaw` function.
@@ -919,7 +976,7 @@ export const createTreeBuilder = (value, options, mode = {}) => {
 
   /** @param {object} block - Prepared block. @returns {Array<RenderNode|BlockNode>} Nodes of the block. */
   const blockContent = (block) => {
-    const override = overrideFor(opts, block.type);
+    const override = overrideFor(opts, block.type) || componentRendererFor(opts, block);
     if (override) {
       const out = override(toPublic(block), helpers);
       if (typeof out === 'string') {
@@ -975,13 +1032,20 @@ export const createTreeBuilder = (value, options, mode = {}) => {
   /** @param {object[]} blocks - Prepared blocks. @returns {Array<RenderNode|BlockNode>} Block nodes separated by line breaks. */
   function renderList(blocks) {
     const out = [];
+    let visible = false;
     for (const block of blocks) {
       const children = blockContent(block);
-      if (!children.length) continue;
+      // 2.5: an empty component block keeps its wrapper (no separator, no output in HTML),
+      // so the React/Vue `components.component` override still receives it.
+      const keep = children.length > 0 || (block.known && block.type === 'component');
+      if (!keep) continue;
       /** @type {BlockNode} */
       const node = { type: 'block', block: toPublic(block), children };
       trusted.add(node);
-      if (out.length) out.push(textNode('\n'));
+      if (children.length) {
+        if (visible) out.push(textNode('\n'));
+        visible = true;
+      }
       out.push(node);
     }
     return out;
@@ -1003,7 +1067,11 @@ export const createTreeBuilder = (value, options, mode = {}) => {
     childNodes: renderBlocks,
   };
 
-  const nodes = renderList(annotateHeadings(prepareBlocks(value, opts), opts));
+  // 2.6: opt-in block source attributes on the top-level block elements.
+  const nodes = annotateBlockSources(
+    renderList(annotateHeadings(prepareBlocks(value, opts), opts)),
+    blockIdOptions(base.blockIds)
+  );
   // Footnotes (2.4): the list follows the content.
   const section = footnotes.section();
   if (section) nodes.push(textNode('\n'), section);

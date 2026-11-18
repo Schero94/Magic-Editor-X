@@ -161,6 +161,27 @@
               </p>
             </article>
             <article class="card">
+              <h3>Columns</h3>
+              <p>
+                Insert 2 or 3 columns from the + menu or with <code>/col</code> and type. Each column holds
+                paragraphs, headings and list items; the toolbar sets the text style and the width, the block menu
+                the number of columns, spacing and alignment. Columns stack in reading order on narrow screens and
+                work with live collaboration, undo, comments, AI, find and replace and every renderer. Output:
+                <code>div.mex-columns[data-mex-columns]</code> with one <code>div.mex-column</code> per column and no
+                inline styles; Markdown flattens the columns in reading order.
+              </p>
+            </article>
+            <article class="card">
+              <h3>Component blocks</h3>
+              <p>
+                Pick Content-Type Builder components in a field's advanced settings ("Component blocks") and editors
+                insert them from the + menu like any block: a small form with the component's text, number, date,
+                choice and on/off fields, checked while typing and again on save. Live editing keeps every
+                collaborator's change. Off until a field lists components; renderers output nothing for them unless
+                the site passes <code>componentBlocks</code>.
+              </p>
+            </article>
+            <article class="card">
               <h3>Media library</h3>
               <p>
                 Upload images and attachments into the Strapi Media Library or pick existing files. Gallery
@@ -233,6 +254,14 @@
               </p>
             </article>
             <article class="card">
+              <h3>Signed out? Your text stays</h3>
+              <p>
+                When the admin session ends while you write, one calm banner says so and offers Sign in again in a
+                new tab. Typed text is kept on this device, live editing pauses, and after signing in the text is
+                back in the editor so Save works (2.6).
+              </p>
+            </article>
+            <article class="card">
               <h3>AI assistant</h3>
               <p>
                 Improve, correct, shorten, expand, summarize, simplify, translate or change the tone of selected
@@ -293,6 +322,66 @@
           <div class="gallery">
             <figure class="shot">
               <img
+                src="./img/columns-toolbox.png"
+                alt="The + menu filtered by col shows the entries 2 columns and 3 columns"
+                width="724"
+                height="420"
+                loading="lazy"
+              />
+              <figcaption>Insert columns (2.6)</figcaption>
+            </figure>
+            <figure class="shot">
+              <img
+                src="./img/columns-block.png"
+                alt="A columns block with a wide left column: heading, paragraph and a bulleted list, and a contact column"
+                width="724"
+                height="341"
+                loading="lazy"
+              />
+              <figcaption>Columns block with the width toolbar (2.6)</figcaption>
+            </figure>
+            <figure class="shot">
+              <img
+                src="./img/columns-narrow.png"
+                alt="On a 390 pixel wide screen the two columns stack in reading order"
+                width="296"
+                height="389"
+                loading="lazy"
+              />
+              <figcaption>Columns stack on narrow screens (2.6)</figcaption>
+            </figure>
+            <figure class="shot">
+              <img
+                src="./img/columns-dark.png"
+                alt="The columns block in the dark admin theme"
+                width="724"
+                height="372"
+                loading="lazy"
+              />
+              <figcaption>Columns in dark mode (2.6)</figcaption>
+            </figure>
+            <figure class="shot">
+              <img
+                src="./img/components-after-1440.png"
+                alt="A Call to action component block in the editor: title, text, URL, style, highlight switch and priority"
+                width="1440"
+                height="900"
+                loading="lazy"
+              />
+              <figcaption>Component block (2.6)</figcaption>
+            </figure>
+            <figure class="shot">
+              <img
+                src="./img/components-ctb-1440.png"
+                alt="Content-Type Builder advanced settings of a Magic Editor X field with the option Component blocks"
+                width="1440"
+                height="900"
+                loading="lazy"
+              />
+              <figcaption>Choose the components of a field (2.6)</figcaption>
+            </figure>
+            <figure class="shot">
+              <img
                 src="./img/entry-panel-after-1440.png"
                 alt="The Magic Editor X entry panel: Editing now, open comments and quality per field"
                 width="742"
@@ -320,6 +409,16 @@
                 loading="lazy"
               />
               <figcaption>Unsaved changes (2.5)</figcaption>
+            </figure>
+            <figure class="shot">
+              <img
+                src="./img/session-after-1440.png"
+                alt="Banner at the bottom of an entry: You were signed out. Your changes are kept on this device. Sign in again to save. With the button Sign in again"
+                width="742"
+                height="464"
+                loading="lazy"
+              />
+              <figcaption>Signed out while editing (2.6)</figcaption>
             </figure>
             <figure class="shot">
               <img
@@ -1015,6 +1114,7 @@
                 <tr><td><code>?mex=text</code></td><td>Plain text</td></tr>
                 <tr><td><code>?mex=markdown</code></td><td>Markdown</td></tr>
                 <tr><td><code>?mex=json</code></td><td>The stored document with resolved references</td></tr>
+                <tr><td><code>?mex=html&amp;mexBlockIds=true</code></td><td>Rendered HTML with <code>data-mex-block-id</code> and <code>data-mex-field-path</code> on each block (2.6); with the preview header <code>strapi-encode-source-maps: true</code> also <code>data-strapi-source</code> for Strapi's preview</td></tr>
                 <tr><td>GraphQL <code>bodyRendered(format: HTML)</code></td><td>Rendered string (<code>HTML</code>, <code>TEXT</code>, <code>MARKDOWN</code>), with <code>@strapi/plugin-graphql</code></td></tr>
                 <tr><td>GraphQL <code>bodyResolved</code></td><td>JSON with resolved references</td></tr>
               </tbody>
@@ -1025,6 +1125,7 @@
             <li>Published versions are used unless the request asks for <code>status=draft</code>; every row passes Strapi's output sanitising.</li>
             <li><code>mex</code> is registered with Strapi's <code>contentAPI.addQueryParams</code>, so it works with strict parameters; admin and plugin routes are never changed.</li>
             <li>At most 500 references and 5 seconds per response.</li>
+            <li>Strapi Preview (2.6): a click on a block in the preview opens the entry with the caret in that block, and a front end can re-render the field while someone edits it. Typing directly in the preview page is not possible with Strapi's public APIs. See the <a href="https://github.com/Schero94/Magic-Editor-X/blob/main/docs/guides/live-preview.md">Live Preview guide</a>.</li>
           </ul>
         </section>
 
@@ -1082,7 +1183,7 @@
             <li>Suggestions are cleaned and checked against the field's rules; accepting needs update access and each suggestion is decided once.</li>
             <li>The audit trail keeps ids and counts, never content, e-mail or IP addresses.</li>
             <li>Strapi AI translations receive only the text of a field; the publishing guard also covers direct published writes and Releases readiness.</li>
-            <li>The entry panel shows names only and only to admins who can read the entry; inserting from another entry needs read access to the source; local drafts stay in the admin's browser and are removed at logout; private files are never stored signed.</li>
+            <li>The entry panel shows names only and only to admins who can read the entry; inserting from another entry needs read access to the source; local drafts stay in the admin's browser and are removed at logout (an ended session keeps them until you sign in again); private files are never stored signed.</li>
             <li>Reviews: <a href="https://github.com/Schero94/Magic-Editor-X/blob/main/docs/security-audit-2.5.md">security-audit-2.5.md</a>, <a href="https://github.com/Schero94/Magic-Editor-X/blob/main/docs/security-audit-2.4.md">security-audit-2.4.md</a> and <a href="https://github.com/Schero94/Magic-Editor-X/blob/main/docs/security-audit-2.3.md">security-audit-2.3.md</a>.</li>
           </ul>
         </section>

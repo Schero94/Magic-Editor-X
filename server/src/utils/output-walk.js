@@ -9,6 +9,11 @@ const { isEditorAttribute, schemaHasEditorFields } = require('./editor-fields');
  * the default (flat) response format and in the `Strapi-Response-Format: v4`
  * format (`{ id, attributes }`, relations as `{ data }`). Media attributes
  * and unknown keys are never touched. Depth is bounded.
+ *
+ * 2.6: the visitor also receives `{ path, entry }`: the field path relative
+ * to the entry that holds it (`body`, `sections.2.body`, Strapi's
+ * `rawWithIndices` form) and that entry (`documentId`, `model`, `kind`,
+ * `locale`; populated relations start a new entry).
  */
 
 const MAX_DEPTH = 10;
@@ -17,8 +22,8 @@ const MAX_DEPTH = 10;
  * @param {object} strapi - Strapi instance.
  * @param {object} schema - Content-type or component schema of `node`.
  * @param {unknown} node - Response data (object or array).
- * @param {(holder: object, key: string, attribute: object, locale: string|null) => void} visit - Visitor.
- * @param {{ cache?: Map<string, boolean>, locale?: string|null, depth?: number }} [state] - Walk state.
+ * @param {(holder: object, key: string, attribute: object, locale: string|null, where: { path: string, entry: { documentId: string|null, model: string|null, kind: string|null, locale: string|null } }) => void} visit - Visitor.
+ * @param {{ cache?: Map<string, boolean>, locale?: string|null, depth?: number, path?: string, entry?: object|null }} [state] - Walk state (`entry` null or absent: `node` is an entry).
  */
 const walkOutput = (strapi, schema, node, visit, state = {}) => {
   const cache = state.cache || new Map();
@@ -26,7 +31,14 @@ const walkOutput = (strapi, schema, node, visit, state = {}) => {
   if (!schema || !node || typeof node !== 'object' || depth > MAX_DEPTH) return;
   if (!schemaHasEditorFields(strapi, schema, cache)) return;
   if (Array.isArray(node)) {
-    for (const item of node) walkOutput(strapi, schema, item, visit, { cache, locale: state.locale, depth });
+    for (const item of node)
+      walkOutput(strapi, schema, item, visit, {
+        cache,
+        locale: state.locale,
+        depth,
+        path: state.path,
+        entry: state.entry,
+      });
     return;
   }
   const attributes = schema.attributes || {};
@@ -39,25 +51,48 @@ const walkOutput = (strapi, schema, node, visit, state = {}) => {
       ? node.attributes
       : node;
   const locale = typeof holder.locale === 'string' ? holder.locale : state.locale || null;
-  const next = { cache, locale, depth: depth + 1 };
+  const entry = state.entry || {
+    documentId: typeof holder.documentId === 'string' ? holder.documentId : null,
+    model: typeof schema.uid === 'string' ? schema.uid : null,
+    kind: typeof schema.kind === 'string' ? schema.kind : null,
+    locale,
+  };
+  const prefix = state.entry && state.path ? `${state.path}.` : '';
+  const inEntry = (path) => ({ cache, locale, depth: depth + 1, path, entry });
   for (const [name, attribute] of Object.entries(attributes)) {
     if (!attribute || !Object.prototype.hasOwnProperty.call(holder, name)) continue;
     let value = holder[name];
     if (value === null || value === undefined) continue;
     if (isEditorAttribute(attribute)) {
-      visit(holder, name, attribute, locale);
+      visit(holder, name, attribute, locale, { path: `${prefix}${name}`, entry });
       continue;
     }
     if (attribute.type === 'component') {
-      walkOutput(strapi, strapi.components[attribute.component], value, visit, next);
+      const component = strapi.components[attribute.component];
+      if (Array.isArray(value))
+        value.forEach((item, index) =>
+          walkOutput(strapi, component, item, visit, inEntry(`${prefix}${name}.${index}`))
+        );
+      else walkOutput(strapi, component, value, visit, inEntry(`${prefix}${name}`));
     } else if (attribute.type === 'dynamiczone' && Array.isArray(value)) {
-      for (const item of value) {
+      value.forEach((item, index) => {
         if (item && typeof item === 'object' && typeof item.__component === 'string')
-          walkOutput(strapi, strapi.components[item.__component], item, visit, next);
-      }
+          walkOutput(
+            strapi,
+            strapi.components[item.__component],
+            item,
+            visit,
+            inEntry(`${prefix}${name}.${index}`)
+          );
+      });
     } else if (attribute.type === 'relation' && typeof attribute.target === 'string') {
       if (value && typeof value === 'object' && !Array.isArray(value) && 'data' in value) value = value.data;
-      walkOutput(strapi, strapi.getModel(attribute.target), value, visit, next);
+      // A populated relation is another entry: its paths start again at its own fields.
+      walkOutput(strapi, strapi.getModel(attribute.target), value, visit, {
+        cache,
+        locale,
+        depth: depth + 1,
+      });
     }
   }
 };

@@ -22,7 +22,8 @@ import {
   Typography,
 } from '@strapi/design-system';
 import { ArrowClockwise, Filter } from '@strapi/icons';
-import { Page, Pagination, useFetchClient, useQueryParams, useRBAC } from '@strapi/strapi/admin';
+import { Page, Pagination, useQueryParams, useRBAC } from '@strapi/strapi/admin';
+import { useFetchClient } from '../../utils/fetch-client';
 import { PERMISSIONS } from '../../permissions';
 import { API } from '../../utils/api';
 import { PageShell, SectionCard, useBreakpoint, useT } from '../../components/ui';

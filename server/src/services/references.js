@@ -16,6 +16,7 @@ const {
   entryKey,
 } = require('../../../shared/resolve-references.mjs');
 const { createLogger } = require('../utils/logger');
+const { createComponentOutput } = require('../utils/component-blocks');
 const { signForOutput } = require('../utils/media-signing');
 const { inlineStrings } = require('../../../shared/quality.mjs');
 const {
@@ -76,6 +77,8 @@ const STORED_SYSTEM_KEYS = new Set(['id', 'documentId', 'title', 'href']);
 const LIMITS = Object.freeze({ maxReferences: 500, timeoutMs: 5000 });
 
 module.exports = ({ strapi }) => {
+  // 2.5: component blocks follow the current component schemas in every output.
+  const componentOutput = createComponentOutput(strapi);
   const logger = createLogger(strapi);
 
   /**
@@ -547,14 +550,14 @@ module.exports = ({ strapi }) => {
   /**
    * Transforms values for output: expands synced blocks, resolves references
    * once for all values, then renders each.
-   * @param {Array<{ value: unknown, locale?: string|null, format?: 'html'|'text'|'markdown'|'json', options?: object }>} items - Values (an item's `format` wins over `options.format`; `options` are the field options, for the preset of synced content).
+   * @param {Array<{ value: unknown, locale?: string|null, format?: 'html'|'text'|'markdown'|'json', options?: object, render?: { blockIds?: object } }>} items - Values (an item's `format` wins over `options.format`; `options` are the field options, for the preset of synced content; `render.blockIds` (2.6) is passed to the HTML renderer).
    * @param {{ format?: 'html'|'text'|'markdown'|'json', auth?: object, status?: 'draft'|'published', limits?: object }} options - Output options.
    * @returns {Promise<Array<object|string|null>>} Output per item.
    */
   const transform = async (items, { format = 'json', auth, status, limits } = {}) => {
     const expanded = await expandAll(items);
     const { prepared, refs } = collect(
-      expanded.map((entry, index) => ({ value: entry.value, locale: items[index].locale }))
+      expanded.map((entry, index) => ({ value: componentOutput(entry.value), locale: items[index].locale }))
     );
     const results = await resolve(refs, { auth, status, limits });
     // 2.5: private upload providers: resolved and expanded files get fresh signed URLs (one batch).
@@ -583,6 +586,9 @@ module.exports = ({ strapi }) => {
           origins.has(block.id) ? { ...block, syncedFrom: origins.get(block.id) } : block
         );
       const extras = renderExtras(applied, locale, outputFormat);
+      // 2.6: block source attributes (`?mex=html&mexBlockIds=true`), HTML only.
+      const render = items[index].render;
+      if (outputFormat === 'html' && render && render.blockIds) extras.blockIds = render.blockIds;
       if (annotationValues.size)
         extras.resolveAnnotation = ({ name, attrs }) =>
           annotationValues.get(annotationKey(name, attrs, locale));

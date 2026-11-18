@@ -20,6 +20,7 @@ import { createMarkdownShortcuts } from '../../editor/markdown-shortcuts';
 import { ConfirmAction } from '../ui/ConfirmAction';
 import { useTooltipSafeEscape } from '../../hooks/useTooltipSafeEscape';
 import { markInputReady } from '../../editor/input-tracking.mjs';
+import { holdSelection } from '../../editor/selection-keeper.mjs';
 import { checkPreset, isBlockAllowed } from '../../../../shared/presets.mjs';
 import { MAX_SUGGESTION_NOTE_LENGTH, suggestionsFromDiff } from '../../../../shared/suggestions.mjs';
 
@@ -176,6 +177,8 @@ export const SuggestEditor = ({
       preset: localPreset,
     });
     const toolNames = new Set(Object.keys(tools));
+    // 2.6: keep the caret of another field while this editor starts (editor/selection-keeper.mjs).
+    const selectionHold = holdSelection(holderRef.current);
     const editor = new EditorJS({
       holder: holderRef.current,
       data: base && base.blocks.length ? base : undefined,
@@ -188,6 +191,7 @@ export const SuggestEditor = ({
       tools,
       onChange: () => recompute(),
       onReady: () => {
+        selectionHold.release();
         if (destroyed) return;
         editorRef.current = editor;
         undoRef.current = createUndoManager(editor, {
@@ -236,6 +240,7 @@ export const SuggestEditor = ({
       if (paste) paste.destroy();
       if (shortcuts) shortcuts.destroy();
       editorRef.current = null;
+      selectionHold.release();
       editor.isReady.then(() => editor.destroy()).catch(() => {});
     };
     // The local editor is created once per suggest session.

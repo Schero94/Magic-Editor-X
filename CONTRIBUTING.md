@@ -44,6 +44,7 @@ Integration and browser tests run against a separate Strapi 5 app that installs 
      - content types `api::tag.tag` (field `name`, no editor field; `tests/integration/entry-panel.test.mjs`, or `MEX_ENTRY_PLAIN_UID`), `api::longform.longform` (20 editor fields and a dynamic zone, no i18n; browser checks of lazy start) and `api::glossary-term.glossary-term` (`slug`, `definition`, Draft & Publish), and the glossary annotation of `tests/fixtures/glossary.mjs` registered in `register()` (`tests/integration/inline-format.test.mjs`);
      - article `body` options `inlineColors: true`, `inlineScript: true`, `inlineAnnotations: "abbreviation, glossary"`, `summary` option `inlineScript: true`, and a plugin `palette` with the colours `accent`, `success`, `faint` and the highlights `note`, `info`;
      - `mcp: { enabled: true }` in the plugin config and `mcp: { enabled: true }` in `config/server` (`tests/integration/mcp.test.mjs`; a second run with the plugin option off and `MEX_MCP_EXPECT=off`);
+   - 2.6 additions: components `blocks.cta` (display name "Call to action"; `title` string required max 80, `text` text max 400, `url` string required with the regex `^(/|https?://)`, `style` enumeration `primary|secondary|ghost` default `primary`, `highlight` boolean default false, `priority` integer 1-5) and `blocks.media-card` (`label` string, `image` single media), and article `body` option `allowedComponents: "blocks.cta,blocks.retired"` (`tests/integration/component-blocks.test.mjs`; `blocks.retired` does not exist on purpose).
      - a private upload provider for `tests/integration/private-media.test.mjs`: a local provider whose `isPrivate()` returns `true` and whose `getSignedUrl` adds an HMAC and an expiry to the URL, files served by a small server that refuses unsigned requests; start the app with it (`MEX_UPLOAD=private`) and pass `MEX_UPLOAD=private`, `MEX_DB` (SQLite file or PostgreSQL URL), `MEX_HOST_DIR` and the app's database environment to the test (it runs `npx magic-editor-x media-file-ids` in the app);
      - `MEX_ENTRY_LINK_PORT` must be one of the private origins of the scheduled link check (the suite uses 1578).
 4. Generate every secret with `crypto.randomBytes` into `.env` (mode 600), including `MAGIC_EDITOR_X_ENCRYPTION_KEY`. Never print or commit them.
@@ -92,8 +93,10 @@ When a change makes an operation legitimately slower, re-measure with `npm run b
 `scripts/cluster-acceptance.mjs` starts several Strapi processes of an existing acceptance app on one PostgreSQL database behind a non-sticky round-robin balancer, then proves that two clients connected to different processes edit the same field and converge, that automatic versions are created exactly once and that acknowledged edits survive a process restart:
 
 ```bash
-node scripts/cluster-acceptance.mjs --app <app folder> --pg postgres://<user>@127.0.0.1:<port>/<database> [--base 1480]
+node scripts/cluster-acceptance.mjs --app <app folder> --pg postgres://<user>@127.0.0.1:<port>/<database> [--base 1480] [--component blocks.cta]
 ```
+
+With `--component <uid>` (2.6) the collaboration proof also seeds a component block of that uid and the clients type into its `title` and `text` attributes; the field `body` must allow the uid.
 
 Ports start at `--base`. Records of earlier runs are in `docs/acceptance/`.
 

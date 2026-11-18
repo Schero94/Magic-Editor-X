@@ -39,6 +39,7 @@ Live docs: <https://schero94.github.io/Magic-Editor-X/>
 - [Quality checks](#quality-checks)
 - [Audit trail](#audit-trail)
 - [Working together and reusing content (2.5)](#working-together-and-reusing-content-25)
+- [Component blocks, columns and Live Preview (2.6)](#component-blocks-columns-and-live-preview-26)
 - [Data format](#data-format)
 - [Rendering content](#rendering-content)
 - [Content API and GraphQL output](#content-api-and-graphql-output)
@@ -47,6 +48,7 @@ Live docs: <https://schero94.github.io/Magic-Editor-X/>
 - [Admin API and permissions](#admin-api-and-permissions)
 - [Security and privacy](#security-and-privacy)
 - [Troubleshooting](#troubleshooting)
+- [Upgrading from 2.5](#upgrading-from-25)
 - [Upgrading from 2.4](#upgrading-from-24)
 - [Upgrading from 2.3](#upgrading-from-23)
 - [Upgrading from 2.2](#upgrading-from-22)
@@ -100,20 +102,23 @@ Every feature is available in every installation. There is nothing to activate, 
 - **Colours from your palette (2.5):** text colour and highlight from named tokens you define (no free colours, no inline styles), superscript and subscript, and inline annotations such as abbreviations. All off until a field turns them on.
 - **Private upload providers (2.5):** files of private storage (for example a private S3 bucket) are signed on every read and never stored signed. Drop files onto a field to upload and insert them.
 - **Tools for AI clients (2.5):** optional tools, preset schemas and a content guide for Strapi's MCP server.
+- **Component blocks (2.6):** Content-Type Builder components as blocks inside a field, with a form checked while typing and on save. Off until a field lists components. See [Component blocks, columns and Live Preview (2.6)](#component-blocks-columns-and-live-preview-26).
+- **Columns (2.6):** 2 or 3 columns of paragraphs, headings and lists that stack on narrow screens; live editing, undo, comments, AI and every renderer included.
+- **Live Preview (2.6):** a click on a block in Strapi's preview opens the entry with the caret in that block; renderers can mark blocks for the preview.
 - **Strapi-native admin:** built with the Strapi Design System, light and dark mode, keyboard accessible, admin in English, German, French, Spanish and Portuguese.
 - **Safe content:** every value is normalised and sanitised on the server when it is saved, from the Content Manager, the Content API or code.
 - **Strapi AI translations and Releases:** Strapi's AI translation sends only the text of Magic Editor X fields and rebuilds other locales from the source structure; Releases show entries the publishing guard would refuse as not ready. See [Strapi AI translations and Releases](#strapi-ai-translations-and-releases).
 
 ## Screenshots
 
-|                                                                                                                                                                           |                                                                                                                                                       |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| ![The editor in the Content Manager, light mode](https://schero94.github.io/Magic-Editor-X/img/editor-light-1440.png)                                                     | ![The editor in the Content Manager, dark mode](https://schero94.github.io/Magic-Editor-X/img/editor-dark-1440.png)                                   |
-| ![Live collaboration: the named cursor and selection of a second editor in the same field](https://schero94.github.io/Magic-Editor-X/img/collaboration-presence-1440.png) | ![Version history: a comparison with the current content and restore per block](https://schero94.github.io/Magic-Editor-X/img/history-diff-1440.png)  |
-| ![Comments panel with an open thread and its reply, and a comment marker next to a block](https://schero94.github.io/Magic-Editor-X/img/comments-1440.png)                | ![The entry panel: who is editing now, open comments and quality per field](https://schero94.github.io/Magic-Editor-X/img/entry-panel-after-1440.png) |
-| ![Settings > Magic Editor X > Configuration](https://schero94.github.io/Magic-Editor-X/img/settings-configuration-1440.png)                                               | ![The editor on a 390 px wide screen](https://schero94.github.io/Magic-Editor-X/img/editor-mobile-390.png)                                            |
+|                                                                                                                                                                           |                                                                                                                                                                    |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| ![The editor in the Content Manager, light mode](https://schero94.github.io/Magic-Editor-X/img/editor-light-1440.png)                                                     | ![The editor in the Content Manager, dark mode](https://schero94.github.io/Magic-Editor-X/img/editor-dark-1440.png)                                                |
+| ![Live collaboration: the named cursor and selection of a second editor in the same field](https://schero94.github.io/Magic-Editor-X/img/collaboration-presence-1440.png) | ![Version history: a comparison with the current content and restore per block](https://schero94.github.io/Magic-Editor-X/img/history-diff-1440.png)               |
+| ![Comments panel with an open thread and its reply, and a comment marker next to a block](https://schero94.github.io/Magic-Editor-X/img/comments-1440.png)                | ![The entry panel: who is editing now, open comments and quality per field](https://schero94.github.io/Magic-Editor-X/img/entry-panel-after-1440.png)              |
+| ![A columns block with a wide left column and the width toolbar](https://schero94.github.io/Magic-Editor-X/img/columns-block.png)                                         | ![A Call to action component block: a form with the component's fields inside the editor](https://schero94.github.io/Magic-Editor-X/img/components-after-1440.png) |
 
-All screenshots use synthetic data (acceptance host: Strapi 5.61.1). Every screen, from tables, math and footnotes to suggestions, templates and the AI assistant, is in the [full gallery on the docs site](https://schero94.github.io/Magic-Editor-X/#screens).
+All screenshots use synthetic data (acceptance hosts: Strapi 5.61.1 and 5.62.0). Every screen, from tables, math and footnotes to suggestions, templates and the AI assistant, is in the [full gallery on the docs site](https://schero94.github.io/Magic-Editor-X/#screens).
 
 ## Core concepts
 
@@ -612,6 +617,41 @@ On Strapi 5.61 and later, drag images, videos or audio files onto a field: they 
 
 With `mcp.enabled: true` and Strapi's own MCP server on (`server.mcp.enabled`), Magic Editor X adds the tools `mex_from_markdown`, `mex_from_html`, `mex_validate` and `mex_render`, one JSON Schema resource per preset and the prompt `mex_content_guide`. They only convert and check content; they read and write no entries. The admin token of the AI client needs the action `plugin::magic-editor-x.mcp.use`.
 
+## Component blocks, columns and Live Preview (2.6)
+
+### Component blocks
+
+1. In the Content-Type Builder, open a Magic Editor X field, go to **Advanced settings** and pick the components editors may insert under **Component blocks**. Components with fields that cannot be used as blocks are listed with the reason.
+2. In the field, open the + menu (or type `/`) and choose the component by its name. A form with the component's fields appears in the block.
+3. Fill it in. Required fields, lengths, ranges, patterns and choices are checked while you type and again when the entry is saved, by every writer (Content Manager, Content API, code).
+
+Supported field types: text (short and long), rich text as plain text, e-mail, enumeration, date, date and time, time, integer, big integer, float, decimal and boolean. Components with media, relations, nested components, JSON, password, uid or private fields cannot be used as blocks. A component removed from the app keeps its stored values; the block shows a notice and the API leaves it out.
+
+Stored as `{ "type": "component", "data": { "uid": "blocks.cta", "values": { ... }, "_mex": 1 } }`. Renderers output nothing for component blocks unless you pass `componentBlocks` (HTML, `renderTree`, React, Vue) or an override, so existing front ends do not change:
+
+```js
+renderHtml(value, {
+  componentBlocks: {
+    'blocks.cta': (block, { h, url, textNode }) =>
+      h('a', { class: 'cta', href: url(block.data.values.url) }, [textNode(block.data.values.title)]),
+  },
+});
+```
+
+### Columns
+
+Open the + menu, choose **2 columns** or **3 columns** (or type `/col`) and type. Each column holds paragraphs, headings and list items with the field's inline formatting; Enter starts a new item, Backspace in an empty item removes it, and the arrow keys move between items and columns. The toolbar above the block sets the text style and the width (equal, wide left, wide right); the block menu sets the number of columns (2 to 4), the space between them and the vertical alignment.
+
+Output: `div.mex-columns[data-mex-columns]` with one `div.mex-column` per column and classes for the layout (no inline styles), so your site's CSS decides the widths and where the columns stack. Plain text and Markdown list the columns one after the other in reading order. Columns work with live editing, undo, Copy block, templates, insert from another entry, comments, AI, Strapi AI translations, find and replace, quality checks and version history. A table of contents does not list headings inside columns.
+
+### Live Preview
+
+Strapi's preview shows your front end next to the entry. With the renderer option `blockIds` (or `?mex=html&mexBlockIds=true` on the Content API) each rendered block carries `data-mex-block-id` and `data-mex-field-path`. A front end can then link a click on a block to the edit view (`editViewUrl` from `magic-editor-x/render`), which opens the entry with the caret in that block, also for fields that start lazily. Typing directly in the preview page is not possible with Strapi's public APIs (Strapi 5.62.0, checked 2026-11-17); see the [Live Preview guide](https://github.com/Schero94/Magic-Editor-X/blob/main/docs/guides/live-preview.md) and the [research record](https://github.com/Schero94/Magic-Editor-X/blob/main/docs/live-preview.md).
+
+### Signed out while editing
+
+Strapi does not tell the browser when an admin session ends, so Magic Editor X notices it from the answers to its own and Strapi's requests (a refused token refresh, a 401 on save, a closed live connection). Then one calm banner says "You were signed out. Your changes are kept on this device. Sign in again to save." Your text stays in the editor and is kept on this device at once and with every change; live editing pauses instead of retrying. **Sign in again** opens the login page in a new tab, so the entry and everything you typed stay open; after signing in, live editing resumes and sends what you typed, and you save as usual. If you click Save anyway and Strapi sends you to the login page, open the entry again: your text comes back with one click. A live connection also ends on the server within 5 seconds of the session end, so nothing typed after the end reaches others before you sign in again.
+
 ## Data format
 
 The field stores an Editor.js document as JSON:
@@ -1107,6 +1147,19 @@ Add only the services you use. Instead of `https:` in `img-src` you can list you
 | No Suggest changes or Suggestions entry                                                 | The role lacks `suggestions.create` / `suggestions.review`, `suggestions.enabled` is false, or the field is a new section that was never saved                                        | Grant the action, turn the feature on, or save the entry once.                                                          |
 | Mention e-mails do not arrive                                                           | `comments.notifications.email` is off, the Strapi email plugin has no working provider, or the hourly limit per person was reached                                                    | Turn it on, configure the email provider (Settings > Configuration shows whether e-mails are on).                       |
 | Settings > Audit trail answers 403                                                      | Listings across documents need `settings.read` next to `audit.read`                                                                                                                   | Grant both, or use the Activity tab of a field.                                                                         |
+
+## Upgrading from 2.5
+
+2.6 is a minor release. Stored content, routes and configuration keep working; there are no breaking changes and no migration.
+
+1. Update and rebuild the admin: `npm install magic-editor-x@latest && npm run build`.
+2. Nothing else is required. Component blocks appear only in fields that list components; columns appear in the + menu of fields whose preset allows them; block attributes for Live Preview are off until you pass `blockIds` or `mexBlockIds=true`.
+
+What changes for existing data and clients:
+
+- `component` and `columns` are built-in block names now. A Settings custom block with one of these names from before 2.6 keeps its data, its editor tool and its output; new custom blocks cannot take the names.
+- If your site styles a custom block by the class `mex-columns`, select the built-in block with `[data-mex-columns]`.
+- `GET /config` adds `data.components` (schemas of the app's components, no content).
 
 ## Upgrading from 2.4
 

@@ -1,5 +1,43 @@
 # Changelog
 
+## [Unreleased]
+
+### Features
+
+- **Component blocks:** insert components from the Content-Type Builder as blocks inside a Magic Editor X field. In the Content-Type Builder, open the field's advanced settings and pick the components editors may insert ("Component blocks"); they then appear in the field's + menu and slash menu under their own names. Each block is a small form with the component's text, number, date, choice and on/off fields, checked while you type and again when the entry is saved. Off by default: a field without chosen components shows nothing new. Renderers output nothing for component blocks unless you pass `componentBlocks` (HTML, React, Vue) or an override, so existing front ends do not change. Live editing keeps every collaborator's change: two people typing in the same component block at once lose nothing.
+- **Live Preview:** support for Magic Editor X fields, re-checked on Strapi 5.62 (details and sources in `docs/live-preview.md`, front-end guide in `docs/guides/live-preview.md`):
+  - Renderer option `blockIds` (HTML, React, Vue) and `?mex=html&mexBlockIds=true` for Content API output mark each rendered block with `data-mex-block-id` and `data-mex-field-path`. With Strapi's preview header `strapi-encode-source-maps: true` (or `strapiSource` in the renderer option) the blocks also get `data-strapi-source`, so Strapi's preview highlights the field. Off by default; existing output does not change.
+  - Click-to-locate: a click on a block in the preview opens the entry with the caret in that block (`editViewUrl` builds the link: `?mexField=<path>&mexBlock=<id>`), also for fields that start lazily. With the Live Preview side editor, `requestLocate` asks the field next to the preview to show the block without leaving the page. A block that no longer exists shows a short notice.
+  - New helpers in `magic-editor-x/render`: `editViewUrl`, `requestLocate`, `locateMessage`, `isBlockId`, `isFieldPath`, `strapiSourceValue`.
+- **Columns block:** insert "2 columns" or "3 columns" from the + menu or with `/col`, then type. Each column holds paragraphs, headings and list items with the field's inline formatting. A small toolbar above the columns sets the text style and the width (equal, wide left, wide right, wide middle for three columns); the block menu changes the number of columns (2 to 4), the space between them and their vertical alignment.
+  - Keyboard: Enter starts a new paragraph or list item in the column, Backspace at the start of an empty item removes it, arrow keys move between items, columns and blocks, Tab and Shift+Tab jump to the next or previous column, Alt+F10 opens the toolbar. `## `, `- ` and `1. ` turn a paragraph into a heading or list item. Pasting several paragraphs creates items; pasted HTML keeps only the field's inline formatting.
+  - Columns work with live collaboration (two people can type in different columns or the same item at once), undo and redo, "Copy block", templates, insert from another entry, drag and drop of the block, find and replace, AI actions, Strapi AI translations, comments on text in a column, suggestions (a columns block is suggested as one block), the quality panel (heading order across columns, empty columns, links) and field presets (`allowedBlocks`, heading levels). Columns stack in reading order when the editor is narrow.
+  - Output: HTML and the React and Vue components render `div.mex-columns[data-mex-columns]` with one `div.mex-column` per column and no inline styles, so your site decides the layout (stack the columns on small screens). Plain text and Markdown flatten the columns in reading order; Markdown has no columns, so the layout is lost there. JSON Schema and TypeScript types (`ColumnsData`) describe the block.
+- **Signed out while editing:** when the admin session ends (idle or absolute lifetime, signed out on another device, removed account), the entry shows one calm banner, "You were signed out. Your changes are kept on this device. Sign in again to save.", with one action, **Sign in again**. It opens the login in a new tab, which closes itself after you sign in; the entry stays open, the text you typed is back in the editor and Save works.
+  - While signed out, typed text is kept on this device at once and with every change (also during live editing), live editing pauses instead of reconnecting, and presence, comment and suggestion polling stop, so the server is not asked again and again with an ended session.
+  - If you click Save anyway and Strapi sends you to the login page, the text is still kept: open the entry again and restore it with one click (automatically when Strapi reloads the entry right after you signed in again).
+
+### Fixed
+
+- After signing in again, text kept on this device is no longer put over content someone else saved meanwhile in a field without live editing: Magic Editor X shows the Restore/Discard notice with the changes instead.
+- Text typed after a short pause no longer jumps to the start of the paragraph. When another Magic Editor X field on the page started (fields start as they come near the screen, for example after the page scrolled), Editor.js cleared the caret of the field you were typing in, and the next keystrokes landed at the start of the paragraph. The caret now stays where it was. Present since 2.5.0.
+- Live collaboration: when someone inserted a list item and edited another one while you edited that one too, your edit could land in the wrong item. Items that carry an id (column items) are now matched by id.
+
+### Security
+
+- A live editing connection now ends with the admin session it was opened in. Before, a connection opened before the session was revoked (signed out on another device, removed from the profile's session list, expired) kept accepting edits until the browser noticed the end. Edits are refused within at most 5 seconds of the end, the connection is closed, and the edit stays on your device until you sign in again. See [docs/security-audit-2.6.md](./docs/security-audit-2.6.md) (MEX-26-11).
+
+### Migration notes
+
+- No migration. A Settings custom block named `columns` keeps its data, its editor tool and its output; new custom blocks cannot take the name. A block registered in code under the name `columns` keeps working and replaces the built-in tool in that site.
+- `component` and `columns` are built-in block names now. Data of these types that was written without the built-in marker (`_mex`) by an import, a script or the block SDK and has exactly the built-in shape (`component`: only `uid`, or `uid` and `values`; `columns`: only `columns` with optional `layout`, `gap`, `valign`) is read as the built-in block: renderers output nothing for such a component block unless you pass `componentBlocks`, and saving refuses it with `COMPONENT_NOT_ALLOWED` unless the field lists its uid. The server logs one hint when it refuses such a block. Data with any other key (all Settings custom blocks) keeps its tool and output. To keep such data as your own block, rename its type or add a field of your own to its data.
+- If your site styles custom blocks by the class `mex-columns`, note that the built-in block uses the same class: select it with `[data-mex-columns]`.
+- Session expiry: no new settings, routes or stored data. Logging out yourself still removes the kept text from this browser, as in 2.5.
+
+### Notes
+
+- Typing directly in the preview page is still not possible: Strapi offers no public API for it. A front end can re-render a Magic Editor X field on Strapi's public `strapiFieldChange` event while someone edits it (see the guide).
+
 ## [2.5.3](https://github.com/Schero94/Magic-Editor-X/compare/v2.5.2...v2.5.3) (2026-11-17)
 
 

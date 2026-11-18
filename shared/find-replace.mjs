@@ -11,7 +11,9 @@
 
 import { isPlainObject } from './editor-data.mjs';
 import { parseInline, nodesToHtml } from './render/inline.mjs';
+import { columnsTextFields } from './columns.mjs';
 import { registeredBlockOf, isBuiltInBlock } from './sanitize-policy.mjs';
+import { activeComponent, textAttributes } from './components.mjs';
 
 export const MAX_QUERY_LENGTH = 200;
 export const MAX_MATCHES = 5000;
@@ -79,6 +81,15 @@ export const searchableFields = (block) => {
   const out = [];
   // Settings custom blocks (also those created before 2.3 under a built-in name) have no searchable fields.
   if (!isBuiltInBlock(block)) return out;
+  // 2.5: component blocks: the plain-text attributes (string, text, richtext) of a known component.
+  if (block.type === 'component') {
+    const descriptor = typeof data.uid === 'string' ? activeComponent(data.uid) : null;
+    const values = isPlainObject(data.values) ? data.values : {};
+    if (descriptor)
+      for (const key of textAttributes(values, descriptor))
+        out.push({ path: ['values', key], kind: 'plain', value: values[key] });
+    return out;
+  }
   for (const key of HTML_FIELDS[block.type] || [])
     if (typeof data[key] === 'string') out.push({ path: [key], kind: 'html', value: data[key] });
   for (const key of PLAIN_FIELDS[block.type] || [])
@@ -114,6 +125,10 @@ export const searchableFields = (block) => {
           if (typeof cell === 'string') out.push({ path: ['content', r, c], kind: 'html', value: cell });
         });
     });
+  // 2.6: columns, column by column (the reading order and the order the editor shows on narrow screens).
+  if (block.type === 'columns')
+    for (const field of columnsTextFields(data))
+      out.push({ path: field.path, kind: 'html', value: field.value });
   // 2.4: table caption (after the cells, where the editor shows it).
   if (block.type === 'table' && typeof data.caption === 'string')
     out.push({ path: ['caption'], kind: 'html', value: data.caption });

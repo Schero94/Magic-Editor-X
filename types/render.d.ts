@@ -157,6 +157,18 @@ export interface RenderOptions {
    */
   blocks?: ReadonlyArray<import('./blocks.js').BlockDefinition<any>>;
   /**
+   * Component blocks (2.5): renderers per component uid (`category.name`) for
+   * `component` blocks, used like `overrides` (nodes; a string only under the
+   * override rules) in `renderHtml`, `renderTree` and the React/Vue
+   * components. The block's `data` is `{ uid, values }`. Without an entry a
+   * component block renders nothing (text and Markdown too; use
+   * `overrides.component` there). `overrides.component` wins over this map.
+   */
+  componentBlocks?: Record<
+    string,
+    (block: RenderBlock, helpers: HtmlHelpers & Record<string, any>) => OverrideResult
+  >;
+  /**
    * Synced blocks (2.3): the sources of `synced` reference blocks, as a map
    * `{ [ref]: document | blocks }` (object or Map) or a function
    * `(ref) => document | blocks | null`. A reference is replaced by a copy of
@@ -208,6 +220,42 @@ export interface RenderOptions {
     attrs: Record<string, string>;
     text: string;
   }) => string | Record<string, unknown> | null | undefined;
+  /**
+   * Block source attributes (2.6, off by default): every top-level block
+   * element gets `data-mex-block-id="<Editor.js block id>"` (ids matching
+   * `^[A-Za-z0-9_-]{1,64}$` only). With `field` (a Content Manager field path
+   * such as `body` or `sections.2.body`) also `data-mex-field-path`, and with
+   * `strapiSource` also `data-strapi-source` for Strapi's preview highlighting
+   * (`documentId=…&type=json&model=…[&kind][&locale]&fieldPath=<field>`, no
+   * `path` key). Invalid parts are left out. Raw HTML from string overrides
+   * and custom React/Vue components that drop the default output carry no
+   * attributes.
+   */
+  blockIds?: boolean | BlockIdOptions;
+}
+
+/** `blockIds` render option (2.6). */
+export interface BlockIdOptions {
+  /** Field path (`data-mex-field-path`). */
+  field?: string;
+  /** Entry of the field, for `data-strapi-source` (needs `field`). */
+  strapiSource?: StrapiSourceEntry;
+}
+
+/** Entry metadata for `data-strapi-source` (2.6). */
+export interface StrapiSourceEntry {
+  documentId: string;
+  /** Content type uid, e.g. `api::article.article`. */
+  model: string;
+  kind?: 'collectionType' | 'singleType';
+  locale?: string | null;
+}
+
+/** Click-to-locate request (2.6). */
+export interface LocateMessage {
+  type: 'magic-editor-x:locate';
+  field: string;
+  blockId: string | null;
 }
 
 /** Renders TeX: MathML markup or render nodes; null/undefined for the fallback. */
@@ -247,3 +295,39 @@ export function escapeMarkdown(text: string): string;
 export function inlineToHtml(html: unknown, options?: Pick<RenderOptions, 'links'>): string;
 export function inlineToText(html: unknown): string;
 export const DEFAULT_EMBED_HOSTS: readonly string[];
+/** True for an id the renderer writes into `data-mex-block-id` (2.6). */
+export function isBlockId(id: unknown): id is string;
+/** True for a field path the renderer writes into `data-mex-field-path` (2.6). */
+export function isFieldPath(path: unknown): path is string;
+/** `data-strapi-source` value of a Magic Editor X field, or null for invalid input (2.6). */
+export function strapiSourceValue(source: StrapiSourceEntry, field: string): string | null;
+/** `type` of the click-to-locate message (2.6). */
+export const LOCATE_MESSAGE_TYPE: 'magic-editor-x:locate';
+/** Message a front end in Strapi's preview iframe posts to the admin window, or null for invalid input (2.6). */
+export function locateMessage(field: string, blockId?: string | null): LocateMessage | null;
+/**
+ * Content Manager edit view URL that opens the entry and shows the block
+ * (`?mexField=<path>&mexBlock=<id>`), or null for invalid input (2.6).
+ */
+export function editViewUrl(input: {
+  adminUrl: string;
+  model: string;
+  kind?: 'collectionType' | 'singleType';
+  documentId?: string;
+  locale?: string | null;
+  field: string;
+  blockId?: string | null;
+}): string | null;
+/** `type` of the answer a mounted field posts back to the preview frame (2.6). */
+export const LOCATED_MESSAGE_TYPE: 'magic-editor-x:located';
+/**
+ * From a front end inside Strapi's preview iframe: asks the admin to show the
+ * block. Resolves true when a mounted field (Live Preview side editor)
+ * answered within `timeoutMs` (default 400), false otherwise (2.6).
+ */
+export function requestLocate(input: {
+  field: string;
+  blockId?: string | null;
+  adminOrigin: string;
+  timeoutMs?: number;
+}): Promise<boolean>;
