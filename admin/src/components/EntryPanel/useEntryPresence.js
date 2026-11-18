@@ -13,7 +13,8 @@ import { IDLE_AFTER_MS, createTabId, nextDelay } from './logic.mjs';
  * The tab counts as idle after a minute without keyboard or pointer input, or while it is hidden.
  * Leaving the entry removes the row at once; a closed tab expires after 30 s.
  * 2.6: no heartbeat while the admin session has ended (signed out); the first
- * one after signing in again is sent at once.
+ * one after signing in again is sent at once (on the next task, so a mount that is
+ * undone right away, as in React StrictMode, sends neither a heartbeat nor a leave).
  * @param {{ uid: string|null, documentId: string|null, locale: string|null }} target - Entry.
  * @returns {{ status: 'loading'|'ready'|'error'|'unavailable', enabled: boolean, softLock: boolean, canEdit: boolean, editors: Array<{ id: string, name: string, color: string, idle: boolean, live: boolean }> }} Presence.
  */
@@ -38,6 +39,7 @@ export const useEntryPresence = ({ uid, documentId, locale }) => {
     let active = true;
     let timer = null;
     let failures = 0;
+    let sent = false;
     let lastInput = Date.now();
     const body = (extra = {}) => ({
       uid,
@@ -50,6 +52,7 @@ export const useEntryPresence = ({ uid, documentId, locale }) => {
 
     const beat = async () => {
       window.clearTimeout(timer);
+      sent = true;
       let delay;
       try {
         const { data } = await postRef.current(API.presence, body({ idle: isIdle() }));
@@ -92,7 +95,10 @@ export const useEntryPresence = ({ uid, documentId, locale }) => {
     window.addEventListener('keydown', onInput, true);
     window.addEventListener('pointerdown', onInput, true);
     document.addEventListener('visibilitychange', onVisibility);
-    beat();
+    // The first heartbeat goes out on the next task: an effect cleanup before that (React
+    // StrictMode's extra mount, a panel that unmounts at once) cancels it, so neither a
+    // heartbeat nor a leave is sent for a mount that never lasted.
+    timer = window.setTimeout(beat, 0);
     return () => {
       active = false;
       window.clearTimeout(timer);
@@ -101,7 +107,7 @@ export const useEntryPresence = ({ uid, documentId, locale }) => {
       document.removeEventListener('visibilitychange', onVisibility);
       // useFetchClient aborts its requests on unmount; the leave request must outlive the panel.
       // After a logout there is no session to leave with (the row expires after 30 s).
-      if (!isLoggedOut() && sessionGuard.isActive())
+      if (sent && !isLoggedOut() && sessionGuard.isActive())
         getFetchClient()
           .post(API.presence, body({ leave: true }))
           .catch(() => {});

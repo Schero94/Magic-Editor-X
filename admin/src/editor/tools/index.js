@@ -9,7 +9,7 @@ import { EMBED_SERVICES } from './embed-services.mjs';
 import Raw from '@editorjs/raw';
 import Attaches from '@editorjs/attaches';
 import InlineCode from '@editorjs/inline-code';
-import IndentTune from 'editorjs-indent-tune';
+import { createIndentTune } from './indent-tune';
 import {
   MarkerTool,
   UnderlineTool,
@@ -128,6 +128,22 @@ const componentToolClass = (components) => {
   return ToolClass;
 };
 
+/** Cleanup of a tool set returned by `buildTools` (see `disposeTools`). */
+const disposers = new WeakMap();
+
+/**
+ * Releases what a tool set keeps outside its editor (the indent tune's resize listeners).
+ * Call it after the editor that used the tools was destroyed.
+ * @param {Record<string, object>} tools - Tools from `buildTools`.
+ */
+export function disposeTools(tools) {
+  const dispose = tools && disposers.get(tools);
+  if (dispose) {
+    disposers.delete(tools);
+    dispose();
+  }
+}
+
 /**
  * Builds the `tools` object for `new EditorJS({ tools })`.
  * @param {object} ctx - Context from the editor field (see README in the parent component).
@@ -135,6 +151,8 @@ const componentToolClass = (components) => {
  */
 export function buildTools(ctx) {
   const t = typeof ctx.t === 'function' ? ctx.t : (_id, fallback) => fallback;
+  // One indent tune class per tool set (per editor), released by disposeTools().
+  const indent = createIndentTune();
   const preset = ctx.preset || null;
   const presetInline =
     preset && preset.inline ? INLINE.filter((name) => preset.inline.includes(name)) : INLINE;
@@ -394,7 +412,7 @@ export function buildTools(ctx) {
     alignmentTune: { class: AlignmentTune, config: { t, default: 'left' } },
     textVariant: { class: TextVariantTune, config: { t } },
     indentTune: {
-      class: IndentTune,
+      class: indent.ToolClass,
       config: { maxIndent: 5, indentSize: 30, multiblock: true, tuneName: 'indentTune' },
     },
   };
@@ -477,7 +495,9 @@ export function buildTools(ctx) {
       tools[name] = { ...tool, tunes: [...(Array.isArray(tool.tunes) ? tool.tunes : []), 'copyBlockTune'] };
     }
   }
-  return preset ? applyPreset(tools, preset) : tools;
+  const result = preset ? applyPreset(tools, preset) : tools;
+  disposers.set(result, indent.dispose);
+  return result;
 }
 
 /** Tools that are not blocks of their own (inline tools, tunes, the Media Library placeholder). */

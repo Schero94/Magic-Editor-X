@@ -1,5 +1,19 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- An editor field that unmounted while the editor settings were still loading (React StrictMode does this once on every mount; the edit view can also remount fields) made every other Magic Editor X field on the page show "The editor could not be loaded", and custom blocks were missing until the page was reloaded. The settings and custom blocks are shared by all fields and are now loaded with a request that does not belong to one field.
+- A synced block could show "The synced block could not be loaded" when another view of the same source unmounted while it was loading. Synced sources are now loaded the same way, shared and independent of the view that asked first.
+- Each block left a window resize listener behind when its editor was closed (closing an entry, a remote change rendered again, a suggestion session). The indent tune (editorjs-indent-tune 1.4.4) never removes the listener it adds; Magic Editor X now removes these listeners when the editor is destroyed, and a listener of a block that left the page removes itself on the next resize.
+- The entry side panel no longer sends a presence heartbeat followed at once by a leave when it mounts and unmounts right away (React StrictMode does this on every mount); the first heartbeat goes out on the next task.
+- The audit trail page cancels its own requests when its filters change or it unmounts, so it never loads the list and the admins twice (seen with React 19).
+
+### Tests
+
+- `npm run test:admin`: every admin entry point (editor field with Editor.js, live collaboration, lazy start, signed-out state, version history, comments and templates; entry side panel; settings pages; homepage widgets; Content-Type Builder input; Redux middlewares) is rendered in `React.StrictMode` with the Strapi admin providers. It fails on a request sent twice, an Editor.js instance, Yjs document, socket, interval, listener or observer left after unmount, and on console errors or warnings. CI runs it on React 18 and in a required job on React 19.
+
 # [2.6.0](https://github.com/Schero94/Magic-Editor-X/compare/v2.5.3...v2.6.0) (2026-11-18)
 
 

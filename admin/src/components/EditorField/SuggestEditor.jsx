@@ -13,7 +13,7 @@ import {
 } from '@strapi/design-system';
 import { ArrowClockwise, ArrowsCounterClockwise } from '@strapi/icons';
 import styled from 'styled-components';
-import { buildTools, editorI18n, createUndoManager, INLINE_TOOLS } from '../../editor/tools';
+import { buildTools, disposeTools, editorI18n, createUndoManager, INLINE_TOOLS } from '../../editor/tools';
 import { prepareEditorValue } from '../../editor/sanitize';
 import { createPasteHandler } from '../../editor/paste';
 import { createMarkdownShortcuts } from '../../editor/markdown-shortcuts';
@@ -241,7 +241,11 @@ export const SuggestEditor = ({
       if (shortcuts) shortcuts.destroy();
       editorRef.current = null;
       selectionHold.release();
-      editor.isReady.then(() => editor.destroy()).catch(() => {});
+      editor.isReady
+        .then(() => editor.destroy())
+        .catch(() => {})
+        // The indent tune's window listeners (editor/tools/indent-tune.js).
+        .finally(() => disposeTools(tools));
     };
     // The local editor is created once per suggest session.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- base and tools are fixed for the session

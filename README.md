@@ -1224,11 +1224,14 @@ npm ci
 npm run lint
 npm run format:check
 npm test                  # unit tests, no Strapi host needed
+npm run test:admin        # admin entry points in React StrictMode (jsdom, no Strapi host needed)
 npm run bench             # performance benchmark (500 to 5000 blocks) against fixed budgets
 npm run build             # admin and server bundles, then a runtime check
 npm run verify
 MEX_HOST_URL=http://127.0.0.1:1421 MEX_CREDS=/path/to/creds.json npm run test:integration
 ```
+
+`npm run test:admin` renders every admin entry point inside `React.StrictMode` with the providers of the Strapi admin, in jsdom with a fake network: the editor field (the real Editor.js, live collaboration against a fake socket, lazy start, signed-out state, version history, comments, templates, synced blocks), the entry side panel, the four settings pages, the three homepage widgets, the Content-Type Builder input and the Redux middlewares. It fails on a request sent twice, an Editor.js instance, Yjs document, socket, interval, listener or observer left after unmount, and any console error or warning. CI runs it on React 18 and, in a separate required job, on React 19.
 
 [docs/engine-decision.md](https://github.com/Schero94/Magic-Editor-X/blob/main/docs/engine-decision.md) records why the plugin stays on Editor.js for 2.x. [CONTRIBUTING.md](https://github.com/Schero94/Magic-Editor-X/blob/main/CONTRIBUTING.md) explains the isolated acceptance host, the integration suite on SQLite and PostgreSQL and the multi-process acceptance run. [AGENTS.md](https://github.com/Schero94/Magic-Editor-X/blob/main/AGENTS.md) is the contract for coding agents.
 

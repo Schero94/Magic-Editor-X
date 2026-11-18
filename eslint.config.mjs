@@ -60,5 +60,23 @@ export default [
     files: ['tests/**/*.mjs', 'scripts/**/*.mjs', 'scripts/**/*.cjs'],
     languageOptions: { globals: { ...globals.node } },
   },
+  // Admin StrictMode harness and tests (npm run test:admin): JSX, Node test runner with a jsdom window.
+  {
+    files: ['tests/admin/**/*.mjs', 'tests/admin/**/*.jsx'],
+    languageOptions: {
+      ecmaVersion: 'latest',
+      sourceType: 'module',
+      globals: { ...globals.node, ...globals.browser },
+      parserOptions: { ecmaFeatures: { jsx: true } },
+    },
+    plugins: { 'react-hooks': reactHooks },
+    rules: {
+      ...reactHooks.configs.recommended.rules,
+      'no-unused-vars': [
+        'error',
+        { argsIgnorePattern: '^_', caughtErrors: 'none', ignoreRestSiblings: true },
+      ],
+    },
+  },
   prettier,
 ];

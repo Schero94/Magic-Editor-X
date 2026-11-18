@@ -30,7 +30,7 @@ import { useNotification, useStrapiApp } from '@strapi/strapi/admin';
 import { useFetchClient } from '../../utils/fetch-client';
 import { Lightbulb, Pencil } from '@strapi/icons';
 import styled, { createGlobalStyle, useTheme } from 'styled-components';
-import { buildTools, editorI18n, createUndoManager, createDragDrop } from '../../editor/tools';
+import { buildTools, disposeTools, editorI18n, createUndoManager, createDragDrop } from '../../editor/tools';
 import { editorStyles } from '../../editor/tools/styles';
 import { isDarkTheme, paletteEditorCss } from '../../editor/palette-style.mjs';
 import { normalizePalette } from '../../../../shared/inline-format.mjs';
@@ -1339,7 +1339,11 @@ const EditorFieldBody = ({
       if (mentionTrigger) mentionTrigger.destroy();
       editorRef.current = null;
       selectionHold.release();
-      editor.isReady.then(() => editor.destroy()).catch(() => {});
+      editor.isReady
+        .then(() => editor.destroy())
+        .catch(() => {})
+        // The indent tune's window listeners (editor/tools/indent-tune.js).
+        .finally(() => disposeTools(tools));
     };
     // The editor is rebuilt only when its tools change; value updates are applied below.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- value/readOnly are handled by the effects below
