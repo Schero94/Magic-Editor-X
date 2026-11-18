@@ -14,6 +14,7 @@ const { registerAuditTrail } = require('./utils/audit-trail');
 const { OUTPUT_FORMATS } = require('../../shared/resolve-references.mjs');
 const { registerGraphql } = require('./graphql');
 const { createComponentChecker } = require('./utils/component-blocks');
+const { isBuiltInBlock } = require('../../shared/sanitize-policy.mjs');
 const { registerMcp } = require('./mcp');
 const {
   readPositionalEntries,
@@ -163,6 +164,33 @@ const registerOutputParam = (strapi) => {
  * 400 instead of being stored.
  * @param {{ strapi: import('@strapi/strapi').Core.Strapi }} context - Strapi.
  */
+/**
+ * True when a raw value holds a block of type `component` whose data has the
+ * built-in shape but no `_mex` marker (written by an import or script, 2.6).
+ * @param {unknown} value - Raw field value from the write.
+ * @returns {boolean} Result.
+ */
+const hasUnmarkedComponentBlock = (value) => {
+  let parsed = value;
+  if (typeof value === 'string') {
+    try {
+      parsed = JSON.parse(value);
+    } catch {
+      return false;
+    }
+  }
+  const blocks = parsed && Array.isArray(parsed.blocks) ? parsed.blocks : [];
+  return blocks.some(
+    (block) =>
+      block &&
+      block.type === 'component' &&
+      block.data &&
+      typeof block.data === 'object' &&
+      !Object.prototype.hasOwnProperty.call(block.data, '_mex') &&
+      isBuiltInBlock(block)
+  );
+};
+
 module.exports = ({ strapi }) => {
   strapi.customFields.register({
     name: 'richtext',
@@ -175,6 +203,7 @@ module.exports = ({ strapi }) => {
   const cache = new Map();
   // 2.5: component blocks are checked against the field's allowed list and the current schemas.
   const checkComponents = createComponentChecker(strapi);
+  let warnedUnmarked = false;
   const saveMiddleware = async (ctx, next) => {
     const sanitize = strapi.config.get('plugin::magic-editor-x.sanitizeOnSave') !== false;
     if (!sanitize || !['create', 'update'].includes(ctx.action) || !ctx.params || !ctx.params.data)
@@ -197,6 +226,14 @@ module.exports = ({ strapi }) => {
         const clean = checked.data;
         for (const violation of checked.violations) {
           if (violations.length < 50) violations.push({ field: path, ...violation });
+        }
+        // 2.6: data of type `component` written without the built-in marker (imports, scripts) is read as a
+        // built-in component block since 2.6. Say so once when such a block is refused (no content logged).
+        if (checked.violations.length && !warnedUnmarked && hasUnmarkedComponentBlock(value)) {
+          warnedUnmarked = true;
+          logger.warn(
+            'a block of type "component" without the built-in marker was refused: since 2.6 such data is a component block (see the CHANGELOG migration notes)'
+          );
         }
         if (preset.restricted) {
           for (const violation of checkPreset(clean, preset)) {
@@ -269,3 +306,5 @@ module.exports = ({ strapi }) => {
   // 2.5: after the audit trail, so its "after" read of a discarded draft sees the kept keys.
   registerDiscardKeys(strapi, logger);
 };
+
+module.exports.hasUnmarkedComponentBlock = hasUnmarkedComponentBlock;

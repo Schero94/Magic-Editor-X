@@ -154,7 +154,8 @@ const rootName = (type) => {
  * Finds the block ids a transaction touched.
  * @param {Y.Transaction} transaction - Transaction.
  * @param {Y.Map<any>} blocks - Root blocks map.
- * @returns {{ ids: Set<string>, order: boolean, meta: boolean, structural: Set<string> }} Touched parts.
+ * @returns {{ ids: Set<string>, order: boolean, meta: boolean, structural: Set<string>, dataKeys: Set<string> }} Touched parts
+ *   (`dataKeys` 2.6: blocks whose data map gained, lost or replaced a key).
  */
 export const touchedBy = (transaction, blocks) => {
   const ids = new Set();
@@ -162,6 +163,7 @@ export const touchedBy = (transaction, blocks) => {
   // `data.level` (or `data.uid` of a component block, 2.5). Field preset rules apply to these only, so blocks that were
   // already there (for example before a preset was tightened) stay editable.
   const structural = new Set();
+  const dataKeys = new Set();
   let order = false;
   let meta = false;
   transaction.changed.forEach((keys, type) => {
@@ -180,6 +182,8 @@ export const touchedBy = (transaction, blocks) => {
     if (root === 'blocks') {
       if (child) {
         ids.add(child.parentSub);
+        // 2.6: a key of the block's data map was added, removed or replaced.
+        if (path.length === 2 && path[0] === 'data') dataKeys.add(child.parentSub);
         // path (innermost first): [blockId] = the entry map, [ 'data', blockId ] = its data map.
         if (
           (path.length === 1 && keys.has('type')) ||
@@ -197,7 +201,7 @@ export const touchedBy = (transaction, blocks) => {
     } else if (root === 'order') order = true;
     else meta = true;
   });
-  return { ids, order, meta, structural };
+  return { ids, order, meta, structural, dataKeys };
 };
 
 /**
@@ -287,7 +291,12 @@ export const validateTouched = (doc, touched, options = {}) => {
         !isColumnsDataShapeValid(normalized.blocks[0].data)
       )
         return 'INVALID_BLOCK';
-      if (typeof options.checkBlock === 'function' && touched.structural && touched.structural.has(id)) {
+      // 2.6: adding or removing a key of a component block's data can turn custom data into a built-in
+      // component (or back), so it is structural too: the field's rule runs as for a new block.
+      const structural =
+        (touched.structural && touched.structural.has(id)) ||
+        (normalized.blocks[0].type === 'component' && touched.dataKeys && touched.dataKeys.has(id));
+      if (typeof options.checkBlock === 'function' && structural) {
         const code = options.checkBlock(normalized.blocks[0]);
         if (code) return code;
       }
@@ -329,7 +338,7 @@ export const validateTouched = (doc, touched, options = {}) => {
 export const applyCheckedUpdate = (doc, update, options = {}) => {
   const inspected = inspectUpdate(update, Y.decodeStateVector(Y.encodeStateVector(doc)));
   if (!inspected.ok) return { ok: false, code: inspected.code, dirty: false };
-  let touched = { ids: new Set(), order: false, meta: false, structural: new Set() };
+  let touched = { ids: new Set(), order: false, meta: false, structural: new Set(), dataKeys: new Set() };
   let changed = false;
   const blocks = doc.getMap('blocks');
   doc.getMap('meta');
@@ -338,11 +347,13 @@ export const applyCheckedUpdate = (doc, update, options = {}) => {
     const next = touchedBy(transaction, blocks);
     next.ids.forEach((id) => touched.ids.add(id));
     next.structural.forEach((id) => touched.structural.add(id));
+    next.dataKeys.forEach((id) => touched.dataKeys.add(id));
     touched = {
       ids: touched.ids,
       order: touched.order || next.order,
       meta: touched.meta || next.meta,
       structural: touched.structural,
+      dataKeys: touched.dataKeys,
     };
     if (transaction.changed.size > 0 || transaction.deleteSet.clients.size > 0) changed = true;
   };

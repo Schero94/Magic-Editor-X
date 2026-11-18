@@ -606,3 +606,47 @@ test('2.6 regression: a keystroke typed while a snapshot is applied reaches the 
   // 2.6: the room's values are the base, so both edits are in the room.
   assert.deepEqual(run(true), { title: 'Ti', text: 'Xyz' });
 });
+
+test('2.6 review: removing a key that turns custom data into a built-in component is structural (field rule runs)', () => {
+  const preset = resolveFieldPreset({ allowedComponents: 'blocks.cta' });
+  const rule = (b) => (checkPreset({ blocks: [b] }, preset).length ? 'PRESET_VIOLATION' : null);
+  // The room has a block of type `component` with an extra key: custom data, not a built-in component.
+  const custom = { id: 'c1', type: 'component', data: { uid: 'blocks.forbidden', values: {}, extra: 'x' } };
+  const room = new Y.Doc();
+  Y.applyUpdate(room, createSeedUpdate(doc(custom), 'e1'));
+  assert.equal(
+    isBuiltInBlock(docToEditorData(room).blocks[0]),
+    false,
+    'custom data while the extra key exists'
+  );
+  // A collaborator deletes only the extra key: the block becomes a built-in component with a disallowed uid.
+  const client = new Y.Doc();
+  Y.applyUpdate(client, Y.encodeStateAsUpdate(room));
+  const before = Y.encodeStateVector(client);
+  client.getMap('blocks').get('c1').get('data').delete('extra');
+  const update = Y.encodeStateAsUpdate(client, before);
+  const result = applyCheckedUpdate(room, update, { checkBlock: rule });
+  assert.equal(result.ok, false, 'refused like inserting the disallowed component');
+  // Changing a value of an allowed component stays possible (not structural).
+  const okRoom = new Y.Doc();
+  Y.applyUpdate(okRoom, createSeedUpdate(doc(block('c2', 'blocks.cta', { title: 'a' })), 'e1'));
+  const okClient = new Y.Doc();
+  Y.applyUpdate(okClient, Y.encodeStateAsUpdate(okRoom));
+  const sv = Y.encodeStateVector(okClient);
+  applyEditorDataToDoc(okClient, doc(block('c2', 'blocks.cta', { title: 'ab' })));
+  assert.equal(
+    applyCheckedUpdate(okRoom, Y.encodeStateAsUpdate(okClient, sv), { checkBlock: rule }).ok,
+    true
+  );
+});
+
+test('2.6 review: unmarked `component` data from imports is detected for the one-time save hint', () => {
+  const { hasUnmarkedComponentBlock } = require('../server/src/register.js');
+  const raw = (data) => ({ blocks: [{ id: 'x', type: 'component', data }] });
+  assert.equal(hasUnmarkedComponentBlock(raw({ uid: 'blocks.cta' })), true);
+  assert.equal(hasUnmarkedComponentBlock(raw({ uid: 'blocks.cta', values: {} })), true);
+  assert.equal(hasUnmarkedComponentBlock(JSON.stringify(raw({ uid: 'blocks.cta', values: {} }))), true);
+  assert.equal(hasUnmarkedComponentBlock(raw({ uid: 'blocks.cta', values: {}, _mex: 1 })), false, 'marked');
+  assert.equal(hasUnmarkedComponentBlock(raw({ uid: 'blocks.cta', other: 1 })), false, 'custom data');
+  assert.equal(hasUnmarkedComponentBlock(null), false);
+});
