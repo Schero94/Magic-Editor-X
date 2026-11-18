@@ -734,5 +734,6 @@
   "editor.drafts.conflictPlain": "O conteúdo salvo mudou desde então. Ao restaurar, ele é substituído no editor.",
   "editor.drafts.discard": "Descartar",
   "editor.drafts.restore": "Restaurar",
-  "editor.drafts.restored": "Alterações restauradas. Salve a entrada para mantê-las."
+  "editor.drafts.restored": "Alterações restauradas. Salve a entrada para mantê-las.",
+  "editor.locate.missing": "Este bloco já não está no campo. Pode ter sido movido ou eliminado."
 }

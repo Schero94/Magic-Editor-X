@@ -547,7 +547,7 @@ module.exports = ({ strapi }) => {
   /**
    * Transforms values for output: expands synced blocks, resolves references
    * once for all values, then renders each.
-   * @param {Array<{ value: unknown, locale?: string|null, format?: 'html'|'text'|'markdown'|'json', options?: object }>} items - Values (an item's `format` wins over `options.format`; `options` are the field options, for the preset of synced content).
+   * @param {Array<{ value: unknown, locale?: string|null, format?: 'html'|'text'|'markdown'|'json', options?: object, render?: { blockIds?: object } }>} items - Values (an item's `format` wins over `options.format`; `options` are the field options, for the preset of synced content; `render.blockIds` (2.6) is passed to the HTML renderer).
    * @param {{ format?: 'html'|'text'|'markdown'|'json', auth?: object, status?: 'draft'|'published', limits?: object }} options - Output options.
    * @returns {Promise<Array<object|string|null>>} Output per item.
    */
@@ -583,6 +583,9 @@ module.exports = ({ strapi }) => {
           origins.has(block.id) ? { ...block, syncedFrom: origins.get(block.id) } : block
         );
       const extras = renderExtras(applied, locale, outputFormat);
+      // 2.6: block source attributes (`?mex=html&mexBlockIds=true`), HTML only.
+      const render = items[index].render;
+      if (outputFormat === 'html' && render && render.blockIds) extras.blockIds = render.blockIds;
       if (annotationValues.size)
         extras.resolveAnnotation = ({ name, attrs }) =>
           annotationValues.get(annotationKey(name, attrs, locale));

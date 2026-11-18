@@ -37,6 +37,7 @@ import {
   annotateHeadings,
 } from './common.mjs';
 import { buildTocTree } from '../toc.mjs';
+import { annotateBlockSources, blockIdOptions } from './source.mjs';
 import { tableLayout } from '../table.mjs';
 
 /**
@@ -1003,7 +1004,11 @@ export const createTreeBuilder = (value, options, mode = {}) => {
     childNodes: renderBlocks,
   };
 
-  const nodes = renderList(annotateHeadings(prepareBlocks(value, opts), opts));
+  // 2.6: opt-in block source attributes on the top-level block elements.
+  const nodes = annotateBlockSources(
+    renderList(annotateHeadings(prepareBlocks(value, opts), opts)),
+    blockIdOptions(base.blockIds)
+  );
   // Footnotes (2.4): the list follows the content.
   const section = footnotes.section();
   if (section) nodes.push(textNode('\n'), section);

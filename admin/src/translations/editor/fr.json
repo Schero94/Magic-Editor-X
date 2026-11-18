@@ -734,5 +734,6 @@
   "editor.drafts.conflictPlain": "Le contenu enregistré a changé depuis. La restauration le remplace dans l’éditeur.",
   "editor.drafts.discard": "Ignorer",
   "editor.drafts.restore": "Restaurer",
-  "editor.drafts.restored": "Modifications restaurées. Enregistrez l’entrée pour les conserver."
+  "editor.drafts.restored": "Modifications restaurées. Enregistrez l’entrée pour les conserver.",
+  "editor.locate.missing": "Ce bloc n’est plus dans le champ. Il a peut-être été déplacé ou supprimé."
 }
