@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { getFetchClient, useFetchClient } from '@strapi/strapi/admin';
+import { getFetchClient, useFetchClient } from '../../utils/fetch-client';
 import { isLoggedOut } from '../../editor/session-state.mjs';
+import { sessionGuard } from '../../editor/session-guard.mjs';
+import { useSessionActive } from '../../editor/useSessionGuard';
 import { API, readApiError } from '../../utils/api';
 import { IDLE_AFTER_MS, createTabId, nextDelay } from './logic.mjs';
 
@@ -10,6 +12,8 @@ import { IDLE_AFTER_MS, createTabId, nextDelay } from './logic.mjs';
  * per interval; it waits longer after failures (up to 2 minutes) and stops for good on 404 (no access).
  * The tab counts as idle after a minute without keyboard or pointer input, or while it is hidden.
  * Leaving the entry removes the row at once; a closed tab expires after 30 s.
+ * 2.6: no heartbeat while the admin session has ended (signed out); the first
+ * one after signing in again is sent at once.
  * @param {{ uid: string|null, documentId: string|null, locale: string|null }} target - Entry.
  * @returns {{ status: 'loading'|'ready'|'error'|'unavailable', enabled: boolean, softLock: boolean, canEdit: boolean, editors: Array<{ id: string, name: string, color: string, idle: boolean, live: boolean }> }} Presence.
  */
@@ -27,9 +31,10 @@ export const useEntryPresence = ({ uid, documentId, locale }) => {
   useEffect(() => {
     postRef.current = post;
   }, [post]);
+  const sessionActive = useSessionActive();
 
   useEffect(() => {
-    if (!uid || !documentId) return undefined;
+    if (!uid || !documentId || !sessionActive) return undefined;
     let active = true;
     let timer = null;
     let failures = 0;
@@ -96,12 +101,12 @@ export const useEntryPresence = ({ uid, documentId, locale }) => {
       document.removeEventListener('visibilitychange', onVisibility);
       // useFetchClient aborts its requests on unmount; the leave request must outlive the panel.
       // After a logout there is no session to leave with (the row expires after 30 s).
-      if (!isLoggedOut())
+      if (!isLoggedOut() && sessionGuard.isActive())
         getFetchClient()
           .post(API.presence, body({ leave: true }))
           .catch(() => {});
     };
-  }, [uid, documentId, locale, tabId]);
+  }, [uid, documentId, locale, tabId, sessionActive]);
 
   return state;
 };

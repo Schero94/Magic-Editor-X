@@ -13,6 +13,9 @@
   - Keyboard: Enter starts a new paragraph or list item in the column, Backspace at the start of an empty item removes it, arrow keys move between items, columns and blocks, Tab and Shift+Tab jump to the next or previous column, Alt+F10 opens the toolbar. `## `, `- ` and `1. ` turn a paragraph into a heading or list item. Pasting several paragraphs creates items; pasted HTML keeps only the field's inline formatting.
   - Columns work with live collaboration (two people can type in different columns or the same item at once), undo and redo, "Copy block", templates, insert from another entry, drag and drop of the block, find and replace, AI actions, Strapi AI translations, comments on text in a column, suggestions (a columns block is suggested as one block), the quality panel (heading order across columns, empty columns, links) and field presets (`allowedBlocks`, heading levels). Columns stack in reading order when the editor is narrow.
   - Output: HTML and the React and Vue components render `div.mex-columns[data-mex-columns]` with one `div.mex-column` per column and no inline styles, so your site decides the layout (stack the columns on small screens). Plain text and Markdown flatten the columns in reading order; Markdown has no columns, so the layout is lost there. JSON Schema and TypeScript types (`ColumnsData`) describe the block.
+- **Signed out while editing:** when the admin session ends (idle or absolute lifetime, signed out on another device, removed account), the entry shows one calm banner, "You were signed out. Your changes are kept on this device. Sign in again to save.", with one action, **Sign in again**. It opens the login in a new tab, which closes itself after you sign in; the entry stays open, the text you typed is back in the editor and Save works.
+  - While signed out, typed text is kept on this device at once and with every change (also during live editing), live editing pauses instead of reconnecting, and presence, comment and suggestion polling stop, so the server is not asked again and again with an ended session.
+  - If you click Save anyway and Strapi sends you to the login page, the text is still kept: open the entry again and restore it with one click (automatically when Strapi reloads the entry right after you signed in again).
 
 ### Fixed
 
@@ -22,6 +25,7 @@
 
 - No migration. A Settings custom block named `columns` keeps its data, its editor tool and its output; new custom blocks cannot take the name. A block registered in code under the name `columns` keeps working and replaces the built-in tool in that site.
 - If your site styles custom blocks by the class `mex-columns`, note that the built-in block uses the same class: select it with `[data-mex-columns]`.
+- Session expiry: no new settings, routes or stored data. Logging out yourself still removes the kept text from this browser, as in 2.5.
 
 ### Notes
 

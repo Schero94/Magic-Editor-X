@@ -55,6 +55,8 @@ const STATUS = {
     fg: 'warning700',
   },
   offline: { key: 'editor.collab.status.offline', text: 'Offline', bg: 'danger100', fg: 'danger700' },
+  // 2.6: signed out; nothing is sent until the admin signs in again.
+  paused: { key: 'editor.collab.status.paused', text: 'Paused', bg: 'warning100', fg: 'warning700' },
   denied: {
     key: 'editor.collab.status.denied',
     text: 'Live editing unavailable',

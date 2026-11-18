@@ -11,7 +11,7 @@ import {
   SingleSelectOption,
   Typography,
 } from '@strapi/design-system';
-import { useFetchClient } from '@strapi/strapi/admin';
+import { useFetchClient } from '../../utils/fetch-client';
 import styled from 'styled-components';
 import { API, readApiError } from '../../utils/api';
 import { sanitizeInline } from '../../editor/sanitize';

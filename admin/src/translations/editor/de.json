@@ -759,5 +759,15 @@
   "editor.component.rule.datetime": "Geben Sie ein gültiges Datum mit Uhrzeit ein",
   "editor.component.rule.time": "Geben Sie eine gültige Uhrzeit ein",
   "editor.locate.missing": "Dieser Block ist nicht mehr im Feld. Er wurde vielleicht verschoben oder gelöscht.",
-  "editor.quality.rule.columnsEmptyColumn": "Spalte {column} eines Spaltenblocks hat keinen Text"
+  "editor.quality.rule.columnsEmptyColumn": "Spalte {column} eines Spaltenblocks hat keinen Text",
+  "editor.collab.status.paused": "Pausiert",
+  "editor.session.region": "Sitzung",
+  "editor.session.ended.title": "Sie wurden abgemeldet.",
+  "editor.session.ended.body": "Ihre Änderungen bleiben auf diesem Gerät erhalten. Melden Sie sich erneut an, um zu speichern.",
+  "editor.session.signIn": "Erneut anmelden",
+  "editor.session.newTab": "(öffnet einen neuen Tab)",
+  "editor.session.opened": "Melden Sie sich im neuen Tab an. Diese Seite bleibt mit Ihren Änderungen geöffnet.",
+  "editor.session.blocked": "Ihr Browser hat den neuen Tab blockiert.",
+  "editor.session.blockedLink": "Anmeldeseite öffnen",
+  "editor.session.resumed": "Sie sind wieder angemeldet. Speichern Sie den Eintrag, um Ihre Änderungen zu behalten."
 }

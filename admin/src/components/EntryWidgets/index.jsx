@@ -2,7 +2,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useIntl } from 'react-intl';
 import { Link as RouterLink } from 'react-router-dom';
 import { Button, Flex, Typography } from '@strapi/design-system';
-import { Widget, useFetchClient } from '@strapi/strapi/admin';
+import { Widget } from '@strapi/strapi/admin';
+import { useFetchClient } from '../../utils/fetch-client';
+import { useSessionActive } from '../../editor/useSessionGuard';
 import styled from 'styled-components';
 import { API } from '../../utils/api';
 import { useT } from '../ui/useT';
@@ -82,7 +84,10 @@ const useWidgetData = (path) => {
       }
     );
   }, [get, path]);
+  // 2.6: no polling while the admin session has ended.
+  const sessionActive = useSessionActive();
   useEffect(() => {
+    if (!sessionActive) return undefined;
     let timer = null;
     const schedule = () => {
       window.clearTimeout(timer);
@@ -109,7 +114,7 @@ const useWidgetData = (path) => {
       window.removeEventListener('focus', onWake);
       document.removeEventListener('visibilitychange', onWake);
     };
-  }, [load]);
+  }, [load, sessionActive]);
   return { ...state, reload: load };
 };
 

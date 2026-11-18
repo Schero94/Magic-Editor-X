@@ -10,7 +10,7 @@ import {
   SingleSelectOption,
   Typography,
 } from '@strapi/design-system';
-import { useFetchClient } from '@strapi/strapi/admin';
+import { useFetchClient } from '../../utils/fetch-client';
 import { API, readApiError } from '../../utils/api';
 import { changeViews } from '../../../../shared/ai-blocks.mjs';
 import { TextOps } from './VersionDiff';

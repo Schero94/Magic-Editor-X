@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useIntl } from 'react-intl';
 import { Alert, Badge, Box, Button, Typography } from '@strapi/design-system';
 import { Play } from '@strapi/icons';
-import { useFetchClient } from '@strapi/strapi/admin';
+import { useFetchClient } from '../../utils/fetch-client';
 import { API, readApiError } from '../../utils/api';
 import { useT, SectionCard, PropertyList } from '../../components/ui';
 

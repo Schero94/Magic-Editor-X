@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Button, Field, Flex, Modal, Radio, TextInput, Textarea, Typography } from '@strapi/design-system';
-import { useFetchClient } from '@strapi/strapi/admin';
+import { useFetchClient } from '../../utils/fetch-client';
 import { API, readApiError } from '../../utils/api';
 import { scopeFieldOf, TEMPLATE_LIMITS } from '../../../../shared/templates.mjs';
 

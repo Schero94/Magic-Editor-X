@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useFetchClient } from '@strapi/strapi/admin';
+import { useFetchClient } from '../../utils/fetch-client';
+import { useSessionActive } from '../../editor/useSessionGuard';
 import { API, readApiError } from '../../utils/api';
 
 /**
@@ -110,8 +111,10 @@ export const useSuggestions = ({ target, enabled, panelOpen, elementRef }) => {
     return () => observer.disconnect();
   }, [enabled, elementRef]);
 
+  // 2.6: no polling while the admin session has ended (signed out); it starts again after signing in.
+  const sessionActive = useSessionActive();
   useEffect(() => {
-    if (!enabled || !uid || !documentId) return undefined;
+    if (!enabled || !uid || !documentId || !sessionActive) return undefined;
     let timer = null;
     const schedule = () => {
       clearTimeout(timer);
@@ -140,7 +143,7 @@ export const useSuggestions = ({ target, enabled, panelOpen, elementRef }) => {
       window.removeEventListener('focus', onWake);
       document.removeEventListener('visibilitychange', onWake);
     };
-  }, [enabled, uid, documentId, visible, panelOpen, refresh]);
+  }, [enabled, uid, documentId, visible, panelOpen, refresh, sessionActive]);
 
   /**
    * Runs an API call, then refreshes; failures are re-thrown with the API error info.

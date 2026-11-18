@@ -759,5 +759,15 @@
   "editor.component.rule.datetime": "Introduzca una fecha y hora válidas",
   "editor.component.rule.time": "Introduzca una hora válida",
   "editor.locate.missing": "Este bloque ya no está en el campo. Es posible que se haya movido o eliminado.",
-  "editor.quality.rule.columnsEmptyColumn": "La columna {column} de un bloque de columnas no tiene texto"
+  "editor.quality.rule.columnsEmptyColumn": "La columna {column} de un bloque de columnas no tiene texto",
+  "editor.collab.status.paused": "En pausa",
+  "editor.session.region": "Sesión",
+  "editor.session.ended.title": "Se ha cerrado su sesión.",
+  "editor.session.ended.body": "Sus cambios se conservan en este dispositivo. Vuelva a iniciar sesión para guardar.",
+  "editor.session.signIn": "Volver a iniciar sesión",
+  "editor.session.newTab": "(abre una pestaña nueva)",
+  "editor.session.opened": "Inicie sesión en la pestaña nueva. Esta página sigue abierta con sus cambios.",
+  "editor.session.blocked": "Su navegador bloqueó la pestaña nueva.",
+  "editor.session.blockedLink": "Abrir la página de inicio de sesión",
+  "editor.session.resumed": "Ha vuelto a iniciar sesión. Guarde la entrada para conservar sus cambios."
 }

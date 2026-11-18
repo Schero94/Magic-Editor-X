@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
-import { useFetchClient } from '@strapi/strapi/admin';
+import { useFetchClient } from '../utils/fetch-client';
+import { sessionGuard } from './session-guard.mjs';
 import { API, readApiError } from '../utils/api';
 import { SYNCED_REF_PATTERN } from '../../../shared/synced.mjs';
 
@@ -143,6 +144,8 @@ export const useSyncedSources = (refs, options = {}) => {
   const list = useMemo(() => (key ? key.split(',') : []), [key]);
   const refresh = useCallback(
     (force = false) => {
+      // 2.6: background reloads wait while the admin session has ended.
+      if (force && !sessionGuard.isActive()) return;
       for (const ref of list) loadSynced(get, ref, { force });
     },
     [get, list]
