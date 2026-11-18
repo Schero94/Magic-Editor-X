@@ -165,8 +165,18 @@ const placeCaret = (element, offset) => {
   if (!selection) return;
   const range = document.createRange();
   if (offset === 'start' || offset === 'end') {
-    range.selectNodeContents(element);
-    range.collapse(offset === 'start');
+    // Inside a text node when there is one: a caret on the element itself ignores Home/End.
+    const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+    const first = walker.nextNode();
+    let last = first;
+    while (last && walker.nextNode()) last = walker.currentNode;
+    if (offset === 'start' && first) range.setStart(first, 0);
+    else if (offset === 'end' && last) range.setStart(last, last.textContent.length);
+    else {
+      range.selectNodeContents(element);
+      range.collapse(offset === 'start');
+    }
+    range.collapse(true);
   } else {
     const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
     let remaining = offset;
@@ -861,7 +871,13 @@ export class ColumnsTool {
     const text = data.getData('text/plain') || '';
     const html = Date.now() < (this.plainUntil || 0) ? '' : data.getData('text/html') || '';
     if (text.length + html.length > 2 * 1024 * 1024) return;
-    const pieces = html ? this.htmlPieces(html) : this.textPieces(text);
+    // HTML without block elements (a copied phrase) is inline content, never several items.
+    const blockLevel = /<(p|div|h[1-6]|ul|ol|li|blockquote|pre|table|section|article|figure)\b/i;
+    let pieces;
+    if (html && !blockLevel.test(html)) {
+      const inline = trimHtml(sanitizeInline(htmlToInline(html, parseHtmlWithDom)));
+      pieces = inline ? [{ type: 'paragraph', text: inline }] : [];
+    } else pieces = html ? this.htmlPieces(html) : this.textPieces(text);
     if (pieces.length <= 1) {
       const inline = pieces.length ? pieces[0].text : '';
       if (inline) document.execCommand('insertHTML', false, inline);

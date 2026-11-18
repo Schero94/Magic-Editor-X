@@ -582,3 +582,41 @@ test('sanitiser keeps the columns of the block clipboard copy (all data kept)', 
   assert.deepEqual(clean.blocks[0].data.columns, block.data.columns);
   assert.equal(BLOCK_POLICIES.columns({}, identity, {})._mex, 1);
 });
+
+test('templates and reuse: a columns block is inserted with a new block id and all its data', async () => {
+  const { prepareInsertion } = await import('../shared/templates.mjs');
+  const block = cleanEditorValue(doc(twoColumns())).blocks[0];
+  const article = resolveFieldPreset({ preset: 'article' });
+  const plan = prepareInsertion([block], article, { existingIds: ['cols1'] });
+  assert.equal(plan.blocks.length, 1);
+  assert.notEqual(plan.blocks[0].id, 'cols1');
+  assert.deepEqual(plan.blocks[0].data, block.data);
+  const basic = resolveFieldPreset({ preset: 'basic' });
+  assert.deepEqual(prepareInsertion([block], basic).omitted, [{ type: 'columns', count: 1 }]);
+});
+
+test('suggestions: a change inside a columns block is one update suggestion for the block', async () => {
+  const { suggestionsFromDiff } = await import('../shared/suggestions.mjs');
+  const base = cleanEditorValue(doc(twoColumns()));
+  const edited = clone(base);
+  edited.blocks[0].data.columns[0].items[1].text = 'Changed';
+  edited.blocks[0].data.columns[1].items.push(item('n', 'New'));
+  const { suggestions } = suggestionsFromDiff(base, edited);
+  assert.equal(suggestions.length, 1);
+  assert.equal(suggestions[0].op, 'update');
+  assert.equal(suggestions[0].blockId, 'cols1');
+});
+
+test('comments: range anchors address the text of one column item (data path and Y.Text)', async () => {
+  const { textLeaves } = await import('../shared/comment-anchor.mjs');
+  const { sharedTextLeaves, sharedTextAt } = await import('../shared/comment-relpos.mjs');
+  const value = cleanEditorValue(doc(twoColumns()));
+  const leaves = textLeaves(value.blocks[0].data).filter((leaf) => leaf.path.endsWith('.text'));
+  assert.ok(leaves.some((leaf) => leaf.path === 'columns.1.items.0.text' && leaf.value === 'Right text'));
+  const room = new Y.Doc();
+  applyEditorDataToDoc(room, value);
+  const entry = room.getMap('blocks').get('cols1');
+  const shared = sharedTextLeaves(entry.get('data')).map((leaf) => leaf.path);
+  assert.ok(shared.includes('columns.1.items.0.text'));
+  assert.equal(sharedTextAt(room, 'cols1', 'columns.1.items.0.text').toString(), 'Right text');
+});

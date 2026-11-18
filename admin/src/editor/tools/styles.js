@@ -977,8 +977,8 @@ export const editorStyles = css`
       }
     }
 
-    /* (2 * 220 + 40) / 10 rem: two columns side by side from 480px of block width. */
-    @container (min-width: 48rem) {
+    /* (2 * 180 + 40) / 10 rem: two columns side by side from 400px of block width. */
+    @container (min-width: 40rem) {
       .mex-columns-tool__grid[data-count='2'] {
         grid-template-columns: repeat(2, minmax(0, 1fr));
       }
@@ -992,8 +992,8 @@ export const editorStyles = css`
       }
     }
 
-    /* (4 * 150 + 3 * 40) / 10 rem: three or four columns side by side from 720px. */
-    @container (min-width: 72rem) {
+    /* (3 * 160 + 2 * 24) / 10 rem: three columns side by side from 528px of block width. */
+    @container (min-width: 52.8rem) {
       .mex-columns-tool__grid[data-count='3'] {
         grid-template-columns: repeat(3, minmax(0, 1fr));
       }
@@ -1009,7 +1009,10 @@ export const editorStyles = css`
       .mex-columns-tool__grid[data-count='3'][data-layout='wide-right'] {
         grid-template-columns: repeat(2, minmax(0, 1fr)) minmax(0, 2fr);
       }
+    }
 
+    /* (4 * 130 + 3 * 24) / 10 rem: four columns side by side from 592px of block width. */
+    @container (min-width: 59.2rem) {
       .mex-columns-tool__grid[data-count='4'] {
         grid-template-columns: repeat(4, minmax(0, 1fr));
       }

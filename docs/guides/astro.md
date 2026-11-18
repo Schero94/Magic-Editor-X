@@ -117,7 +117,56 @@ The output has no inline styles, so it works under a strict Content Security Pol
   overflow: hidden;
   clip-path: inset(50%);
 }
+
+/* Columns (2.6): stacked in reading order on small screens, side by side from 768px. */
+[data-mex-columns] {
+  display: grid;
+  gap: 1.5rem;
+}
+@media (min-width: 768px) {
+  [data-mex-columns='2'] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  [data-mex-columns='3'] {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  [data-mex-columns='4'] {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  [data-mex-columns='2'].mex-columns-wide-left {
+    grid-template-columns: 2fr 1fr;
+  }
+  [data-mex-columns='2'].mex-columns-wide-right {
+    grid-template-columns: 1fr 2fr;
+  }
+  [data-mex-columns='3'].mex-columns-wide-left {
+    grid-template-columns: 2fr 1fr 1fr;
+  }
+  [data-mex-columns='3'].mex-columns-wide-center {
+    grid-template-columns: 1fr 2fr 1fr;
+  }
+  [data-mex-columns='3'].mex-columns-wide-right {
+    grid-template-columns: 1fr 1fr 2fr;
+  }
+}
+.mex-columns-gap-small {
+  gap: 0.75rem;
+}
+.mex-columns-gap-large {
+  gap: 3rem;
+}
+.mex-columns-valign-center {
+  align-items: center;
+}
+.mex-columns-valign-bottom {
+  align-items: end;
+}
+.mex-column {
+  min-width: 0;
+}
 ```
+
+Columns (2.6): `div.mex-columns` with `data-mex-columns="<count>"`, one `div.mex-column` per column in reading order, options as classes (`mex-columns-wide-left|wide-center|wide-right`, `mex-columns-gap-small|large`, `mex-columns-valign-center|bottom`). Select the block with `[data-mex-columns]`: a Settings custom block named `columns` also gets the class `mex-columns`.
 
 Classes: `mex-code-block` (wrapper, `data-mex-code="copy"`, only with a copy button), `mex-code` and `mex-code-lines` on `<pre>`, `language-<lang>` on `<code>` (codeFlask blocks, ready for Prism or Shiki), `mex-code-line` per line, `mex-code-copy` on the `<button type="button">`, `mex-code-copy-status` on the `role="status"` live region.
 
