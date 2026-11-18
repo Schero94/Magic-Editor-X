@@ -161,6 +161,17 @@
               </p>
             </article>
             <article class="card">
+              <h3>Columns</h3>
+              <p>
+                Insert 2 or 3 columns from the + menu or with <code>/col</code> and type. Each column holds
+                paragraphs, headings and list items; the toolbar sets the text style and the width, the block menu
+                the number of columns, spacing and alignment. Columns stack in reading order on narrow screens and
+                work with live collaboration, undo, comments, AI, find and replace and every renderer. Output:
+                <code>div.mex-columns[data-mex-columns]</code> with one <code>div.mex-column</code> per column and no
+                inline styles; Markdown flattens the columns in reading order.
+              </p>
+            </article>
+            <article class="card">
               <h3>Media library</h3>
               <p>
                 Upload images and attachments into the Strapi Media Library or pick existing files. Gallery
@@ -291,6 +302,46 @@
           <h2 id="screens-title">Screens</h2>
           <p class="section-lead">All screenshots use synthetic data (acceptance host: Strapi 5.61.1).</p>
           <div class="gallery">
+            <figure class="shot">
+              <img
+                src="./img/columns-toolbox.png"
+                alt="The + menu filtered by col shows the entries 2 columns and 3 columns"
+                width="724"
+                height="420"
+                loading="lazy"
+              />
+              <figcaption>Insert columns (2.6)</figcaption>
+            </figure>
+            <figure class="shot">
+              <img
+                src="./img/columns-block.png"
+                alt="A columns block with a wide left column: heading, paragraph and a bulleted list, and a contact column"
+                width="724"
+                height="341"
+                loading="lazy"
+              />
+              <figcaption>Columns block with the width toolbar (2.6)</figcaption>
+            </figure>
+            <figure class="shot">
+              <img
+                src="./img/columns-narrow.png"
+                alt="On a 390 pixel wide screen the two columns stack in reading order"
+                width="296"
+                height="389"
+                loading="lazy"
+              />
+              <figcaption>Columns stack on narrow screens (2.6)</figcaption>
+            </figure>
+            <figure class="shot">
+              <img
+                src="./img/columns-dark.png"
+                alt="The columns block in the dark admin theme"
+                width="724"
+                height="372"
+                loading="lazy"
+              />
+              <figcaption>Columns in dark mode (2.6)</figcaption>
+            </figure>
             <figure class="shot">
               <img
                 src="./img/entry-panel-after-1440.png"

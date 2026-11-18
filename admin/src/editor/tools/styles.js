@@ -864,6 +864,242 @@ export const editorStyles = css`
       white-space: nowrap;
     }
 
+    /* Columns (2.6, tools/columns.js): own items, no nested editors. The columns sit side by
+       side when the block is wide enough (container query on the block, 10px rem root) and
+       stack in reading order when it is narrow. */
+    .mex-columns-tool {
+      display: flex;
+      flex-direction: column;
+      gap: ${s(2)};
+      min-width: 0;
+      max-width: 100%;
+      container-type: inline-size;
+    }
+
+    .mex-columns-tool__toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: ${s(1)};
+      padding: ${s(1)};
+      padding-inline-start: ${s(10)};
+      border: 1px solid ${c('neutral200')};
+      border-radius: ${radius};
+      background: ${c('neutral100')};
+    }
+
+    .mex-columns-tool__separator {
+      align-self: stretch;
+      width: 1px;
+      margin: 0 ${s(1)};
+      background: ${c('neutral200')};
+    }
+
+    .mex-columns-tool__select {
+      height: 32px;
+      padding: 0 ${s(7)} 0 ${s(2)};
+      border: 1px solid ${c('neutral200')};
+      border-radius: ${radius};
+      background-color: ${c('neutral0')};
+      color: ${c('neutral800')};
+      font-size: ${f(2)};
+      appearance: none;
+      ${selectCaret};
+
+      &:focus-visible {
+        outline: 2px solid ${c('primary600')};
+        outline-offset: 1px;
+      }
+
+      &:disabled {
+        color: ${c('neutral600')};
+        cursor: not-allowed;
+      }
+    }
+
+    .mex-columns-tool__button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      padding: 0;
+      border: none;
+      border-radius: ${radius};
+      background: transparent;
+      color: ${c('neutral800')};
+      cursor: pointer;
+
+      &:hover {
+        background: ${c('neutral150')};
+      }
+
+      &[aria-pressed='true'] {
+        background: ${c('primary100')};
+        color: ${c('primary700')};
+      }
+
+      &:focus-visible {
+        outline: 2px solid ${c('primary600')};
+        outline-offset: 1px;
+      }
+
+      &[hidden] {
+        display: none;
+      }
+
+      svg {
+        width: 18px;
+        height: 18px;
+      }
+    }
+
+    .mex-columns-tool__grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      gap: ${s(4)};
+      align-items: start;
+
+      &[data-gap='small'] {
+        gap: ${s(2)};
+      }
+
+      &[data-gap='large'] {
+        gap: ${s(7)};
+      }
+
+      &[data-valign='center'] {
+        align-items: center;
+      }
+
+      &[data-valign='bottom'] {
+        align-items: end;
+      }
+    }
+
+    /* (2 * 180 + 40) / 10 rem: two columns side by side from 400px of block width. */
+    @container (min-width: 40rem) {
+      .mex-columns-tool__grid[data-count='2'] {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .mex-columns-tool__grid[data-count='2'][data-layout='wide-left'] {
+        grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+      }
+
+      .mex-columns-tool__grid[data-count='2'][data-layout='wide-right'] {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+      }
+    }
+
+    /* (3 * 160 + 2 * 24) / 10 rem: three columns side by side from 528px of block width. */
+    @container (min-width: 52.8rem) {
+      .mex-columns-tool__grid[data-count='3'] {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .mex-columns-tool__grid[data-count='3'][data-layout='wide-left'] {
+        grid-template-columns: minmax(0, 2fr) repeat(2, minmax(0, 1fr));
+      }
+
+      .mex-columns-tool__grid[data-count='3'][data-layout='wide-center'] {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) minmax(0, 1fr);
+      }
+
+      .mex-columns-tool__grid[data-count='3'][data-layout='wide-right'] {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) minmax(0, 2fr);
+      }
+    }
+
+    /* (4 * 130 + 3 * 24) / 10 rem: four columns side by side from 592px of block width. */
+    @container (min-width: 59.2rem) {
+      .mex-columns-tool__grid[data-count='4'] {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
+    }
+
+    .mex-columns-tool__column {
+      display: flex;
+      flex-direction: column;
+      gap: ${s(1)};
+      min-width: 0;
+      padding: ${s(2)};
+      border: 1px dashed ${c('neutral300')};
+      border-radius: ${radius};
+      background: ${c('neutral0')};
+
+      &:focus-within {
+        border-style: solid;
+        border-color: ${c('primary600')};
+      }
+    }
+
+    .mex-columns-tool--readonly .mex-columns-tool__column {
+      border-color: ${c('neutral200')};
+    }
+
+    .mex-columns-tool__item {
+      display: flex;
+      gap: ${s(2)};
+      min-width: 0;
+
+      &[data-marker]::before {
+        content: attr(data-marker);
+        flex: 0 0 auto;
+        min-width: 1.6rem;
+        padding-block-start: ${s(1)};
+        color: ${c('neutral600')};
+        text-align: end;
+      }
+    }
+
+    .mex-columns-tool__input {
+      flex: 1 1 auto;
+      min-width: 0;
+      min-height: 3.2rem;
+      padding: ${s(1)} ${s(2)};
+      border-radius: ${radius};
+      color: ${c('neutral800')};
+      font-size: ${f(2)};
+      line-height: 1.5;
+      overflow-wrap: anywhere;
+      outline: none;
+
+      &:focus-visible {
+        box-shadow: 0 0 0 2px ${c('primary600')};
+      }
+
+      &:empty::before {
+        content: attr(data-placeholder);
+        color: ${c('neutral600')};
+        pointer-events: none;
+      }
+    }
+
+    .mex-columns-tool__item--h2 .mex-columns-tool__input {
+      font-size: ${f(5)};
+      font-weight: 600;
+    }
+
+    .mex-columns-tool__item--h3 .mex-columns-tool__input {
+      font-size: ${f(4)};
+      font-weight: 600;
+    }
+
+    .mex-columns-tool__item--h4 .mex-columns-tool__input {
+      font-size: ${f(3)};
+      font-weight: 600;
+    }
+
+    .mex-columns-tool__status {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      white-space: nowrap;
+    }
+
     .cdx-attaches {
       background: ${c('neutral0')};
       border: 1px solid ${c('neutral200')};
@@ -1998,7 +2234,8 @@ export const editorStyles = css`
         padding-inline-start: ${s(10)};
       }
 
-      .mex-table-tool__toolbar {
+      .mex-table-tool__toolbar,
+      .mex-columns-tool__toolbar {
         padding-inline-start: ${s(1)};
       }
     }

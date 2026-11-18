@@ -215,7 +215,12 @@ export const applyToEditor = async (
         if (offset !== null) slot = i;
       }
       let mapped = offset;
-      if (offset !== null && slot === 0) {
+      // 2.6: an input inside an element with `data-mex-key` (a column item) keeps the caret by
+      // that key, so an item added or removed before it by someone else does not move it.
+      const keyed = slot >= 0 ? editables[slot].closest('[data-mex-key]') : null;
+      const caretKey = keyed && holder.contains(keyed) ? keyed.getAttribute('data-mex-key') : null;
+      const textBeforeUpdate = slot >= 0 ? editables[slot].textContent || '' : '';
+      if (offset !== null && slot === 0 && !caretKey) {
         const before = editables[0].textContent || '';
         const after = plainText(block.data);
         let prefix = 0;
@@ -233,7 +238,27 @@ export const applyToEditor = async (
         const updated = editor.blocks.getBlockByIndex(index);
         const inputs =
           updated && updated.holder ? updated.holder.querySelectorAll('[contenteditable="true"]') : [];
-        const target2 = inputs[slot] || inputs[0];
+        let target2 = inputs[slot] || inputs[0];
+        if (caretKey && updated && updated.holder) {
+          const owner = Array.from(updated.holder.querySelectorAll('[data-mex-key]')).find(
+            (node) => node.getAttribute('data-mex-key') === caretKey
+          );
+          const input = owner && owner.querySelector('[contenteditable="true"]');
+          if (input) {
+            target2 = input;
+            // Same mapping as the first input: text changed before the caret shifts it.
+            const after = input.textContent || '';
+            let prefix = 0;
+            while (
+              prefix < textBeforeUpdate.length &&
+              prefix < after.length &&
+              textBeforeUpdate[prefix] === after[prefix]
+            )
+              prefix += 1;
+            mapped =
+              prefix < offset ? Math.max(0, offset + (after.length - textBeforeUpdate.length)) : offset;
+          }
+        }
         if (target2) placeCaret(target2, Math.min(mapped, (target2.textContent || '').length));
       }
     }

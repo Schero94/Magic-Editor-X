@@ -14,6 +14,7 @@ import {
 } from './inline.mjs';
 import { prepareBlocks, resolveMedia, overrideFor, scalarFields, annotateHeadings } from './common.mjs';
 import { buildTocTree } from '../toc.mjs';
+import { groupColumnItems } from '../columns.mjs';
 import { createFootnoteNumbers, footnoteOptions } from './math-notes.mjs';
 
 /**
@@ -324,6 +325,26 @@ const RENDERERS = {
     const html = o.sanitizeRaw(String(b.raw.html || ''));
     return typeof html === 'string' ? html.trim() : '';
   },
+  // Columns (2.6): Markdown has no columns, so the content is flattened column by column
+  // (lossy: the layout is lost, the reading order is kept). Headings keep their level.
+  columns: (b, o) =>
+    b.data.columns
+      .flatMap((column) =>
+        groupColumnItems(column.items.filter((item) => md(item.text, o))).map((run) => {
+          if (run.kind === 'list')
+            return listLines(
+              run.items.map((item) => ({ content: item.text, items: [] })),
+              run.style,
+              1,
+              o,
+              '',
+              0
+            ).join('\n');
+          const text = md(run.item.text, o);
+          return run.kind === 'heading' ? `${'#'.repeat(run.item.level)} ${oneLine(text)}` : text;
+        })
+      )
+      .join('\n\n'),
   table: (b, o) => {
     const rows = b.data.content.filter((row) => row.length);
     if (!rows.length) return '';

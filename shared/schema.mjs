@@ -11,6 +11,15 @@ import { BUILT_IN_MARKER, MARKED_BLOCKS } from './sanitize-policy.mjs';
 import { FIELD_KEY_PATTERN } from './field-identity.mjs';
 import { TABLE_ALIGNS, TABLE_LIMITS } from './table.mjs';
 import { COMPONENT_ATTRIBUTE, COMPONENT_LIMITS, COMPONENT_UID } from './components.mjs';
+import {
+  COLUMNS_GAPS,
+  COLUMNS_LAYOUT_NAMES,
+  COLUMNS_LIMITS,
+  COLUMNS_VALIGNS,
+  COLUMN_ID,
+  COLUMN_ITEM_TYPES,
+  COLUMN_LIST_STYLES,
+} from './columns.mjs';
 
 export const SCHEMA_ID = 'https://schero94.github.io/Magic-Editor-X/schema/magic-editor-x.schema.json';
 
@@ -383,7 +392,58 @@ export const BLOCK_DATA_SCHEMAS = Object.freeze({
       _mex: marker,
     },
     ['uid', 'values', '_mex'],
-    'Component block (2.5): a Content-Type Builder component with scalar attributes. Renderers output nothing unless the site passes `componentBlocks[uid]`.'
+    'Component block (2.6): a Content-Type Builder component with scalar attributes. Renderers output nothing unless the site passes `componentBlocks[uid]`.'
+  ),
+  columns: obj(
+    {
+      columns: {
+        type: 'array',
+        minItems: COLUMNS_LIMITS.minColumns,
+        maxItems: COLUMNS_LIMITS.maxColumns,
+        description:
+          'Columns in reading order (also the order when renderers stack them on narrow screens). Ids are unique inside the block and stay the same while it is edited.',
+        items: obj(
+          {
+            id: { type: 'string', pattern: COLUMN_ID.source },
+            items: {
+              type: 'array',
+              maxItems: COLUMNS_LIMITS.items,
+              items: obj(
+                {
+                  id: { type: 'string', pattern: COLUMN_ID.source },
+                  type: enumOf(...COLUMN_ITEM_TYPES),
+                  text: { ...html, description: 'Inline HTML of the item.' },
+                  level: { ...int(1, 6), description: 'Heading level (heading items only, default 3).' },
+                  style: {
+                    ...enumOf(...COLUMN_LIST_STYLES),
+                    description:
+                      'List style (list items only). Consecutive list items of one style render as one list.',
+                  },
+                },
+                ['id', 'type', 'text']
+              ),
+            },
+          },
+          ['id', 'items']
+        ),
+      },
+      layout: {
+        ...enumOf(...COLUMNS_LAYOUT_NAMES.filter((name) => name !== 'equal')),
+        description:
+          'Width preset (only written when not equal): wide-left / wide-right (2 or 3 columns), wide-center (3 columns).',
+      },
+      gap: {
+        ...enumOf(...COLUMNS_GAPS.filter((name) => name !== 'medium')),
+        description: 'Space between columns (default medium).',
+      },
+      valign: {
+        ...enumOf(...COLUMNS_VALIGNS.filter((name) => name !== 'top')),
+        description: 'Vertical alignment of the columns (default top).',
+      },
+      _mex: marker,
+    },
+    ['columns', '_mex'],
+    'Columns block (2.6): 2 to 4 columns of paragraphs, headings and list items. No nested blocks.'
   ),
   synced: obj(
     {

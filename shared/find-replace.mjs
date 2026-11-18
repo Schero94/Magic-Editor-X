@@ -11,6 +11,7 @@
 
 import { isPlainObject } from './editor-data.mjs';
 import { parseInline, nodesToHtml } from './render/inline.mjs';
+import { columnsTextFields } from './columns.mjs';
 import { registeredBlockOf, isBuiltInBlock } from './sanitize-policy.mjs';
 import { activeComponent, textAttributes } from './components.mjs';
 
@@ -124,6 +125,10 @@ export const searchableFields = (block) => {
           if (typeof cell === 'string') out.push({ path: ['content', r, c], kind: 'html', value: cell });
         });
     });
+  // 2.6: columns, column by column (the reading order and the order the editor shows on narrow screens).
+  if (block.type === 'columns')
+    for (const field of columnsTextFields(data))
+      out.push({ path: field.path, kind: 'html', value: field.value });
   // 2.4: table caption (after the cells, where the editor shows it).
   if (block.type === 'table' && typeof data.caption === 'string')
     out.push({ path: ['caption'], kind: 'html', value: data.caption });

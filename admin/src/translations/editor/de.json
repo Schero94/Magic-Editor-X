@@ -758,5 +758,6 @@
   "editor.component.rule.date": "Geben Sie ein gültiges Datum ein",
   "editor.component.rule.datetime": "Geben Sie ein gültiges Datum mit Uhrzeit ein",
   "editor.component.rule.time": "Geben Sie eine gültige Uhrzeit ein",
-  "editor.locate.missing": "Dieser Block ist nicht mehr im Feld. Er wurde vielleicht verschoben oder gelöscht."
+  "editor.locate.missing": "Dieser Block ist nicht mehr im Feld. Er wurde vielleicht verschoben oder gelöscht.",
+  "editor.quality.rule.columnsEmptyColumn": "Spalte {column} eines Spaltenblocks hat keinen Text"
 }

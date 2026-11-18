@@ -758,5 +758,6 @@
   "editor.component.rule.date": "Enter a valid date",
   "editor.component.rule.datetime": "Enter a valid date and time",
   "editor.component.rule.time": "Enter a valid time",
-  "editor.locate.missing": "This block is no longer in the field. It may have been moved or deleted."
+  "editor.locate.missing": "This block is no longer in the field. It may have been moved or deleted.",
+  "editor.quality.rule.columnsEmptyColumn": "Column {column} of a columns block has no text"
 }
