@@ -8,7 +8,7 @@ import { docToEditorData } from '../../../shared/ydoc.mjs';
  *
  * Protocol (see server/src/services/collaboration.js and AGENTS.md):
  * - handshake `auth: { token, protocol: 3 }`; refusals arrive as
- *   `connect_error` with `data.code` (INVALID_TOKEN, UPGRADE_REQUIRED,
+ *   `connect_error` with `data.code` (INVALID_TOKEN, SESSION_ENDED (2.6), UPGRADE_REQUIRED,
  *   TOO_MANY_CONNECTIONS, UNAVAILABLE);
  * - `mx:welcome { canEdit, presenceId, color, name, epoch }`;
  * - `mx:sync { update, stateVector, epoch }`; the client answers with what the
@@ -85,11 +85,14 @@ export const backoffDelay = (attempt, random = Math.random) => {
  * @param {() => object|null} [options.getInitialView] - What the editor shows before it rendered the room (read once, on the first edit or sync); defaults to an empty editor.
  * @param {Function} [options.socketFactory] - Replaces socket.io-client (tests).
  * @param {Window|null} [options.win] - Window for online/visibility events (tests).
+ * @param {() => void} [options.onSessionEnded] - 2.6: the server reports that the admin session behind the
+ *   socket ended (`SESSION_ENDED`); the client pauses, keeps its edits and calls this.
  * @returns {object} Client API.
  */
 export const createCollabClient = ({
   requestSession,
   url,
+  onSessionEnded,
   onRemoteData,
   onFirstSync,
   onState,
@@ -190,6 +193,12 @@ export const createCollabClient = ({
       if (code === 'READ_ONLY') {
         setState({ canEdit: false });
         startOver(false);
+        return;
+      }
+      if (code === 'SESSION_ENDED') {
+        // 2.6: the admin session ended: keep the edit and send it after signing in again.
+        pending = pending ? Y.mergeUpdates([update, pending]) : update;
+        sessionEnded();
         return;
       }
       if (code === 'INVALID_UPDATE') {
@@ -368,6 +377,10 @@ export const createCollabClient = ({
         setState({ status: 'error', error: code });
         return;
       }
+      if (code === 'SESSION_ENDED') {
+        sessionEnded();
+        return;
+      }
       if (state.status === 'denied' || paused) return;
       setState({ status: offline() ? 'offline' : 'reconnecting', error: code });
       scheduleReconnect();
@@ -442,6 +455,10 @@ export const createCollabClient = ({
       else if (pending || inFlight) startOver(false);
     });
     socket.on('mx:error', ({ code } = {}) => {
+      if (code === 'SESSION_ENDED') {
+        sessionEnded();
+        return;
+      }
       if (code === 'ACCESS_REVOKED') {
         setState({ status: 'denied', error: code, canEdit: false, peers: [] });
         if (socket) socket.disconnect();
@@ -485,6 +502,29 @@ export const createCollabClient = ({
     });
   };
   connect().catch(onConnectFailed);
+
+  /** 2.6: signed out: close the socket, stop reconnecting, keep pending edits. */
+  const pauseNow = () => {
+    if (destroyed || paused) return;
+    paused = true;
+    pausedBase = synced && replica ? serverContent() : null;
+    clearTimeout(retryTimer);
+    inFlight = false;
+    if (socket && (socket.connected || socket.active)) socket.disconnect();
+    if (state.status !== 'denied') setState({ status: 'paused', peers: [] });
+  };
+
+  /** 2.6: the server says the admin session behind the socket ended. */
+  const sessionEnded = () => {
+    pauseNow();
+    if (typeof onSessionEnded === 'function') {
+      try {
+        onSessionEnded();
+      } catch {
+        // the caller's handler must not break the client
+      }
+    }
+  };
 
   return {
     /**
@@ -558,13 +598,7 @@ export const createCollabClient = ({
      * `resume()`; edits made meanwhile stay pending.
      */
     pause() {
-      if (destroyed || paused) return;
-      paused = true;
-      pausedBase = synced && replica ? serverContent() : null;
-      clearTimeout(retryTimer);
-      inFlight = false;
-      if (socket && (socket.connected || socket.active)) socket.disconnect();
-      if (state.status !== 'denied') setState({ status: 'paused', peers: [] });
+      pauseNow();
     },
     /** 2.6: signed in again. Reconnects with a fresh token and sends pending edits. */
     resume() {

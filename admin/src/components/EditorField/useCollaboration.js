@@ -93,6 +93,8 @@ export const useCollaboration = ({
         });
         return data.data;
       },
+      // 2.6: the server closed the socket because the admin session ended (revoked, logged out elsewhere).
+      onSessionEnded: () => sessionGuard.reportError({ status: 401 }, 'collaboration'),
       onRemoteData: () => onRemoteRef.current(),
       getInitialView: () => (getInitialViewRef.current ? getInitialViewRef.current() : null),
       onFirstSync: (seeded) => (onFirstSyncRef.current ? onFirstSyncRef.current(seeded, instance) : null),

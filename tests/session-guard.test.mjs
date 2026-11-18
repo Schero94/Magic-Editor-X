@@ -238,6 +238,7 @@ const fakeRoom = (blocks) => {
     const socket = {
       connected: false,
       active: true,
+      fire,
       on(event, fn) {
         handlers.set(event, [...(handlers.get(event) || []), fn]);
         return socket;
@@ -246,6 +247,8 @@ const fakeRoom = (blocks) => {
       timeout: () => socket,
       emit(event, payload, ack) {
         if (event === 'mx:update') {
+          // 2.6: the server refuses edits of an admin session that ended.
+          if (room.sessionEnded) return ack(null, { ok: false, code: 'SESSION_ENDED' });
           Y.applyUpdate(room.doc, new Uint8Array(payload));
           return ack(null, { ok: true, id: 1 });
         }
@@ -464,4 +467,78 @@ test('collaboration: text typed while signed out is merged onto the room, edits 
   assert.deepEqual(texts, ['one plus signed-out text', 'two and B'], 'both edits, nothing duplicated');
   assert.equal(second.mergeLocal(null, draft), false, 'no base: nothing merged');
   second.destroy();
+});
+
+test('2.6: the server ends the socket of an ended admin session: the client pauses, keeps the edit and reports it', async () => {
+  const room = fakeRoom([p('a', 'one')]);
+  let tokens = 0;
+  let reported = 0;
+  const states = [];
+  const client = createCollabClient({
+    url: 'http://127.0.0.1:1',
+    requestSession: async () => {
+      tokens += 1;
+      return { token: `t${tokens}`, path: '/x', canEdit: true };
+    },
+    onSessionEnded: () => {
+      reported += 1;
+    },
+    onRemoteData: () => {
+      const { data, catchUp } = client.snapshot();
+      client.markShown(catchUp, JSON.parse(JSON.stringify(data)));
+    },
+    onState: (state) => states.push(state.status),
+    socketFactory: room.factory,
+    win: null,
+  });
+  await flush();
+  room.sessionEnded = true;
+  client.pushLocal({ blocks: [p('a', 'one typed after the revoke')] });
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  assert.equal(docToEditorData(room.doc).blocks[0].data.text, 'one', 'the refused edit is not in the room');
+  assert.equal(reported, 1, 'reported once');
+  assert.equal(client.isPaused(), true);
+  assert.equal(states.at(-1), 'paused');
+  assert.equal(room.opens, 1, 'no reconnect while the session is over');
+  // Signed in again: the kept edit reaches the room.
+  room.sessionEnded = false;
+  client.resume();
+  await flush();
+  await flush();
+  assert.equal(docToEditorData(room.doc).blocks[0].data.text, 'one typed after the revoke');
+  client.destroy();
+});
+
+test('2.6: SESSION_ENDED as a socket error or a refused handshake pauses without reconnecting', async () => {
+  for (const kind of ['error', 'handshake']) {
+    const room = fakeRoom([p('a', 'one')]);
+    let reported = 0;
+    const client = createCollabClient({
+      url: 'http://127.0.0.1:1',
+      requestSession: async () => ({ token: 't', path: '/x', canEdit: true }),
+      onSessionEnded: () => {
+        reported += 1;
+      },
+      onRemoteData: () => {
+        const { data, catchUp } = client.snapshot();
+        client.markShown(catchUp, data);
+      },
+      onState: () => {},
+      socketFactory: room.factory,
+      win: null,
+    });
+    await flush();
+    const socket = room.sockets[0];
+    if (kind === 'error') socket.fire('mx:error', { code: 'SESSION_ENDED' });
+    else
+      socket.fire(
+        'connect_error',
+        Object.assign(new Error('SESSION_ENDED'), { data: { code: 'SESSION_ENDED' } })
+      );
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    assert.equal(reported, 1, kind);
+    assert.equal(client.isPaused(), true, kind);
+    assert.equal(room.opens, 1, `${kind}: no reconnect`);
+    client.destroy();
+  }
 });

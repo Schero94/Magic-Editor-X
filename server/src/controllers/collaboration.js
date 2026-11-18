@@ -2,6 +2,7 @@
 
 const { service, positionalReadOnly } = require('./helpers');
 const { z, parseOrThrow, fieldTargetSchema } = require('../utils/validation');
+const { sessionIdOf } = require('../utils/admin-session');
 
 const sessionSchema = fieldTargetSchema.extend({ initialValue: z.unknown().optional() });
 
@@ -9,7 +10,8 @@ const sessionSchema = fieldTargetSchema.extend({ initialValue: z.unknown().optio
  * @route POST /magic-editor-x/collaboration/session { uid, documentId, locale?, field, fieldKey?, initialValue? }
  * @auth admin; plugin::magic-editor-x.access + plugin::magic-editor-x.collaborate;
  *   Content Manager read permission on the document, locale and field (update for editing).
- * @returns {{ data: { token, path, canEdit, expiresAt } }} One-time socket token (60 s).
+ * @returns {{ data: { token, path, canEdit, expiresAt } }} One-time socket token (60 s), bound to the caller's admin
+ *   session (2.6): the socket is refused or closed with `SESSION_ENDED` once that session ended.
  * @throws 404 when the document cannot be read (same as missing), 403 when collaboration is off,
  *   409 `FIELD_KEY_REQUIRED` for a field inside a repeatable component or dynamic zone without a key (2.4).
  * @sideeffect Seeds the room from `initialValue` once when the caller can edit and the room is new.
@@ -24,6 +26,8 @@ module.exports = ({ strapi }) => ({
         ...input,
         userAbility: ctx.state.userAbility,
         user: ctx.state.user,
+        // 2.6: the socket lives only as long as this admin session.
+        sessionId: sessionIdOf(strapi, ctx),
       });
     } catch (error) {
       if (error && error.code === 'FIELD_KEY_REQUIRED') return positionalReadOnly(ctx, 'FIELD_KEY_REQUIRED');
