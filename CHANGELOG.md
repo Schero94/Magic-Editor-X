@@ -1,6 +1,12 @@
 # Changelog
 
-## [Unreleased]
+## [2.6.1](https://github.com/Schero94/Magic-Editor-X/compare/v2.6.0...v2.6.1) (2026-11-18)
+
+
+### Bug Fixes
+
+* **admin:** StrictMode-safe editor config, synced sources, presence and indent tune ([#19](https://github.com/Schero94/Magic-Editor-X/issues/19)) ([64234a8](https://github.com/Schero94/Magic-Editor-X/commit/64234a8bbabc3a4c98d84f657c164318956d62e4))
+
 
 ### Fixed
 
