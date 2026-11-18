@@ -1,5 +1,24 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- **Columns, live editing:** moving an item to another column no longer loses what someone else types into it at the same moment. This covers "Number of columns" with fewer columns, which moves the items of the removed columns into the last remaining column. Before, a move deleted the item and inserted a copy, so a concurrent edit of that item was lost. Now the item keeps its identity wherever it is placed:
+  - typing, the text style and the heading level that someone changes while the item moves all arrive in the moved item;
+  - when two people move the same item at the same moment, it ends up in one place on every screen, never twice (the first place in reading order wins);
+  - when one person moves an item and another deletes it, the delete wins, as it does for blocks;
+  - an item someone adds to a column that another person removes at the same moment is kept at the end of the last column;
+  - undo of "Number of columns" brings the removed columns back with their items, also after others typed into them.
+- Comments on text in a column item stay on that text when the item moves to another column.
+
+### Migration notes
+
+- No migration, and the stored JSON does not change: the Content API, the renderers and the JSON Schema give the same output for the same content.
+- Editing rooms that were open while you updated move to the new layout by themselves, within a few seconds after a short pause in typing (like room compaction: everyone stays connected and nothing typed is lost).
+- An editor tab that was opened before the update shows "Live editing unavailable" and "Reload the page to keep editing live"; after the reload it joins the room again. All processes of a cluster must run the same version.
+- Cut and paste is not a move: cutting text and pasting it into another column removes the text and adds new text, as in any editor. What someone types into the cut text at the same moment is not carried over.
+
 ## [2.6.1](https://github.com/Schero94/Magic-Editor-X/compare/v2.6.0...v2.6.1) (2026-11-18)
 
 

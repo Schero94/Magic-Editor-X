@@ -14,6 +14,7 @@ import {
   isRelPos,
   toBase64,
 } from './comment-anchor.mjs';
+import { columnsPlacement, itemStoreOf } from './ydoc.mjs';
 
 /** Deepest data path walked when looking for text fields. */
 const MAX_PATH_DEPTH = 8;
@@ -22,30 +23,73 @@ const MAX_PATH_DEPTH = 8;
 const MAX_LEAVES = 2000;
 
 /**
+ * Collects the Y.Text leaves under a shared value.
+ * @param {unknown} value - Shared value.
+ * @param {string[]} path - Key path of the value.
+ * @param {number} depth - Depth of the value.
+ * @param {Array<{ path: string, text: Y.Text }>} out - Receives the leaves.
+ */
+const visitLeaves = (value, path, depth, out) => {
+  if (out.length >= MAX_LEAVES || depth > MAX_PATH_DEPTH) return;
+  if (value instanceof Y.Text) {
+    if (path.length) out.push({ path: path.join('.'), text: value });
+    return;
+  }
+  if (value instanceof Y.Array) {
+    value.toArray().forEach((item, index) => visitLeaves(item, [...path, String(index)], depth + 1, out));
+    return;
+  }
+  if (value instanceof Y.Map) {
+    for (const [key, item] of value.entries()) {
+      if (FORBIDDEN_KEYS.has(key)) continue;
+      visitLeaves(item, [...path, key], depth + 1, out);
+    }
+  }
+};
+
+/**
  * Y.Text leaves of a block's shared data (room document) with their key paths.
  * @param {Y.Map<any>|null|undefined} data - `blocks.get(id).get('data')`.
  * @returns {Array<{ path: string, text: Y.Text }>} Leaves.
  */
 export const sharedTextLeaves = (data) => {
   const out = [];
-  const visit = (value, path, depth) => {
-    if (out.length >= MAX_LEAVES || depth > MAX_PATH_DEPTH) return;
-    if (value instanceof Y.Text) {
-      if (path.length) out.push({ path: path.join('.'), text: value });
-      return;
+  visitLeaves(data, [], 0, out);
+  return out;
+};
+
+/**
+ * Y.Text leaves of a block entry with the data paths of the stored JSON. For
+ * a columns block with an item store (schema 4) the item texts are reached
+ * through the store and get the paths of the stored JSON
+ * (`columns.<c>.items.<i>.text`, reading order), like for every other block.
+ * @param {Y.Map<any>|null|undefined} entry - `blocks.get(id)`.
+ * @returns {Array<{ path: string, text: Y.Text }>} Leaves.
+ */
+export const sharedBlockTextLeaves = (entry) => {
+  if (!(entry instanceof Y.Map)) return [];
+  const data = entry.get('data');
+  const store = itemStoreOf(entry);
+  const columns = data instanceof Y.Map ? data.get('columns') : undefined;
+  if (!store || !(columns instanceof Y.Array)) return sharedTextLeaves(data);
+  const out = [];
+  for (const [key, value] of data.entries()) {
+    if (FORBIDDEN_KEYS.has(key)) continue;
+    if (key !== 'columns') {
+      visitLeaves(value, [key], 1, out);
+      continue;
     }
-    if (value instanceof Y.Array) {
-      value.toArray().forEach((item, index) => visit(item, [...path, String(index)], depth + 1));
-      return;
-    }
-    if (value instanceof Y.Map) {
-      for (const [key, item] of value.entries()) {
-        if (FORBIDDEN_KEYS.has(key)) continue;
-        visit(item, [...path, key], depth + 1);
+    columnsPlacement(columns, store).forEach(({ column, ids }, c) => {
+      if (!ids) {
+        visitLeaves(column, ['columns', String(c)], 2, out);
+        return;
       }
-    }
-  };
-  visit(data, [], 0);
+      for (const [columnKey, columnValue] of column.entries())
+        if (columnKey !== 'items' && !FORBIDDEN_KEYS.has(columnKey))
+          visitLeaves(columnValue, ['columns', String(c), columnKey], 3, out);
+      ids.forEach((id, i) => visitLeaves(store.get(id), ['columns', String(c), 'items', String(i)], 4, out));
+    });
+  }
   return out;
 };
 
@@ -53,7 +97,7 @@ export const sharedTextLeaves = (data) => {
  * The Y.Text of a block field in a room document.
  * @param {Y.Doc|null} doc - Room document.
  * @param {string} blockId - Block id.
- * @param {string} path - Data key path.
+ * @param {string} path - Data key path (stored JSON).
  * @returns {Y.Text|null} Shared text, or null.
  */
 export const sharedTextAt = (doc, blockId, path) => {
@@ -61,7 +105,25 @@ export const sharedTextAt = (doc, blockId, path) => {
   const entry = doc.getMap('blocks').get(blockId);
   if (!(entry instanceof Y.Map)) return null;
   let value = entry.get('data');
-  for (const key of path.split('.')) {
+  let keys = path.split('.');
+  // Columns block with an item store: `columns.<c>.items.<i>` is the placed item in the store.
+  const store = itemStoreOf(entry);
+  if (
+    store &&
+    keys[0] === 'columns' &&
+    keys[2] === 'items' &&
+    /^\d+$/.test(keys[1]) &&
+    /^\d+$/.test(keys[3] || '')
+  ) {
+    const columns = value instanceof Y.Map ? value.get('columns') : undefined;
+    if (!(columns instanceof Y.Array)) return null;
+    const placed = columnsPlacement(columns, store)[Number(keys[1])];
+    const id = placed && placed.ids ? placed.ids[Number(keys[3])] : undefined;
+    if (id === undefined) return null;
+    value = store.get(id);
+    keys = keys.slice(4);
+  }
+  for (const key of keys) {
     if (FORBIDDEN_KEYS.has(key)) return null;
     if (value instanceof Y.Map) value = value.get(key);
     else if (value instanceof Y.Array && /^\d+$/.test(key)) value = value.get(Number(key));

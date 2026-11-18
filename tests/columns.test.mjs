@@ -609,14 +609,25 @@ test('suggestions: a change inside a columns block is one update suggestion for 
 
 test('comments: range anchors address the text of one column item (data path and Y.Text)', async () => {
   const { textLeaves } = await import('../shared/comment-anchor.mjs');
-  const { sharedTextLeaves, sharedTextAt } = await import('../shared/comment-relpos.mjs');
+  const { sharedBlockTextLeaves, sharedTextAt, encodeRange, resolveRange } =
+    await import('../shared/comment-relpos.mjs');
   const value = cleanEditorValue(doc(twoColumns()));
   const leaves = textLeaves(value.blocks[0].data).filter((leaf) => leaf.path.endsWith('.text'));
   assert.ok(leaves.some((leaf) => leaf.path === 'columns.1.items.0.text' && leaf.value === 'Right text'));
   const room = new Y.Doc();
   applyEditorDataToDoc(room, value);
   const entry = room.getMap('blocks').get('cols1');
-  const shared = sharedTextLeaves(entry.get('data')).map((leaf) => leaf.path);
+  const shared = sharedBlockTextLeaves(entry).map((leaf) => leaf.path);
   assert.ok(shared.includes('columns.1.items.0.text'));
-  assert.equal(sharedTextAt(room, 'cols1', 'columns.1.items.0.text').toString(), 'Right text');
+  assert.ok(shared.includes('columns.0.items.3.text'));
+  const ytext = sharedTextAt(room, 'cols1', 'columns.1.items.0.text');
+  assert.equal(ytext.toString(), 'Right text');
+  // 2.6.1: the item keeps its Y.Text when it moves, so a range anchor follows it.
+  const range = encodeRange(ytext, 6, 10);
+  const moved = clone(value);
+  moved.blocks[0].data.columns[0].items.push(moved.blocks[0].data.columns[1].items.shift());
+  applyEditorDataToDoc(room, moved);
+  assert.equal(sharedTextAt(room, 'cols1', 'columns.0.items.4.text'), ytext);
+  assert.deepEqual(resolveRange(room, ytext, range.start, range.end), { start: 6, end: 10 });
+  assert.equal(sharedTextAt(room, 'cols1', 'columns.1.items.0.text'), null);
 });

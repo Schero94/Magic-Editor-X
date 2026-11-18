@@ -15,6 +15,7 @@ const {
   docToEditorData,
   epochOf,
   getTypes,
+  hasLegacyColumns,
   stableStringify,
 } = require('../../../shared/ydoc.mjs');
 const { applyCheckedUpdate } = require('../../../shared/ydoc-guard.mjs');
@@ -25,7 +26,7 @@ const { readPositionalEntries } = require('../utils/field-identity');
 const { parseFieldIdentity, basePathOf } = require('../../../shared/field-identity.mjs');
 
 /**
- * Live collaboration for Magic Editor X fields (Socket.IO + Yjs, protocol 3).
+ * Live collaboration for Magic Editor X fields (Socket.IO + Yjs, protocol 4).
  *
  * Works with several Node processes behind a load balancer without sticky
  * sessions:
@@ -49,7 +50,11 @@ const { parseFieldIdentity, basePathOf } = require('../../../shared/field-identi
  *   signal; every process re-checks its sockets within about a second.
  */
 
-const PROTOCOL = 3;
+// 4 (2.6.1): columns blocks keep their items in an item store (shared/ydoc.mjs, schema 4).
+// Editor tabs still running the 2.6.0 admin get UPGRADE_REQUIRED instead of writing the old layout.
+const PROTOCOL = 4;
+/** Idle time before a 2.6.0 room is moved to a new generation with the schema 4 layout. */
+const UPGRADE_IDLE_MS = 2000;
 const PROCESS_ID = randomUUID();
 const PRESENCE_TTL_MS = 30000;
 const HEARTBEAT_MS = 10000;
@@ -319,6 +324,9 @@ module.exports = ({ strapi }) => {
         state.doc = doc;
         state.loadedAt = now;
         if (rows.length) await store().ensureGeneration(room, epochOf(doc));
+        // A room written by 2.6.0 holds columns blocks without an item store: move it to a new
+        // generation as soon as nobody writes for a moment (the compaction tick retries too).
+        if (hasLegacyColumns(doc)) scheduleUpgrade(room);
         return doc;
       })().finally(() => {
         state.loading = null;
@@ -665,8 +673,72 @@ module.exports = ({ strapi }) => {
     }
   };
 
-  /** Checks every live room of this process for compaction. */
+  /**
+   * Moves a room written by 2.6.0 (columns blocks with nested items) to a new
+   * generation, seeded from its content, so its columns blocks get an item
+   * store and moving an item keeps concurrent edits of it. Same path as
+   * compaction: under the room's compaction lease, only when nobody wrote for
+   * `UPGRADE_IDLE_MS`, exactly once per generation across the cluster; clients
+   * see the new epoch and re-apply edits that were not acknowledged. Runs
+   * also when compaction is disabled.
+   * @param {string} room - Room key.
+   * @returns {Promise<{ upgraded: boolean }>} Result.
+   */
+  const upgradeRoom = async (room) => {
+    const state = rooms.get(room);
+    if (!state || !state.doc || state.switching || state.upgrading || !hasLegacyColumns(state.doc))
+      return { upgraded: false };
+    state.upgrading = true;
+    try {
+      const result = await compactGeneration(room, {
+        idleMs: UPGRADE_IDLE_MS,
+        minBytes: 0,
+        ratio: 1,
+        force: true,
+      });
+      if (result.compacted) logger.info('collaboration room moved to the columns item store');
+      return { upgraded: result.compacted };
+    } finally {
+      state.upgrading = false;
+    }
+  };
+
+  /**
+   * Retries `upgradeRoom` every `UPGRADE_IDLE_MS` for about a minute after a
+   * 2.6.0 room was loaded (it needs a short pause in writing); the compaction
+   * tick keeps trying afterwards.
+   * @param {string} room - Room key.
+   * @param {number} [attempt=0] - Attempt number.
+   */
+  const scheduleUpgrade = (room, attempt = 0) => {
+    const timer = setTimeout(
+      () => {
+        upgradeRoom(room)
+          .then(({ upgraded }) => {
+            const state = rooms.get(room);
+            if (!upgraded && attempt < 30 && state && state.doc && hasLegacyColumns(state.doc))
+              scheduleUpgrade(room, attempt + 1);
+          })
+          .catch(() => {});
+      },
+      attempt === 0 ? 0 : UPGRADE_IDLE_MS
+    );
+    if (typeof timer.unref === 'function') timer.unref();
+  };
+
+  /** Checks every live room of this process for compaction (and 2.6.0 rooms for the upgrade). */
   const compactionTick = async () => {
+    for (const [room, state] of Array.from(rooms)) {
+      if (!state.doc || state.sockets.size === 0) continue;
+      try {
+        await upgradeRoom(room);
+      } catch (error) {
+        logger.warn('collaboration room upgrade failed', {
+          code: error && error.code,
+          name: error && error.name,
+        });
+      }
+    }
     const options = conf('compaction', {}) || {};
     if (options.enabled === false) return;
     const limits = {
@@ -1359,6 +1431,12 @@ module.exports = ({ strapi }) => {
     maintenanceNow: maintenanceTick,
     /** Test hook: runs one compaction check. */
     compactionNow: compactionTick,
+    /**
+     * Test hook: moves a 2.6.0 room to the columns item store now (same rules as the tick).
+     * @param {string} room - Room key.
+     * @returns {Promise<{ upgraded: boolean }>} Result.
+     */
+    upgradeRoom,
     /**
      * Test and operations hook: compacts one room now (still under the lease
      * and the generation check).

@@ -9,7 +9,10 @@
  * 150 s, so at least two one-minute snapshot buckets pass):
  * - MEX_CLUSTER_CLIENTS (default 12) clients connect through the balancer and
  *   insert unique markers into paragraphs, table cells and list items, add
- *   blocks, table rows and list items, all at the same time;
+ *   blocks, table rows and list items, all at the same time (with
+ *   MEX_CLUSTER_COLUMNS=1 also into the items of a columns block, while
+ *   other clients move those items to other columns and change the number
+ *   of columns);
  * - random processes are killed (SIGKILL) and restarted;
  * - random processes are cut off from all clients (network partition at the
  *   balancer) for a few seconds;
@@ -44,6 +47,8 @@ const RENDER_DELAY_MS = Number(process.env.MEX_CLUSTER_RENDER_DELAY_MS || 0);
 const PERMISSION_SLA_MS = 5000;
 // 2.6: component blocks in the room (a component uid the app allows in `body`, e.g. blocks.cta).
 const COMPONENT_UID = process.env.MEX_CLUSTER_COMPONENT || '';
+// 2.6.1: a columns block whose items are typed into, added and moved between columns.
+const COLUMNS = process.env.MEX_CLUSTER_COLUMNS === '1';
 const url = (port) => `http://127.0.0.1:${port}`;
 const results = [];
 const record = (check, ok, detail) => {
@@ -110,6 +115,28 @@ const seed = {
           },
         ]
       : []),
+    ...(COLUMNS
+      ? [
+          {
+            id: 'm1',
+            type: 'columns',
+            data: {
+              columns: [
+                { id: 'mc1', items: [{ id: 'mi1', type: 'paragraph', text: 'One' }] },
+                { id: 'mc2', items: [{ id: 'mi2', type: 'paragraph', text: 'Two' }] },
+                {
+                  id: 'mc3',
+                  items: [
+                    { id: 'mi3', type: 'heading', level: 3, text: 'Three' },
+                    { id: 'mi4', type: 'list', style: 'unordered', text: 'Four' },
+                  ],
+                },
+              ],
+              _mex: 1,
+            },
+          },
+        ]
+      : []),
   ],
 };
 response = await call(BALANCER, 'POST', '/content-manager/collection-types/api::article.article', {
@@ -168,6 +195,37 @@ record('all clients reach the live state', await waitLive(clients), `${CLIENTS} 
 // --- chaos phase ---------------------------------------------------------------
 const markers = [];
 let counter = 0;
+const moves = { items: 0, counts: 0 };
+/**
+ * 2.6.1: moves a random item of the columns block to another column, or changes the number of
+ * columns (fewer columns move the items of the removed ones to the last column, like the editor).
+ * Items are never deleted, so every marker typed into an item must survive every move.
+ * @param {object} sim - Simulated editor.
+ */
+const columnsMove = (sim) =>
+  sim.edit((doc) => {
+    const block = doc.blocks.find((candidate) => candidate.id === 'm1');
+    if (!block) return;
+    const columns = block.data.columns;
+    if (Math.random() < 0.2) {
+      if (columns.length === 3) {
+        const merged = [...columns[1].items, ...columns[2].items];
+        if (merged.length > 50) return;
+        columns[1].items = merged;
+        block.data.columns = columns.slice(0, 2);
+      } else columns.push({ id: `mc${sim.name}x${counter++}`, items: [] });
+      moves.counts += 1;
+      return;
+    }
+    const from = columns.filter((column) => column.items.length);
+    if (!from.length) return;
+    const source = from[rnd(from.length)];
+    const target = columns[rnd(columns.length)];
+    if (target === source || target.items.length >= 50) return;
+    const [item] = source.items.splice(rnd(source.items.length), 1);
+    target.items.splice(rnd(target.items.length + 1), 0, item);
+    moves.items += 1;
+  });
 const slotEdit = (sim) => {
   const marker = `[${sim.name}m${counter++}]`;
   const ok = sim.edit((doc) => {
@@ -185,10 +243,16 @@ const slotEdit = (sim) => {
         for (const key of ['title', 'text'])
           if (typeof block.data.values[key] === 'string')
             slots.push((f) => (block.data.values[key] = f(block.data.values[key])));
+      // 2.6.1: every item of a columns block.
+      if (block.type === 'columns')
+        block.data.columns.forEach((column) =>
+          column.items.forEach((item) => slots.push((f) => (item.text = f(item.text))))
+        );
     });
     const r = Math.random();
     const table = doc.blocks.find((block) => block.type === 'table');
     const list = doc.blocks.find((block) => block.type === 'list');
+    const columnsBlock = doc.blocks.find((block) => block.type === 'columns');
     // An editor that has not rendered the room yet has no slots: add a block instead.
     if (r < 0.08 || slots.length === 0) {
       doc.blocks.splice(rnd(doc.blocks.length + 1), 0, {
@@ -200,6 +264,13 @@ const slotEdit = (sim) => {
       table.data.content.push([marker, '']);
     } else if (r < 0.15 && list) {
       list.data.items.push({ content: marker, meta: {}, items: [] });
+    } else if (r < 0.17 && columnsBlock && columnsBlock.data.columns.flatMap((c) => c.items).length < 40) {
+      const column = columnsBlock.data.columns[rnd(columnsBlock.data.columns.length)];
+      column.items.splice(rnd(column.items.length + 1), 0, {
+        id: `mn${sim.name}x${counter}`,
+        type: 'paragraph',
+        text: marker,
+      });
     } else {
       slots[rnd(slots.length)]((text) => {
         const s = String(text);
@@ -222,7 +293,10 @@ process.on('message', (message) => {
 });
 const editing = (async () => {
   while (Date.now() < chaosEnd) {
-    for (const sim of clients) if (Math.random() < 0.35) slotEdit(sim);
+    for (const sim of clients) {
+      if (Math.random() < 0.35) slotEdit(sim);
+      if (COLUMNS && Math.random() < 0.08) columnsMove(sim);
+    }
     await sleep(150 + rnd(200));
   }
 })();
@@ -304,6 +378,23 @@ if (COMPONENT_UID) {
     'component block kept its component and received edits',
     Boolean(component && component.data.uid === COMPONENT_UID && componentMarkers.length > 0),
     component ? `${componentMarkers.length} edits in its attributes` : 'block missing'
+  );
+}
+if (COLUMNS) {
+  const block = clients[0].client.getData().blocks.find((candidate) => candidate.id === 'm1');
+  const items = block ? block.data.columns.flatMap((column) => column.items) : [];
+  const ids = items.map((item) => item.id);
+  const inColumns = markers.filter((marker) => items.some((item) => item.text.includes(marker)));
+  record(
+    'columns block: every item shown once, typing kept through moves',
+    Boolean(block) &&
+      new Set(ids).size === ids.length &&
+      ['mi1', 'mi2', 'mi3', 'mi4'].every((id) => ids.includes(id)) &&
+      inColumns.length > 0 &&
+      moves.items > 0,
+    block
+      ? `${moves.items} item moves and ${moves.counts} column count changes during typing; ${ids.length} items in ${block.data.columns.length} columns, ${new Set(ids).size} unique; ${inColumns.length} edits in column items`
+      : 'block missing'
   );
 }
 const dupes = markers.filter((marker) => finalText.split(marker).length > 2);
@@ -498,7 +589,7 @@ if (process.env.MEX_COMPACT_IDLE_S) {
       const socket = io(url(port), {
         path: sess.body.data.path,
         transports: ['websocket'],
-        auth: { token: sess.body.data.token, protocol: 3 },
+        auth: { token: sess.body.data.token, protocol: 4 },
         reconnection: false,
       });
       await new Promise((resolve) => {
@@ -539,7 +630,7 @@ if (process.env.MEX_COMPACT_IDLE_S) {
       const socket2 = io(url(port), {
         path: sess2.body.data.path,
         transports: ['websocket'],
-        auth: { token: sess2.body.data.token, protocol: 3 },
+        auth: { token: sess2.body.data.token, protocol: 4 },
         reconnection: false,
       });
       const fresh = new Y.Doc();
@@ -613,7 +704,7 @@ if (process.env.MEX_COMPACT_IDLE_S) {
     const socket = io(url(port), {
       path: sess.body.data.path,
       transports: ['websocket'],
-      auth: { token: sess.body.data.token, protocol: 3 },
+      auth: { token: sess.body.data.token, protocol: 4 },
       reconnection: false,
     });
     socket.on('mx:update', (update) => Y.applyUpdate(ydoc, new Uint8Array(update)));

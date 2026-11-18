@@ -4,10 +4,10 @@ import { createReplica } from '../../../shared/collab-replica.mjs';
 import { docToEditorData } from '../../../shared/ydoc.mjs';
 
 /**
- * Browser side of live collaboration for one editor field (protocol 3).
+ * Browser side of live collaboration for one editor field (protocol 4).
  *
  * Protocol (see server/src/services/collaboration.js and AGENTS.md):
- * - handshake `auth: { token, protocol: 3 }`; refusals arrive as
+ * - handshake `auth: { token, protocol: 4 }`; refusals arrive as
  *   `connect_error` with `data.code` (INVALID_TOKEN, SESSION_ENDED (2.6), UPGRADE_REQUIRED,
  *   TOO_MANY_CONNECTIONS, UNAVAILABLE);
  * - `mx:welcome { canEdit, presenceId, color, name, epoch }`;
@@ -40,7 +40,7 @@ import { docToEditorData } from '../../../shared/ydoc.mjs';
  * drops the edit and never reverts content the editor has not shown yet.
  */
 
-export const PROTOCOL = 3;
+export const PROTOCOL = 4;
 const RESYNC_MS = 20000;
 const ACK_TIMEOUT_MS = 10000;
 const RETRY_BASE_MS = 500;

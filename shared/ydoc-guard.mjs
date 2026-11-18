@@ -17,11 +17,11 @@
 
 import * as Y from 'yjs';
 import { EDITOR_DATA_LIMITS, normalizeEditorData } from './editor-data.mjs';
-import { readBlock } from './ydoc.mjs';
+import { itemStoreOf, readBlock } from './ydoc.mjs';
 import { BUILT_IN_MARKER, isBuiltInMarker, isMarkedBuiltIn } from './built-in-marker.mjs';
 import { isTableDataShapeValid } from './table.mjs';
 import { COMPONENT_ATTRIBUTE, COMPONENT_LIMITS } from './components.mjs';
-import { isColumnsDataShapeValid } from './columns.mjs';
+import { COLUMN_ID, COLUMNS_LIMITS, isColumnsDataShapeValid } from './columns.mjs';
 
 const ROOTS = new Set(['meta', 'order', 'blocks']);
 const FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
@@ -248,6 +248,36 @@ const validComponentData = (block) => {
 };
 
 /**
+ * The item store of a columns block (schema 4) and its placement lists: a
+ * Y.Map of at most `maxColumns * items` items (ids `COLUMN_ID`, values
+ * Y.Map), and in every column of `data.columns` an `items` Y.Array of item
+ * ids, at most four times the item limit (hidden places left by concurrent
+ * moves and deletes count). The items read from it are checked by the shape
+ * check of the block like any other block data.
+ * @param {Y.Map<any>} entry - Block entry with an `items` key.
+ * @returns {boolean} Valid.
+ */
+const validItemStore = (entry) => {
+  const store = itemStoreOf(entry);
+  if (!store || store.size > COLUMNS_LIMITS.maxColumns * COLUMNS_LIMITS.items) return false;
+  for (const [id, value] of store.entries())
+    if (!COLUMN_ID.test(id) || !(value instanceof Y.Map)) return false;
+  const data = entry.get('data');
+  if (!(data instanceof Y.Map)) return false;
+  const columns = data.get('columns');
+  if (columns === undefined) return true;
+  if (!(columns instanceof Y.Array) || columns.length > COLUMNS_LIMITS.maxColumns) return false;
+  for (const column of columns.toArray()) {
+    if (!(column instanceof Y.Map)) return false;
+    const list = column.get('items');
+    if (list === undefined) continue;
+    if (!(list instanceof Y.Array) || list.length > COLUMNS_LIMITS.items * 4) return false;
+    if (!list.toArray().every((id) => typeof id === 'string' && COLUMN_ID.test(id))) return false;
+  }
+  return true;
+};
+
+/**
  * Validates the parts of a document a transaction changed.
  * @param {Y.Doc} doc - Room document after the update.
  * @param {{ ids: Set<string>, order: boolean, meta: boolean }} touched - Result of `touchedBy`.
@@ -262,8 +292,12 @@ export const validateTouched = (doc, touched, options = {}) => {
     const entry = blocks.get(id);
     if (entry === undefined) continue;
     if (!(entry instanceof Y.Map)) return 'INVALID_BLOCK';
-    for (const key of entry.keys()) if (!['type', 'data', 'tunes'].includes(key)) return 'INVALID_BLOCK';
     const type = entry.get('type');
+    // `items` (schema 4) is the item store of a columns block and nothing else.
+    for (const key of entry.keys())
+      if (!['type', 'data', 'tunes'].includes(key) && !(key === 'items' && type === 'columns'))
+        return 'INVALID_BLOCK';
+    if (entry.has('items') && !validItemStore(entry)) return 'INVALID_BLOCK';
     if (type !== undefined && (typeof type !== 'string' || !BLOCK_TYPE_PATTERN.test(type)))
       return 'INVALID_BLOCK';
     const data = entry.get('data');
