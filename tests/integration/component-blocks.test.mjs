@@ -181,6 +181,31 @@ test('Content API ?mex= and GraphQL follow the current schema; nothing is render
   assert.equal(gql.body.data.article.bodyRendered, '<p class="mex-paragraph">Intro</p>');
   const resolved = gql.body.data.article.bodyResolved.blocks.find((b) => b.type === 'component');
   assert.equal(resolved.data.values.title, 'Start <b>now</b>');
+  // 2.6 review: the plain REST answer and the raw GraphQL field follow the current schema too.
+  const plain = await call('GET', `/api/articles/${state.documentId}`, { token });
+  assert.equal(plain.status, 200);
+  assert.deepEqual(
+    plain.body.data.body.blocks.map((b) => b.id),
+    ['p1', 'c1'],
+    'no block of the deleted component in the default REST output'
+  );
+  const list = await call('GET', `/api/articles?filters[documentId][$eq]=${state.documentId}`, { token });
+  assert.deepEqual(
+    list.body.data[0].body.blocks.map((b) => b.id),
+    ['p1', 'c1']
+  );
+  const raw = await call('POST', '/graphql', {
+    token,
+    body: {
+      query: `query($id: ID!) { article(documentId: $id) { body } }`,
+      variables: { id: state.documentId },
+    },
+  });
+  assert.equal(raw.body.errors, undefined, JSON.stringify(raw.body.errors));
+  assert.deepEqual(
+    raw.body.data.article.body.blocks.map((b) => b.id),
+    ['p1', 'c1']
+  );
 });
 
 test('live rooms: component edits merge; switching to a component the field does not allow is refused', async () => {
