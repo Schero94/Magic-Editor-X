@@ -244,12 +244,15 @@ const AuditPage = () => {
   if (applied.to) params.to = `${applied.to}T23:59:59`;
   const paramsKey = JSON.stringify(params);
 
+  // Each effect aborts its own request on cleanup. Strapi's fetch client reads its unmount signal
+  // only after an await, so with React 19 StrictMode the first mount's request was not aborted by
+  // `useFetchClient` and the list and the actors were requested twice.
   useEffect(() => {
     if (!allowed) return undefined;
-    let active = true;
-    get(API.audit, { params: JSON.parse(paramsKey) }).then(
+    const controller = new AbortController();
+    get(API.audit, { params: JSON.parse(paramsKey), signal: controller.signal }).then(
       ({ data }) => {
-        if (!active) return;
+        if (controller.signal.aborted) return;
         setResult({
           key: requestKey,
           failed: false,
@@ -259,22 +262,27 @@ const AuditPage = () => {
         });
       },
       () => {
-        if (active) setResult((current) => ({ ...current, key: requestKey, failed: true }));
+        if (!controller.signal.aborted)
+          setResult((current) => ({ ...current, key: requestKey, failed: true }));
       }
     );
-    return () => {
-      active = false;
-    };
+    return () => controller.abort();
   }, [allowed, get, paramsKey, requestKey]);
 
   const load = () => setNonce((value) => value + 1);
 
   useEffect(() => {
-    if (!allowed) return;
-    get(API.auditActors).then(
-      ({ data }) => setActors(data.data || []),
-      () => setActors([])
+    if (!allowed) return undefined;
+    const controller = new AbortController();
+    get(API.auditActors, { signal: controller.signal }).then(
+      ({ data }) => {
+        if (!controller.signal.aborted) setActors(data.data || []);
+      },
+      () => {
+        if (!controller.signal.aborted) setActors([]);
+      }
     );
+    return () => controller.abort();
   }, [allowed, get]);
 
   if (audit.isLoading || settings.isLoading) {

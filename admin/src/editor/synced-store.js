@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
-import { useFetchClient } from '../utils/fetch-client';
+import { getFetchClient } from '../utils/fetch-client';
 import { sessionGuard } from './session-guard.mjs';
 import { API, readApiError } from '../utils/api';
 import { SYNCED_REF_PATTERN } from '../../../shared/synced.mjs';
@@ -56,7 +56,8 @@ export const primeSynced = (template) => {
 
 /**
  * Loads a source unless a fresh entry exists (requests are shared).
- * @param {Function} get - `useFetchClient().get`.
+ * @param {Function} get - A fetch client `get` that is not tied to a component (`getFetchClient().get`):
+ *   the request is shared by every view of the source.
  * @param {string} ref - Source documentId.
  * @param {{ force?: boolean }} [options] - `force` ignores the age.
  * @returns {Promise<{ status: string, template: object|null }>} Entry.
@@ -139,7 +140,11 @@ const snapshotOf = (key) => {
  * @returns {{ entries: Map<string, object>, refresh: (force?: boolean) => void }} Entries by reference.
  */
 export const useSyncedSources = (refs, options = {}) => {
-  const { get } = useFetchClient();
+  // The cache shares one request per source between every view and field on the page, so it is
+  // sent with `getFetchClient`: `useFetchClient` aborts a component's requests when it unmounts
+  // (React StrictMode does this once on every mount), which turned the shared request into an
+  // "could not be loaded" error for every other view of the source.
+  const get = useMemo(() => getFetchClient().get, []);
   const key = [...new Set(refs.filter((ref) => SYNCED_REF_PATTERN.test(ref)))].sort().join(',');
   const list = useMemo(() => (key ? key.split(',') : []), [key]);
   const refresh = useCallback(

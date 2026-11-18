@@ -66,6 +66,7 @@ admin/src/
   components/RenderedContent/ rendered output in the admin (React renderer, prose styles, embed placeholder, DOMPurify for raw HTML)
   translations/<area>/<locale>.json   areas: common, editor, tools, settings
 tests/                       unit tests (node --test), tests/integration needs a host
+tests/admin/                 admin StrictMode tests (npm run test:admin): harness/ (jsdom, Strapi admin providers, fake network and socket.io), fakes/ (counting yjs and Editor.js wrappers, aliased in harness.config.mjs)
 scripts/                     server bundle, runtime check, llms-full, release plugin, cluster acceptance, soak, bench (+ bench-thresholds.json)
 docs/site/                   GitHub Pages
 ```
@@ -77,6 +78,7 @@ docs/site/                   GitHub Pages
 | `npm run lint`             | ESLint flat config over the repository                                                                                      |
 | `npm run format:check`     | Prettier check                                                                                                              |
 | `npm test`                 | Unit tests in `tests/*.test.mjs`                                                                                            |
+| `npm run test:admin`       | Admin entry points in React StrictMode (jsdom, `tests/admin/*.test.jsx`); CI runs it on React 18 and React 19               |
 | `npm run test:integration` | Integration suite against a running host; needs `MEX_HOST_URL` and `MEX_CREDS` (see CONTRIBUTING.md) and fails without them |
 | `npm run build`            | `strapi-plugin build`, esbuild server bundle (CJS and ESM), then `verify:runtime`                                           |
 | `npm run verify`           | `strapi-plugin verify`                                                                                                      |
@@ -898,6 +900,7 @@ How to add a field tool:
 - Build every screen with `@strapi/design-system` and the admin `Page`/`Layouts`; colours and spacing from theme tokens only (no hex, no `var(--colors-*)`; 1rem = 10px). Destructive actions use `ConfirmDialog`. No `window.confirm`, no `console.log`, no emoji.
 - Translation keys live in four areas, `admin/src/translations/{common,editor,tools,settings}/{en,de,fr,es,pt}.json`, prefixed with the area (`editor.history.title`). Every key exists in all five locales; German uses formal "Sie". The `defaultMessage` in code equals the English text. `tests/admin-i18n.test.mjs` enforces parity, ICU validity and no orphans.
 - Editor tools in `admin/src/editor/tools` keep the 1.x block names and data. Untrusted strings reach `innerHTML` only through `sanitizeInline`, `sanitizeTemplate` or `sanitizeSvg` from `admin/src/editor/sanitize.js`.
+- Every effect survives React StrictMode (mount, cleanup, mount; React 18 and 19), checked by `npm run test:admin`: it cleans up what it starts (timers, listeners, observers, sockets, Editor.js through `isReady.then(destroy)` plus `disposeTools(tools)`, Y.Docs), sends no mutation twice, and a request that StrictMode's cleanup should cancel gets its own `AbortController` signal. A module-level cache or shared in-flight request (editor config, custom blocks, synced sources) uses `getFetchClient` from `admin/src/utils/fetch-client.js`, never the component's `useFetchClient`, which aborts its requests on unmount. Presence heartbeats start on the next task, so an undone mount sends neither a heartbeat nor a leave.
 
 ## Releases
 

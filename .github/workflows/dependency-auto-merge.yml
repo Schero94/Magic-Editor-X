@@ -41,6 +41,8 @@ jobs:
         run: npm run build
       - name: Tests
         run: npm test
+      - name: Admin StrictMode tests
+        run: npm run test:admin
       - name: Verify package
         run: npm run verify
       - name: Production audit

@@ -1,6 +1,7 @@
 # Checks every pull request and push to a non-main branch on the Node versions
 # Strapi 5.63 supports (22, 24 and 26, as engines.node declares): lint,
-# formatting, build (with the server bundle runtime check), unit tests, package
+# formatting, build (with the server bundle runtime check), unit tests, admin
+# StrictMode tests (React 18; a separate job runs them on React 19), package
 # verification, package contents and a production audit. A second job checks
 # that the lockfile installs with npm 10 and npm 11; a third runs the
 # performance benchmark against scripts/bench-thresholds.json; a fourth builds
@@ -52,6 +53,8 @@ jobs:
         run: npm run build
       - name: Tests
         run: npm test
+      - name: Admin StrictMode tests (React 18)
+        run: npm run test:admin
       - name: Verify package
         run: npm run verify
       - name: Server bundle runtime check
@@ -68,6 +71,37 @@ jobs:
           if grep -q EBADENGINE install.log; then echo "EBADENGINE on Node 22"; exit 1; fi
       - name: Production audit
         run: npm audit --omit=dev --audit-level=high
+
+  react-19:
+    # The peer range allows React ^18.0.0 || ^19.0.0, so the admin StrictMode tests must pass on
+    # React 19 too (blocking). --legacy-peer-deps only for this install: @strapi/icons and
+    # @strapi/design-system 2.3.1 declare a React ^18 peer, so npm refuses React 19 otherwise.
+    name: Admin StrictMode tests on React 19
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install dependencies (no lifecycle scripts)
+        run: npm ci --ignore-scripts
+      - name: Install React 19 (not saved)
+        run: npm install --no-save --ignore-scripts --no-audit --no-fund --legacy-peer-deps react@19 react-dom@19
+      - name: Show installed React version
+        run: |
+          node -e '
+            const react = require("react/package.json").version;
+            const dom = require("react-dom/package.json").version;
+            console.log("react", react, "react-dom", dom);
+            if (!react.startsWith("19.") || !dom.startsWith("19.")) throw new Error("React 19 is not installed");'
+      - name: Admin StrictMode tests (React 19)
+        run: npm run test:admin
 
   lockfile:
     runs-on: ubuntu-latest

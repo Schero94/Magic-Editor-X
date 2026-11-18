@@ -13,11 +13,12 @@ npm ci
 npm run lint
 npm run format:check
 npm test
+npm run test:admin
 npm run build
 npm run verify
 ```
 
-`npm test` runs the unit tests and needs no Strapi host. `npm run build` builds the admin and the server bundles (CJS and ESM) and checks that both load.
+`npm test` runs the unit tests and needs no Strapi host. `npm run test:admin` renders the admin entry points in React StrictMode in jsdom (harness in `tests/admin/harness/`, Magic Editor X fakes in `tests/admin/fakes/` and `tests/admin/harness.config.mjs`); it also needs no host. `npm run build` builds the admin and the server bundles (CJS and ESM) and checks that both load.
 
 ## Isolated acceptance host
 
@@ -104,7 +105,7 @@ Ports start at `--base`. Records of earlier runs are in `docs/acceptance/`.
 
 Conventional commits with the angular preset: `feat:`, `fix:`, `docs:`, `test:`, `chore(deps):`, `ci:`. A breaking change needs a `BREAKING CHANGE:` footer in the commit body; `!` alone does not trigger a major release. Describe migrations in the `## [Unreleased]` section of CHANGELOG.md.
 
-Before you commit: `npm run lint`, `npm run format:check`, `npm test`, `npm run build`.
+Before you commit: `npm run lint`, `npm run format:check`, `npm test`, `npm run test:admin`, `npm run build`.
 
 ## Releases
 
