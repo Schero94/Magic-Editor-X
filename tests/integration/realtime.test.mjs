@@ -32,7 +32,7 @@ test('malicious Yjs updates are refused and never poison the room', async () => 
   const editor = await tokenFor('editor');
   const article = await createArticle(editor, { title: 'Guard', body: doc([p('g1', 'safe')]) });
   const a = await connect(await openSession(editor, target(article.documentId)));
-  assert.equal(a.welcome.protocol, 3);
+  assert.equal(a.welcome.protocol, 4);
   assert.equal(typeof a.welcome.epoch, 'string');
 
   const attacks = {
