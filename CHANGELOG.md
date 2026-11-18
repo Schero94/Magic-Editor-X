@@ -19,7 +19,12 @@
 
 ### Fixed
 
+- Text typed after a short pause no longer jumps to the start of the paragraph. When another Magic Editor X field on the page started (fields start as they come near the screen, for example after the page scrolled), Editor.js cleared the caret of the field you were typing in, and the next keystrokes landed at the start of the paragraph. The caret now stays where it was. Present since 2.5.0.
 - Live collaboration: when someone inserted a list item and edited another one while you edited that one too, your edit could land in the wrong item. Items that carry an id (column items) are now matched by id.
+
+### Security
+
+- A live editing connection now ends with the admin session it was opened in. Before, a connection opened before the session was revoked (signed out on another device, removed from the profile's session list, expired) kept accepting edits until the browser noticed the end. Edits are refused within at most 5 seconds of the end, the connection is closed, and the edit stays on your device until you sign in again. See [docs/security-audit-2.6.md](./docs/security-audit-2.6.md) (MEX-26-11).
 
 ### Migration notes
 
