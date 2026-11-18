@@ -410,7 +410,7 @@ const rng = (seed) => () => {
 
 test('random concurrent moves, edits, inserts, deletes and column changes: converge, no duplicates, no lost words', () => {
   let words = 0;
-  for (let run = 0; run < 150; run += 1) {
+  for (let run = 0; run < 300; run += 1) {
     const random = rng(run + 1);
     const pick = (list) => list[Math.floor(random() * list.length)];
     const r = room(doc(threeColumns()), 3);
@@ -438,7 +438,7 @@ test('random concurrent moves, edits, inserts, deletes and column changes: conve
             const [gone] = column.items.splice(Math.floor(random() * column.items.length), 1);
             deleted.add(gone.id);
           } else if (roll < 0.94) {
-            setCount(d, columns.length > 2 ? columns.length - 1 : 3);
+            setCount(d, random() < 0.5 ? Math.max(2, columns.length - 1) : Math.min(4, columns.length + 1));
           }
         });
       }
@@ -508,4 +508,29 @@ test('guard: the item store and the placement lists are checked like any other b
     }).ok,
     false
   );
+});
+
+test('more columns than allowed at once (concurrent "add a column"): the extra columns show inside the last one', () => {
+  const r = room(doc(threeColumns()), 3);
+  for (const c of r.clients)
+    c.edit((d) =>
+      columnsOf(d).push({ id: `x${c === r.clients[0] ? 'a' : c === r.clients[1] ? 'b' : 'c'}`, items: [] })
+    );
+  r.clients[1].edit((d) => (columnsOf(d)[3].items = [item('nb', 'In the new column of B')]));
+  r.clients[2].edit((d) => (columnsOf(d)[3].items = [item('nc', 'In the new column of C')]));
+  let out = settle(r);
+  assert.equal(out.length, 4, 'at most four columns are shown');
+  assert.deepEqual(out.slice(0, 3), [['a:Alpha', 'b:Bravo'], ['c:Charlie'], ['d:Delta', 'e:Echo']]);
+  assert.deepEqual([...out[3]].sort(), ['nb:In the new column of B', 'nc:In the new column of C']);
+  // Typing in an item of a folded column works like anywhere else.
+  r.clients[0].edit((d) => (findItem(d, 'nc').text += ' (A)'));
+  out = settle(r);
+  assert.ok(out[3].includes('nc:In the new column of C (A)'));
+  // Fewer columns: everything lands in the last remaining column once, the extra columns are gone.
+  r.clients[0].edit((d) => setCount(d, 2));
+  out = settle(r);
+  assert.equal(out.length, 2);
+  assert.equal(out.flat().length, 7);
+  const entry = getTypes(r.server).blocks.get('cols1');
+  assert.equal(entry.get('data').get('columns').length, 2, 'the extra column maps were removed');
 });

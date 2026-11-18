@@ -48,6 +48,7 @@
 import * as Y from 'yjs';
 import { EDITOR_DATA_LIMITS, cloneJsonSafe, isPlainObject } from './editor-data.mjs';
 import { isMarkedBuiltIn } from './built-in-marker.mjs';
+import { COLUMNS_LIMITS } from './columns.mjs';
 
 export const YDOC_SCHEMA = 4;
 
@@ -1148,10 +1149,13 @@ const sharedColumnsData = (data) => {
  * Where the items of a columns block are shown: per shared column the ids in
  * reading order. An id is shown at its first place only, ids without a
  * stored item are skipped, stored items without a place go to the end of the
- * last column (sorted by id, the same on every replica).
+ * last column (sorted by id, the same on every replica). Columns beyond
+ * `COLUMNS_LIMITS.maxColumns` (several people added a column at the same
+ * moment) are shown inside the last allowed column: their items follow its
+ * own, column by column, and the result has at most that many entries.
  * @param {Y.Array<any>} ycolumns - `data.columns`.
  * @param {Y.Map<any>} store - Item store.
- * @returns {Array<{ column: unknown, ids: string[]|null }>} One entry per shared column (`ids` null when the column has no id list).
+ * @returns {Array<{ column: unknown, ids: string[]|null }>} One entry per shown column (`ids` null when the column has no id list).
  */
 export const columnsPlacement = (ycolumns, store) => {
   const seen = new Set();
@@ -1166,6 +1170,11 @@ export const columnsPlacement = (ycolumns, store) => {
     }
     return { column, ids };
   });
+  const max = COLUMNS_LIMITS.maxColumns;
+  if (out.length > max) {
+    const target = out[max - 1];
+    for (const extra of out.splice(max)) if (extra.ids) target.ids = [...(target.ids || []), ...extra.ids];
+  }
   const orphans = [];
   store.forEach((value, id) => {
     if (!seen.has(id) && !FORBIDDEN_KEYS.has(id) && value instanceof Y.Map) orphans.push(id);
@@ -1187,7 +1196,10 @@ export const columnsPlacement = (ycolumns, store) => {
 const readColumnsData = (ydata, store, data) => {
   const ycolumns = ydata instanceof Y.Map ? ydata.get('columns') : undefined;
   if (!(ycolumns instanceof Y.Array) || !Array.isArray(data.columns)) return data;
-  columnsPlacement(ycolumns, store).forEach(({ ids }, c) => {
+  const placement = columnsPlacement(ycolumns, store);
+  // Columns beyond the limit are shown inside the last allowed one (see `columnsPlacement`).
+  if (data.columns.length > placement.length) data.columns = data.columns.slice(0, placement.length);
+  placement.forEach(({ ids }, c) => {
     const column = data.columns[c];
     if (!ids || !isPlainObject(column)) return;
     column.items = ids.map((id) => {
@@ -1325,6 +1337,14 @@ const mergeColumnsEntry = (entry, store, base, local) => {
       mark();
     }
   }
+  // Columns shown inside the last allowed one (more than the limit, see `columnsPlacement`).
+  const folded = new Set(
+    ycolumns
+      .toArray()
+      .slice(COLUMNS_LIMITS.maxColumns)
+      .map(columnIdOf)
+      .filter((id) => id !== null)
+  );
   // 2. Columns: removed ones go, new ones are placed after their local predecessor, a column
   // whose position changed is placed again (its items stay in the store).
   const baseColumns = columnsOfData(baseData);
@@ -1395,6 +1415,27 @@ const mergeColumnsEntry = (entry, store, base, local) => {
           list.delete(i, 1);
           mark();
         }
+    }
+  }
+  // 4. Columns that were shown inside the last allowed one are removed once none of their ids is
+  // shown from them any more (the local change placed their items in a column of its own).
+  if (folded.size) {
+    const shownFrom = new Map();
+    ycolumns.toArray().forEach((ycolumn, index) => {
+      const list = ycolumn instanceof Y.Map ? ycolumn.get('items') : null;
+      if (list instanceof Y.Array)
+        for (const id of list.toArray())
+          if (!shownFrom.has(id) && store.get(id) instanceof Y.Map) shownFrom.set(id, index);
+    });
+    for (let i = ycolumns.length - 1; i >= 0; i -= 1) {
+      const ycolumn = ycolumns.get(i);
+      const id = columnIdOf(ycolumn);
+      if (!folded.has(id) || localColumnIds.has(id)) continue;
+      const list = ycolumn instanceof Y.Map ? ycolumn.get('items') : null;
+      if ((list instanceof Y.Array ? list.toArray() : []).some((itemId) => shownFrom.get(itemId) === i))
+        continue;
+      ycolumns.delete(i, 1);
+      mark();
     }
   }
   return changed;

@@ -250,7 +250,7 @@ const validComponentData = (block) => {
 /**
  * The item store of a columns block (schema 4) and its placement lists: a
  * Y.Map of at most `maxColumns * items` items (ids `COLUMN_ID`, values
- * Y.Map), and in every column of `data.columns` an `items` Y.Array of item
+ * Y.Map), at most `maxColumns * 4` column maps, and in every column of `data.columns` an `items` Y.Array of item
  * ids, at most four times the item limit (hidden places left by concurrent
  * moves and deletes count). The items read from it are checked by the shape
  * check of the block like any other block data.
@@ -266,7 +266,9 @@ const validItemStore = (entry) => {
   if (!(data instanceof Y.Map)) return false;
   const columns = data.get('columns');
   if (columns === undefined) return true;
-  if (!(columns instanceof Y.Array) || columns.length > COLUMNS_LIMITS.maxColumns) return false;
+  // More column maps than shown: several people added a column at once; the reader shows the
+  // extra ones inside the last allowed column (`columnsPlacement`).
+  if (!(columns instanceof Y.Array) || columns.length > COLUMNS_LIMITS.maxColumns * 4) return false;
   for (const column of columns.toArray()) {
     if (!(column instanceof Y.Map)) return false;
     const list = column.get('items');

@@ -11,6 +11,8 @@
   - an item someone adds to a column that another person removes at the same moment is kept at the end of the last column;
   - undo of "Number of columns" brings the removed columns back with their items, also after others typed into them.
 - Comments on text in a column item stay on that text when the item moves to another column.
+- Columns: when several people added a column at the same moment, the block could end up with more than four columns and every further change to it was refused (what was typed with it was lost). Columns beyond the fourth now show inside the fourth column, and choosing fewer columns tidies them up.
+- Live editing: after the server refused a change, an editor that was about to show someone else's change could show an empty field for a moment, and typing in that moment removed every block of the field for everyone. The editor now waits for the room state before it shows anything.
 - Columns: choosing the number of columns, the space between columns or the vertical alignment in the block menu did nothing when someone else typed in the same columns block while the menu was open. The choice now applies.
 
 ### Migration notes

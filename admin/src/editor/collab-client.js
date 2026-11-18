@@ -155,7 +155,10 @@ export const createCollabClient = ({
     if (notifyTimer || destroyed) return;
     notifyTimer = setTimeout(() => {
       notifyTimer = null;
-      if (!destroyed) onRemoteData();
+      // 2.6.1: never render a document that is not synced (after a start over it is empty until the
+      // resync arrives; an edit of that empty view would delete every block for everyone). The
+      // first sync renders again.
+      if (!destroyed && synced) onRemoteData();
     }, 30);
   };
 
@@ -266,6 +269,8 @@ export const createCollabClient = ({
     // What the editor shows: the next local diff starts from it, so content the
     // editor has not rendered yet (the new state) is never taken for a deletion.
     const view = synced && replica ? replica.view() : viewBeforeSync();
+    clearTimeout(notifyTimer);
+    notifyTimer = null;
     createDocs();
     epoch = null;
     rescue = unsent ? { base, local: unsent } : null;
