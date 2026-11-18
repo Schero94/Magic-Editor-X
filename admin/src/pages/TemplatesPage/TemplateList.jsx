@@ -16,7 +16,7 @@ import {
   VisuallyHidden,
 } from '@strapi/design-system';
 import { ArrowDown, ArrowUp, Duplicate, Eye, Pencil, Trash } from '@strapi/icons';
-import { useFetchClient } from '@strapi/strapi/admin';
+import { useFetchClient } from '../../utils/fetch-client';
 import { ConfirmAction, useBreakpoint, useT } from '../../components/ui';
 import { normalizeScope } from '../../../../shared/templates.mjs';
 import { API } from '../../utils/api';

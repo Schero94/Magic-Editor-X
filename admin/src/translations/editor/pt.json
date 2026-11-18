@@ -734,5 +734,15 @@
   "editor.drafts.conflictPlain": "O conteúdo salvo mudou desde então. Ao restaurar, ele é substituído no editor.",
   "editor.drafts.discard": "Descartar",
   "editor.drafts.restore": "Restaurar",
-  "editor.drafts.restored": "Alterações restauradas. Salve a entrada para mantê-las."
+  "editor.drafts.restored": "Alterações restauradas. Salve a entrada para mantê-las.",
+  "editor.collab.status.paused": "Em pausa",
+  "editor.session.region": "Sessão",
+  "editor.session.ended.title": "A sua sessão foi terminada.",
+  "editor.session.ended.body": "As suas alterações ficam guardadas neste dispositivo. Inicie sessão novamente para guardar.",
+  "editor.session.signIn": "Iniciar sessão novamente",
+  "editor.session.newTab": "(abre um novo separador)",
+  "editor.session.opened": "Inicie sessão no novo separador. Esta página continua aberta com as suas alterações.",
+  "editor.session.blocked": "O seu navegador bloqueou o novo separador.",
+  "editor.session.blockedLink": "Abrir a página de início de sessão",
+  "editor.session.resumed": "Tem sessão iniciada novamente. Guarde a entrada para manter as suas alterações."
 }

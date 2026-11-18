@@ -12,6 +12,11 @@ import {
   ttlMsOf,
 } from '../../editor/drafts-logic.mjs';
 import { deleteDraft, getDraft, pruneDrafts, putDraft } from '../../editor/draft-store';
+import { recoveryAction } from '../../editor/session-guard.mjs';
+import { useSessionState } from '../../editor/useSessionGuard';
+
+/** After signing in again, a form reset within this time brings the buffer back (2.6). */
+const RECOVERY_WINDOW_MS = 15000;
 
 /**
  * Comparable form of a value as the editor would show it (normalised, sanitised, blocks only).
@@ -39,6 +44,15 @@ const fingerprint = (value) => {
  * shows and from what is saved, `notice` is set: the field shows one notice
  * with Restore and Discard. It is never restored on its own; `conflict` says
  * the saved content changed after the buffer was taken (with block counts).
+ *
+ * Signed out (2.6, `editor/session-guard.mjs`): while the admin session has
+ * ended, a changed field is buffered at once and on every change, also during
+ * live collaboration (the room no longer receives edits), and the buffer is
+ * never deleted. After signing in again, Strapi resets the edit form from the
+ * server; when the form value of a still mounted field falls back to the saved
+ * value within 15 s, the field's last buffer is put back (`onRecover`) so the
+ * typed text is in the form again and Save works. A field that was unmounted
+ * (Strapi left the page) offers the buffer with the notice when it opens.
  * @param {object} options - Options.
  * @param {boolean} options.enabled - Config `drafts.enabled` and a Content Manager field (uid set).
  * @param {unknown} options.ttlHours - Config `drafts.ttlHours`.
@@ -50,6 +64,7 @@ const fingerprint = (value) => {
  * @param {boolean} options.readOnly - The field cannot be edited (no notice then).
  * @param {{ active: boolean, status: string, pending: boolean }} options.collaboration - Live state.
  * @param {(data: object) => Promise<unknown>} options.onRestore - Puts content into the editor (one undo step).
+ * @param {(data: object) => Promise<unknown>} [options.onRecover] - Same, after signing in again (2.6; no notification).
  * @returns {{ notice: { savedAt: number, conflict: boolean, counts: object|null }|null, restore: () => Promise<void>, discard: () => Promise<void>, busy: boolean }} State.
  */
 export const useDraftBuffer = ({
@@ -63,7 +78,11 @@ export const useDraftBuffer = ({
   readOnly,
   collaboration,
   onRestore,
+  onRecover,
 }) => {
+  const session = useSessionState();
+  const sessionEnded = session.status === 'ended';
+  const resumedAt = session.resumedAt;
   const owner = useAuth('MagicEditorX', (state) => (state.user ? state.user.id : null));
   const id = useMemo(
     () =>
@@ -88,12 +107,26 @@ export const useDraftBuffer = ({
   const timerRef = useRef(null);
   const flushRef = useRef(null);
   const latestRef = useRef({});
+  // 2.6: the last content this field buffered ({ data, key }), put back after signing in again.
+  const lastWrittenRef = useRef(null);
+  const recoveredRef = useRef(null);
+  const endedRef = useRef(false);
   useEffect(() => {
-    latestRef.current = { value, savedValue, shownData, collaboration, readOnly, ttlMs };
+    latestRef.current = {
+      value,
+      savedValue,
+      shownData,
+      collaboration,
+      readOnly,
+      ttlMs,
+      sessionEnded,
+      resumedAt,
+    };
   });
 
   // A live room shows its own content after the first sync: decide only once it settled.
-  const settled = !collaboration.active || ['live', 'reconnecting', 'offline'].includes(collaboration.status);
+  const settled =
+    !collaboration.active || ['live', 'reconnecting', 'offline', 'paused'].includes(collaboration.status);
 
   useEffect(() => {
     if (!id || !ready || !settled || decided === id) return undefined;
@@ -149,7 +182,15 @@ export const useDraftBuffer = ({
       const current = latestRef.current;
       const shown = fingerprint(current.value);
       const saved = fingerprint(current.savedValue);
-      const action = bufferAction({ dirty: shown.key !== saved.key, collaboration: current.collaboration });
+      const action = bufferAction({
+        dirty: shown.key !== saved.key,
+        collaboration: current.collaboration,
+        sessionEnded: current.sessionEnded,
+      });
+      // Right after signing in again the form may be reset to the saved value: keep the buffer for the recovery.
+      const recovering = Boolean(
+        current.resumedAt && Date.now() - current.resumedAt <= RECOVERY_WINDOW_MS && lastWrittenRef.current
+      );
       if (action === 'write' && shown.data) {
         const record = buildDraftRecord({
           id,
@@ -158,17 +199,25 @@ export const useDraftBuffer = ({
           now: Date.now(),
           ttlMs: current.ttlMs,
         });
-        if (record && (await putDraft(record))) ownRef.current = true;
-      } else if (ownRef.current) {
+        if (record && (await putDraft(record))) {
+          ownRef.current = true;
+          lastWrittenRef.current = { data: shown.data, key: shown.key };
+        }
+      } else if (action === 'delete' && ownRef.current && !recovering) {
         ownRef.current = false;
+        lastWrittenRef.current = null;
         await deleteDraft(id);
       }
     };
     clearTimeout(timerRef.current);
     flushRef.current = write;
-    timerRef.current = setTimeout(write, DRAFT_WRITE_DELAY_MS);
+    // The session just ended: write at once, the next request may already leave the page.
+    const delay = sessionEnded && !endedRef.current ? 0 : DRAFT_WRITE_DELAY_MS;
+    endedRef.current = sessionEnded;
+    timerRef.current = setTimeout(write, delay);
     return () => clearTimeout(timerRef.current);
   }, [
+    sessionEnded,
     id,
     decided,
     pendingNotice,
@@ -178,6 +227,29 @@ export const useDraftBuffer = ({
     collaboration.status,
     collaboration.pending,
   ]);
+
+  // 2.6: signed in again. Strapi reloads the entry and resets the form: put the buffered text back once.
+  const valueKey = useMemo(() => fingerprint(value).key, [value]);
+  const savedKey = useMemo(() => fingerprint(savedValue).key, [savedValue]);
+  useEffect(() => {
+    if (!id || !ready || readOnly || !resumedAt || typeof onRecover !== 'function') return undefined;
+    if (recoveredRef.current === resumedAt) return undefined;
+    const check = () => {
+      const last = lastWrittenRef.current;
+      const action = recoveryAction({
+        sinceResumeMs: Date.now() - resumedAt,
+        windowMs: RECOVERY_WINDOW_MS,
+        valueKey,
+        savedKey,
+        draftKey: last ? last.key : null,
+      });
+      if (action === 'wait') return;
+      recoveredRef.current = resumedAt;
+      if (action === 'restore') Promise.resolve(onRecover(last.data)).catch(() => {});
+    };
+    check();
+    return undefined;
+  }, [id, ready, readOnly, resumedAt, valueKey, savedKey, onRecover]);
 
   // Closing or hiding the tab writes a pending change right away.
   useEffect(() => {

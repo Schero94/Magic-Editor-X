@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useIntl } from 'react-intl';
 import { Badge, Box, Flex, Typography } from '@strapi/design-system';
-import { useFetchClient } from '@strapi/strapi/admin';
+import { useFetchClient } from '../../utils/fetch-client';
 import { API } from '../../utils/api';
 import { SectionCard, useT } from '../../components/ui';
 import { codeBlocks } from '../../editor/block-registry';

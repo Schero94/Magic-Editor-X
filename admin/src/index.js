@@ -8,6 +8,7 @@ import { registerBlock } from './editor/block-registry';
 import { createReactTool } from './editor/react-tool';
 import { createLogoutMiddleware } from './editor/drafts-logic.mjs';
 import { createSessionMiddleware } from './editor/session-state.mjs';
+import { createSessionGuardMiddleware, createSignInTabCloser } from './editor/session-guard.mjs';
 import { clearDrafts } from './editor/draft-store';
 
 /**
@@ -428,6 +429,9 @@ export default {
       app.addMiddlewares([
         createLogoutMiddleware({ onLogout: () => clearDrafts() }),
         createSessionMiddleware,
+        // 2.6: session-expiry detection (rejected admin requests with 401, ended sessions, signing in again).
+        createSessionGuardMiddleware(),
+        createSignInTabCloser(),
       ]);
   },
 

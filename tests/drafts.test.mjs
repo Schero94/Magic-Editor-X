@@ -219,6 +219,6 @@ test('EditorField wiring: lazy start gates Editor.js; the notice and placeholder
   const index = fs.readFileSync(new URL('../admin/src/index.js', import.meta.url), 'utf8');
   assert.match(
     index,
-    /app\.addMiddlewares\(\[\s*createLogoutMiddleware\(\{ onLogout: \(\) => clearDrafts\(\) \}\),\s*createSessionMiddleware,?\s*\]\)/
+    /app\.addMiddlewares\(\[\s*createLogoutMiddleware\(\{ onLogout: \(\) => clearDrafts\(\) \}\),\s*createSessionMiddleware,\s*(\/\/[^\n]*\n\s*)?createSessionGuardMiddleware\(\),\s*createSignInTabCloser\(\),?\s*\]\)/
   );
 });

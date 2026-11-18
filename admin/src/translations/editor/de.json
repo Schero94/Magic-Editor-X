@@ -734,5 +734,15 @@
   "editor.drafts.conflictPlain": "Der gespeicherte Inhalt wurde seitdem geändert. Beim Wiederherstellen wird er im Editor ersetzt.",
   "editor.drafts.discard": "Verwerfen",
   "editor.drafts.restore": "Wiederherstellen",
-  "editor.drafts.restored": "Änderungen wiederhergestellt. Speichern Sie den Eintrag, um sie zu behalten."
+  "editor.drafts.restored": "Änderungen wiederhergestellt. Speichern Sie den Eintrag, um sie zu behalten.",
+  "editor.collab.status.paused": "Pausiert",
+  "editor.session.region": "Sitzung",
+  "editor.session.ended.title": "Sie wurden abgemeldet.",
+  "editor.session.ended.body": "Ihre Änderungen bleiben auf diesem Gerät erhalten. Melden Sie sich erneut an, um zu speichern.",
+  "editor.session.signIn": "Erneut anmelden",
+  "editor.session.newTab": "(öffnet einen neuen Tab)",
+  "editor.session.opened": "Melden Sie sich im neuen Tab an. Diese Seite bleibt mit Ihren Änderungen geöffnet.",
+  "editor.session.blocked": "Ihr Browser hat den neuen Tab blockiert.",
+  "editor.session.blockedLink": "Anmeldeseite öffnen",
+  "editor.session.resumed": "Sie sind wieder angemeldet. Speichern Sie den Eintrag, um Ihre Änderungen zu behalten."
 }

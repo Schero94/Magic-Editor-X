@@ -25,6 +25,12 @@ import { docToEditorData } from '../../../shared/ydoc.mjs';
  * generation (epoch) or a refused update makes the client start over from
  * the server state instead of merging, so content is never duplicated.
  *
+ * Signed out (2.6): `pause()` closes the socket and stops every reconnect
+ * while the admin session has ended (status `paused`); local edits stay
+ * pending (and in the field's draft buffer). `resume()` after signing in
+ * again reconnects with a fresh token and sends the pending edits. A token
+ * request answered 401 (session ended) pauses the client by itself.
+ *
  * What the editor shows is the base of every local diff. Until the editor has
  * rendered the room, that is NOT the room state: it is the content the editor
  * was created with (`getInitialView`), or what it showed before the client
@@ -41,6 +47,17 @@ const RETRY_BASE_MS = 500;
 const RETRY_MAX_MS = 15000;
 const IDLE_AFTER_MS = 60000;
 const SERVER_LOG_BATCH = 100;
+
+/**
+ * HTTP status of a failed token request (Strapi FetchError: `status`, or `response.status`).
+ * @param {unknown} error - Thrown value.
+ * @returns {number|null} Status.
+ */
+const statusOfError = (error) => {
+  if (!error || typeof error !== 'object') return null;
+  if (typeof error.status === 'number') return error.status;
+  return error.response && typeof error.response.status === 'number' ? error.response.status : null;
+};
 
 /** Empty Yjs update (no structs, no deletes). */
 const isEmptyUpdate = (update) => !update || update.byteLength <= 2;
@@ -118,6 +135,9 @@ export const createCollabClient = ({
   let lastActivity = Date.now();
   let lastCursor = null;
   let idle = false;
+  // 2.6: the admin session ended; nothing is sent until resume().
+  let paused = false;
+  let needsConnect = false;
 
   const setState = (patch) => {
     // Without access the field saves through the form only: nothing is waiting for the room.
@@ -243,7 +263,8 @@ export const createCollabClient = ({
   };
 
   const scheduleReconnect = () => {
-    if (destroyed || !socket || socket.connected || socket.active || state.status === 'denied') return;
+    if (destroyed || paused || !socket || socket.connected || socket.active || state.status === 'denied')
+      return;
     clearTimeout(retryTimer);
     retryTimer = setTimeout(() => {
       if (!destroyed && socket && !socket.connected) socket.connect();
@@ -259,7 +280,7 @@ export const createCollabClient = ({
 
   const onOnline = () => {
     attempt = 0;
-    if (!socket || state.status === 'denied') return;
+    if (!socket || paused || state.status === 'denied') return;
     if (!socket.connected) socket.connect();
     else if (replica) socket.emit('mx:resync', Y.encodeStateVector(replica.doc));
   };
@@ -285,6 +306,11 @@ export const createCollabClient = ({
   const connect = async () => {
     const session = await requestSession();
     if (destroyed) return;
+    if (paused) {
+      // Signed out while the token was requested: connect on resume().
+      needsConnect = true;
+      return;
+    }
     firstToken = session.token;
     seededBySelf = session.seeded === true;
     setState({ canEdit: session.canEdit });
@@ -308,8 +334,15 @@ export const createCollabClient = ({
             callback({ token: next.token, protocol: PROTOCOL });
           })
           .catch((error) => {
-            const status = error && error.response && error.response.status;
+            const status = statusOfError(error);
             if (status === 403 || status === 404) setState({ status: 'denied', error: `HTTP_${status}` });
+            if (status === 401) {
+              // Signed out: stop here instead of retrying with an empty token every few seconds.
+              paused = true;
+              if (socket) socket.disconnect();
+              setState({ status: 'paused', peers: [] });
+              return;
+            }
             callback({ token: '', protocol: PROTOCOL });
           });
       },
@@ -320,6 +353,10 @@ export const createCollabClient = ({
     });
     socket.on('disconnect', () => {
       inFlight = false;
+      if (paused) {
+        setState({ status: 'paused', peers: [] });
+        return;
+      }
       if (state.status !== 'denied') setState({ status: offline() ? 'offline' : 'reconnecting', peers: [] });
       scheduleReconnect();
     });
@@ -329,7 +366,7 @@ export const createCollabClient = ({
         setState({ status: 'error', error: code });
         return;
       }
-      if (state.status === 'denied') return;
+      if (state.status === 'denied' || paused) return;
       setState({ status: offline() ? 'offline' : 'reconnecting', error: code });
       scheduleReconnect();
     });
@@ -430,13 +467,22 @@ export const createCollabClient = ({
     if (win.document) win.document.addEventListener('visibilitychange', onVisibility);
   }
 
-  connect().catch((error) => {
-    const status = error && error.response && error.response.status;
+  const onConnectFailed = (error) => {
+    if (destroyed) return;
+    const status = statusOfError(error);
+    if (status === 401 || paused) {
+      // Signed out before the first connection: connect again on resume().
+      paused = true;
+      needsConnect = true;
+      setState({ status: 'paused', peers: [] });
+      return;
+    }
     setState({
       status: status === 404 || status === 403 ? 'denied' : 'error',
       error: status ? `HTTP_${status}` : 'NETWORK',
     });
-  });
+  };
+  connect().catch(onConnectFailed);
 
   return {
     /**
@@ -505,6 +551,35 @@ export const createCollabClient = ({
         replica && (replica.doc.getArray('order').length > 0 || replica.doc.getMap('blocks').size > 0)
       );
     },
+    /**
+     * 2.6: the admin session ended. Closes the socket and sends nothing until
+     * `resume()`; edits made meanwhile stay pending.
+     */
+    pause() {
+      if (destroyed || paused) return;
+      paused = true;
+      clearTimeout(retryTimer);
+      inFlight = false;
+      if (socket && (socket.connected || socket.active)) socket.disconnect();
+      if (state.status !== 'denied') setState({ status: 'paused', peers: [] });
+    },
+    /** 2.6: signed in again. Reconnects with a fresh token and sends pending edits. */
+    resume() {
+      if (destroyed || !paused) return;
+      paused = false;
+      attempt = 0;
+      if (state.status === 'denied') return;
+      if (needsConnect || !socket) {
+        needsConnect = false;
+        setState({ status: 'connecting', error: null });
+        connect().catch(onConnectFailed);
+        return;
+      }
+      setState({ status: 'reconnecting', error: null });
+      if (!socket.connected) socket.connect();
+    },
+    /** @returns {boolean} True while paused (signed out). */
+    isPaused: () => paused,
     /** Disconnects and frees the documents. */
     destroy() {
       destroyed = true;

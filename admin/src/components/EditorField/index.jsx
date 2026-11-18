@@ -26,7 +26,8 @@ import {
   Search,
   Sparkle,
 } from '@strapi/icons';
-import { useFetchClient, useNotification, useStrapiApp } from '@strapi/strapi/admin';
+import { useNotification, useStrapiApp } from '@strapi/strapi/admin';
+import { useFetchClient } from '../../utils/fetch-client';
 import { Lightbulb, Pencil } from '@strapi/icons';
 import styled, { createGlobalStyle, useTheme } from 'styled-components';
 import { buildTools, editorI18n, createUndoManager, createDragDrop } from '../../editor/tools';
@@ -127,6 +128,7 @@ import { escapeHtml } from '../../../../shared/render/inline.mjs';
 // 2.5: local draft buffer (protect unsaved work) and lazy start of fields (performance).
 import { useDraftBuffer } from './useDraftBuffer';
 import { DraftNotice } from './DraftNotice';
+import { SessionBanner } from './SessionBanner';
 import { useLazyActivation } from './useLazyActivation';
 import { LazyPlaceholder } from './LazyPlaceholder';
 import { savedValueOf } from '../../editor/drafts-logic.mjs';
@@ -1567,6 +1569,8 @@ const EditorFieldBody = ({
       status: collaboration.status,
       pending: collaboration.pending,
     },
+    // 2.6: signed in again and the form was reset from the server: the typed text comes back (the banner says so).
+    onRecover: replaceContent,
     onRestore: async (data) => {
       await replaceContent(data);
       toggleNotification({
@@ -2911,6 +2915,7 @@ const EditorFieldBody = ({
             tools={fieldTools}
             moreButtonRef={moreButtonRef}
           />
+          {target.uid ? <SessionBanner t={t} /> : null}
           {draft.notice && ready && !suggestMode ? (
             <DraftNotice
               t={t}

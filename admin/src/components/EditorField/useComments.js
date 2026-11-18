@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useFetchClient } from '@strapi/strapi/admin';
+import { useFetchClient } from '../../utils/fetch-client';
+import { useSessionActive } from '../../editor/useSessionGuard';
 import { API, readApiError } from '../../utils/api';
 import { countThreads } from '../../../../shared/comments.mjs';
 import { mentionsInText } from '../../../../shared/comment-mentions.mjs';
@@ -131,8 +132,10 @@ export const useComments = ({ target, enabled, panelOpen, elementRef }) => {
   }, [enabled, elementRef]);
 
   // Polling while visible, plus a refresh on focus and when the tab comes back.
+  // 2.6: no polling while the admin session has ended (signed out); it starts again after signing in.
+  const sessionActive = useSessionActive();
   useEffect(() => {
-    if (!enabled || !uid || !documentId) return undefined;
+    if (!enabled || !uid || !documentId || !sessionActive) return undefined;
     let timer = null;
     const schedule = () => {
       clearTimeout(timer);
@@ -161,7 +164,7 @@ export const useComments = ({ target, enabled, panelOpen, elementRef }) => {
       window.removeEventListener('focus', onWake);
       document.removeEventListener('visibilitychange', onWake);
     };
-  }, [enabled, uid, documentId, visible, panelOpen, refresh]);
+  }, [enabled, uid, documentId, visible, panelOpen, refresh, sessionActive]);
 
   /**
    * Runs an API call, then refreshes; failures are re-thrown with the API error info.

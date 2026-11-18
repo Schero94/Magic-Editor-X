@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button, Dialog, Flex } from '@strapi/design-system';
 import styled from 'styled-components';
-import { useFetchClient } from '@strapi/strapi/admin';
+import { useFetchClient } from '../../utils/fetch-client';
+import { sessionGuard } from '../../editor/session-guard.mjs';
 import { API } from '../../utils/api';
 import { useT } from '../ui/useT';
 import { useEntryPresence } from './useEntryPresence';
@@ -47,7 +48,8 @@ const useEntrySummary = ({ uid, documentId, locale }, version) => {
   }, [load, version]);
   useEffect(() => {
     const onFocus = () => {
-      if (Date.now() - lastRef.current > FOCUS_REFRESH_MS) load();
+      // 2.6: nothing is requested while the admin session has ended.
+      if (sessionGuard.isActive() && Date.now() - lastRef.current > FOCUS_REFRESH_MS) load();
     };
     window.addEventListener('focus', onFocus);
     return () => window.removeEventListener('focus', onFocus);

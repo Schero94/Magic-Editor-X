@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { useFetchClient } from '@strapi/strapi/admin';
+import { useFetchClient } from '../../utils/fetch-client';
 import { createCollabClient } from '../../editor/collab-client';
+import { sessionGuard } from '../../editor/session-guard.mjs';
 import { API } from '../../utils/api';
 
 const INITIAL = {
@@ -19,6 +20,9 @@ const INITIAL = {
  *
  * Session tokens are requested through the admin fetch client, so an
  * expired admin access token is refreshed by Strapi before a reconnect.
+ * 2.6: while the admin session has ended (`editor/session-guard.mjs`) the
+ * client is paused (socket closed, no reconnects, edits kept); it resumes
+ * with a fresh token after signing in again.
  * @param {object} options - Options.
  * @param {{ uid: string, documentId: string, locale: string|null, field: string, fieldKey?: string }|null} options.target - Field, or
  *   null when collaboration is off (`fieldKey` for fields inside a repeatable component or dynamic zone, 2.4).
@@ -86,7 +90,14 @@ export const useCollaboration = ({
       onUndoState: (undo) => setState((previous) => ({ ...previous, ...undo })),
     });
     setClient(instance);
+    const follow = (session) => {
+      if (session.status === 'active') instance.resume();
+      else instance.pause();
+    };
+    if (!sessionGuard.isActive()) instance.pause();
+    const unsubscribe = sessionGuard.subscribe(follow);
     return () => {
+      unsubscribe();
       instance.destroy();
       setClient(null);
       setState(INITIAL);

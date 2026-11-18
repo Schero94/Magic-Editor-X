@@ -734,5 +734,15 @@
   "editor.drafts.conflictPlain": "Le contenu enregistré a changé depuis. La restauration le remplace dans l’éditeur.",
   "editor.drafts.discard": "Ignorer",
   "editor.drafts.restore": "Restaurer",
-  "editor.drafts.restored": "Modifications restaurées. Enregistrez l’entrée pour les conserver."
+  "editor.drafts.restored": "Modifications restaurées. Enregistrez l’entrée pour les conserver.",
+  "editor.collab.status.paused": "En pause",
+  "editor.session.region": "Session",
+  "editor.session.ended.title": "Vous avez été déconnecté.",
+  "editor.session.ended.body": "Vos modifications sont conservées sur cet appareil. Reconnectez-vous pour enregistrer.",
+  "editor.session.signIn": "Se reconnecter",
+  "editor.session.newTab": "(ouvre un nouvel onglet)",
+  "editor.session.opened": "Connectez-vous dans le nouvel onglet. Cette page reste ouverte avec vos modifications.",
+  "editor.session.blocked": "Votre navigateur a bloqué le nouvel onglet.",
+  "editor.session.blockedLink": "Ouvrir la page de connexion",
+  "editor.session.resumed": "Vous êtes de nouveau connecté. Enregistrez l’entrée pour conserver vos modifications."
 }
