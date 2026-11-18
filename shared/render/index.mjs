@@ -14,3 +14,11 @@ export { renderMarkdown, escapeMarkdown } from './markdown.mjs';
 export { escapeHtml, inlineToHtml, inlineToText } from './inline.mjs';
 export { DEFAULT_EMBED_HOSTS } from './common.mjs';
 export { enhanceCodeBlocks, copyText } from './dom.mjs';
+export { isBlockId, isFieldPath, strapiSourceValue } from './source.mjs';
+export {
+  locateMessage,
+  editViewUrl,
+  requestLocate,
+  LOCATE_MESSAGE_TYPE,
+  LOCATED_MESSAGE_TYPE,
+} from '../preview-locate.mjs';

@@ -147,15 +147,12 @@ const updateRememberedKeys = async (strapi, ctx, items, stored, logger) => {
 const registerOutputParam = (strapi) => {
   const contentAPI = strapi.contentAPI;
   if (!contentAPI || typeof contentAPI.addQueryParams !== 'function') return;
+  const matchRoute = (route) =>
+    Boolean(route) && route.method === 'GET' && Boolean(route.info) && typeof route.info.apiName === 'string';
   contentAPI.addQueryParams({
-    mex: {
-      schema: (z) => z.enum(OUTPUT_FORMATS).optional(),
-      matchRoute: (route) =>
-        Boolean(route) &&
-        route.method === 'GET' &&
-        Boolean(route.info) &&
-        typeof route.info.apiName === 'string',
-    },
+    mex: { schema: (z) => z.enum(OUTPUT_FORMATS).optional(), matchRoute },
+    // 2.6: block source attributes in `?mex=html` output.
+    mexBlockIds: { schema: (z) => z.enum(['true', 'false']).optional(), matchRoute },
   });
 };
 

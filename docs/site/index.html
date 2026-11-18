@@ -1015,6 +1015,7 @@
                 <tr><td><code>?mex=text</code></td><td>Plain text</td></tr>
                 <tr><td><code>?mex=markdown</code></td><td>Markdown</td></tr>
                 <tr><td><code>?mex=json</code></td><td>The stored document with resolved references</td></tr>
+                <tr><td><code>?mex=html&amp;mexBlockIds=true</code></td><td>Rendered HTML with <code>data-mex-block-id</code> and <code>data-mex-field-path</code> on each block (2.6); with the preview header <code>strapi-encode-source-maps: true</code> also <code>data-strapi-source</code> for Strapi's preview</td></tr>
                 <tr><td>GraphQL <code>bodyRendered(format: HTML)</code></td><td>Rendered string (<code>HTML</code>, <code>TEXT</code>, <code>MARKDOWN</code>), with <code>@strapi/plugin-graphql</code></td></tr>
                 <tr><td>GraphQL <code>bodyResolved</code></td><td>JSON with resolved references</td></tr>
               </tbody>
@@ -1025,6 +1026,7 @@
             <li>Published versions are used unless the request asks for <code>status=draft</code>; every row passes Strapi's output sanitising.</li>
             <li><code>mex</code> is registered with Strapi's <code>contentAPI.addQueryParams</code>, so it works with strict parameters; admin and plugin routes are never changed.</li>
             <li>At most 500 references and 5 seconds per response.</li>
+            <li>Strapi Preview (2.6): a click on a block in the preview opens the entry with the caret in that block, and a front end can re-render the field while someone edits it. Typing directly in the preview page is not possible with Strapi's public APIs. See the <a href="https://github.com/Schero94/Magic-Editor-X/blob/main/docs/guides/live-preview.md">Live Preview guide</a>.</li>
           </ul>
         </section>
 

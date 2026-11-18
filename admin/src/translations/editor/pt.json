@@ -757,5 +757,6 @@
   "editor.component.rule.email": "Introduza um endereço de e-mail válido",
   "editor.component.rule.date": "Introduza uma data válida",
   "editor.component.rule.datetime": "Introduza uma data e hora válidas",
-  "editor.component.rule.time": "Introduza uma hora válida"
+  "editor.component.rule.time": "Introduza uma hora válida",
+  "editor.locate.missing": "Este bloco já não está no campo. Pode ter sido movido ou eliminado."
 }

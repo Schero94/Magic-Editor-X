@@ -107,6 +107,12 @@ import { FootnoteDialog } from './FootnoteDialog';
 import { FootnotesPanel } from './FootnotesPanel';
 import { restoreBlockInEditor } from '../../editor/restore-block.mjs';
 import { OPEN_FIELD_PANEL_EVENT, matchesFieldRequest } from '../../editor/entry-panel-events.mjs';
+import {
+  parseLocateMessage,
+  parseLocateQuery,
+  LOCATED_MESSAGE_TYPE,
+} from '../../../../shared/preview-locate.mjs';
+import { isEmbeddedFrameWindow } from '../../editor/frame-source.mjs';
 import { installEditorKeyGuard } from '../../editor/focus-guard.mjs';
 import { restrictView } from '../../../../shared/collab-replica.mjs';
 import { markInputReady, trackUserInput } from '../../editor/input-tracking.mjs';
@@ -2088,6 +2094,62 @@ const EditorFieldBody = ({
     window.addEventListener(OPEN_FIELD_PANEL_EVENT, onRequest);
     return () => window.removeEventListener(OPEN_FIELD_PANEL_EVENT, onRequest);
   }, []);
+
+  // 2.6 click-to-locate: `?mexField=<path>&mexBlock=<id>` in the edit view URL, or a
+  // `magic-editor-x:locate` message from a frame of this page (Strapi's preview iframe).
+  const [locateRequest, setLocateRequest] = useState(() => {
+    const request = typeof window === 'undefined' ? null : parseLocateQuery(window.location.search);
+    return request && request.field === target.field ? request : null;
+  });
+  const locatePathRef = useRef(target.field);
+  useEffect(() => {
+    locatePathRef.current = target.field;
+  });
+  useEffect(() => {
+    const onMessage = (event) => {
+      const request = parseLocateMessage(event.data);
+      if (!request || request.field !== locatePathRef.current || !isEmbeddedFrameWindow(event.source)) return;
+      setLocateRequest({ ...request });
+      // Tell the frame that a field handles it (it does not navigate the admin then).
+      try {
+        event.source.postMessage({ type: LOCATED_MESSAGE_TYPE, field: request.field }, event.origin);
+      } catch {
+        // a frame without a usable origin gets no answer
+      }
+    };
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  }, []);
+  const activateLazy = lazy.activate;
+  const handledLocateRef = useRef(null);
+  useEffect(() => {
+    if (!locateRequest || handledLocateRef.current === locateRequest) return;
+    // A field that waits for the viewport (lazy start) starts now.
+    if (!ready) {
+      activateLazy();
+      return;
+    }
+    if (suggestMode) return;
+    handledLocateRef.current = locateRequest;
+    const editor = editorRef.current;
+    const block = locateRequest.blockId && editor ? editor.blocks.getById(locateRequest.blockId) : null;
+    // After a click in the preview iframe the frame keeps the focus: give it back to the admin page first.
+    const active = document.activeElement;
+    if (active && active.tagName === 'IFRAME' && typeof active.blur === 'function') active.blur();
+    if (block) {
+      selectBlock(locateRequest.blockId);
+      return;
+    }
+    if (frameRef.current) frameRef.current.scrollIntoView({ block: 'start' });
+    if (locateRequest.blockId)
+      toggleNotification({
+        type: 'info',
+        message: t(
+          'editor.locate.missing',
+          'This block is no longer in the field. It may have been moved or deleted.'
+        ),
+      });
+  }, [locateRequest, ready, suggestMode, activateLazy, selectBlock, t, toggleNotification]);
 
   // Block suggestions (2.4) -------------------------------------------------
   const suggestionCounts = useMemo(

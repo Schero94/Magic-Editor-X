@@ -5,6 +5,14 @@
 ### Features
 
 - **Component blocks:** insert components from the Content-Type Builder as blocks inside a Magic Editor X field. In the Content-Type Builder, open the field's advanced settings and pick the components editors may insert ("Component blocks"); they then appear in the field's + menu and slash menu under their own names. Each block is a small form with the component's text, number, date, choice and on/off fields, checked while you type and again when the entry is saved. Off by default: a field without chosen components shows nothing new. Renderers output nothing for component blocks unless you pass `componentBlocks` (HTML, React, Vue) or an override, so existing front ends do not change. Live editing keeps every collaborator's change: two people typing in the same component block at once lose nothing.
+- **Live Preview:** support for Magic Editor X fields, re-checked on Strapi 5.62 (details and sources in `docs/live-preview.md`, front-end guide in `docs/guides/live-preview.md`):
+  - Renderer option `blockIds` (HTML, React, Vue) and `?mex=html&mexBlockIds=true` for Content API output mark each rendered block with `data-mex-block-id` and `data-mex-field-path`. With Strapi's preview header `strapi-encode-source-maps: true` (or `strapiSource` in the renderer option) the blocks also get `data-strapi-source`, so Strapi's preview highlights the field. Off by default; existing output does not change.
+  - Click-to-locate: a click on a block in the preview opens the entry with the caret in that block (`editViewUrl` builds the link: `?mexField=<path>&mexBlock=<id>`), also for fields that start lazily. With the Live Preview side editor, `requestLocate` asks the field next to the preview to show the block without leaving the page. A block that no longer exists shows a short notice.
+  - New helpers in `magic-editor-x/render`: `editViewUrl`, `requestLocate`, `locateMessage`, `isBlockId`, `isFieldPath`, `strapiSourceValue`.
+
+### Notes
+
+- Typing directly in the preview page is still not possible: Strapi offers no public API for it. A front end can re-render a Magic Editor X field on Strapi's public `strapiFieldChange` event while someone edits it (see the guide).
 
 ## [2.5.3](https://github.com/Schero94/Magic-Editor-X/compare/v2.5.2...v2.5.3) (2026-11-17)
 

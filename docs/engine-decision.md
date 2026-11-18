@@ -121,3 +121,7 @@ Evidence:
 - **Performance.** Each nested instance is a full Editor.js (UI, listeners on `document`, mutation observers). Every instance adds its own `document` keydown/mousedown/selectionchange listeners. The cost was not measured in a browser because the spike stopped before a prototype.
 
 What would change the verdict: the engine trigger above ("nested blocks or columns become a hard requirement"). A ProseMirror/Tiptap engine has nested nodes, one undo history and one selection natively. The cheaper Editor.js-side alternative is a **constrained cell model**, like Tables v2: a columns tool whose cells hold inline text only, with no nested blocks. It avoids nested instances, but it would still need the schema, renderer, quality, comments, suggestions and find/replace work above, for a layout feature that renderers can also provide on the front end.
+
+## 2.6 Live Preview re-check (2026-11-18)
+
+Strapi 5.62.0 adds no public API for custom fields in Live Preview; inline typing in the front end stays out of reach for any editor engine. 2.6 ships block attributes and click-to-locate instead. Record: [live-preview.md](live-preview.md).

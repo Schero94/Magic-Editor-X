@@ -757,5 +757,6 @@
   "editor.component.rule.email": "Geben Sie eine gültige E-Mail-Adresse ein",
   "editor.component.rule.date": "Geben Sie ein gültiges Datum ein",
   "editor.component.rule.datetime": "Geben Sie ein gültiges Datum mit Uhrzeit ein",
-  "editor.component.rule.time": "Geben Sie eine gültige Uhrzeit ein"
+  "editor.component.rule.time": "Geben Sie eine gültige Uhrzeit ein",
+  "editor.locate.missing": "Dieser Block ist nicht mehr im Feld. Er wurde vielleicht verschoben oder gelöscht."
 }

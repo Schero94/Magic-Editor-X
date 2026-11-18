@@ -757,5 +757,6 @@
   "editor.component.rule.email": "Enter a valid e-mail address",
   "editor.component.rule.date": "Enter a valid date",
   "editor.component.rule.datetime": "Enter a valid date and time",
-  "editor.component.rule.time": "Enter a valid time"
+  "editor.component.rule.time": "Enter a valid time",
+  "editor.locate.missing": "This block is no longer in the field. It may have been moved or deleted."
 }
