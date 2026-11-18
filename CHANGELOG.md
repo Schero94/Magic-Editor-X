@@ -19,6 +19,7 @@
 
 ### Fixed
 
+- After signing in again, text kept on this device is no longer put over content someone else saved meanwhile in a field without live editing: Magic Editor X shows the Restore/Discard notice with the changes instead.
 - Text typed after a short pause no longer jumps to the start of the paragraph. When another Magic Editor X field on the page started (fields start as they come near the screen, for example after the page scrolled), Editor.js cleared the caret of the field you were typing in, and the next keystrokes landed at the start of the paragraph. The caret now stays where it was. Present since 2.5.0.
 - Live collaboration: when someone inserted a list item and edited another one while you edited that one too, your edit could land in the wrong item. Items that carry an id (column items) are now matched by id.
 
@@ -29,6 +30,7 @@
 ### Migration notes
 
 - No migration. A Settings custom block named `columns` keeps its data, its editor tool and its output; new custom blocks cannot take the name. A block registered in code under the name `columns` keeps working and replaces the built-in tool in that site.
+- `component` and `columns` are built-in block names now. Data of these types that was written without the built-in marker (`_mex`) by an import, a script or the block SDK and has exactly the built-in shape (`component`: only `uid`, or `uid` and `values`; `columns`: only `columns` with optional `layout`, `gap`, `valign`) is read as the built-in block: renderers output nothing for such a component block unless you pass `componentBlocks`, and saving refuses it with `COMPONENT_NOT_ALLOWED` unless the field lists its uid. The server logs one hint when it refuses such a block. Data with any other key (all Settings custom blocks) keeps its tool and output. To keep such data as your own block, rename its type or add a field of your own to its data.
 - If your site styles custom blocks by the class `mex-columns`, note that the built-in block uses the same class: select it with `[data-mex-columns]`.
 - Session expiry: no new settings, routes or stored data. Logging out yourself still removes the kept text from this browser, as in 2.5.
 
