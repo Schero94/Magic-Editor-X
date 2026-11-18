@@ -12,7 +12,10 @@
  *
  * Usage (see CONTRIBUTING.md):
  *   node scripts/cluster-acceptance.mjs --app ../mex-host --pg postgres://user@127.0.0.1:5440/mex_cluster \
- *     [--reset] [--processes 8] [--base 1480] [--proof collaboration|presence]
+ *     [--reset] [--processes 8] [--base 1480] [--proof collaboration|presence] [--component blocks.cta]
+ *
+ * `--component <uid>` (2.6) adds a component block of that uid to the collaboration proof; clients
+ * also type into its `title` and `text` attributes (the app must allow the uid in `body`).
  *
  * `--proof presence` (2.5) runs scripts/cluster/presence-proof.mjs instead: document presence of the
  * side panel across processes (heartbeats, field-room sockets incl. a positional field, leave, crash
@@ -165,6 +168,8 @@ try {
       ...runEnv,
       MEX_CLUSTER_DURATION_S: option('duration', '150'),
       MEX_CLUSTER_CLIENTS: option('clients', '12'),
+      // 2.6: also edit a component block of this uid (the app must allow it in `body`).
+      MEX_CLUSTER_COMPONENT: option('component', process.env.MEX_CLUSTER_COMPONENT || ''),
     },
     stdio: ['ignore', 'inherit', 'inherit', 'ipc'],
   });
