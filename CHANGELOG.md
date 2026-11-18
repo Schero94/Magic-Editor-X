@@ -1,6 +1,12 @@
 # Changelog
 
-## [Unreleased]
+# [2.6.0](https://github.com/Schero94/Magic-Editor-X/compare/v2.5.3...v2.6.0) (2026-11-18)
+
+
+### Features
+
+* component blocks, columns, session expiry and Live Preview (2.6) ([#17](https://github.com/Schero94/Magic-Editor-X/issues/17)) ([7474493](https://github.com/Schero94/Magic-Editor-X/commit/74744930b1b951bc8133e1f7c55e30f1d7679899))
+
 
 ### Features
 
