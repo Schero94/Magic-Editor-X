@@ -15,6 +15,8 @@
  * - 2.5, all off by default: `inlineColors` (text colour and highlight from the
  *   configured palette), `inlineScript` (superscript and subscript),
  *   `inlineAnnotations` (comma-separated annotation names, e.g. `abbreviation`)
+ * - `allowedComponents` (2.5): comma-separated component uids editors may insert as
+ *   component blocks (none = no component blocks); independent of the block list
  */
 
 import { isPlainObject, computeStats } from './editor-data.mjs';
@@ -22,6 +24,7 @@ import { parseInline, walkInlineElements, mapFootnoteNotes } from './render/inli
 import { activeBlocks } from './blocks/active.mjs';
 import { registeredBlockOf, isBuiltInBlock } from './sanitize-policy.mjs';
 import { activeAnnotations, ANNOTATION_NAME } from './blocks/annotations.mjs';
+import { parseComponentList } from './components.mjs';
 
 /** Built-in block types (stored names). `mediaLib` only inserts `image` blocks. */
 export const BUILTIN_BLOCKS = Object.freeze([
@@ -51,6 +54,7 @@ export const BUILTIN_BLOCKS = Object.freeze([
   'attaches',
   'personality',
   'button',
+  'component',
 ]);
 
 /** Inline tools and the tags they produce. Tags of tools a preset leaves out are unwrapped on save. */
@@ -183,6 +187,7 @@ const limitOf = (value) => {
  * @property {boolean} colors - 2.5: text colour and highlight tokens (option `inlineColors`).
  * @property {boolean} script - 2.5: superscript and subscript (option `inlineScript`).
  * @property {string[]} annotations - 2.5: annotation names listed in `inlineAnnotations`.
+ * @property {string[]} components - 2.5: component uids allowed as component blocks (not part of `restricted`).
  */
 
 /**
@@ -223,6 +228,7 @@ export const resolveFieldPreset = (options) => {
     grammar: source.disableGrammar !== true,
     collaboration: source.disableCollaboration !== true,
     publishGuard: source.publishGuard === true,
+    components: parseComponentList(source.allowedComponents),
   };
   preset.restricted = Boolean(
     preset.blocks ||
@@ -427,6 +433,12 @@ export const imageHasAlt = (block) => {
  */
 export const checkBlockStructure = (preset, block) => {
   if (!block || typeof block.type !== 'string') return null;
+  // 2.5: a component block is allowed when the field lists its component (any preset).
+  if (block.type === 'component' && isBuiltInBlock(block)) {
+    const uid = block.data && typeof block.data.uid === 'string' ? block.data.uid : '';
+    const components = Array.isArray(preset.components) ? preset.components : [];
+    return components.includes(uid) ? null : { code: 'COMPONENT_NOT_ALLOWED', params: { uid } };
+  }
   if (!isBlockAllowed(preset, block.type)) return { code: 'BLOCK_NOT_ALLOWED', params: { type: block.type } };
   if (block.type === 'header') {
     const level = Number(block.data && block.data.level);
@@ -443,7 +455,7 @@ export const checkBlockStructure = (preset, block) => {
 
 /**
  * @typedef {object} PresetViolation
- * @property {string} code - BLOCK_NOT_ALLOWED | HEADING_LEVEL | LINK_NOT_ALLOWED | ALT_REQUIRED | TOO_MANY_BLOCKS | TOO_MANY_CHARACTERS.
+ * @property {string} code - BLOCK_NOT_ALLOWED | HEADING_LEVEL | LINK_NOT_ALLOWED | ALT_REQUIRED | TOO_MANY_BLOCKS | TOO_MANY_CHARACTERS | COMPONENT_NOT_ALLOWED (2.5).
  * @property {string|null} blockId - Block id, or null for document-level rules.
  * @property {number|null} index - Block index.
  * @property {object} [params] - Values for the message (type, level, kind, max, count).

@@ -43,5 +43,17 @@
   "field.options.inlineScript.label": "Exposant et indice",
   "field.options.inlineScript.description": "Pour les formules et les unités comme m² ou H₂O",
   "field.options.inlineAnnotations.label": "Annotations",
-  "field.options.inlineAnnotations.description": "Noms d’annotations séparés par des virgules, par exemple : abbreviation. Votre développeur peut en ajouter d’autres, comme glossary."
+  "field.options.inlineAnnotations.description": "Noms d’annotations séparés par des virgules, par exemple : abbreviation. Votre développeur peut en ajouter d’autres, comme glossary.",
+  "field.options.components": "Blocs de composants",
+  "field.options.allowedComponents.label": "Composants que les rédacteurs peuvent insérer",
+  "field.options.allowedComponents.description": "Chacun apparaît dans le menu + de ce champ sous son nom. Vérifié à nouveau à l'enregistrement.",
+  "field.options.allowedComponents.placeholder": "Aucun bloc de composant",
+  "field.options.allowedComponents.loadError": "Les composants n'ont pas pu être chargés.",
+  "field.options.allowedComponents.empty": "Cette application n'a pas encore de composants. Créez-en d'abord un dans le Content-Type Builder.",
+  "field.options.allowedComponents.unsupported": "Utilisation impossible comme blocs (seuls les champs texte, nombre, date, choix et oui/non sont pris en charge) :",
+  "field.options.allowedComponents.reason.type": "{name} ({type})",
+  "field.options.allowedComponents.reason.private": "{name} (privé)",
+  "field.options.allowedComponents.reason.name": "{name} (nom)",
+  "field.options.allowedComponents.reason.enum": "{name} (aucune option)",
+  "field.options.allowedComponents.reason.tooMany": "plus de 50 champs"
 }

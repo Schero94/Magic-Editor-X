@@ -216,11 +216,15 @@ module.exports = ({ strapi }) => {
    * (allowed block types, heading levels, link targets). Limits and alternative
    * texts are checked on save only, so typing is never refused half-way.
    * @param {{ uid: string, field: string }} target - Room target.
-   * @returns {((block: object) => string|null) | undefined} Rule, or undefined for unrestricted fields.
+   * Component blocks (2.5) are checked in every field: their component must be listed
+   * in the field's `allowedComponents`.
+   * @returns {(block: object) => string|null} Rule.
    */
   const blockRuleFor = (target) => {
     const preset = presetOf(target);
-    if (!preset.restricted) return undefined;
+    if (!preset.restricted)
+      return (block) =>
+        block && block.type === 'component' && checkBlockStructure(preset, block) ? 'PRESET_VIOLATION' : null;
     return (block) => (checkBlockStructure(preset, block) ? 'PRESET_VIOLATION' : null);
   };
 

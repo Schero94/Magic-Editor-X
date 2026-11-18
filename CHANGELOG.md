@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Features
+
+- **Component blocks:** insert components from the Content-Type Builder as blocks inside a Magic Editor X field. In the Content-Type Builder, open the field's advanced settings and pick the components editors may insert ("Component blocks"); they then appear in the field's + menu and slash menu under their own names. Each block is a small form with the component's text, number, date, choice and on/off fields, checked while you type and again when the entry is saved. Off by default: a field without chosen components shows nothing new. Renderers output nothing for component blocks unless you pass `componentBlocks` (HTML, React, Vue) or an override, so existing front ends do not change. Live editing keeps every collaborator's change: two people typing in the same component block at once lose nothing.
+
 ## [2.5.3](https://github.com/Schero94/Magic-Editor-X/compare/v2.5.2...v2.5.3) (2026-11-17)
 
 

@@ -1,5 +1,6 @@
 import { stableStringify } from '../../../shared/ydoc.mjs';
 import { meaningfulTunes } from '../../../shared/default-tunes.mjs';
+import { applyComponentValues } from './tools/component';
 import { deleteBlockKeepingFocus } from './focus-guard.mjs';
 
 /**
@@ -117,15 +118,43 @@ const withRemovedKeys = async (api, data) => {
 };
 
 /**
+ * True when the block the editor shows (its `blockKey`) differs from `block` only in `data.values`
+ * (component blocks, 2.5).
+ * @param {string|undefined} shownKey - `blockKey` of the shown block.
+ * @param {{ type: string, data: object, tunes?: object }} block - Desired block.
+ * @returns {boolean} Result.
+ */
+const sameExceptValues = (shownKey, block) => {
+  if (typeof shownKey !== 'string') return false;
+  try {
+    const shown = JSON.parse(shownKey);
+    const strip = (data) => ({ ...(data || {}), values: null });
+    return (
+      shown.type === block.type &&
+      stableStringify(strip(shown.data)) === stableStringify(strip(block.data)) &&
+      stableStringify(shown.tunes) === stableStringify(meaningfulTunes(block.tunes))
+    );
+  } catch {
+    return false;
+  }
+};
+
+/**
  * Applies `target` to the editor.
  * @param {object} editor - Editor.js instance (ready).
  * @param {{ blocks: Array<{ id: string, type: string, data: object, tunes?: object }> }} target - Desired document.
  * @param {Map<string, string>} known - id -> blockKey of what the editor currently shows (updated in place).
- * @param {{ display?: (data: object, block: object) => object }} [options] - `display` maps the data handed to
+ * @param {{ display?: (data: object, block: object) => object, live?: boolean }} [options] - `live` (2.6): a live
+ *   room snapshot (component blocks keep local edits not pushed yet). `display` maps the data handed to
  *   Editor.js (2.5: signed media URLs of private upload providers); comparisons use the target as given.
  * @returns {Promise<'patched'|'rendered'>} How the change was applied.
  */
-export const applyToEditor = async (editor, target, known, { display = (data) => data } = {}) => {
+export const applyToEditor = async (
+  editor,
+  target,
+  known,
+  { display = (data) => data, live = false } = {}
+) => {
   const blocks = target.blocks || [];
   if (blocks.length === 0) {
     await editor.blocks.clear();
@@ -167,6 +196,14 @@ export const applyToEditor = async (editor, target, known, { display = (data) =>
       }
       const key = blockKey(block);
       if (known.get(block.id) === key) continue;
+      // 2.5: a component block takes a collaborator's values in place (keeps focus in its form)
+      // when only its values changed (same component, same tunes).
+      if (block.type === 'component' && sameExceptValues(known.get(block.id), block)) {
+        if (applyComponentValues(block.id, block.data, { keepPending: live })) {
+          known.set(block.id, key);
+          continue;
+        }
+      }
       const api = editor.blocks.getBlockByIndex(index);
       const holder = api && api.holder;
       // The caret may be in any input of the block (table cells, captions): remember which one.

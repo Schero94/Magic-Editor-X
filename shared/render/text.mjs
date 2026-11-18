@@ -139,6 +139,8 @@ const RENDERERS = {
   button: (b) => (b.data.link ? `${b.data.text} (${b.data.link})` : b.data.text),
   delimiter: () => '---',
   math: (b) => b.data.tex.trim(),
+  // Component blocks (2.5): site-specific; nothing unless `overrides.component` returns text.
+  component: () => '',
   toc: (b) => {
     const tree = buildTocTree(b.headings || [], b.data);
     if (!tree.length) return '';

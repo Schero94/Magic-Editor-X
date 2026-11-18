@@ -165,6 +165,7 @@ const KITCHEN_SINK = {
   toc: { title: 'Contents', minLevel: 2, maxLevel: 3, style: 'ordered' },
   synced: { ref: 'abc123def456' },
   math: { tex: '\\frac{a}{b}', display: false },
+  component: { uid: 'blocks.cta', values: { title: 'Go', priority: 2, highlight: true } },
 };
 
 test('policy output for every type has exactly the keys the schema describes', () => {

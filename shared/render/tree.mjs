@@ -655,6 +655,9 @@ const RENDERERS = {
           ),
         })
       : null,
+  // Component block (2.5): nothing by default; sites render it with `componentBlocks[uid]`
+  // (any output) or the React/Vue `components.component` / `block-component` slot.
+  component: () => null,
   toc: (b, o) => {
     const tree = buildTocTree(b.headings || [], b.data);
     if (!tree.length) return null;
@@ -861,6 +864,22 @@ const cleanOverrideNodes = (input, trusted) => {
 /* ------------------------------------------------------------- builder */
 
 /**
+ * Renderer of a component block from `options.componentBlocks[uid]` (2.5),
+ * used like an override (nodes, or a string under the override rules).
+ * @param {object} options - Render options.
+ * @param {object} block - Prepared block.
+ * @returns {Function|null} Renderer.
+ */
+const componentRendererFor = (options, block) => {
+  if (!block.known || block.type !== 'component') return null;
+  const map = options && options.componentBlocks;
+  const uid = block.data && block.data.uid;
+  if (!map || typeof map !== 'object' || typeof uid !== 'string' || !uid) return null;
+  if (!Object.prototype.hasOwnProperty.call(map, uid)) return null;
+  return typeof map[uid] === 'function' ? map[uid] : null;
+};
+
+/**
  * Whether raw HTML (raw blocks, string overrides in a tree) may be used.
  * @param {object} options - Render options.
  * @returns {boolean} True with `rawHtml: 'allow'` and a `sanitizeRaw` function.
@@ -919,7 +938,7 @@ export const createTreeBuilder = (value, options, mode = {}) => {
 
   /** @param {object} block - Prepared block. @returns {Array<RenderNode|BlockNode>} Nodes of the block. */
   const blockContent = (block) => {
-    const override = overrideFor(opts, block.type);
+    const override = overrideFor(opts, block.type) || componentRendererFor(opts, block);
     if (override) {
       const out = override(toPublic(block), helpers);
       if (typeof out === 'string') {
@@ -975,13 +994,20 @@ export const createTreeBuilder = (value, options, mode = {}) => {
   /** @param {object[]} blocks - Prepared blocks. @returns {Array<RenderNode|BlockNode>} Block nodes separated by line breaks. */
   function renderList(blocks) {
     const out = [];
+    let visible = false;
     for (const block of blocks) {
       const children = blockContent(block);
-      if (!children.length) continue;
+      // 2.5: an empty component block keeps its wrapper (no separator, no output in HTML),
+      // so the React/Vue `components.component` override still receives it.
+      const keep = children.length > 0 || (block.known && block.type === 'component');
+      if (!keep) continue;
       /** @type {BlockNode} */
       const node = { type: 'block', block: toPublic(block), children };
       trusted.add(node);
-      if (out.length) out.push(textNode('\n'));
+      if (children.length) {
+        if (visible) out.push(textNode('\n'));
+        visible = true;
+      }
       out.push(node);
     }
     return out;

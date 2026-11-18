@@ -143,6 +143,8 @@ const leafKind = (block, path, value) => {
       .split('.')
       .filter((part) => !/^\d+$/.test(part))
       .pop() || '';
+  // Component block (2.5): the uid is a value, attribute values are plain text.
+  if (type === 'component') return path === 'uid' ? 'value' : 'plain';
   if (VALUE_KEY.test(key)) return 'value';
   // Synced block (2.3): the reference is an id; the diff view shows the source name.
   if (type === 'synced' && key === 'ref') return 'value';

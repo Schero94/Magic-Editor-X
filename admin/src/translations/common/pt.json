@@ -43,5 +43,17 @@
   "field.options.inlineScript.label": "Sobrescrito e subscrito",
   "field.options.inlineScript.description": "Para fórmulas e unidades como m² ou H₂O",
   "field.options.inlineAnnotations.label": "Anotações",
-  "field.options.inlineAnnotations.description": "Nomes de anotações separados por vírgulas, por exemplo: abbreviation. O seu desenvolvedor pode adicionar mais, como glossary."
+  "field.options.inlineAnnotations.description": "Nomes de anotações separados por vírgulas, por exemplo: abbreviation. O seu desenvolvedor pode adicionar mais, como glossary.",
+  "field.options.components": "Blocos de componentes",
+  "field.options.allowedComponents.label": "Componentes que os editores podem inserir",
+  "field.options.allowedComponents.description": "Cada um aparece no menu + deste campo com o seu nome. É verificado novamente ao guardar.",
+  "field.options.allowedComponents.placeholder": "Sem blocos de componentes",
+  "field.options.allowedComponents.loadError": "Não foi possível carregar os componentes.",
+  "field.options.allowedComponents.empty": "Esta aplicação ainda não tem componentes. Crie primeiro um no Content-Type Builder.",
+  "field.options.allowedComponents.unsupported": "Não podem ser usados como blocos (apenas campos de texto, número, data, escolha e sim/não são suportados):",
+  "field.options.allowedComponents.reason.type": "{name} ({type})",
+  "field.options.allowedComponents.reason.private": "{name} (privado)",
+  "field.options.allowedComponents.reason.name": "{name} (nome)",
+  "field.options.allowedComponents.reason.enum": "{name} (sem opções)",
+  "field.options.allowedComponents.reason.tooMany": "mais de 50 campos"
 }

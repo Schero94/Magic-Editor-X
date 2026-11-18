@@ -37,6 +37,11 @@ import { abbreviationAnnotation, annotationsFromSummaries } from '../../../../sh
 import { createCspGuard } from '../../editor/tools/csp-guard';
 import { prepareEditorValue, prepareRemoteData, sanitizeInline } from '../../editor/sanitize';
 import { applyToEditor, blockKey, rememberBlocks } from '../../editor/apply-remote';
+import {
+  componentRoomView,
+  markComponentsPushed,
+  reportUnpushedComponents,
+} from '../../editor/tools/component';
 import { computeStats } from '../../../../shared/editor-data.mjs';
 import { stableStringify } from '../../../../shared/ydoc.mjs';
 import { useEditorConfig } from '../../hooks/useEditorConfig';
@@ -110,6 +115,8 @@ import { highlightMatch, clearHighlight } from '../../editor/find-highlight';
 import { createAltTextSuggester } from '../../editor/ai-alt-text';
 import { insertSuggestion } from '../../editor/ai-selection';
 import { GrammarPanel } from './GrammarPanel';
+import { ComponentBlockView } from './ComponentBlockView';
+import { setActiveComponents } from '../../../../shared/components.mjs';
 import { FieldAiDialog } from './FieldAiDialog';
 import { BlockAiDialog } from './BlockAiDialog';
 // 2.5: dropped files (Media Library drop zone) and signed URLs of private upload providers.
@@ -562,6 +569,36 @@ const EditorFieldBody = ({
   // eslint-disable-next-line react-hooks/exhaustive-deps -- recomputed when the options change (presetKey)
   const preset = useMemo(() => resolveFieldPreset(fieldOptions), [presetKey]);
   const presetRef = useRef(preset);
+  // 2.5: component blocks. Descriptors of every component (GET /config), the ones this field allows.
+  const componentList = config && Array.isArray(config.components) ? config.components : null;
+  const componentsByUid = useMemo(
+    () => new Map((componentList || []).map((descriptor) => [descriptor.uid, descriptor])),
+    [componentList]
+  );
+  useEffect(() => {
+    if (componentList) setActiveComponents(componentList);
+  }, [componentList]);
+  const allowedComponents = useMemo(
+    () =>
+      preset.components
+        .map((uid) => componentsByUid.get(uid))
+        .filter((descriptor) => descriptor && descriptor.supported),
+    [preset, componentsByUid]
+  );
+  const [componentMounts, setComponentMounts] = useState(() => new Map());
+  const componentKeyRef = useRef(0);
+  const mountComponent = useCallback((element, info) => {
+    componentKeyRef.current += 1;
+    const key = componentKeyRef.current;
+    setComponentMounts((current) => new Map(current).set(key, { element, ...info }));
+    return () =>
+      setComponentMounts((current) => {
+        if (!current.has(key)) return current;
+        const next = new Map(current);
+        next.delete(key);
+        return next;
+      });
+  }, []);
   useEffect(() => {
     presetRef.current = preset;
   }, [preset]);
@@ -668,7 +705,10 @@ const EditorFieldBody = ({
             return;
           }
           emit(data);
-          if (collabRef.current) collabRef.current.pushLocal(data);
+          if (collabRef.current) {
+            collabRef.current.pushLocal(data);
+            markComponentsPushed(data);
+          }
           if (undoRef.current) undoRef.current.record();
         } catch {
           // Editor.js rejects saves while a block is being re-rendered; the next change saves again.
@@ -753,7 +793,7 @@ const EditorFieldBody = ({
   const mediaSignerRef = useRef(null);
   const signRequestRef = useRef(null);
   const applyExternal = useCallback(
-    async (data, { emitToForm }) => {
+    async (data, { emitToForm, live = false }) => {
       const editor = editorRef.current;
       if (!editor) return;
       applyingRef.current = true;
@@ -766,6 +806,7 @@ const EditorFieldBody = ({
             new Promise((resolve) => setTimeout(resolve, 3000)),
           ]);
         await applyToEditor(editor, data || { blocks: [] }, knownRef.current, {
+          live,
           display: signer
             ? (blockData, block) =>
                 signer.signValue({ blocks: [{ ...block, data: blockData }] }).blocks[0].data
@@ -797,6 +838,7 @@ const EditorFieldBody = ({
     try {
       const local = await editor.save();
       client.pushLocal(local);
+      markComponentsPushed(local);
     } catch {
       // the next change is saved again
     }
@@ -813,8 +855,10 @@ const EditorFieldBody = ({
       const editor = editorRef.current;
       if (!seeded || !editor) return;
       const local = await editor.save().catch(() => null);
-      if (local && local.blocks.length > 0 && contentKey(local) !== contentKey(client.getData()))
+      if (local && local.blocks.length > 0 && contentKey(local) !== contentKey(client.getData())) {
         client.pushLocal(local);
+        markComponentsPushed(local);
+      }
     },
     onRemoteData: async () => {
       const client = collabRef.current;
@@ -838,11 +882,13 @@ const EditorFieldBody = ({
       // not mark the form as changed. Later remote edits do.
       const first = !syncedOnceRef.current;
       syncedOnceRef.current = true;
-      await applyExternal(shared, { emitToForm: !first });
-      // The editor's own serialisation of what it now shows is the base of the next local diff.
-      const shown = await editor.save().catch(() => null);
+      await applyExternal(shared, { emitToForm: !first, live: true });
+      // The editor's own serialisation of what it now shows is the base of the next local diff;
+      // 2.6: component blocks count with the room's values, so edits not pushed yet stay a difference.
+      const shown = componentRoomView(await editor.save().catch(() => null));
       client.markShown(catchUp, shown || shared);
       viewRef.current = shown || shared;
+      reportUnpushedComponents();
     },
     getInitialView: () => viewRef.current,
   });
@@ -1134,6 +1180,8 @@ const EditorFieldBody = ({
       placeholder,
       attachmentTypes: config.uploads.attachmentTypes,
       mountSynced,
+      componentBlocks: allowedComponents,
+      mountComponent,
       onFootnoteEdit: (marker, info) => footnoteEditRef.current && footnoteEditRef.current(marker, info),
       // 2.4: "Comment" in the inline toolbar for admins who may write comments.
       onComment:
@@ -1483,6 +1531,7 @@ const EditorFieldBody = ({
         const shown = await editorRef.current.save().catch(() => prepared.data);
         collabRef.current.stopCapturing();
         collabRef.current.pushLocal(shown);
+        markComponentsPushed(shown);
       }
       if (undoRef.current) undoRef.current.record();
       return true;
@@ -1539,6 +1588,7 @@ const EditorFieldBody = ({
         const shown = await editorRef.current.save().catch(() => data);
         collabRef.current.stopCapturing();
         collabRef.current.pushLocal(shown);
+        markComponentsPushed(shown);
       }
       if (undoRef.current) undoRef.current.record();
     },
@@ -2870,6 +2920,8 @@ const EditorFieldBody = ({
                 palette,
                 annotations: fieldAnnotations,
                 isDark: () => darkRef.current,
+                componentBlocks: allowedComponents,
+                mountComponent,
               }}
               preset={preset}
               direction={direction}
@@ -3298,6 +3350,25 @@ const EditorFieldBody = ({
           comments={commentsEnabled}
         />
       ) : null}
+      {[...componentMounts].map(([key, mount]) =>
+        createPortal(
+          <ComponentBlockView
+            t={t}
+            blockId={mount.blockId}
+            uid={mount.uid}
+            values={mount.values}
+            fresh={mount.fresh}
+            readOnly={Boolean(mount.readOnly || readOnly)}
+            descriptor={componentsByUid.get(mount.uid) || null}
+            allowed={preset.components.includes(mount.uid)}
+            focus={mount.focus}
+            onChange={mount.onChange}
+            subscribe={mount.subscribe}
+          />,
+          mount.element,
+          `component-${key}`
+        )
+      )}
       {[...syncedMounts].map(([key, mount]) =>
         createPortal(
           <SyncedBlockView

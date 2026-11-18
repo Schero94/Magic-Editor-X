@@ -157,6 +157,18 @@ export interface RenderOptions {
    */
   blocks?: ReadonlyArray<import('./blocks.js').BlockDefinition<any>>;
   /**
+   * Component blocks (2.5): renderers per component uid (`category.name`) for
+   * `component` blocks, used like `overrides` (nodes; a string only under the
+   * override rules) in `renderHtml`, `renderTree` and the React/Vue
+   * components. The block's `data` is `{ uid, values }`. Without an entry a
+   * component block renders nothing (text and Markdown too; use
+   * `overrides.component` there). `overrides.component` wins over this map.
+   */
+  componentBlocks?: Record<
+    string,
+    (block: RenderBlock, helpers: HtmlHelpers & Record<string, any>) => OverrideResult
+  >;
+  /**
    * Synced blocks (2.3): the sources of `synced` reference blocks, as a map
    * `{ [ref]: document | blocks }` (object or Map) or a function
    * `(ref) => document | blocks | null`. A reference is replaced by a copy of

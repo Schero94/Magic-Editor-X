@@ -43,5 +43,17 @@
   "field.options.inlineScript.label": "Superscript and subscript",
   "field.options.inlineScript.description": "For formulas and units such as m² or H₂O",
   "field.options.inlineAnnotations.label": "Annotations",
-  "field.options.inlineAnnotations.description": "Comma-separated annotation names, for example: abbreviation. Your developer can add more, such as glossary."
+  "field.options.inlineAnnotations.description": "Comma-separated annotation names, for example: abbreviation. Your developer can add more, such as glossary.",
+  "field.options.components": "Component blocks",
+  "field.options.allowedComponents.label": "Components editors can insert",
+  "field.options.allowedComponents.description": "Each one appears in the + menu of this field under its name. Checked again when saving.",
+  "field.options.allowedComponents.placeholder": "No component blocks",
+  "field.options.allowedComponents.loadError": "The components could not be loaded.",
+  "field.options.allowedComponents.empty": "This app has no components yet. Create one in the Content-Type Builder first.",
+  "field.options.allowedComponents.unsupported": "Cannot be used as blocks (only text, number, date, choice and on/off fields are supported):",
+  "field.options.allowedComponents.reason.type": "{name} ({type})",
+  "field.options.allowedComponents.reason.private": "{name} (private)",
+  "field.options.allowedComponents.reason.name": "{name} (name)",
+  "field.options.allowedComponents.reason.enum": "{name} (no options)",
+  "field.options.allowedComponents.reason.tooMany": "more than 50 fields"
 }

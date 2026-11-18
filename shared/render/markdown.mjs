@@ -401,6 +401,8 @@ const RENDERERS = {
   },
   delimiter: () => '---',
   math: (b) => (b.data.display === false ? inlineMath(b.data.tex) : displayMath(b.data.tex)),
+  // Component blocks (2.5): site-specific; nothing unless `overrides.component` returns Markdown.
+  component: () => '',
   toc: (b) => {
     const tree = buildTocTree(b.headings || [], b.data);
     if (!tree.length) return '';
