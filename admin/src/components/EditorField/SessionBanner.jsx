@@ -1,10 +1,15 @@
-import { useEffect, useId, useState, useSyncExternalStore } from 'react';
+import { useEffect, useId, useRef, useState, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
 import { Box, Button, Flex, Link, Typography, VisuallyHidden } from '@strapi/design-system';
 import { CheckCircle, ExternalLink, WarningCircle } from '@strapi/icons';
 import styled from 'styled-components';
 import { SIGN_IN_WINDOW_NAME, adminBasePath, sessionGuard } from '../../editor/session-guard.mjs';
+import { getFetchClient } from '../../utils/fetch-client';
+import { API } from '../../utils/api';
 import { useSessionState } from '../../editor/useSessionGuard';
+
+/** Coming back to the tab checks the session at most this often while signed out. */
+const PROBE_MIN_MS = 10000;
 
 /** How long the "signed in again" confirmation stays. */
 const RESUMED_VISIBLE_MS = 10000;
@@ -17,10 +22,13 @@ const Frame = styled.section`
   position: fixed;
   left: ${({ theme }) => theme.spaces[4]};
   right: ${({ theme }) => theme.spaces[4]};
-  bottom: ${({ theme }) => theme.spaces[4]};
+  bottom: calc(${({ theme }) => theme.spaces[4]} + ${({ $lift }) => $lift}px);
   z-index: ${({ theme }) => theme.zIndices.notification};
   display: flex;
   justify-content: center;
+  &[hidden] {
+    display: none;
+  }
   pointer-events: none;
   & > * {
     pointer-events: auto;
@@ -43,6 +51,36 @@ const Icon = styled(Box)`
     height: 2rem;
   }
 `;
+
+/**
+ * Height of a bar fixed or sticky at the bottom of the viewport (Strapi's
+ * Save/Publish bar of the edit view below 768 px), so the banner sits above it
+ * instead of covering it. Looks only at the elements under two points near the
+ * bottom edge.
+ * @param {Element|null} self - The banner (ignored).
+ * @returns {number} CSS pixels.
+ */
+const bottomBarHeight = (self) => {
+  if (typeof document.elementsFromPoint !== 'function') return 0;
+  let top = window.innerHeight;
+  for (const x of [window.innerWidth / 2, Math.min(window.innerWidth - 2, 24)]) {
+    for (const element of document.elementsFromPoint(x, window.innerHeight - 2)) {
+      if (self && self.contains(element)) continue;
+      let node = element;
+      while (node && node !== document.body) {
+        const position = getComputedStyle(node).position;
+        if (position === 'fixed' || position === 'sticky') {
+          const rect = node.getBoundingClientRect();
+          if (rect.bottom >= window.innerHeight - 1 && rect.height < window.innerHeight / 3)
+            top = Math.min(top, rect.top);
+          break;
+        }
+        node = node.parentElement;
+      }
+    }
+  }
+  return Math.max(0, Math.round(window.innerHeight - top));
+};
 
 /**
  * Opens the admin login page in a new tab named `magic-editor-x-sign-in`; that
@@ -85,6 +123,30 @@ export const SessionBanner = ({ t }) => {
   const [expiredFor, setExpiredFor] = useState(null);
 
   useEffect(() => sessionGuard.claimLeader(id), [id]);
+  const frameRef = useRef(null);
+  const [lift, setLift] = useState(0);
+
+  // Signed out: when the person comes back to this tab, one light request checks whether the
+  // session works again (signed in elsewhere without a new token reaching this tab).
+  const isLeader = leader === id;
+  const ended = session.status === 'ended';
+  useEffect(() => {
+    if (!isLeader || !ended) return undefined;
+    let last = 0;
+    const probe = () => {
+      if (document.visibilityState === 'hidden' || Date.now() - last < PROBE_MIN_MS) return;
+      last = Date.now();
+      getFetchClient()
+        .get(API.config)
+        .catch(() => {});
+    };
+    window.addEventListener('focus', probe);
+    document.addEventListener('visibilitychange', probe);
+    return () => {
+      window.removeEventListener('focus', probe);
+      document.removeEventListener('visibilitychange', probe);
+    };
+  }, [isLeader, ended]);
 
   // Signed in again: confirm it for a moment.
   const resumedAt = session.resumedAt;
@@ -94,8 +156,21 @@ export const SessionBanner = ({ t }) => {
     return () => clearTimeout(timer);
   }, [resumedAt]);
 
-  if (leader !== id || typeof document === 'undefined') return null;
-  const ended = session.status === 'ended';
+  const shown =
+    isLeader && (ended || (session.status === 'active' && Boolean(resumedAt) && expiredFor !== resumedAt));
+  // Above a bar fixed at the bottom of the page (measured while shown, again on resize).
+  useEffect(() => {
+    if (!shown) return undefined;
+    const measure = () => setLift(bottomBarHeight(frameRef.current));
+    const frame = window.requestAnimationFrame(measure);
+    window.addEventListener('resize', measure);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener('resize', measure);
+    };
+  }, [shown]);
+
+  if (!isLeader || typeof document === 'undefined') return null;
   const resumed = !ended && session.status === 'active' && Boolean(resumedAt) && expiredFor !== resumedAt;
   const opened = action.endedAt === session.endedAt ? action.value : null;
   const tone = ended ? 'warning' : 'success';
@@ -103,6 +178,8 @@ export const SessionBanner = ({ t }) => {
 
   return createPortal(
     <Frame
+      ref={frameRef}
+      $lift={lift}
       aria-labelledby={visible ? titleId : undefined}
       aria-label={visible ? undefined : t('editor.session.region', 'Session')}
       data-testid="mex-session-banner"

@@ -1,5 +1,17 @@
 # Changelog
 
+## [Unreleased]
+
+### Features
+
+- Signed out while editing: when the admin session ends (idle or absolute lifetime, signed out on another device, removed account), the entry shows one calm banner, "You were signed out. Your changes are kept on this device. Sign in again to save.", with one action, **Sign in again**. It opens the login in a new tab, which closes itself after you sign in; the entry stays open, the text you typed is back in the editor and Save works.
+- While signed out, typed text is kept on this device at once and with every change (also during live editing), live editing pauses instead of reconnecting, and presence, comment and suggestion polling stop, so the server is not asked again and again with an ended session.
+- If you click Save anyway and Strapi sends you to the login page, the text is still kept: open the entry again and restore it with one click (automatically when Strapi reloads the entry right after you signed in again).
+
+### Migration notes
+
+- None. No new settings, routes or stored data. Logging out yourself still removes the kept text from this browser, as in 2.5.
+
 ## [2.5.3](https://github.com/Schero94/Magic-Editor-X/compare/v2.5.2...v2.5.3) (2026-11-17)
 
 

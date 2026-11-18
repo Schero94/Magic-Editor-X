@@ -138,6 +138,8 @@ export const createCollabClient = ({
   // 2.6: the admin session ended; nothing is sent until resume().
   let paused = false;
   let needsConnect = false;
+  // The room content the server had acknowledged when the client paused: the base of a later merge.
+  let pausedBase = null;
 
   const setState = (patch) => {
     // Without access the field saves through the form only: nothing is waiting for the room.
@@ -558,6 +560,7 @@ export const createCollabClient = ({
     pause() {
       if (destroyed || paused) return;
       paused = true;
+      pausedBase = synced && replica ? serverContent() : null;
       clearTimeout(retryTimer);
       inFlight = false;
       if (socket && (socket.connected || socket.active)) socket.disconnect();
@@ -580,6 +583,29 @@ export const createCollabClient = ({
     },
     /** @returns {boolean} True while paused (signed out). */
     isPaused: () => paused,
+    /**
+     * 2.6: the acknowledged room content when the client paused (null when it was not synced).
+     * @returns {object|null} Editor data.
+     */
+    pausedBase: () => pausedBase,
+    /**
+     * 2.6: applies an edit made against an older room state (`from` -> `data`, e.g. text typed
+     * while signed out, kept in the draft buffer) to the current room: only what changed between
+     * the two is applied, so edits others made meanwhile stay. The editor then shows the result.
+     * @param {object} from - Room content the edit started from.
+     * @param {object} data - Edited content.
+     * @returns {boolean} True when something changed.
+     */
+    mergeLocal(from, data) {
+      if (destroyed || !replica || !synced || !state.canEdit || !from || !data) return false;
+      const changed = replica.rebase(from, data);
+      setState({});
+      if (changed) {
+        notifyRemote();
+        flush();
+      }
+      return changed;
+    },
     /** Disconnects and frees the documents. */
     destroy() {
       destroyed = true;

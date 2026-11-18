@@ -12,7 +12,8 @@ import { sessionGuard } from '../editor/session-guard.mjs';
  * admin token and refreshes it once on a 401. A 401 that still reaches us
  * means the refresh was refused, so the session ended: the error is reported
  * to the tab's session guard (`editor/session-guard.mjs`) and thrown on
- * unchanged. Only the status is looked at; bodies, URLs and tokens are not
+ * unchanged; a request sent after that which succeeds resumes the session.
+ * Only the status is looked at; bodies, URLs and tokens are not
  * read or kept. No global (`window.fetch`) is patched.
  */
 
@@ -28,8 +29,11 @@ export const withSessionReport = (client) => {
   for (const method of METHODS) {
     if (typeof client[method] !== 'function') continue;
     wrapped[method] = async (...args) => {
+      const startedAt = Date.now();
       try {
-        return await client[method](...args);
+        const result = await client[method](...args);
+        sessionGuard.reportSuccess(startedAt);
+        return result;
       } catch (error) {
         sessionGuard.reportError(error);
         throw error;

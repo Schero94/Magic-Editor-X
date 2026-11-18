@@ -430,8 +430,8 @@ export default {
         createLogoutMiddleware({ onLogout: () => clearDrafts() }),
         createSessionMiddleware,
         // 2.6: session-expiry detection (rejected admin requests with 401, ended sessions, signing in again).
-        createSessionGuardMiddleware(),
-        createSignInTabCloser(),
+        createSessionGuardMiddleware,
+        createSignInTabCloser,
       ]);
   },
 

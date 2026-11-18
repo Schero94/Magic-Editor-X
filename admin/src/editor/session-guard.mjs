@@ -182,6 +182,16 @@ export const createSessionGuard = ({ now = () => Date.now() } = {}) => {
       return true;
     },
     /**
+     * A request that was sent after the session ended succeeded: the session works again
+     * (signed in elsewhere, or the 401 was not about the session). Earlier requests do not count.
+     * @param {number} startedAt - When the request was sent.
+     * @returns {boolean} True when this resumed the session.
+     */
+    reportSuccess(startedAt) {
+      if (state.status !== 'ended' || !(startedAt > state.endedAt)) return false;
+      return resume();
+    },
+    /**
      * Updates the state from an admin store action (Redux middleware).
      * @param {{ type?: string, payload?: unknown, meta?: object }} action - Action.
      */
@@ -316,3 +326,25 @@ export const createSignInTabCloser =
     }
     return result;
   };
+
+/**
+ * Restore rule when a field opens (2.6): Strapi reloads the edit view after
+ * signing in again, so a field mounts anew and finds its buffer. A buffer
+ * written after the session ended (`savedAt >= endedAt`), opened within
+ * `windowMs` of signing in again and without a conflict with the saved value
+ * is restored without asking; anything else keeps the notice (Restore/Discard).
+ * @param {{ conflict: boolean, savedAt: number, session: { endedAt: number|null, resumedAt: number|null, status: string }, now: number, windowMs?: number }} input - Buffer and session.
+ * @returns {boolean} True to restore at once.
+ */
+export const autoRestoreOnOpen = ({ conflict, savedAt, session, now, windowMs = 15000 }) =>
+  Boolean(
+    !conflict &&
+    session &&
+    session.status === 'active' &&
+    Number.isFinite(session.endedAt) &&
+    Number.isFinite(session.resumedAt) &&
+    session.resumedAt >= session.endedAt &&
+    now - session.resumedAt <= windowMs &&
+    Number.isFinite(savedAt) &&
+    savedAt >= session.endedAt
+  );

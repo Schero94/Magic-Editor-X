@@ -3,6 +3,7 @@ import { useAuth } from '@strapi/strapi/admin';
 import { prepareEditorValue } from '../../editor/sanitize';
 import { stableStringify } from '../../../../shared/ydoc.mjs';
 import { diffDocuments, summarizeDiff } from '../../../../shared/diff.mjs';
+import { comparableBlocks } from '../../../../shared/default-tunes.mjs';
 import {
   DRAFT_WRITE_DELAY_MS,
   bufferAction,
@@ -12,7 +13,7 @@ import {
   ttlMsOf,
 } from '../../editor/drafts-logic.mjs';
 import { deleteDraft, getDraft, pruneDrafts, putDraft } from '../../editor/draft-store';
-import { recoveryAction } from '../../editor/session-guard.mjs';
+import { autoRestoreOnOpen, recoveryAction, sessionGuard } from '../../editor/session-guard.mjs';
 import { useSessionState } from '../../editor/useSessionGuard';
 
 /** After signing in again, a form reset within this time brings the buffer back (2.6). */
@@ -25,7 +26,13 @@ const RECOVERY_WINDOW_MS = 15000;
  */
 const fingerprint = (value) => {
   const data = prepareEditorValue(value).data;
-  return { data, key: stableStringify(data && Array.isArray(data.blocks) ? data.blocks : []) };
+  // 2.6: default tune values count as no tune (shared/default-tunes.mjs): the room and the form
+  // write the same content in both shapes, which made an equal buffer look different.
+  // A non-breaking space is written as `&nbsp;` by the editor and as U+00A0 or a space after a round trip.
+  const key = stableStringify(
+    comparableBlocks(data && Array.isArray(data.blocks) ? data.blocks : [])
+  ).replace(/&nbsp;|\u00a0/g, ' ');
+  return { data, key };
 };
 
 /**
@@ -52,7 +59,9 @@ const fingerprint = (value) => {
  * server; when the form value of a still mounted field falls back to the saved
  * value within 15 s, the field's last buffer is put back (`onRecover`) so the
  * typed text is in the form again and Save works. A field that was unmounted
- * (Strapi left the page) offers the buffer with the notice when it opens.
+ * and opens again within 15 s of signing in (Strapi reloads the edit view)
+ * restores a buffer written after the session ended without asking; any other
+ * buffer is offered with the notice.
  * @param {object} options - Options.
  * @param {boolean} options.enabled - Config `drafts.enabled` and a Content Manager field (uid set).
  * @param {unknown} options.ttlHours - Config `drafts.ttlHours`.
@@ -60,6 +69,7 @@ const fingerprint = (value) => {
  * @param {unknown} options.value - Current form value of the field.
  * @param {unknown} options.savedValue - Saved value of the field (form initial values).
  * @param {object|null} options.shownData - What the editor shows (after a live room synced: the room).
+ * @param {boolean} [options.roomRendered] - The editor rendered the live room once (2.6).
  * @param {boolean} options.ready - The editor is ready.
  * @param {boolean} options.readOnly - The field cannot be edited (no notice then).
  * @param {{ active: boolean, status: string, pending: boolean }} options.collaboration - Live state.
@@ -74,6 +84,7 @@ export const useDraftBuffer = ({
   value,
   savedValue,
   shownData,
+  roomRendered,
   ready,
   readOnly,
   collaboration,
@@ -121,12 +132,18 @@ export const useDraftBuffer = ({
       ttlMs,
       sessionEnded,
       resumedAt,
+      onRecover,
     };
   });
 
   // A live room shows its own content after the first sync: decide only once it settled.
+  // 2.6: and, in a live room, once the editor rendered the room (before that it shows the saved value).
+  // A field whose room is still being created reports `connecting` before the client exists (not active yet).
   const settled =
-    !collaboration.active || ['live', 'reconnecting', 'offline', 'paused'].includes(collaboration.status);
+    !['connecting', 'syncing'].includes(collaboration.status) &&
+    (!collaboration.active ||
+      ['reconnecting', 'offline', 'paused'].includes(collaboration.status) ||
+      (collaboration.status === 'live' && roomRendered !== false));
 
   useEffect(() => {
     if (!id || !ready || !settled || decided === id) return undefined;
@@ -149,6 +166,29 @@ export const useDraftBuffer = ({
       });
       if (decision.action === 'delete') await deleteDraft(id);
       if (cancelled) return;
+      // 2.6: Strapi reloaded the entry right after signing in again: put back what was typed while signed out.
+      if (
+        decision.action === 'offer' &&
+        typeof current.onRecover === 'function' &&
+        autoRestoreOnOpen({
+          conflict: Boolean(decision.conflict),
+          savedAt: record.savedAt,
+          session: sessionGuard.getState(),
+          now: Date.now(),
+          windowMs: RECOVERY_WINDOW_MS,
+        })
+      ) {
+        try {
+          await current.onRecover(recorded.data, { remounted: true });
+          recoveredRef.current = sessionGuard.getState().resumedAt;
+          ownRef.current = true;
+          lastWrittenRef.current = { data: recorded.data, key: recorded.key };
+          setDecided(id);
+          return;
+        } catch {
+          // fall back to the notice
+        }
+      }
       if (decision.action === 'offer') {
         let counts = null;
         if (decision.conflict) {
@@ -188,8 +228,12 @@ export const useDraftBuffer = ({
         sessionEnded: current.sessionEnded,
       });
       // Right after signing in again the form may be reset to the saved value: keep the buffer for the recovery.
+      // Until the recovery decided (restored, or nothing to do), not afterwards: a Save right after must clean up.
       const recovering = Boolean(
-        current.resumedAt && Date.now() - current.resumedAt <= RECOVERY_WINDOW_MS && lastWrittenRef.current
+        current.resumedAt &&
+        recoveredRef.current !== current.resumedAt &&
+        Date.now() - current.resumedAt <= RECOVERY_WINDOW_MS &&
+        lastWrittenRef.current
       );
       if (action === 'write' && shown.data) {
         const record = buildDraftRecord({

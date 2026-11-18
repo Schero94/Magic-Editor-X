@@ -233,6 +233,14 @@
               </p>
             </article>
             <article class="card">
+              <h3>Signed out? Your text stays</h3>
+              <p>
+                When the admin session ends while you write, one calm banner says so and offers Sign in again in a
+                new tab. Typed text is kept on this device, live editing pauses, and after signing in the text is
+                back in the editor so Save works (2.6).
+              </p>
+            </article>
+            <article class="card">
               <h3>AI assistant</h3>
               <p>
                 Improve, correct, shorten, expand, summarize, simplify, translate or change the tone of selected
@@ -320,6 +328,16 @@
                 loading="lazy"
               />
               <figcaption>Unsaved changes (2.5)</figcaption>
+            </figure>
+            <figure class="shot">
+              <img
+                src="./img/session-after-1440.png"
+                alt="Banner at the bottom of an entry: You were signed out. Your changes are kept on this device. Sign in again to save. With the button Sign in again"
+                width="742"
+                height="464"
+                loading="lazy"
+              />
+              <figcaption>Signed out while editing (2.6)</figcaption>
             </figure>
             <figure class="shot">
               <img
@@ -1082,7 +1100,7 @@
             <li>Suggestions are cleaned and checked against the field's rules; accepting needs update access and each suggestion is decided once.</li>
             <li>The audit trail keeps ids and counts, never content, e-mail or IP addresses.</li>
             <li>Strapi AI translations receive only the text of a field; the publishing guard also covers direct published writes and Releases readiness.</li>
-            <li>The entry panel shows names only and only to admins who can read the entry; inserting from another entry needs read access to the source; local drafts stay in the admin's browser and are removed at logout; private files are never stored signed.</li>
+            <li>The entry panel shows names only and only to admins who can read the entry; inserting from another entry needs read access to the source; local drafts stay in the admin's browser and are removed at logout (an ended session keeps them until you sign in again); private files are never stored signed.</li>
             <li>Reviews: <a href="https://github.com/Schero94/Magic-Editor-X/blob/main/docs/security-audit-2.5.md">security-audit-2.5.md</a>, <a href="https://github.com/Schero94/Magic-Editor-X/blob/main/docs/security-audit-2.4.md">security-audit-2.4.md</a> and <a href="https://github.com/Schero94/Magic-Editor-X/blob/main/docs/security-audit-2.3.md">security-audit-2.3.md</a>.</li>
           </ul>
         </section>

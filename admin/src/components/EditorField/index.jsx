@@ -416,6 +416,8 @@ const EditorFieldBody = ({
   const collabRef = useRef(null);
   const pendingLocalRef = useRef(false);
   const syncedOnceRef = useRef(false);
+  // 2.6: the editor shows the room (after its first render), so a found buffer is compared with the room.
+  const [roomRendered, setRoomRendered] = useState(false);
   // What the editor shows as far as live collaboration knows: the content it was created with
   // (in the editor's own serialisation once available), then the last room state it rendered.
   // A new collaboration client diffs edits made before its first render against this.
@@ -845,6 +847,7 @@ const EditorFieldBody = ({
       const shown = await editor.save().catch(() => null);
       client.markShown(catchUp, shown || shared);
       viewRef.current = shown || shared;
+      if (first) setRoomRendered(true);
     },
     getInitialView: () => viewRef.current,
   });
@@ -1562,6 +1565,7 @@ const EditorFieldBody = ({
     value,
     savedValue,
     shownData: currentData,
+    roomRendered,
     ready,
     readOnly,
     collaboration: {
@@ -1570,7 +1574,32 @@ const EditorFieldBody = ({
       pending: collaboration.pending,
     },
     // 2.6: signed in again and the form was reset from the server: the typed text comes back (the banner says so).
-    onRecover: replaceContent,
+    // Without a live room the buffer replaces what the reset form shows. In a live room nothing is
+    // replaced (others may have edited meanwhile): a field that stayed mounted still shows the text
+    // (the paused client kept and sends it), so only the form gets it back; a remounted field merges
+    // the buffered edit (room at the pause -> buffer) onto the room, or throws (the notice is shown).
+    onRecover: async (data, { remounted = false } = {}) => {
+      if (!collabRef.current) {
+        await replaceContent(data);
+        return;
+      }
+      const until = Date.now() + 10000;
+      while (collabRef.current && !syncedOnceRef.current && Date.now() < until) {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+      const client = collabRef.current;
+      const editor = editorRef.current;
+      if (!client || !editor) throw new Error('not ready');
+      if (remounted) {
+        const base = collaboration.takePausedBase();
+        if (!base) throw new Error('no base');
+        client.mergeLocal(base, data);
+        return;
+      }
+      const shown = await editor.save();
+      lastEmittedRawRef.current = null;
+      emit(shown);
+    },
     onRestore: async (data) => {
       await replaceContent(data);
       toggleNotification({

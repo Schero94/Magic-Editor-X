@@ -389,3 +389,79 @@ test('the sign-in tab closes itself after signing in; other tabs never do', asyn
   assert.equal(signIn.name, '', 'a later login in the same tab does not close it again');
   assert.equal(other.closed, 0);
 });
+
+test('opening a field right after signing in again restores a buffer written while signed out, nothing else', async () => {
+  const { autoRestoreOnOpen } = await import('../admin/src/editor/session-guard.mjs');
+  const session = { status: 'active', endedAt: 1000, resumedAt: 5000 };
+  const base = { conflict: false, savedAt: 2000, session, now: 6000 };
+  assert.equal(autoRestoreOnOpen(base), true);
+  assert.equal(autoRestoreOnOpen({ ...base, conflict: true }), false, 'saved content changed: ask');
+  assert.equal(autoRestoreOnOpen({ ...base, savedAt: 900 }), false, 'older buffer: ask');
+  assert.equal(autoRestoreOnOpen({ ...base, now: 5000 + 16000 }), false, 'too late: ask');
+  assert.equal(autoRestoreOnOpen({ ...base, session: { ...session, status: 'ended' } }), false);
+  assert.equal(
+    autoRestoreOnOpen({ ...base, session: { status: 'active', endedAt: null, resumedAt: null } }),
+    false,
+    'no session end on this page'
+  );
+});
+
+test('a request sent after the end that succeeds resumes the session; one sent before does not', () => {
+  let t = 1000;
+  const guard = createSessionGuard({ now: () => t });
+  guard.end('request');
+  assert.equal(guard.reportSuccess(900), false, 'answer of a request sent before the end');
+  assert.equal(guard.isEnded(), true);
+  assert.equal(guard.reportSuccess(1000), false, 'same instant');
+  t = 3000;
+  assert.equal(guard.reportSuccess(2000), true);
+  assert.equal(guard.isActive(), true);
+  assert.equal(guard.reportSuccess(2500), false, 'already active');
+});
+
+test('collaboration: text typed while signed out is merged onto the room, edits of others made meanwhile stay', async () => {
+  const room = fakeRoom([p('a', 'one'), p('b', 'two')]);
+  const make = () => {
+    const client = createCollabClient({
+      url: 'http://127.0.0.1:1',
+      requestSession: async () => ({ token: 't', path: '/x', canEdit: true }),
+      onRemoteData: () => {
+        const { data, catchUp } = client.snapshot();
+        client.markShown(catchUp, JSON.parse(JSON.stringify(data)));
+      },
+      onState: () => {},
+      socketFactory: room.factory,
+      win: null,
+    });
+    return client;
+  };
+  const first = make();
+  await flush();
+  first.pause();
+  const base = first.pausedBase();
+  assert.deepEqual(
+    base.blocks.map((block) => block.data.text),
+    ['one', 'two']
+  );
+  // Typed while signed out (kept in the draft buffer); the field is then remounted by Strapi.
+  const draft = { blocks: [p('a', 'one plus signed-out text'), p('b', 'two')] };
+  first.destroy();
+  // Another editor changes the second block meanwhile.
+  const other = new Y.Doc();
+  Y.applyUpdate(other, Y.encodeStateAsUpdate(room.doc));
+  const otherText = other.getMap('blocks').get('b');
+  assert.ok(otherText, 'block b exists');
+  const second = make();
+  await flush();
+  // Simulate the other editor's change arriving through the room.
+  const { applyLocalChanges } = await import('../shared/ydoc.mjs');
+  applyLocalChanges(room.doc, docToEditorData(room.doc), { blocks: [p('a', 'one'), p('b', 'two and B')] });
+  room.sockets.at(-1).sync();
+  await flush();
+  assert.equal(second.mergeLocal(base, draft), true);
+  await flush();
+  const texts = docToEditorData(room.doc).blocks.map((block) => block.data.text);
+  assert.deepEqual(texts, ['one plus signed-out text', 'two and B'], 'both edits, nothing duplicated');
+  assert.equal(second.mergeLocal(null, draft), false, 'no base: nothing merged');
+  second.destroy();
+});

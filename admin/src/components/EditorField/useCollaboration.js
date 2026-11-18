@@ -4,6 +4,16 @@ import { createCollabClient } from '../../editor/collab-client';
 import { sessionGuard } from '../../editor/session-guard.mjs';
 import { API } from '../../utils/api';
 
+/**
+ * 2.6: room content acknowledged when a field's client paused (signed out), by room key. Kept in
+ * memory only, so a field that Strapi remounts after signing in again can merge the buffered text
+ * onto the room instead of replacing it.
+ */
+const pausedBases = new Map();
+
+/** Delay between signing in again and reconnecting the room (2.6). */
+const RESUME_DELAY_MS = 1500;
+
 const INITIAL = {
   status: 'off',
   canEdit: false,
@@ -90,21 +100,30 @@ export const useCollaboration = ({
       onUndoState: (undo) => setState((previous) => ({ ...previous, ...undo })),
     });
     setClient(instance);
+    // Resume a moment later: Strapi reloads the edit view after signing in again, and a socket
+    // opened just before the field unmounts would only be closed while connecting.
+    let resumeTimer = null;
     const follow = (session) => {
-      if (session.status === 'active') instance.resume();
-      else instance.pause();
+      clearTimeout(resumeTimer);
+      if (session.status === 'active') resumeTimer = setTimeout(() => instance.resume(), RESUME_DELAY_MS);
+      else {
+        instance.pause();
+        const base = instance.pausedBase();
+        if (base) pausedBases.set(key, base);
+      }
     };
     if (!sessionGuard.isActive()) instance.pause();
     const unsubscribe = sessionGuard.subscribe(follow);
     return () => {
       unsubscribe();
+      clearTimeout(resumeTimer);
       instance.destroy();
       setClient(null);
       setState(INITIAL);
     };
   }, [key, post]);
 
-  if (!key) return { ...INITIAL, active: false, client: null };
+  if (!key) return { ...INITIAL, active: false, client: null, takePausedBase: () => null };
   return {
     active: !['off', 'denied', 'error'].includes(state.status),
     status: state.status === 'off' ? 'connecting' : state.status,
@@ -116,5 +135,11 @@ export const useCollaboration = ({
     canUndo: state.canUndo,
     canRedo: state.canRedo,
     client,
+    /** 2.6: the room content when this field's previous client paused, once (null when none). */
+    takePausedBase: () => {
+      const base = pausedBases.get(key) || null;
+      pausedBases.delete(key);
+      return base;
+    },
   };
 };
