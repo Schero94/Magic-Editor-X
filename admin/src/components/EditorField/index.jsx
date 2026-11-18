@@ -38,6 +38,7 @@ import { abbreviationAnnotation, annotationsFromSummaries } from '../../../../sh
 import { createCspGuard } from '../../editor/tools/csp-guard';
 import { prepareEditorValue, prepareRemoteData, sanitizeInline } from '../../editor/sanitize';
 import { applyToEditor, blockKey, rememberBlocks } from '../../editor/apply-remote';
+import { holdSelection } from '../../editor/selection-keeper.mjs';
 import {
   componentRoomView,
   markComponentsPushed,
@@ -1220,6 +1221,9 @@ const EditorFieldBody = ({
         shortcut: tool.shortcut,
         label: t(SHORTCUT_LABELS[name][0], SHORTCUT_LABELS[name][1]),
       }));
+    // 2.6: Editor.js clears the document selection while it starts; keep the caret of a field the
+    // user is typing in (a lazily started field must not move it, see editor/selection-keeper.mjs).
+    const selectionHold = holdSelection(holderRef.current);
     const editor = new EditorJS({
       holder: holderRef.current,
       data: (mediaSignerRef.current ? mediaSignerRef.current.signValue(initial) : initial) || undefined,
@@ -1233,6 +1237,7 @@ const EditorFieldBody = ({
       onChange: () => scheduleSave(),
 
       onReady: () => {
+        selectionHold.release();
         if (destroyed) return;
         // 2.5: everything save() returns carries the stored (unsigned) media URLs again.
         const signer = mediaSignerRef.current;
@@ -1333,6 +1338,7 @@ const EditorFieldBody = ({
       if (footnoteKeys) footnoteKeys.destroy();
       if (mentionTrigger) mentionTrigger.destroy();
       editorRef.current = null;
+      selectionHold.release();
       editor.isReady.then(() => editor.destroy()).catch(() => {});
     };
     // The editor is rebuilt only when its tools change; value updates are applied below.
