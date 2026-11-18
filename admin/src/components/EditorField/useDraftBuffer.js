@@ -118,7 +118,8 @@ export const useDraftBuffer = ({
   const timerRef = useRef(null);
   const flushRef = useRef(null);
   const latestRef = useRef({});
-  // 2.6: the last content this field buffered ({ data, key }), put back after signing in again.
+  // 2.6: the last content this field buffered ({ data, key, baseKey }), put back after signing in again;
+  // `baseKey` is the saved value it was based on (never restored over a newer save).
   const lastWrittenRef = useRef(null);
   const recoveredRef = useRef(null);
   const endedRef = useRef(false);
@@ -182,7 +183,7 @@ export const useDraftBuffer = ({
           await current.onRecover(recorded.data, { remounted: true });
           recoveredRef.current = sessionGuard.getState().resumedAt;
           ownRef.current = true;
-          lastWrittenRef.current = { data: recorded.data, key: recorded.key };
+          lastWrittenRef.current = { data: recorded.data, key: recorded.key, baseKey: saved.key };
           setDecided(id);
           return;
         } catch {
@@ -245,7 +246,7 @@ export const useDraftBuffer = ({
         });
         if (record && (await putDraft(record))) {
           ownRef.current = true;
-          lastWrittenRef.current = { data: shown.data, key: shown.key };
+          lastWrittenRef.current = { data: shown.data, key: shown.key, baseKey: saved.key };
         }
       } else if (action === 'delete' && ownRef.current && !recovering) {
         ownRef.current = false;
@@ -286,14 +287,26 @@ export const useDraftBuffer = ({
         valueKey,
         savedKey,
         draftKey: last ? last.key : null,
+        draftBaseKey: last ? last.baseKey : null,
       });
       if (action === 'wait') return;
       recoveredRef.current = resumedAt;
       if (action === 'restore') Promise.resolve(onRecover(last.data)).catch(() => {});
+      // 2.6 review: someone saved meanwhile: ask (Restore/Discard with the changes) instead of replacing.
+      if (action === 'offer') {
+        const counts = (() => {
+          try {
+            return summarizeDiff(diffDocuments(fingerprint(savedValue).data || { blocks: [] }, last.data));
+          } catch {
+            return null;
+          }
+        })();
+        setNotice({ savedAt: Date.now(), foundAt: Date.now(), conflict: true, counts, data: last.data });
+      }
     };
     check();
     return undefined;
-  }, [id, ready, readOnly, resumedAt, valueKey, savedKey, onRecover]);
+  }, [id, ready, readOnly, resumedAt, valueKey, savedKey, savedValue, onRecover]);
 
   // Closing or hiding the tab writes a pending change right away.
   useEffect(() => {

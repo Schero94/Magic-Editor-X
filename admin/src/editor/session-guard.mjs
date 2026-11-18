@@ -287,15 +287,26 @@ export const adminBasePath = (pathname) => {
  * Restore rule after signing in again (2.6): within `windowMs` after the
  * session resumed, Strapi resets the edit form from the server (its admin API
  * cache is cleared when another tab signs in), so a field whose form value is
- * back to the saved value while its buffer differs gets the buffer back.
- * @param {{ sinceResumeMs: number|null, windowMs?: number, valueKey: string, savedKey: string, draftKey: string|null }} input - Fingerprints.
- * @returns {'restore'|'wait'|'done'} `restore` now, `wait` (keep watching), `done` (nothing to do any more).
+ * back to the saved value while its buffer differs gets the buffer back, but
+ * only when the saved value is still the one the buffer was based on
+ * (`draftBaseKey`). If someone else saved meanwhile, or the base is unknown,
+ * the answer is `offer`: the Restore/Discard notice with the conflict, never a
+ * silent replacement of their content.
+ * @param {{ sinceResumeMs: number|null, windowMs?: number, valueKey: string, savedKey: string, draftKey: string|null, draftBaseKey?: string|null }} input - Fingerprints.
+ * @returns {'restore'|'offer'|'wait'|'done'} `restore` now, `offer` the notice, `wait` (keep watching), `done` (nothing to do any more).
  */
-export const recoveryAction = ({ sinceResumeMs, windowMs = 15000, valueKey, savedKey, draftKey }) => {
+export const recoveryAction = ({
+  sinceResumeMs,
+  windowMs = 15000,
+  valueKey,
+  savedKey,
+  draftKey,
+  draftBaseKey,
+}) => {
   if (sinceResumeMs === null || sinceResumeMs === undefined || sinceResumeMs > windowMs) return 'done';
   if (!draftKey || draftKey === savedKey) return 'done';
   if (valueKey === draftKey) return 'wait';
-  if (valueKey === savedKey) return 'restore';
+  if (valueKey === savedKey) return draftBaseKey && draftBaseKey === savedKey ? 'restore' : 'offer';
   return 'done';
 };
 

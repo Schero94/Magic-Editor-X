@@ -152,7 +152,7 @@ test('drafts: while signed out a changed field is always buffered, even in a liv
 });
 
 test('recovery after signing in again: a form reset to the saved value gets the buffer back once', () => {
-  const base = { valueKey: 'saved', savedKey: 'saved', draftKey: 'typed' };
+  const base = { valueKey: 'saved', savedKey: 'saved', draftKey: 'typed', draftBaseKey: 'saved' };
   assert.equal(recoveryAction({ ...base, sinceResumeMs: 300 }), 'restore');
   assert.equal(
     recoveryAction({ ...base, sinceResumeMs: 300, valueKey: 'typed' }),
@@ -168,6 +168,19 @@ test('recovery after signing in again: a form reset to the saved value gets the 
   assert.equal(recoveryAction({ ...base, sinceResumeMs: null }), 'done');
   assert.equal(recoveryAction({ ...base, sinceResumeMs: 300, draftKey: null }), 'done');
   assert.equal(recoveryAction({ ...base, sinceResumeMs: 300, draftKey: 'saved' }), 'done');
+});
+
+test('2.6 review: after signing in again a buffer is never put over content someone else saved meanwhile', () => {
+  // A typed on top of 'v1' while signed out; B saved 'v2'; the reloaded form shows 'v2'.
+  const input = { sinceResumeMs: 300, valueKey: 'v2', savedKey: 'v2', draftKey: 'typed', draftBaseKey: 'v1' };
+  assert.equal(recoveryAction(input), 'offer', 'Restore/Discard notice with the conflict instead');
+  // Unknown base (older buffer): ask instead of replacing.
+  assert.equal(
+    recoveryAction({ ...input, draftBaseKey: undefined, savedKey: 'v1', valueKey: 'v1' }),
+    'offer'
+  );
+  // Same base: restored as before.
+  assert.equal(recoveryAction({ ...input, draftBaseKey: 'v2' }), 'restore');
 });
 
 test('the Redux middleware passes every action on and never throws', () => {
