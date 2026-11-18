@@ -820,7 +820,8 @@ module.exports = ({ strapi }) => {
           // 2.6: a socket of an admin session that ended (logout, revoked, expired) is closed.
           const sid = socket.data.sid;
           if (sid) {
-            if (!sessions.has(sid)) sessions.set(sid, await sessionActive(sid));
+            if (!sessions.has(sid))
+              sessions.set(sid, await sessionActive(sid, (newest) => (socket.data.sid = newest)));
             socket.data.sessionCheckedAt = Date.now();
             if (sessions.get(sid) === false) {
               socket.emit('mx:error', { code: 'SESSION_ENDED' });
@@ -1019,7 +1020,7 @@ module.exports = ({ strapi }) => {
       // 2.6: edits of an admin session that ended are refused (checked at most every SESSION_CHECK_MS).
       if (socket.data.sid && Date.now() - socket.data.sessionCheckedAt >= SESSION_CHECK_MS) {
         socket.data.sessionCheckedAt = Date.now();
-        if ((await sessionActive(socket.data.sid)) === false) {
+        if ((await sessionActive(socket.data.sid, (newest) => (socket.data.sid = newest))) === false) {
           reply({ ok: false, code: 'SESSION_ENDED' });
           socket.emit('mx:error', { code: 'SESSION_ENDED' });
           socket.disconnect(true);

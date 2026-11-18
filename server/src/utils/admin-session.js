@@ -67,11 +67,18 @@ const sessionIdOf = (strapi, ctx) => {
 
 /**
  * Creates the session check: `true` (active), `false` (ended) or `null`
- * (unknown: no session manager, no id, or the check failed).
+ * (unknown: no session manager, no id, the check failed, the chain was longer
+ * than `MAX_CHAIN` or ended in a rotated row without a child).
+ *
+ * `isSessionActive` is only asked about a row whose status is `active`: in
+ * Strapi 5.62 it deletes an expired row and answers false, and rotated
+ * parents expire one idle lifespan after their rotation, so asking about one
+ * would end a healthy family (and delete its row).
  * @param {import('@strapi/strapi').Core.Strapi} strapi - Strapi.
- * @returns {(sessionId: unknown) => Promise<boolean|null>} Check.
+ * @returns {(sessionId: unknown, onLeaf?: (newest: string) => void) => Promise<boolean|null>} Check; `onLeaf`
+ *   receives the newest session id of the family (callers start there next time).
  */
-const createSessionCheck = (strapi) => async (sessionId) => {
+const createSessionCheck = (strapi) => async (sessionId, onLeaf) => {
   const id = cleanSessionId(sessionId);
   const manager = strapi && strapi.sessionManager;
   if (!id || typeof manager !== 'function') return null;
@@ -83,14 +90,19 @@ const createSessionCheck = (strapi) => async (sessionId) => {
         select: ['sessionId', 'childId', 'status'],
       });
       if (!row) return false;
-      if (row.status === 'rotated' && cleanSessionId(row.childId)) {
+      if (row.status === 'rotated') {
+        if (!cleanSessionId(row.childId)) return null;
         current = row.childId;
         continue;
       }
-      if (row.status && row.status !== 'active') return false;
-      break;
+      // Rows of hosts without a status column count as active rows.
+      if (row.status !== undefined && row.status !== null && row.status !== 'active') return null;
+      if (typeof onLeaf === 'function' && current !== id) onLeaf(current);
+      return (await manager('admin').isSessionActive(current)) === true;
     }
-    return (await manager('admin').isSessionActive(current)) === true;
+    // Longer than MAX_CHAIN: unknown (the socket stays; the newest id found so far is the next start).
+    if (typeof onLeaf === 'function' && current !== id) onLeaf(current);
+    return null;
   } catch {
     return null;
   }

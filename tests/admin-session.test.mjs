@@ -90,3 +90,66 @@ test('session id of a request: from ctx.state.session (5.62) or the access token
   assert.equal(sessionIdOf(strapi, { state: { session: { id: '<script>' } } }), null);
   assert.equal(sessionIdOf(fakeStrapi([], { noManager: true }).strapi, { state: {} }), null);
 });
+
+test('2.6 review: a long rotation chain never ends a healthy session (35 rotations, 5.62 isSessionActive semantics)', async () => {
+  // Strapi 5.62: isSessionActive deletes an expired row and answers false. Rotated parents expire
+  // one idle lifespan after their rotation, so most of a long family is expired but harmless.
+  const rows = new Map();
+  const ids = Array.from({ length: 36 }, (_, i) => `s${String(i).padStart(15, '0')}`);
+  ids.forEach((sessionId, i) =>
+    rows.set(sessionId, {
+      sessionId,
+      status: i < 35 ? 'rotated' : 'active',
+      childId: i < 35 ? ids[i + 1] : null,
+      expired: i < 35,
+    })
+  );
+  const strapi = {
+    db: { query: () => ({ findOne: async ({ where }) => rows.get(where.sessionId) || null }) },
+    sessionManager: () => ({
+      isSessionActive: async (id) => {
+        const row = rows.get(id);
+        if (!row) return false;
+        if (row.expired) {
+          rows.delete(id);
+          return false;
+        }
+        return true;
+      },
+    }),
+  };
+  const check = createSessionCheck(strapi);
+  const first = await check(ids[0]);
+  assert.notEqual(first, false, 'never ended because the chain is long');
+  assert.equal(rows.size, 36, 'no row deleted by the check');
+  // The newest session found is reported, so the next check starts there.
+  const leafCheck = await check(ids[35]);
+  assert.equal(leafCheck, true);
+  // A dead end (rotated without a child) is unknown, not ended.
+  rows.set('deadend000000000', {
+    sessionId: 'deadend000000000',
+    status: 'rotated',
+    childId: null,
+    expired: true,
+  });
+  assert.equal(await check('deadend000000000'), null);
+  assert.equal(rows.has('deadend000000000'), true);
+});
+
+test('2.6 review: the check reports the newest session of the family (sockets start from it next time)', async () => {
+  const rows = [
+    { sessionId: 'aaaaaaaaaaaaaaaa', status: 'rotated', childId: 'bbbbbbbbbbbbbbbb' },
+    { sessionId: 'bbbbbbbbbbbbbbbb', status: 'active' },
+  ];
+  let leaf = null;
+  const strapi = {
+    db: {
+      query: () => ({
+        findOne: async ({ where }) => rows.find((r) => r.sessionId === where.sessionId) || null,
+      }),
+    },
+    sessionManager: () => ({ isSessionActive: async () => true }),
+  };
+  assert.equal(await createSessionCheck(strapi)('aaaaaaaaaaaaaaaa', (id) => (leaf = id)), true);
+  assert.equal(leaf, 'bbbbbbbbbbbbbbbb');
+});
