@@ -2083,6 +2083,9 @@ const EditorFieldBody = ({
     handledLocateRef.current = locateRequest;
     const editor = editorRef.current;
     const block = locateRequest.blockId && editor ? editor.blocks.getById(locateRequest.blockId) : null;
+    // After a click in the preview iframe the frame keeps the focus: give it back to the admin page first.
+    const active = document.activeElement;
+    if (active && active.tagName === 'IFRAME' && typeof active.blur === 'function') active.blur();
     if (block) {
       selectBlock(locateRequest.blockId);
       return;

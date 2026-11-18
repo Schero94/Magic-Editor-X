@@ -369,3 +369,32 @@ test('requestLocate posts the message to the admin origin and resolves on the an
     delete globalThis.window;
   }
 });
+
+test('Live Preview guide: the documented attribute shape is what the renderer writes', () => {
+  const guide = readFileSync(new URL('../docs/guides/live-preview.md', import.meta.url), 'utf8');
+  const html = renderHtml(
+    { blocks: [{ id: 'intro01', type: 'header', data: { text: 'T', level: 2 } }] },
+    { blockIds: { field: 'body', strapiSource: { ...SOURCE, documentId: 'x1' } } }
+  );
+  assert.match(
+    html,
+    /^<h2 class="mex-header" data-mex-block-id="intro01" data-mex-field-path="body" data-strapi-source="documentId=x1&amp;type=json&amp;model=api%3A%3Aarticle.article&amp;kind=collectionType&amp;locale=en&amp;fieldPath=body">/
+  );
+  assert.ok(
+    guide.includes(
+      'data-strapi-source="documentId=…&type=json&model=api%3A%3Aarticle.article&kind=collectionType&locale=en&fieldPath=body"'
+    )
+  );
+  for (const name of [
+    'mexBlockIds',
+    'strapi-encode-source-maps',
+    'magic-editor-x:locate',
+    'magic-editor-x:located',
+    'mexField',
+  ])
+    assert.ok(
+      guide.includes(name) ||
+        readFileSync(new URL('../docs/live-preview.md', import.meta.url), 'utf8').includes(name),
+      name
+    );
+});
