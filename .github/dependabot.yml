@@ -45,7 +45,7 @@ updates:
       # Stay on 2.7.x until the plugin drops Node 22 (see CHANGELOG 2.5.0).
       - dependency-name: '@editorjs/embed'
         versions: ['>=2.8.0']
-      # Keep the Design System on the minor the Strapi admin ships (2.3.x since Strapi 5.62).
+      # Keep the Design System on the minor the Strapi admin ships (2.3.x in Strapi 5.62 and 5.63).
       - dependency-name: '@strapi/design-system'
         update-types: ['version-update:semver-major', 'version-update:semver-minor']
       - dependency-name: '@strapi/icons'
