@@ -210,6 +210,14 @@ const fragmentHtml = (fragment) => {
 /** Removes a trailing `<br>` that browsers leave in an emptied contenteditable. */
 const trimHtml = (html) => (/^(?:\s|<br\s*\/?>)*$/i.test(html) ? '' : html);
 
+/**
+ * The rendered tool of each columns block by block id (2.6.1). A collaborator's change re-creates
+ * the block (`blocks.update` in `apply-remote.js`), but a block menu that was open keeps the old
+ * instance in its callbacks; its choices (number of columns, spacing, alignment) are handed to the
+ * instance the editor shows now, so they are not silently lost while someone types in the block.
+ */
+const liveTools = new Map();
+
 export class ColumnsTool {
   /** Two toolbox entries: the column count is the first choice (one click), equal widths by default. */
   static get toolbox() {
@@ -272,7 +280,23 @@ export class ColumnsTool {
     this.wrapper.appendChild(this.status);
     this.renderGrid();
     if (!this.readOnly) this.bindEvents();
+    if (this.block && typeof this.block.id === 'string') liveTools.set(this.block.id, this);
     return this.wrapper;
+  }
+
+  /**
+   * The instance of this block the editor shows now: itself, or the instance that replaced it
+   * after a collaborator's change (see `liveTools`).
+   * @returns {ColumnsTool} Tool instance.
+   */
+  current() {
+    const other = this.block && typeof this.block.id === 'string' ? liveTools.get(this.block.id) : null;
+    return other && other !== this && other.wrapper && other.wrapper.isConnected ? other : this;
+  }
+
+  /** Editor.js hook: the block is removed or replaced. */
+  destroy() {
+    if (this.block && liveTools.get(this.block.id) === this) liveTools.delete(this.block.id);
   }
 
   renderGrid() {
@@ -972,7 +996,7 @@ export class ColumnsTool {
       title: this.t('tools.columns.count', '{count, plural, one {# column} other {# columns}}', { count }),
       isActive: this.model.columns.length === count,
       closeOnActivate: true,
-      onActivate: () => this.setCount(count),
+      onActivate: () => this.current().setCount(count),
     }));
     const gaps = [
       { value: 'small', key: 'tools.columns.gap.small', text: 'Narrow' },
@@ -982,7 +1006,7 @@ export class ColumnsTool {
       title: this.t(key, text),
       isActive: this.model.gap === value,
       closeOnActivate: true,
-      onActivate: () => this.setOption('gap', value),
+      onActivate: () => this.current().setOption('gap', value),
     }));
     const aligns = [
       { value: 'top', key: 'tools.columns.valign.top', text: 'Top' },
@@ -992,7 +1016,7 @@ export class ColumnsTool {
       title: this.t(key, text),
       isActive: this.model.valign === value,
       closeOnActivate: true,
-      onActivate: () => this.setOption('valign', value),
+      onActivate: () => this.current().setOption('valign', value),
     }));
     return [
       {
