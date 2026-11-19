@@ -111,4 +111,20 @@ Before you commit: `npm run lint`, `npm run format:check`, `npm test`, `npm run 
 
 Merges to `main` run `.github/workflows/release.yml`: the full quality gate, then semantic-release. It decides the version from the commits, folds `## [Unreleased]` into the release notes, updates CHANGELOG.md, tags `v<version>`, creates the GitHub release and publishes `magic-editor-x` to npm with provenance. npm trusted publishing (OIDC) is used when it is configured on npmjs.com; otherwise the `NPM_TOKEN` secret is the fallback. When staged publishing is enabled for the package, the owner approves the staged version on npmjs.com before it becomes public.
 
-Dependabot proposes updates after a cooldown (7 days, 14 for majors). Patch and minor updates are merged automatically when every check passes; majors wait for review.
+## Dependency updates and the auto-merge gate
+
+Dependabot proposes updates weekly, after a cooldown (7 days, 14 for majors). `.github/workflows/dependency-auto-merge.yml` handles its pull requests with the rules in `.github/scripts/dependency-gate.mjs`. The script is the same in every Magic plugin repository; its unit tests run with `node --test .github/scripts/dependency-gate.test.mjs` and in CI.
+
+- **Merged automatically** (squash merge by `github-actions`): an explicit patch or minor update, after the repository's own checks pass, the gate finds nothing below, and every other check on the PR head commit has finished green: every CI job and matrix entry (for example Node versions, peer floor, React 19 StrictMode) and CodeQL where present. The merge is bound to that exact commit (`--match-head-commit`).
+- **Held for review** (label `needs-review` plus a comment with the reasons, never merged automatically) when:
+  - a changed package's `engines.node` no longer covers a Node version this plugin supports, or its `peerDependencies` no longer match the installed tree or this plugin's peer floor;
+  - the PR body or release notes mention a breaking change;
+  - the published surface changes: the `npm pack` file list (content hashes ignored), `exports`, `peerDependencies`, `engines`, or the exports of the built entry files;
+  - a runtime dependency on 0.x gets a minor bump;
+  - dependency review reports a vulnerability of moderate or higher, or a license outside the allowlist (MIT, MIT-0, ISC, BSD, Apache-2.0, 0BSD, BlueOak-1.0.0, CC0-1.0, Unlicense, Python-2.0, Zlib; MPL-2.0 and CC-BY for development dependencies only);
+  - `npm audit signatures` reports a missing or invalid registry signature or provenance attestation;
+  - the lockfile adds a package with an install script, more than 15 packages that are new to the tree, or a package that does not resolve from `registry.npmjs.org`;
+  - a check fails, or the CI does not finish within 75 minutes.
+- **Major updates** get the `major-update` label and a comment; a person reads the changelog and merges by hand.
+
+The gate script runs from the default branch and reads lockfiles and reports as data; it never runs code from the pull request. Only the surface job installs (without lifecycle scripts) and builds the pull request, with a read-only token. Merges made with `GITHUB_TOKEN` do not start `release.yml`, so a dependency update ships with the next regular release.
