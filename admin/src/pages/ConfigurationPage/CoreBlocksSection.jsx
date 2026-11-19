@@ -1,4 +1,5 @@
-import { Badge, Box, Flex, Link, Typography } from '@strapi/design-system';
+import { Badge, Box, Flex, LinkButton, Typography } from '@strapi/design-system';
+import { ExternalLink } from '@strapi/icons';
 import { useT, SectionCard } from '../../components/ui';
 import { SwitchRow } from './AiSection';
 import { coreBlockCoverage } from '../../editor/core-blocks-logic.mjs';
@@ -76,10 +77,11 @@ const TypeList = ({ label, types, emptyText }) => (
     {types.length ? (
       <Flex gap={2} wrap="wrap" tag="ul" aria-label={label}>
         {types.map((type) => (
-          <Box tag="li" key={type}>
-            <Badge backgroundColor="neutral150" textColor="neutral800">
+          <Box tag="li" key={type} background="neutral150" hasRadius paddingLeft={2} paddingRight={2}>
+            {/* Type names are case-sensitive identifiers, so no uppercase badge. */}
+            <Typography variant="pi" tag="code" textColor="neutral800">
               {type}
-            </Badge>
+            </Typography>
           </Box>
         ))}
       </Flex>
@@ -160,13 +162,13 @@ export const CoreBlocksSection = ({ form, readOnly }) => {
             </Typography>
           </Box>
         ) : null}
-        <Flex gap={4} wrap="wrap" minWidth={0}>
-          <Link href={GUIDE_URL} isExternal>
+        <Flex gap={2} wrap="wrap" minWidth={0}>
+          <LinkButton href={GUIDE_URL} isExternal variant="tertiary" endIcon={<ExternalLink aria-hidden />}>
             {t('settings.coreBlocks.guide', 'Developer guide: register a block type')}
-          </Link>
-          <Link href={RFC_URL} isExternal>
+          </LinkButton>
+          <LinkButton href={RFC_URL} isExternal variant="tertiary" endIcon={<ExternalLink aria-hidden />}>
             {t('settings.coreBlocks.rfc', 'Strapi proposal for built-in support')}
-          </Link>
+          </LinkButton>
         </Flex>
         <Typography variant="pi" textColor="neutral600" tag="p">
           {t(
