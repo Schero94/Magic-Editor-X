@@ -503,7 +503,7 @@ test('service: off by default leaves Strapi untouched; Settings switch turns it 
     assert.deepEqual(service.status().types, [{ type: 'callout', plugin: 'magic-editor-x' }]);
     assert.equal(logs.filter(([level]) => level === 'error').length, 0);
   } finally {
-    service.stop();
+    await service.stop();
   }
 });
 
@@ -514,8 +514,9 @@ test('service: config on, idle without registrations, a stored Settings value wi
   await service.start();
   assert.equal(service.status().state, 'idle');
   service.register({ type: 'callout', validator: calloutValidator });
+  await service.settled(); // probed against Strapi first
   assert.equal(service.status().state, 'active');
-  service.stop();
+  await service.stop();
   assert.equal(validator.validateEntityCreation, realValidator.validateEntityCreation);
 
   const second = serviceHost({ enabledConfig: true, stored: false, validator });
@@ -523,7 +524,7 @@ test('service: config on, idle without registrations, a stored Settings value wi
   await off.start();
   assert.equal(off.status().state, 'off');
   assert.equal(off.status().source, 'settings');
-  off.stop();
+  await off.stop();
 });
 
 test('service: a missing or changed hook point logs one error and changes nothing', async () => {
@@ -542,7 +543,7 @@ test('service: a missing or changed hook point logs one error and changes nothin
     assert.equal(logs.filter(([level]) => level === 'error').length, 1, JSON.stringify(logs));
     if (validator && !Object.isFrozen(validator))
       assert.equal(validator.validateEntityCreation[bridge.BRIDGE_MARK], undefined);
-    service.stop();
+    await service.stop();
   }
 });
 
@@ -575,5 +576,123 @@ test('service: native support turns the bridge off and hands registrations to St
   );
   assert.ok(received.every(({ schema }) => schema.__isYupSchema__));
   assert.equal(logs.filter(([level]) => level === 'info').length, 1);
-  service.stop();
+  await service.stop();
+});
+
+// ---- Review fixes (PR #22) ----
+
+test('review 1: stop() cancels a queued apply; nothing is installed after stop', async () => {
+  const validator = { ...realValidator };
+  const { host } = serviceHost({ enabledConfig: false, validator });
+  const service = coreBlocksService({ strapi: host });
+  service.register({ type: 'callout', validator: calloutValidator });
+  await service.start();
+  const pending = service.setEnabled(true); // queued, not yet run
+  await service.stop();
+  await pending;
+  assert.equal(
+    validator.validateEntityCreation,
+    realValidator.validateEntityCreation,
+    'no wrapper after stop'
+  );
+  assert.equal(validator.validateEntityUpdate, realValidator.validateEntityUpdate);
+  assert.equal(service.status().state, 'off');
+});
+
+test('review 2: switching on again re-runs the canary (fail closed until it passes)', async () => {
+  const validator = {
+    validateEntityCreation: async (m, d) => d, // accepts everything: canary must fail
+    validateEntityUpdate: async (m, d) => d,
+  };
+  const { host } = serviceHost({ enabledConfig: true, validator });
+  const service = coreBlocksService({ strapi: host });
+  service.register({ type: 'callout', validator: calloutValidator });
+  await service.start();
+  assert.equal(service.status().state, 'unavailable');
+  validator.validateEntityCreation = realValidator.validateEntityCreation;
+  validator.validateEntityUpdate = realValidator.validateEntityUpdate;
+  await service.setEnabled(false);
+  await service.setEnabled(true);
+  assert.equal(service.status().state, 'active');
+  await service.stop();
+  assert.equal(validator.validateEntityCreation, realValidator.validateEntityCreation);
+});
+
+test('review 3: a registered type that Strapi already validates natively is left to Strapi', async () => {
+  // A Strapi that knows `table` natively: table nodes are replaced by paragraphs before its validator.
+  const knowsTable = (fn) => async (model, data, options, entity) => {
+    const swap = (value) =>
+      Array.isArray(value)
+        ? value.map((node) => (node && node.type === 'table' ? P('native table') : node))
+        : value;
+    const copy = { ...data };
+    if (Array.isArray(copy.body)) copy.body = swap(copy.body);
+    if (Array.isArray(copy.mexCoreBlocksProbe)) copy.mexCoreBlocksProbe = swap(copy.mexCoreBlocksProbe);
+    await fn(model, copy, options, entity);
+    return data;
+  };
+  const validator = {
+    validateEntityCreation: knowsTable(realValidator.validateEntityCreation),
+    validateEntityUpdate: knowsTable(realValidator.validateEntityUpdate),
+  };
+  const { host, logs } = serviceHost({ enabledConfig: true, validator });
+  const service = coreBlocksService({ strapi: host });
+  service.register({ type: 'callout', validator: calloutValidator });
+  // The registered table schema would reject this node; Strapi's own (simulated) accepts it.
+  service.register({
+    type: 'table',
+    validator: ({ yup: y }) =>
+      y.object({ type: y.string().equals(['table']).required(), rows: y.number().required() }),
+  });
+  await service.start();
+  try {
+    const status = service.status();
+    assert.equal(status.state, 'active');
+    assert.deepEqual(status.claimedByStrapi, ['table']);
+    const result = await validator.validateEntityCreation(
+      ARTICLE,
+      { body: [{ type: 'table', children: [] }, CALLOUT('x')] },
+      {}
+    );
+    assert.equal(result.body[0].type, 'table', 'left to Strapi, not to the registered schema');
+    await assert.rejects(
+      validator.validateEntityCreation(ARTICLE, { body: [CALLOUT('x', { tone: 'loud' })] }, {})
+    );
+    assert.equal(logs.filter(([level, message]) => level === 'warn' && message.includes('table')).length, 1);
+  } finally {
+    await service.stop();
+  }
+});
+
+test('review 3: a type registered after the bridge started is probed before it is used', async () => {
+  const validator = { ...realValidator };
+  const { host } = serviceHost({ enabledConfig: true, validator });
+  const service = coreBlocksService({ strapi: host });
+  await service.start();
+  service.register({ type: 'callout', validator: calloutValidator });
+  await service.settled();
+  const result = await validator.validateEntityCreation(ARTICLE, { body: [CALLOUT('late')] }, {});
+  assert.equal(result.body[0].type, 'callout');
+  assert.deepEqual(service.status().claimedByStrapi, []);
+  await service.stop();
+});
+
+test('review 4: documented validators reject unknown keys with noUnknown and strict validation', async () => {
+  const strictCallout = ({ yup: y, inlineNodeValidator }) =>
+    y
+      .object({
+        type: y.string().equals(['callout']).required(),
+        tone: y.string().oneOf(['info', 'warning']).required(),
+        children: y.array().of(inlineNodeValidator).min(1).required(),
+      })
+      .noUnknown();
+  const registry = bridge.createRegistry(helpers);
+  registry.register({ type: 'callout', validator: strictCallout });
+  const target = wrapped(registry);
+  const error = await captureError(
+    target.validateEntityCreation(ARTICLE, { body: [CALLOUT('x', { onclick: 'alert(1)' })] }, {})
+  );
+  assert.deepEqual(error.details.errors[0].path, ['body', '0']);
+  const ok = await target.validateEntityCreation(ARTICLE, { body: [CALLOUT('x')] }, {});
+  assert.equal(ok.body[0].type, 'callout');
 });

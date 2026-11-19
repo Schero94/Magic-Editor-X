@@ -61,11 +61,13 @@ const writeApp = (enabled) => {
     strapi.plugin('magic-editor-x').service('core-blocks').register({
       type: 'callout',
       validator: ({ yup, inlineNodeValidator }) =>
-        yup.object().shape({
-          type: yup.string().equals(['callout']).required(),
-          tone: yup.string().oneOf(['info', 'warning']).required(),
-          children: yup.array().of(inlineNodeValidator).min(1).required(),
-        }),
+        yup
+          .object({
+            type: yup.string().equals(['callout']).required(),
+            tone: yup.string().oneOf(['info', 'warning']).required(),
+            children: yup.array().of(inlineNodeValidator).min(1).required(),
+          })
+          .noUnknown(),
     });
   },
   bootstrap() {},

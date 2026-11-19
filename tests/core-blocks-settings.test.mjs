@@ -152,3 +152,30 @@ test('CI runs the Core Blocks bridge tests on the peer floor and the newest 5.x'
   const scripts = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).scripts;
   assert.match(scripts['test:core-blocks'], /core-blocks-host/);
 });
+
+test('review 5: the settings audit records whether the Core Blocks bridge was switched on or off', async () => {
+  const settingsController = require('../server/src/controllers/settings.js');
+  const recorded = [];
+  const strapi = {
+    plugin: () => ({
+      service: (name) =>
+        name === 'audit'
+          ? { record: async (input) => recorded.push(input) }
+          : { update: async () => ({ ok: true }) },
+    }),
+  };
+  const controller = settingsController({ strapi });
+  for (const enabled of [true, false]) {
+    const ctx = { set() {}, request: { body: { ai: {}, coreBlocks: { enabled } } } };
+    await controller.update(ctx);
+  }
+  await controller.update({ set() {}, request: { body: { ai: {} } } });
+  assert.deepEqual(
+    recorded.map((entry) => entry.meta),
+    [
+      { keys: ['ai', 'coreBlocks'], coreBlocks: 'on' },
+      { keys: ['ai', 'coreBlocks'], coreBlocks: 'off' },
+      { keys: ['ai'] },
+    ]
+  );
+});

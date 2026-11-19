@@ -915,11 +915,13 @@ Strapi's own **Blocks** field (the core rich text field, not the Magic Editor X 
          .register({
            type: 'callout', // the node `type` the editor writes
            validator: ({ yup, inlineNodeValidator }) =>
-             yup.object().shape({
-               type: yup.string().equals(['callout']).required(),
-               tone: yup.string().oneOf(['info', 'warning']).required(),
-               children: yup.array().of(inlineNodeValidator).min(1).required(),
-             }),
+             yup
+               .object({
+                 type: yup.string().equals(['callout']).required(),
+                 tone: yup.string().oneOf(['info', 'warning']).required(),
+                 children: yup.array().of(inlineNodeValidator).min(1).required(),
+               })
+               .noUnknown(), // unknown keys are rejected (nodes are validated with strict: true)
          });
      },
    };
@@ -952,7 +954,7 @@ Strapi's own **Blocks** field (the core rich text field, not the Magic Editor X 
 
 ![The core Blocks editor with a paragraph and a custom callout block, saved and published](https://schero94.github.io/Magic-Editor-X/img/core-blocks-editor-1440.webp)
 
-**The validator** is a [Yup](https://github.com/jquense/yup/tree/v0.32.9) schema, the library Strapi validates Blocks with (`yup` 0.32 from `@strapi/utils`), or a function `(helpers) => schema` that runs once at registration. Helpers: `yup`, `textNodeValidator`, `linkNodeValidator`, `inlineNodeValidator` (text or link, as in a paragraph) and `checkValidLink`, the same rules Strapi uses for built-in blocks. Nodes are validated as sent (`strict: true`, nothing is cast) on a copy, so a schema can never change what is stored. `register()` throws `CoreBlockDefinitionError` with a `code`: `INVALID_DEFINITION`, `INVALID_TYPE` (lowercase letters and digits joined by single hyphens, up to 64 characters), `BUILTIN_TYPE` (`paragraph`, `heading`, `quote`, `list`, `list-item`, `image`, `code`, `text`, `link`), `TYPE_TAKEN`, `INVALID_VALIDATOR`, `TOO_MANY_TYPES` (100). `addCoreBlocks` throws `CoreBlockEditorError` for invalid definitions and returns `false` with one console error on Strapi before 5.46.
+**The validator** is a [Yup](https://github.com/jquense/yup/tree/v0.32.9) schema, the library Strapi validates Blocks with (`yup` 0.32 from `@strapi/utils`), or a function `(helpers) => schema` that runs once at registration. Helpers: `yup`, `textNodeValidator`, `linkNodeValidator`, `inlineNodeValidator` (text or link, as in a paragraph) and `checkValidLink`, the same rules Strapi uses for built-in blocks. Nodes are validated as sent (`strict: true`, nothing is cast) on a copy, so a schema can never change what is stored. **Validate every key your renderer reads and end object schemas with `.noUnknown()`**: a plain `yup.object()` lets unknown keys through, and they are stored. Check nested children with the helpers (`inlineNodeValidator` for text and links) instead of `yup.mixed()`. `register()` throws `CoreBlockDefinitionError` with a `code`: `INVALID_DEFINITION`, `INVALID_TYPE` (lowercase letters and digits joined by single hyphens, up to 64 characters), `BUILTIN_TYPE` (`paragraph`, `heading`, `quote`, `list`, `list-item`, `image`, `code`, `text`, `link`), `TYPE_TAKEN`, `INVALID_VALIDATOR`, `TOO_MANY_TYPES` (100). `addCoreBlocks` throws `CoreBlockEditorError` for invalid definitions and returns `false` with one console error on Strapi before 5.46.
 
 **What the bridge does and does not change:**
 
@@ -969,7 +971,7 @@ Strapi's own **Blocks** field (the core rich text field, not the Magic Editor X 
 - Limits per custom node: 32 levels of nesting, 10,000 values, 256 KB of text; 1000 custom nodes per write; no `__proto__`, `constructor` or `prototype` keys; only objects, arrays, strings, finite numbers, booleans and `null`.
 - PostgreSQL stores Blocks as `jsonb`, which orders object keys and drops whitespace for every node, built-in or custom; the content is the same, only the key order of the stored text differs (as without the bridge).
 - How it works: the bridge wraps Strapi's entity validator (`strapi.entityValidator.validateEntityCreation/validateEntityUpdate`, used by the Document Service for every write and publish). Registered nodes are checked with their schema and replaced by placeholder paragraphs for Strapi's own validation; afterwards the original nodes are put back. If Strapi's result no longer has the placeholder where the node was, the write is rejected so nothing is lost.
-- **Version gate:** at start (and when the switch is turned on) a canary checks that Strapi's validator still accepts a paragraph and rejects an unregistered probe type in the expected way. If the hook point is missing or changed, the bridge logs one error, stays out and custom blocks are rejected as before; it never crashes Strapi or weakens validation. CI runs the bridge tests on the peer floor (5.38.0) and the newest Strapi 5.x for every pull request.
+- **Version gate:** each time the bridge is switched on (at start when the switch is on, when it is saved as on in Settings, and when another process's change turns it on) a canary checks that Strapi's validator still accepts a paragraph and rejects an unregistered probe type with "Block node is of invalid type". If the hook point is missing or changed, the bridge logs one error, stays out and custom blocks are rejected as before; saving the switch as on again retries. It never crashes Strapi or weakens validation. Every registered type is also probed against Strapi's own validator before the bridge validates it: a type Strapi already knows (for example a block a later Strapi adds) is left to Strapi, logged once and listed in Settings. CI runs the bridge tests on the peer floor (5.38.0) and the newest Strapi 5.x for every pull request.
 - **When Strapi supports it:** if the running Strapi validates custom blocks itself (`strapi.customBlocks`, as proposed in the RFC), the bridge turns itself off, logs this once and hands the registered types to Strapi's registry. Settings then shows "Handled by Strapi".
 - Permissions: unchanged. The switch needs "Update settings" like the other settings; the bridge adds no route and no action.
 - Compatibility: the server part works from Strapi 5.38; the editor helper needs `addRichTextBlocks`, which Strapi added in 5.46.0.

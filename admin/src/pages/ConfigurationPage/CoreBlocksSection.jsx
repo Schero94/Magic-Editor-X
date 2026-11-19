@@ -151,6 +151,15 @@ export const CoreBlocksSection = ({ form, readOnly }) => {
           types={status.types.map((entry) => entry.type)}
           emptyText={t('settings.coreBlocks.types.empty', 'None yet. A developer registers them in code.')}
         />
+        {Array.isArray(status.claimedByStrapi) && status.claimedByStrapi.length ? (
+          <Typography variant="pi" textColor="neutral800" tag="p">
+            {t(
+              'settings.coreBlocks.claimed',
+              'Strapi already validates {types} itself, so the bridge leaves these block types to Strapi.',
+              { types: status.claimedByStrapi.join(', ') }
+            )}
+          </Typography>
+        ) : null}
         {coverage.editorOnly.length ? (
           <Box background="warning100" hasRadius padding={3} minWidth={0}>
             <Typography variant="pi" textColor="neutral800" tag="p">

@@ -563,5 +563,8 @@
   "settings.coreBlocks.editorOnly": "O editor oferece {types}, mas o servidor não tem regras para eles, então entradas com esses blocos são rejeitadas ao salvar. Registre-os no servidor.",
   "settings.coreBlocks.guide": "Guia do desenvolvedor: registrar um tipo de bloco",
   "settings.coreBlocks.rfc": "Proposta do Strapi para suporte integrado",
-  "settings.coreBlocks.native": "Quando o Strapi verificar os blocos personalizados por conta própria, a ponte se desativa e entrega os tipos de bloco registrados ao Strapi."
+  "settings.coreBlocks.native": "Quando o Strapi verificar os blocos personalizados por conta própria, a ponte se desativa e entrega os tipos de bloco registrados ao Strapi.",
+  "settings.audit.meta.coreBlocksOn": "Ponte Core Blocks ativada",
+  "settings.audit.meta.coreBlocksOff": "Ponte Core Blocks desativada",
+  "settings.coreBlocks.claimed": "O Strapi já verifica {types} por conta própria, então a ponte deixa esses tipos de bloco para o Strapi."
 }

@@ -13,6 +13,9 @@ Minor release (2.7.0): no breaking changes, no migration. The new feature is off
   - Limits per custom node (depth 32, 10,000 values, 256 KB of text, 1000 custom nodes per write), no prototype keys, plain JSON only.
   - A canary checks Strapi's validator at start; if Strapi changes the hook point, the bridge logs one error and stays out instead of weakening validation. **When Strapi validates custom blocks itself, the bridge turns itself off automatically** and hands the registered types to Strapi.
   - Settings shows the status, the registered block types and block types the editor offers without server rules.
+  - Each registered type is probed against Strapi's own validator first: a type Strapi already validates itself (for example a block a later Strapi adds) is left to Strapi, logged once and listed in Settings.
+  - The canary runs each time the bridge is switched on, so saving the switch as on retries after a Strapi fix. Shutting Strapi down cancels pending state changes, so no other Strapi instance in the same process inherits the bridge.
+  - The audit trail records when the bridge is switched on or off.
 - CI job `core-blocks`: the bridge tests run on Strapi's real entity validator and a Strapi boot (Document Service create, update, publish) on the peer floor (5.38.0) and the newest Strapi 5.x for every pull request.
 
 ### Changed
@@ -21,6 +24,7 @@ Minor release (2.7.0): no breaking changes, no migration. The new feature is off
 
 ### Security
 
+- Validator examples end with `.noUnknown()`; hosts should validate every key their renderer reads.
 - New review: [docs/security-audit-2.7.md](https://github.com/Schero94/Magic-Editor-X/blob/main/docs/security-audit-2.7.md).
 
 ## [2.6.2](https://github.com/Schero94/Magic-Editor-X/compare/v2.6.1...v2.6.2) (2026-11-19)

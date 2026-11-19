@@ -563,5 +563,8 @@
   "settings.coreBlocks.editorOnly": "The editor offers {types}, but the server has no rules for them, so entries with these blocks are rejected when saved. Register them on the server.",
   "settings.coreBlocks.guide": "Developer guide: register a block type",
   "settings.coreBlocks.rfc": "Strapi proposal for built-in support",
-  "settings.coreBlocks.native": "When Strapi checks custom blocks itself, the bridge turns itself off and hands the registered block types to Strapi."
+  "settings.coreBlocks.native": "When Strapi checks custom blocks itself, the bridge turns itself off and hands the registered block types to Strapi.",
+  "settings.audit.meta.coreBlocksOn": "Core Blocks bridge switched on",
+  "settings.audit.meta.coreBlocksOff": "Core Blocks bridge switched off",
+  "settings.coreBlocks.claimed": "Strapi already validates {types} itself, so the bridge leaves these block types to Strapi."
 }

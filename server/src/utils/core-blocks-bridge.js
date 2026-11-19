@@ -611,27 +611,62 @@ const detectNativeSupport = (strapi) => {
   return { native: false };
 };
 
+/** In-memory model with one blocks field, on an existing uid so Strapi's relation check finds a model. */
+const probeModel = (uid) => ({
+  uid,
+  modelType: 'contentType',
+  kind: 'collectionType',
+  info: { displayName: 'Magic Editor X probe', singularName: 'mex-probe', pluralName: 'mex-probes' },
+  options: {},
+  attributes: { mexCoreBlocksProbe: { type: 'blocks' } },
+});
+
+const INVALID_TYPE_MESSAGE = 'Block node is of invalid type';
+
+/**
+ * Asks Strapi's original validator whether it knows a node type: true only when it rejects a node
+ * of that type with "Block node is of invalid type" at the node's own path, as it does for every
+ * type it has no validator for. Anything else (accepted, or rejected for another reason) means
+ * Strapi validates the type itself. Writes nothing.
+ * @param {object} params - Inputs.
+ * @param {Function} params.original - Strapi's `validateEntityCreation` (unwrapped).
+ * @param {string} params.uid - An existing model uid.
+ * @param {string} params.type - Node type to probe.
+ * @returns {Promise<boolean>} True when Strapi does not know the type.
+ */
+const isUnknownToStrapi = async ({ original, uid, type }) => {
+  try {
+    await original(
+      probeModel(uid),
+      { mexCoreBlocksProbe: [{ type, children: [{ type: 'text', text: 'probe' }] }] },
+      { isDraft: true }
+    );
+    return false;
+  } catch (error) {
+    if (!isStrapiValidationError(error)) return false;
+    const list = error.details && Array.isArray(error.details.errors) ? error.details.errors : [];
+    const atNode = list.filter(
+      (item) =>
+        Array.isArray(item.path) && item.path[0] === 'mexCoreBlocksProbe' && String(item.path[1]) === '0'
+    );
+    return atNode.length > 0 && atNode.every((item) => item.message === INVALID_TYPE_MESSAGE);
+  }
+};
+
 /**
  * Canary: proves that Strapi's original validator still behaves the way the bridge relies on.
  * A built-in paragraph must pass and come back as a paragraph; an unregistered probe type must be
- * rejected with a ValidationError at its own path. Uses an in-memory model and writes nothing.
+ * rejected with "Block node is of invalid type" at its own path. Uses an in-memory model and writes
+ * nothing.
  * @param {object} params - Inputs.
  * @param {Function} params.original - Strapi's `validateEntityCreation`.
  * @param {string} params.uid - An existing model uid (relations are looked up on it; the probe field is not one of its attributes).
  * @returns {Promise<{ ok: true }|{ ok: false, reason: string }>} Result with a reason code.
  */
 const runCanary = async ({ original, uid }) => {
-  const model = {
-    uid,
-    modelType: 'contentType',
-    kind: 'collectionType',
-    info: { displayName: 'Magic Editor X probe', singularName: 'mex-probe', pluralName: 'mex-probes' },
-    options: {},
-    attributes: { mexCoreBlocksProbe: { type: 'blocks' } },
-  };
   const paragraph = { type: 'paragraph', children: [{ type: 'text', text: 'probe' }] };
   try {
-    const result = await original(model, { mexCoreBlocksProbe: [paragraph] }, { isDraft: true });
+    const result = await original(probeModel(uid), { mexCoreBlocksProbe: [paragraph] }, { isDraft: true });
     const value = result && result.mexCoreBlocksProbe;
     if (!Array.isArray(value) || !value[0] || value[0].type !== 'paragraph')
       return { ok: false, reason: 'PROBE_SHAPE' };
@@ -641,7 +676,7 @@ const runCanary = async ({ original, uid }) => {
   const probeType = `mex-probe-${randomBytes(6).toString('hex')}`;
   try {
     await original(
-      model,
+      probeModel(uid),
       { mexCoreBlocksProbe: [{ type: probeType, children: [{ type: 'text', text: 'probe' }] }] },
       { isDraft: true }
     );
@@ -650,7 +685,10 @@ const runCanary = async ({ original, uid }) => {
     const list = error && error.details && Array.isArray(error.details.errors) ? error.details.errors : [];
     const atProbe = list.some(
       (item) =>
-        Array.isArray(item.path) && item.path[0] === 'mexCoreBlocksProbe' && String(item.path[1]) === '0'
+        Array.isArray(item.path) &&
+        item.path[0] === 'mexCoreBlocksProbe' &&
+        String(item.path[1]) === '0' &&
+        item.message === INVALID_TYPE_MESSAGE
     );
     if (!isStrapiValidationError(error) || !atProbe) return { ok: false, reason: 'PROBE_UNEXPECTED_ERROR' };
   }
@@ -676,4 +714,5 @@ module.exports = {
   unwrap,
   detectNativeSupport,
   runCanary,
+  isUnknownToStrapi,
 };

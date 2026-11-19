@@ -9,6 +9,7 @@ const {
   installBridge,
   detectNativeSupport,
   runCanary,
+  isUnknownToStrapi,
   unwrap,
 } = require('../utils/core-blocks-bridge');
 
@@ -42,6 +43,13 @@ module.exports = ({ strapi }) => {
 
   let storedEnabled = null;
   let enabled = false;
+  let wasEnabled = false;
+  let stopped = false;
+  /** Strapi's unwrapped validator and the probe uid, kept after a passed canary for type probes. */
+  let probeContext = null;
+  /** type -> true when Strapi does not know it (the bridge may validate it), false when Strapi does. */
+  const probed = new Map();
+  const claimedLogged = new Set();
   let state = 'off';
   let reason = null;
   let canary = null;
@@ -72,6 +80,42 @@ module.exports = ({ strapi }) => {
       return typeof value === 'boolean' ? value : null;
     } catch {
       return storedEnabled;
+    }
+  };
+
+  /** The registry as the wrapper sees it: only types Strapi was probed not to know. */
+  const usable = (type) => registry.has(type) && probed.get(type) === true;
+  const activeView = {
+    has: usable,
+    get: (type) => (usable(type) ? registry.get(type) : undefined),
+    size: () => registry.list().filter(({ type }) => usable(type)).length,
+  };
+  const claimedByStrapi = () =>
+    registry
+      .list()
+      .map(({ type }) => type)
+      .filter((type) => probed.get(type) === false);
+  const settledState = () => (activeView.size() ? 'active' : 'idle');
+
+  /**
+   * Probes every registered type that was not probed in this enable cycle against Strapi's own
+   * validator. A type Strapi already validates is left to Strapi (logged once).
+   * @returns {Promise<void>} Settled when all pending types are probed.
+   */
+  const probePending = async () => {
+    if (!probeContext) return;
+    for (const { type } of registry.list()) {
+      if (stopped) return;
+      if (probed.has(type)) continue;
+      // A probe that throws counts as "Strapi knows it": the type is left to Strapi (fail closed).
+      const unknown = await isUnknownToStrapi({ ...probeContext, type }).catch(() => false);
+      probed.set(type, unknown);
+      if (!unknown && !claimedLogged.has(type)) {
+        claimedLogged.add(type);
+        logger.warn(
+          `Core Blocks bridge: Strapi already validates the block type "${type}" itself; the bridge leaves it to Strapi`
+        );
+      }
     }
   };
 
@@ -107,6 +151,19 @@ module.exports = ({ strapi }) => {
   };
 
   const apply = async () => {
+    if (stopped) {
+      remove();
+      state = 'off';
+      reason = null;
+      return;
+    }
+    // Every switch-on (start, Settings, another process) re-runs the canary and the type probes.
+    if (enabled && !wasEnabled) {
+      canary = null;
+      probeContext = null;
+      probed.clear();
+    }
+    wasEnabled = enabled;
     if (!enabled) {
       remove();
       state = 'off';
@@ -138,7 +195,9 @@ module.exports = ({ strapi }) => {
       return;
     }
     if (uninstall) {
-      state = registry.size() ? 'active' : 'idle';
+      await probePending();
+      if (stopped) return remove();
+      state = settledState();
       return;
     }
     let validator;
@@ -154,10 +213,14 @@ module.exports = ({ strapi }) => {
         const uid = strapi.getModel('admin::user')
           ? 'admin::user'
           : Object.keys(strapi.contentTypes || {}).find((key) => strapi.getModel(key));
-        canary = uid
-          ? await runCanary({ original: unwrap(validator.validateEntityCreation), uid })
-          : { ok: false, reason: 'NO_MODEL' };
+        const original = unwrap(validator.validateEntityCreation);
+        canary = uid ? await runCanary({ original, uid }) : { ok: false, reason: 'NO_MODEL' };
+        probeContext = canary.ok ? { original, uid } : null;
       }
+    }
+    if (stopped) {
+      state = 'off';
+      return;
     }
     if (!canary.ok || hookProblem) {
       if (state !== 'unavailable') {
@@ -171,13 +234,18 @@ module.exports = ({ strapi }) => {
       reason = hookProblem || canary.reason;
       return;
     }
+    await probePending();
+    if (stopped) {
+      state = 'off';
+      return;
+    }
     uninstall = installBridge(validator, {
-      activeRegistry: () => (enabled ? registry : null),
+      activeRegistry: () => (enabled && !stopped ? activeView : null),
       getModel: (uid) => strapi.getModel(uid),
       errors,
       reportOnce,
     });
-    state = registry.size() ? 'active' : 'idle';
+    state = settledState();
     reason = null;
   };
 
@@ -215,8 +283,12 @@ module.exports = ({ strapi }) => {
       if (enabled && state === 'native') {
         const native = detectNativeSupport(strapi);
         if (native.register) forward(native.register, registry.get(entry.type));
-      } else if (enabled && state === 'idle') {
-        state = 'active';
+      } else if (enabled && uninstall && !stopped) {
+        // Probed against Strapi before the bridge validates it; until then Strapi decides as before.
+        run(async () => {
+          await probePending();
+          if (uninstall && !stopped) state = settledState();
+        });
       }
       return entry;
     },
@@ -231,7 +303,8 @@ module.exports = ({ strapi }) => {
 
     /**
      * State for Settings and diagnostics. Holds no content.
-     * @returns {{ enabled: boolean, configEnabled: boolean, source: 'settings'|'config', state: string, reason: string|null, types: { type: string, plugin: string }[] }} Status.
+     * @returns {{ enabled: boolean, configEnabled: boolean, source: 'settings'|'config', state: string, reason: string|null, types: { type: string, plugin: string }[], claimedByStrapi: string[] }} Status;
+     *   `claimedByStrapi` lists registered types the running Strapi validates itself (left to Strapi).
      */
     status() {
       return {
@@ -241,6 +314,7 @@ module.exports = ({ strapi }) => {
         state,
         reason,
         types: registry.list(),
+        claimedByStrapi: claimedByStrapi(),
       };
     },
 
@@ -251,6 +325,7 @@ module.exports = ({ strapi }) => {
      * @sideeffect May wrap `strapi.entityValidator`; starts an unref'd 30 s timer.
      */
     async start() {
+      stopped = false;
       await refresh();
       if (!timer) {
         timer = setInterval(() => {
@@ -270,18 +345,34 @@ module.exports = ({ strapi }) => {
       await run(async () => {
         storedEnabled = value === true;
         enabled = storedEnabled;
+        // Saving the switch as on always retries the canary, so a fixed Strapi can be picked up.
+        if (enabled) wasEnabled = false;
         await apply();
       });
     },
 
     /**
-     * Removes the wrapper and the timer. Called in destroy.
-     * @returns {void}
+     * Resolves when all queued state changes and type probes have run (tests, diagnostics).
+     * @returns {Promise<void>} Settled promise.
+     */
+    settled() {
+      return applying;
+    },
+
+    /**
+     * Removes the wrapper and the timer and cancels queued state changes. Called in destroy.
+     * `strapi.entityValidator` is shared by every Strapi instance of the process, so nothing may
+     * install the wrapper again after this.
+     * @returns {Promise<void>} Settled when the in-flight apply has finished (and left nothing installed).
      * @sideeffect Restores Strapi's entity validator functions.
      */
-    stop() {
+    async stop() {
+      stopped = true;
       if (timer) clearInterval(timer);
       timer = null;
+      remove();
+      state = 'off';
+      await applying;
       remove();
       state = 'off';
     },

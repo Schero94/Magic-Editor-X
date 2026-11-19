@@ -563,5 +563,8 @@
   "settings.coreBlocks.editorOnly": "Der Editor bietet {types} an, der Server hat dafür aber keine Regeln, daher werden Einträge mit diesen Blöcken beim Speichern abgelehnt. Registrieren Sie sie auf dem Server.",
   "settings.coreBlocks.guide": "Entwicklerleitfaden: einen Blocktyp registrieren",
   "settings.coreBlocks.rfc": "Strapi-Vorschlag für eingebaute Unterstützung",
-  "settings.coreBlocks.native": "Sobald Strapi eigene Blöcke selbst prüft, schaltet sich die Brücke ab und übergibt die registrierten Blocktypen an Strapi."
+  "settings.coreBlocks.native": "Sobald Strapi eigene Blöcke selbst prüft, schaltet sich die Brücke ab und übergibt die registrierten Blocktypen an Strapi.",
+  "settings.audit.meta.coreBlocksOn": "Core-Blocks-Brücke eingeschaltet",
+  "settings.audit.meta.coreBlocksOff": "Core-Blocks-Brücke ausgeschaltet",
+  "settings.coreBlocks.claimed": "Strapi prüft {types} bereits selbst, daher überlässt die Brücke diese Blocktypen Strapi."
 }
