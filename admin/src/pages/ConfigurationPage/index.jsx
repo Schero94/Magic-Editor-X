@@ -11,6 +11,7 @@ import { CspSection } from './CspSection';
 import { PaletteSection } from './PaletteSection';
 import { LanguageToolSection } from './LanguageToolSection';
 import { LinkScheduleSection } from './LinkScheduleSection';
+import { CoreBlocksSection } from './CoreBlocksSection';
 
 const RBAC = [...PERMISSIONS.settingsRead, ...PERMISSIONS.settingsUpdate];
 
@@ -241,6 +242,7 @@ const ConfigurationPage = () => {
       ) : null}
       <AiSection form={form} readOnly={readOnly} onTest={onTest} />
       <LanguageToolSection form={form} readOnly={readOnly} onTest={onTestLanguageTool} />
+      <CoreBlocksSection form={form} readOnly={readOnly} />
       <EnvironmentSection
         environment={
           liveSchedule && form.dto.environment

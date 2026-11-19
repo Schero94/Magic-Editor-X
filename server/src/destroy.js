@@ -22,6 +22,12 @@ module.exports = async ({ strapi }) => {
   } catch (error) {
     createLogger(strapi).error('audit trail shutdown failed', error);
   }
+  // 2.7: restore Strapi's entity validator functions.
+  try {
+    strapi.plugin('magic-editor-x').service('core-blocks').stop();
+  } catch (error) {
+    createLogger(strapi).error('Core Blocks bridge shutdown failed', error);
+  }
   // A new Strapi instance in the same process registers its blocks again.
   clearActiveBlocks();
   clearActiveAnnotations();

@@ -6,7 +6,8 @@
 # that the lockfile installs with npm 10 and npm 11; a third runs the
 # performance benchmark against scripts/bench-thresholds.json; a fourth builds
 # and tests against the lowest declared peer versions (Strapi 5.38.0, Design
-# System 2.2.0), so the peer floor is tested and not only declared.
+# System 2.2.0), so the peer floor is tested and not only declared; a fifth
+# runs the Core Blocks bridge tests on the peer floor and the newest 5.x.
 # The integration and multi-process suites need a Strapi host; CONTRIBUTING.md
 # describes how to run them.
 name: CI
@@ -138,6 +139,56 @@ jobs:
       # The benchmark imports the shared sources directly; no build is needed.
       - name: Benchmark (budgets, scaling, counters)
         run: npm run bench
+
+  core-blocks:
+    # Core Blocks bridge (2.7): the bridge wraps Strapi's entity validator, an internal hook point.
+    # Its tests run on Strapi's real validator and on a programmatic Strapi boot (SQLite, Document
+    # Service create, update and publish) against the peer floor and the newest 5.x on every PR,
+    # so a Strapi change that moves or changes the hook point fails here before a release.
+    name: Core Blocks bridge on Strapi ${{ matrix.strapi }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        # Keep the first entry in sync with FLOOR_STRAPI (peer floor); `newest-5` resolves at run time.
+        strapi: ['5.38.0', 'newest-5']
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          # Strapi 5.38 declares node <=24.x; 22 is the floor of engines.node.
+          node-version: '22'
+          cache: npm
+      - name: Install dependencies (no lifecycle scripts)
+        run: npm ci --ignore-scripts
+      - name: Install the Strapi version under test (no lifecycle scripts)
+        env:
+          STRAPI_UNDER_TEST: ${{ matrix.strapi }}
+        run: |
+          version="$STRAPI_UNDER_TEST"
+          if [ "$version" = "newest-5" ]; then
+            version="$(npm view '@strapi/strapi@>=5 <6' version --json | node -e 'let s="";process.stdin.on("data",(c)=>s+=c).on("end",()=>{const v=JSON.parse(s);console.log(Array.isArray(v)?v[v.length-1]:v)})')"
+          fi
+          echo "Strapi under test: $version"
+          npm install --no-save --ignore-scripts --no-audit --no-fund "@strapi/strapi@$version" "@strapi/utils@$version"
+          node -e '
+            const want = process.argv[1];
+            for (const name of ["@strapi/strapi", "@strapi/core", "@strapi/utils"]) {
+              const installed = require(name + "/package.json").version;
+              console.log(name, installed);
+              if (installed !== want) throw new Error(name + " is " + installed + ", expected " + want);
+            }' "$version"
+      - name: Build the SQLite driver for the Strapi boot test
+        run: npm rebuild better-sqlite3
+      - name: Build (includes verify:runtime)
+        run: npm run build
+      - name: Core Blocks bridge tests (real entity validator and Strapi boot)
+        run: npm run test:core-blocks
 
   peer-floor:
     runs-on: ubuntu-latest

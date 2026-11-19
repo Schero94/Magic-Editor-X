@@ -43,7 +43,7 @@ export const useConfigurationForm = () => {
       get(API.settings).then(
         ({ data }) => {
           if (!mounted.current) return;
-          const next = toDraft(data.data.ai, data.data.languageTool);
+          const next = toDraft(data.data.ai, data.data.languageTool, data.data.coreBlocks);
           setDto(data.data);
           setSaved(next);
           setDraft(next);
@@ -105,6 +105,18 @@ export const useConfigurationForm = () => {
     });
   }, []);
 
+  /** Sets the Core Blocks bridge switch (2.7). */
+  const setCoreBlocksEnabled = useCallback((enabled) => {
+    setDraft((current) => ({ ...current, coreBlocks: { enabled: enabled === true } }));
+    setServerErrors((current) => {
+      if (!current['coreBlocks.enabled'] && !current._form) return current;
+      const next = { ...current };
+      delete next['coreBlocks.enabled'];
+      delete next._form;
+      return next;
+    });
+  }, []);
+
   const dirty = Boolean(draft && saved && !sameDraft(draft, saved));
   const hasErrors = Object.keys(errors).length > 0;
 
@@ -117,8 +129,8 @@ export const useConfigurationForm = () => {
     if (hasErrors) return { ok: false, invalid: true };
     setSaving(true);
     try {
-      const { data } = await put(API.settings, toPayload(draft));
-      const stored = toDraft(data.data.ai, data.data.languageTool);
+      const { data } = await put(API.settings, toPayload(draft, saved));
+      const stored = toDraft(data.data.ai, data.data.languageTool, data.data.coreBlocks);
       const adjusted = adjustedFields(draft, stored);
       setDto(data.data);
       setSaved(stored);
@@ -133,7 +145,7 @@ export const useConfigurationForm = () => {
     } finally {
       if (mounted.current) setSaving(false);
     }
-  }, [draft, hasErrors, put]);
+  }, [draft, saved, hasErrors, put]);
 
   const clearServerErrors = useCallback(() => setServerErrors({}), []);
 
@@ -212,6 +224,7 @@ export const useConfigurationForm = () => {
     testing,
     testingLanguageTool,
     setLanguageToolField,
+    setCoreBlocksEnabled,
     testLanguageTool,
     reload: load,
     setField,

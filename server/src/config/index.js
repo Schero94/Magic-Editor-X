@@ -244,6 +244,16 @@ const defaults = {
      */
     enabled: false,
   },
+  coreBlocks: {
+    /**
+     * 2.7 Core Blocks bridge: custom block types registered with
+     * `strapi.plugin('magic-editor-x').service('core-blocks').register({ type, validator })` pass
+     * Strapi's validation of the core Blocks field. Off by default; the switch in Settings > Magic
+     * Editor X > Configuration overrides this value once saved. Turns itself off when Strapi
+     * validates custom blocks natively.
+     */
+    enabled: false,
+  },
   reuse: {
     /**
      * 2.5 "Insert from another entry" in the field's More tools (needs Content Manager read on
@@ -437,6 +447,8 @@ const configSchema = z.looseObject({
     .optional(),
   // 2.5: optional so a 2.4 configuration validated without the defaults merged stays valid.
   mcp: z.looseObject({ enabled: z.boolean() }).optional(),
+  // 2.7: optional so a 2.6 configuration validated without the defaults merged stays valid.
+  coreBlocks: z.looseObject({ enabled: z.boolean() }).optional(),
   reuse: z
     .looseObject({ enabled: z.boolean().optional(), perMinute: positiveInt(1000).optional() })
     .optional(),
