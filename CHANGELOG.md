@@ -1,6 +1,12 @@
 # Changelog
 
-## [Unreleased]
+# [2.7.0](https://github.com/Schero94/Magic-Editor-X/compare/v2.6.2...v2.7.0) (2026-11-19)
+
+
+### Features
+
+* Core Blocks bridge for custom blocks in Strapi's Blocks field ([#22](https://github.com/Schero94/Magic-Editor-X/issues/22)) ([ad8ba44](https://github.com/Schero94/Magic-Editor-X/commit/ad8ba445ea584f6ae8433ef3d01ff4fb069379b7))
+
 
 Minor release (2.7.0): no breaking changes, no migration. The new feature is off by default.
 
