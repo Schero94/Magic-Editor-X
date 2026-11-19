@@ -54,6 +54,8 @@ jobs:
         run: npm run build
       - name: Tests
         run: npm test
+      - name: Dependency gate unit tests
+        run: node --test .github/scripts/dependency-gate.test.mjs
       - name: Admin StrictMode tests (React 18)
         run: npm run test:admin
       - name: Verify package
