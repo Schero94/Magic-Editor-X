@@ -1,6 +1,12 @@
 # Changelog
 
-## [Unreleased]
+## [2.6.2](https://github.com/Schero94/Magic-Editor-X/compare/v2.6.1...v2.6.2) (2026-11-19)
+
+
+### Bug Fixes
+
+* **columns:** keep concurrent edits when column items move ([#21](https://github.com/Schero94/Magic-Editor-X/issues/21)) ([d466a0b](https://github.com/Schero94/Magic-Editor-X/commit/d466a0bcc1b6513ca06a07bfcc80d35d9a5f406b))
+
 
 ### Fixed
 
