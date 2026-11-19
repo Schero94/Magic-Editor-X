@@ -335,6 +335,9 @@ Limits:
 - A new entry that has not been saved yet has no room. A new section in a repeatable component or dynamic zone gets its room, history and comments after the entry is saved once; until then the toolbar says so.
 - Text formatting (bold, links, …) is part of the text; two people formatting the same word at the same moment can produce nested tags, which the sanitiser keeps valid.
 - Up to 5000 blocks per field (the stored-content limit); rooms above 64 MiB of history refuse further edits until they are compacted.
+- Columns: moving an item to another column (fewer columns) keeps what others type into it at the same moment; when one person deletes an item that another moves, the delete wins. Cut and paste is not a move: cutting text and pasting it into another column removes the text and adds new text, so what someone types into the cut text at that moment is not carried over.
+- After an update, editor tabs opened before it show "Reload the page to keep editing live" until they are reloaded.
+- Several processes: run one version. During a rolling deploy, rooms that a process of the previous version still serves keep their old columns layout until that process is gone.
 
 ## Running several instances
 
@@ -642,7 +645,7 @@ renderHtml(value, {
 
 Open the + menu, choose **2 columns** or **3 columns** (or type `/col`) and type. Each column holds paragraphs, headings and list items with the field's inline formatting; Enter starts a new item, Backspace in an empty item removes it, and the arrow keys move between items and columns. The toolbar above the block sets the text style and the width (equal, wide left, wide right); the block menu sets the number of columns (2 to 4), the space between them and the vertical alignment.
 
-Output: `div.mex-columns[data-mex-columns]` with one `div.mex-column` per column and classes for the layout (no inline styles), so your site's CSS decides the widths and where the columns stack. Plain text and Markdown list the columns one after the other in reading order. Columns work with live editing, undo, Copy block, templates, insert from another entry, comments, AI, Strapi AI translations, find and replace, quality checks and version history. A table of contents does not list headings inside columns.
+Output: `div.mex-columns[data-mex-columns]` with one `div.mex-column` per column and classes for the layout (no inline styles), so your site's CSS decides the widths and where the columns stack. Plain text and Markdown list the columns one after the other in reading order. Columns work with live editing (also while someone changes the number of columns), undo, Copy block, templates, insert from another entry, comments, AI, Strapi AI translations, find and replace, quality checks and version history. A table of contents does not list headings inside columns.
 
 ### Live Preview
 

@@ -210,6 +210,21 @@ const fragmentHtml = (fragment) => {
 /** Removes a trailing `<br>` that browsers leave in an emptied contenteditable. */
 const trimHtml = (html) => (/^(?:\s|<br\s*\/?>)*$/i.test(html) ? '' : html);
 
+/**
+ * Rendered tools of columns blocks by block id (2.6.2). A collaborator's change re-creates the
+ * block (`blocks.update` in `apply-remote.js`), but a block menu that was open keeps the old
+ * instance in its callbacks; its choices (number of columns, spacing, alignment) are handed to the
+ * instance the same editor shows now, so they are not silently lost while someone types in the
+ * block. Several editors can show a block with the same id (the suggestion editor next to the
+ * hidden field editor, a duplicated repeatable component or dynamic zone entry): an instance is
+ * only ever replaced by one inside the same editor (`.codex-editor` root).
+ * @type {Map<string, Set<ColumnsTool>>}
+ */
+const liveTools = new Map();
+
+/** The Editor.js root element an element is rendered in (null when detached). */
+const editorRootOf = (node) => (node && node.isConnected ? node.closest('.codex-editor') : null);
+
 export class ColumnsTool {
   /** Two toolbox entries: the column count is the first choice (one click), equal widths by default. */
   static get toolbox() {
@@ -272,7 +287,32 @@ export class ColumnsTool {
     this.wrapper.appendChild(this.status);
     this.renderGrid();
     if (!this.readOnly) this.bindEvents();
+    if (this.block && typeof this.block.id === 'string') {
+      if (!liveTools.has(this.block.id)) liveTools.set(this.block.id, new Set());
+      liveTools.get(this.block.id).add(this);
+    }
     return this.wrapper;
+  }
+
+  /**
+   * The instance of this block the editor shows now: itself while it is shown, else the instance
+   * that replaced it in the same editor after a collaborator's change (see `liveTools`).
+   * @returns {ColumnsTool} Tool instance.
+   */
+  current() {
+    if (!this.wrapper || this.wrapper.isConnected || !this.root) return this;
+    const same = this.block && typeof this.block.id === 'string' ? liveTools.get(this.block.id) : null;
+    for (const other of same || [])
+      if (other !== this && editorRootOf(other.wrapper) === this.root) return other;
+    return this;
+  }
+
+  /** Editor.js hook: the block is removed or replaced. */
+  destroy() {
+    const same = this.block ? liveTools.get(this.block.id) : null;
+    if (!same) return;
+    same.delete(this);
+    if (same.size === 0) liveTools.delete(this.block.id);
   }
 
   renderGrid() {
@@ -579,7 +619,8 @@ export class ColumnsTool {
 
   /**
    * Changes the number of columns. New columns are empty; the items of removed columns move
-   * to the end of the last column that stays, so no text is lost.
+   * to the end of the last column that stays, so no text is lost. When they do not fit (a column
+   * holds at most 50 items), nothing changes and the limit is announced (2.6.2: they were cut off).
    * @param {number} count - 2 to 4.
    */
   setCount(count) {
@@ -590,7 +631,13 @@ export class ColumnsTool {
     const moved = this.model.columns.slice(count).flatMap((column) => column.items);
     if (moved.length) {
       const last = columns[columns.length - 1];
-      last.items = [...last.items, ...moved].slice(0, COLUMNS_LIMITS.items);
+      if (last.items.length + moved.length > COLUMNS_LIMITS.items) {
+        this.announce(
+          this.t('tools.columns.limit', 'A column holds at most {max} items', { max: COLUMNS_LIMITS.items })
+        );
+        return;
+      }
+      last.items = [...last.items, ...moved];
     }
     this.model.columns = columns;
     if (!layoutsFor(count).includes(this.model.layout)) this.model.layout = 'equal';
@@ -967,12 +1014,14 @@ export class ColumnsTool {
   /* ------------------------------------------------------- block settings */
 
   renderSettings() {
+    // The editor this menu belongs to (the block is shown while its menu opens).
+    this.root = editorRootOf(this.wrapper) || this.root || null;
     const counts = [2, 3, 4].map((count) => ({
       icon: ICONS[`columns${count}`],
       title: this.t('tools.columns.count', '{count, plural, one {# column} other {# columns}}', { count }),
       isActive: this.model.columns.length === count,
       closeOnActivate: true,
-      onActivate: () => this.setCount(count),
+      onActivate: () => this.current().setCount(count),
     }));
     const gaps = [
       { value: 'small', key: 'tools.columns.gap.small', text: 'Narrow' },
@@ -982,7 +1031,7 @@ export class ColumnsTool {
       title: this.t(key, text),
       isActive: this.model.gap === value,
       closeOnActivate: true,
-      onActivate: () => this.setOption('gap', value),
+      onActivate: () => this.current().setOption('gap', value),
     }));
     const aligns = [
       { value: 'top', key: 'tools.columns.valign.top', text: 'Top' },
@@ -992,7 +1041,7 @@ export class ColumnsTool {
       title: this.t(key, text),
       isActive: this.model.valign === value,
       closeOnActivate: true,
-      onActivate: () => this.setOption('valign', value),
+      onActivate: () => this.current().setOption('valign', value),
     }));
     return [
       {

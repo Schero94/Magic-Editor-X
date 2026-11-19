@@ -140,7 +140,7 @@ export const openSession = async (token, target, initialValue) => {
 };
 
 /**
- * Opens a protocol 3 socket like the admin does and records what it receives.
+ * Opens a protocol 4 socket like the admin does and records what it receives.
  * Handshake refusals (`connect_error` with `data.code`) and `mx:error` codes
  * end up in `errors`.
  * @param {{ token: string, path: string }} sessionData - Session.
@@ -153,7 +153,7 @@ export const connect = (sessionData, options = {}) =>
     const socket = io(HOST, {
       path: sessionData.path,
       transports: ['websocket'],
-      auth: { token: sessionData.token, protocol: 3 },
+      auth: { token: sessionData.token, protocol: 4 },
       reconnection: false,
       ...options,
     });

@@ -134,7 +134,7 @@ const session = response.body.data;
 const socket = io(url(sessionPort), {
   path: session.path,
   transports: ['websocket'],
-  auth: { token: session.token, protocol: 3 },
+  auth: { token: session.token, protocol: 4 },
   reconnection: false,
 });
 await new Promise((resolve) => {
@@ -171,7 +171,7 @@ response = await call(url(crashPort), 'POST', '/magic-editor-x/collaboration/ses
 const crashSocket = io(url(crashPort), {
   path: response.body.data.path,
   transports: ['websocket'],
-  auth: { token: response.body.data.token, protocol: 3 },
+  auth: { token: response.body.data.token, protocol: 4 },
   reconnection: false,
 });
 await new Promise((resolve) => {

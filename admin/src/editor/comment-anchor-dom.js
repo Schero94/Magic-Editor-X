@@ -30,9 +30,9 @@ import {
 } from '../../../shared/comment-anchor.mjs';
 import {
   encodeRange,
+  anchoredText,
   resolveRange,
-  sharedTextAt,
-  sharedTextLeaves,
+  sharedBlockTextLeaves,
 } from '../../../shared/comment-relpos.mjs';
 
 const TEXT_NODE = 3;
@@ -192,7 +192,7 @@ export const anchorFromSelection = ({ range, holder, doc = null, blockData = nul
   let relative = null;
   const entry = doc ? doc.getMap('blocks').get(blockId) : null;
   if (entry && typeof entry.get === 'function') {
-    const leaves = sharedTextLeaves(entry.get('data')).filter(
+    const leaves = sharedBlockTextLeaves(entry).filter(
       (leaf) => htmlTextMap(leaf.text.toString()).text === map.text
     );
     const leaf = leafForElement(block, element, map.text, leaves);
@@ -230,7 +230,7 @@ export const locateAnchor = ({ block, blockId, anchor, doc = null }) => {
   if (!clean) return { status: 'changed', range: null, via: null };
   const elements = textElements(block).map((element) => ({ element, map: domTextMap(element) }));
   if (doc && clean.start && clean.path) {
-    const ytext = sharedTextAt(doc, blockId, clean.path);
+    const ytext = anchoredText(doc, blockId, clean.path, clean.start);
     const source = ytext ? resolveRange(doc, ytext, clean.start, clean.end) : null;
     if (source) {
       const html = htmlTextMap(ytext.toString());
@@ -239,7 +239,7 @@ export const locateAnchor = ({ block, blockId, anchor, doc = null }) => {
       if (text && candidates.length) {
         let chosen = candidates[0];
         if (candidates.length > 1) {
-          const leaves = sharedTextLeaves(doc.getMap('blocks').get(blockId).get('data')).filter(
+          const leaves = sharedBlockTextLeaves(doc.getMap('blocks').get(blockId)).filter(
             (leaf) => htmlTextMap(leaf.text.toString()).text === html.text
           );
           const rank = leaves.findIndex((leaf) => leaf.text === ytext);

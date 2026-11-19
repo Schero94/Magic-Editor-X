@@ -124,16 +124,45 @@ const cleanItem = (input, inline) => {
 };
 
 /**
+ * Fits columns into the block's bounds without dropping what fits (see `cleanColumnsData`).
+ * @param {unknown[]} input - Stored columns.
+ * @returns {object[]} At most four columns of at most 50 items each.
+ */
+const spillColumns = (input) => {
+  const max = COLUMNS_LIMITS.maxColumns;
+  const limit = COLUMNS_LIMITS.items;
+  const itemsOf = (column) => (isObject(column) && Array.isArray(column.items) ? column.items : []);
+  const columns = input.slice(0, max).map((column) => ({ ...(isObject(column) ? column : {}) }));
+  if (input.length > max)
+    columns[max - 1].items = [...itemsOf(columns[max - 1]), ...input.slice(max).flatMap(itemsOf)];
+  if (columns.every((column) => itemsOf(column).length <= limit)) return columns;
+  let carry = [];
+  for (let c = 0; c < columns.length || (carry.length && c < max); c += 1) {
+    if (c === columns.length) columns.push({});
+    const items = [...carry, ...itemsOf(columns[c])];
+    columns[c].items = items.slice(0, limit);
+    carry = items.slice(limit);
+  }
+  return columns;
+};
+
+/**
  * Content policy of the columns block (called by `BLOCK_POLICIES.columns`).
- * Pads to two columns, cuts to four, bounds items and text, repairs ids and
- * writes optional keys only when they differ from their default.
+ * Pads to two columns, bounds items and text, repairs ids and writes
+ * optional keys only when they differ from their default. Nothing within
+ * the block's capacity (4 columns of 50 items) is dropped (2.6.2): the items
+ * of columns beyond the fourth join the fourth, and items beyond 50 in a
+ * column move to the start of the next column (a new column while there are
+ * fewer than four), so the reading order stays. A live room can briefly hold
+ * such data when changes of several people merge (see `shared/ydoc.mjs`).
+ * Valid data is returned unchanged.
  * @param {object} d - Input data.
  * @param {(html: unknown) => string} inline - Inline HTML sanitiser.
  * @param {number} marker - Built-in marker version to write.
  * @returns {object} Clean data.
  */
 export const cleanColumnsData = (d, inline, marker) => {
-  const source = Array.isArray(d.columns) ? d.columns.slice(0, COLUMNS_LIMITS.maxColumns) : [];
+  const source = spillColumns(Array.isArray(d.columns) ? d.columns : []);
   while (source.length < COLUMNS_LIMITS.minColumns) source.push({});
   const used = new Set();
   const uniqueId = (candidate, fallback) => {
@@ -148,13 +177,11 @@ export const cleanColumnsData = (d, inline, marker) => {
   const columns = source.map((input, c) => {
     const column = isObject(input) ? input : {};
     const id = uniqueId(column.id, `col${c + 1}`);
-    const items = (Array.isArray(column.items) ? column.items.slice(0, COLUMNS_LIMITS.items) : []).map(
-      (raw, i) => {
-        const item = cleanItem(raw, inline);
-        item.id = uniqueId(item.id, `${id}-${i + 1}`.slice(-32));
-        return item;
-      }
-    );
+    const items = (Array.isArray(column.items) ? column.items : []).map((raw, i) => {
+      const item = cleanItem(raw, inline);
+      item.id = uniqueId(item.id, `${id}-${i + 1}`.slice(-32));
+      return item;
+    });
     return { id, items };
   });
   const out = { columns };
@@ -173,9 +200,11 @@ export const cleanColumnsData = (d, inline, marker) => {
  * content is rendered or saved. Columns may briefly number 1 to 4 (a column
  * being removed or added by someone else).
  * @param {unknown} data - Block data read from the shared document.
+ * @param {{ maxItems?: number }} [options] - Items per column (2.6.2: the guard allows more for a
+ *   columns block with an item store, where merged changes can briefly exceed 50; the policy spills them).
  * @returns {boolean} Acceptable.
  */
-export const isColumnsDataShapeValid = (data) => {
+export const isColumnsDataShapeValid = (data, { maxItems = COLUMNS_LIMITS.items } = {}) => {
   if (!isObject(data)) return false;
   for (const key of Object.keys(data)) if (!DATA_KEYS.has(key)) return false;
   const { columns, layout, gap, valign } = data;
@@ -190,7 +219,7 @@ export const isColumnsDataShapeValid = (data) => {
     if (column.id !== undefined && (typeof column.id !== 'string' || !COLUMN_ID.test(column.id)))
       return false;
     if (column.items === undefined) continue;
-    if (!Array.isArray(column.items) || column.items.length > COLUMNS_LIMITS.items) return false;
+    if (!Array.isArray(column.items) || column.items.length > maxItems) return false;
     for (const item of column.items) {
       if (!isObject(item)) return false;
       for (const key of Object.keys(item)) if (!ITEM_KEYS.has(key)) return false;

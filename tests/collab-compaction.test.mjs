@@ -155,7 +155,7 @@ const tokenFor = (instance) =>
       name: 'Synthetic A.',
       color: 'primary',
       canEdit: true,
-      protocol: 3,
+      protocol: 4,
       nonce: `n${Date.now()}-${(nonce += 1)}`,
       exp: Date.now() + 60000,
     },
@@ -470,7 +470,7 @@ for (let seed = FROM; seed < FROM + SEEDS; seed += 1) {
       const raw = io(a.url, {
         path: '/magic-editor-x/realtime',
         transports: ['websocket'],
-        auth: { token: tokenFor(a), protocol: 3 },
+        auth: { token: tokenFor(a), protocol: 4 },
       });
       const rawDoc = new Y.Doc();
       const rawSync = await new Promise((resolve) => raw.once('mx:sync', (message) => resolve(message)));

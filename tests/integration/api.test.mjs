@@ -279,7 +279,7 @@ test('collaboration: access per document, two editors converge, viewers cannot w
   const forged = await connect({ ...viewerSession, token: `${viewerSession.token.split('.')[0]}.AAAA` });
   assert.ok(forged.errors.includes('INVALID_TOKEN'));
   const oldClient = await connect(await session(editor), { auth: { token: 'x' } });
-  assert.ok(oldClient.errors.includes('UPGRADE_REQUIRED'), 'clients without protocol 3 are refused');
+  assert.ok(oldClient.errors.includes('UPGRADE_REQUIRED'), 'clients without protocol 4 are refused');
   await assert.rejects(
     connect(await session(editor), { extraHeaders: { origin: 'https://evil.example' } }),
     'foreign browser origins are refused'

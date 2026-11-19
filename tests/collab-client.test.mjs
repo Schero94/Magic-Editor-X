@@ -46,7 +46,10 @@ const fakeServer = (blocks, epoch) => {
           Y.applyUpdate(server.doc, new Uint8Array(payload));
           return ack(null, { ok: true, id: 1 });
         }
-        if (event === 'mx:resync') socket.sync();
+        if (event === 'mx:resync') {
+          if (server.syncDelayMs) setTimeout(() => socket.sync(), server.syncDelayMs);
+          else socket.sync();
+        }
         return undefined;
       },
       sync() {
@@ -66,6 +69,9 @@ const fakeServer = (blocks, epoch) => {
           epoch: server.epoch,
         });
         socket.sync();
+      },
+      remote(update) {
+        fire('mx:update', update);
       },
       drop() {
         socket.connected = false;
@@ -161,6 +167,52 @@ test('RETRY and STORE_FAILED keep the edit; INVALID_UPDATE starts over from the 
   await flush();
   assert.equal(client.getData().blocks[0].data.text, 'xy');
   client.destroy();
+});
+
+// 2.6.2 regression (cluster proof with column moves): a remote update scheduled a render (30 ms),
+// then a refused update started over. The render ran on the new, still empty document, the
+// editor showed nothing, and the next edit was diffed against that: after the resync every block
+// the editor no longer showed was deleted for everyone.
+test('a render scheduled before a start over waits for the resync and never empties the room', async () => {
+  const server = fakeServer([p('a', 'one'), p('b', 'two')], 'e1');
+  let shown = null;
+  const { client } = start(server, {
+    onRemoteData: () => {
+      const { data, catchUp } = client.snapshot();
+      shown = JSON.parse(JSON.stringify(data));
+      client.markShown(catchUp, JSON.parse(JSON.stringify(data)));
+    },
+  });
+  await flush();
+  const socket = server.sockets[0];
+  // Someone else adds a block: the client schedules a render.
+  const other = new Y.Doc();
+  Y.applyUpdate(other, Y.encodeStateAsUpdate(server.doc));
+  const before = Y.encodeStateVector(other);
+  const next = docToEditorData(other);
+  next.blocks.push(p('c', 'three'));
+  const { applyEditorDataToDoc } = await import('../shared/ydoc.mjs');
+  applyEditorDataToDoc(other, next);
+  const update = Y.encodeStateAsUpdate(other, before);
+  Y.applyUpdate(server.doc, update);
+  socket.remote(update);
+  // At the same moment an edit of this client is refused; the resync answer is slow.
+  server.refuse = 'INVALID_UPDATE';
+  server.syncDelayMs = 150;
+  client.pushLocal({ blocks: [p('a', 'one!'), p('b', 'two')] });
+  await new Promise((resolve) => setTimeout(resolve, 60));
+  server.refuse = null;
+  // Whatever the editor shows now, the user keeps typing into it.
+  const view = shown || { blocks: [] };
+  client.pushLocal({ blocks: [...view.blocks, p('d', 'typed')] });
+  await new Promise((resolve) => setTimeout(resolve, 400));
+  const ids = docToEditorData(server.doc).blocks.map((block) => block.id);
+  client.destroy();
+  assert.ok(
+    ['a', 'b', 'c'].every((id) => ids.includes(id)),
+    `room keeps its blocks: ${ids.join(',')}`
+  );
+  assert.ok(ids.includes('d'), 'the new block arrives');
 });
 
 // 2.4 regression (cluster proof run 1, lost first-round markers): a client is

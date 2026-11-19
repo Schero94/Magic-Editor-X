@@ -1,14 +1,16 @@
 /**
- * Mapping between an Editor.js document and a Yjs document (collaboration schema 3).
+ * Mapping between an Editor.js document and a Yjs document (collaboration schema 4).
  *
  * Layout of the Y.Doc:
- * - `meta`   Y.Map    { schema: 3, time, version, epoch }
+ * - `meta`   Y.Map    { schema: 4, time, version, epoch }
  * - `order`  Y.Array  block ids in document order (a sequence CRDT, so
  *                     concurrent inserts from two people are both kept)
- * - `blocks` Y.Map    id -> Y.Map { type, tunes, data }
+ * - `blocks` Y.Map    id -> Y.Map { type, tunes, data, items? }
  *   - `data` and `tunes` are modelled structurally: every JSON object is a
  *     Y.Map, every array a Y.Array and every string a Y.Text. Numbers,
  *     booleans and null are plain values (last writer wins per key).
+ *   - `items` (schema 4, built-in columns blocks only): the item store of a
+ *     columns block, see "Columns blocks" below.
  *
  * Because every table cell, list item, checklist entry, tune and custom block
  * field has its own shared type, concurrent edits of different cells, items or
@@ -20,6 +22,22 @@
  * visible. A concurrent "move" (delete + insert of the same id in `order`) and
  * a concurrent edit of that block therefore never lose data.
  *
+ * Columns blocks (schema 4, 2.6.2): a Yjs type exists only once in a document
+ * and cannot be moved, so nested items would be copied by a move and a
+ * concurrent edit of the original would be lost. A built-in columns block
+ * therefore keeps its items like the document keeps its blocks: the entry key
+ * `items` is a Y.Map item id -> Y.Map { type, text, level?, style? } and every
+ * column of `data.columns` is a Y.Map { id, items: Y.Array<item id> } that
+ * only places items. Moving an item (also "fewer columns") changes the
+ * placement lists and keeps the item's Y.Map and Y.Text. Reading: an item is
+ * shown at its first place in reading order (two concurrent moves of one item
+ * show it once), ids without a stored item are skipped (a delete wins over a
+ * move), stored items without a place (placed in a column someone removed at
+ * the same time) are shown at the end of the last column, sorted by id.
+ * Rooms written by 2.6.0 (items nested in the columns) are read and edited
+ * with the structural mapping; the server moves them to this layout with a
+ * new room generation (`hasLegacyColumns`).
+ *
  * Schema 2 rooms (2.0) stored non-string values as plain JSON. They are read
  * by the same reader; the first local change of such a value replaces it with
  * its structured form.
@@ -29,8 +47,10 @@
 
 import * as Y from 'yjs';
 import { EDITOR_DATA_LIMITS, cloneJsonSafe, isPlainObject } from './editor-data.mjs';
+import { isMarkedBuiltIn } from './built-in-marker.mjs';
+import { COLUMNS_LIMITS } from './columns.mjs';
 
-export const YDOC_SCHEMA = 3;
+export const YDOC_SCHEMA = 4;
 
 /** Highest nesting level read from or written to a shared document. */
 const MAX_DEPTH = EDITOR_DATA_LIMITS.maxDepth;
@@ -601,7 +621,9 @@ export const readShared = (value, depth = 0) => {
 };
 
 /**
- * Reads one block entry into an Editor.js block.
+ * Reads one block entry into an Editor.js block. A columns block with an
+ * item store (schema 4) reads as the stored Editor.js JSON
+ * (`columns[].items[]` objects), see `readColumnsData`.
  * @param {string} id - Block id.
  * @param {Y.Map<any>} entry - Block entry.
  * @returns {{ id: string, type: string, data: object, tunes?: object } | null} Block or null.
@@ -612,6 +634,9 @@ export const readBlock = (id, entry) => {
   if (typeof type !== 'string' || !type) return null;
   const rawData = readShared(entry.get('data'), 2);
   const block = { id, type, data: isPlainObject(rawData) ? rawData : {} };
+  // Schema 4: the items of a columns block live in the entry's item store.
+  const store = itemStoreOf(entry);
+  if (store) block.data = readColumnsData(entry.get('data'), store, block.data);
   const tunes = readShared(entry.get('tunes'), 2);
   if (isPlainObject(tunes) && Object.keys(tunes).length > 0) block.tunes = tunes;
   return block;
@@ -1002,17 +1027,439 @@ const mergeSlot = (ymap, key, base, local, depth) => {
   return result !== 'same';
 };
 
+/* ------------------------------------------------------------ columns blocks (schema 4) */
+
+/** Entry key of the item store of a built-in columns block. */
+const COLUMN_ITEMS = 'items';
+/** Depth of an item in the block data (`data.columns[c].items[i]`), for the depth bounds. */
+const ITEM_DEPTH = 6;
+
 /**
- * Creates a block entry.
+ * The item store of a block entry (schema 4), or null for every other block
+ * and for columns blocks written by 2.6.0 (items nested in the columns).
+ * @param {Y.Map<any>} entry - Block entry.
+ * @returns {Y.Map<Y.Map<any>>|null} Item store.
+ */
+export const itemStoreOf = (entry) => {
+  if (!(entry instanceof Y.Map) || entry.get('type') !== 'columns') return null;
+  const store = entry.get(COLUMN_ITEMS);
+  return store instanceof Y.Map ? store : null;
+};
+
+/** Plain-object columns of block data (an empty list when `columns` is not a list). */
+const columnsOfData = (data) =>
+  isPlainObject(data) && Array.isArray(data.columns) ? data.columns.filter(isPlainObject) : [];
+
+/** Item list of a column (plain objects only). */
+const itemsOfColumn = (column) => (Array.isArray(column.items) ? column.items.filter(isPlainObject) : []);
+
+/**
+ * True when a block is stored with an item store: a built-in columns block
+ * whose columns are objects with string ids and whose items are objects with
+ * unique string ids (always the case for the editor tool and for content the
+ * policy cleaned). Anything else keeps the structural mapping, so no data
+ * the store cannot represent is dropped.
+ * @param {{ type: string, data: object }} block - Block (JSON).
+ * @returns {boolean} Result.
+ */
+export const usesItemStore = (block) => {
+  if (!block || block.type !== 'columns' || !isMarkedBuiltIn('columns', block.data)) return false;
+  if (!Array.isArray(block.data.columns)) return false;
+  const ids = new Set();
+  for (const column of block.data.columns) {
+    if (!isPlainObject(column) || typeof column.id !== 'string' || FORBIDDEN_KEYS.has(column.id))
+      return false;
+    if (column.items === undefined) continue;
+    if (!Array.isArray(column.items)) return false;
+    for (const item of column.items) {
+      if (!isPlainObject(item) || typeof item.id !== 'string' || !item.id) return false;
+      if (FORBIDDEN_KEYS.has(item.id) || ids.has(item.id)) return false;
+      ids.add(item.id);
+    }
+  }
+  return true;
+};
+
+/** Item id -> item of block data, first occurrence in reading order. */
+const itemsById = (data) => {
+  const out = new Map();
+  for (const column of columnsOfData(data))
+    for (const item of itemsOfColumn(column))
+      if (typeof item.id === 'string' && item.id && !out.has(item.id)) out.set(item.id, item);
+  return out;
+};
+
+/** An item without its id (the store key). */
+const itemContent = (item) => {
+  const out = {};
+  for (const key of Object.keys(item)) if (key !== 'id') out[key] = item[key];
+  return out;
+};
+
+/** Ids of a column's items that are placed in this column (first occurrence of the id in the data). */
+const placedIds = (column, items) =>
+  itemsOfColumn(column)
+    .filter((item) => typeof item.id === 'string' && items.get(item.id) === item)
+    .map((item) => item.id);
+
+/** Id of a shared column (Y.Map) or null. */
+const columnIdOf = (ycolumn) => {
+  if (!(ycolumn instanceof Y.Map)) return null;
+  const id = ycolumn.get('id');
+  if (id instanceof Y.Text) return id.toString();
+  return typeof id === 'string' ? id : null;
+};
+
+/**
+ * Shared form of one column: its keys as usual, `items` as the list of item ids.
+ * @param {object} column - Column (JSON).
+ * @param {Map<string, object>} items - Items by id.
+ * @returns {Y.Map<any>} Column (prelim).
+ */
+const sharedColumn = (column, items) =>
+  new Y.Map(
+    Object.keys(column)
+      .filter((key) => !FORBIDDEN_KEYS.has(key) && column[key] !== undefined)
+      .map((key) => {
+        if (key === 'items') return [key, Y.Array.from(placedIds(column, items))];
+        if (key === 'id') return [key, column.id];
+        return [key, toShared(column[key], 4)];
+      })
+  );
+
+/**
+ * Shared data and item store of a columns block (schema 4).
+ * @param {object} data - Block data (JSON, `usesItemStore` true).
+ * @returns {{ data: Y.Map<any>, items: Y.Map<any> }} Prelim types.
+ */
+const sharedColumnsData = (data) => {
+  const items = itemsById(data);
+  const store = new Y.Map(Array.from(items, ([id, item]) => [id, toShared(itemContent(item), ITEM_DEPTH)]));
+  const entries = [];
+  for (const key of Object.keys(data)) {
+    if (FORBIDDEN_KEYS.has(key) || data[key] === undefined) continue;
+    if (key === 'columns')
+      entries.push([key, Y.Array.from(columnsOfData(data).map((c) => sharedColumn(c, items)))]);
+    else entries.push([key, toShared(data[key], 3)]);
+  }
+  return { data: new Y.Map(entries), items: store };
+};
+
+/**
+ * Where the items of a columns block are shown: per shared column the ids in
+ * reading order. An id is shown at its first place only, ids without a
+ * stored item are skipped, stored items without a place go to the end of the
+ * last column (sorted by id, the same on every replica). Columns beyond
+ * `COLUMNS_LIMITS.maxColumns` (several people added a column at the same
+ * moment) are shown inside the last allowed column: their items follow its
+ * own, column by column, and the result has at most that many entries.
+ * @param {Y.Array<any>} ycolumns - `data.columns`.
+ * @param {Y.Map<any>} store - Item store.
+ * @returns {Array<{ column: unknown, ids: string[]|null }>} One entry per shown column (`ids` null when the column has no id list).
+ */
+export const columnsPlacement = (ycolumns, store) => {
+  const seen = new Set();
+  const out = ycolumns.toArray().map((column) => {
+    const list = column instanceof Y.Map ? column.get('items') : undefined;
+    if (!(list instanceof Y.Array)) return { column, ids: null };
+    const ids = [];
+    for (const id of list.toArray()) {
+      if (typeof id !== 'string' || seen.has(id) || !(store.get(id) instanceof Y.Map)) continue;
+      seen.add(id);
+      ids.push(id);
+    }
+    return { column, ids };
+  });
+  const max = COLUMNS_LIMITS.maxColumns;
+  if (out.length > max) {
+    const target = out[max - 1];
+    for (const extra of out.splice(max)) if (extra.ids) target.ids = [...(target.ids || []), ...extra.ids];
+  }
+  const orphans = [];
+  store.forEach((value, id) => {
+    if (!seen.has(id) && !FORBIDDEN_KEYS.has(id) && value instanceof Y.Map) orphans.push(id);
+  });
+  if (orphans.length) {
+    const last = [...out].reverse().find((entry) => entry.ids);
+    if (last) last.ids.push(...orphans.sort());
+  }
+  return out;
+};
+
+/**
+ * Reads the data of a columns block with an item store as the stored JSON.
+ * @param {unknown} ydata - Shared data (`entry.get('data')`).
+ * @param {Y.Map<any>} store - Item store.
+ * @param {object} data - The data read structurally (columns hold item ids).
+ * @returns {object} Data with `columns[].items[]` as item objects.
+ */
+const readColumnsData = (ydata, store, data) => {
+  const ycolumns = ydata instanceof Y.Map ? ydata.get('columns') : undefined;
+  if (!(ycolumns instanceof Y.Array) || !Array.isArray(data.columns)) return data;
+  const placement = columnsPlacement(ycolumns, store);
+  // Columns beyond the limit are shown inside the last allowed one (see `columnsPlacement`).
+  if (data.columns.length > placement.length) data.columns = data.columns.slice(0, placement.length);
+  placement.forEach(({ ids }, c) => {
+    const column = data.columns[c];
+    if (!ids || !isPlainObject(column)) return;
+    column.items = ids.map((id) => {
+      const content = readShared(store.get(id), ITEM_DEPTH);
+      const item = { id };
+      if (isPlainObject(content))
+        for (const key of Object.keys(content)) if (key !== 'id') item[key] = content[key];
+      return item;
+    });
+  });
+  return data;
+};
+
+/**
+ * True when a room document holds a built-in columns block written by 2.6.0
+ * (items nested in the columns). The server then starts a new room
+ * generation, which stores the block with an item store.
+ * @param {Y.Doc} doc - Room document.
+ * @returns {boolean} Result.
+ */
+export const hasLegacyColumns = (doc) => {
+  const { order, blocks } = getTypes(doc);
+  for (const id of new Set(order.toArray())) {
+    const entry = blocks.get(id);
+    if (!(entry instanceof Y.Map) || entry.get('type') !== 'columns' || itemStoreOf(entry)) continue;
+    const block = readBlock(id, entry);
+    if (block && usesItemStore(block)) return true;
+  }
+  return false;
+};
+
+/**
+ * Replaces the data of an entry (new type, or a shape the current layout
+ * cannot merge) with the layout `block` needs.
+ * @param {Y.Map<any>} entry - Block entry.
+ * @param {{ type: string, data: object }} block - Block (JSON).
+ */
+const setEntryData = (entry, block) => {
+  const data = isPlainObject(block.data) ? block.data : {};
+  if (usesItemStore({ type: block.type, data })) {
+    const shared = sharedColumnsData(data);
+    entry.set(COLUMN_ITEMS, shared.items);
+    entry.set('data', shared.data);
+  } else {
+    if (entry.has(COLUMN_ITEMS)) entry.delete(COLUMN_ITEMS);
+    entry.set('data', toShared(data, 2));
+  }
+};
+
+/**
+ * Applies the local change of a columns block with an item store: options
+ * key by key, items in the store by id (an edited item keeps its Y.Map and
+ * Y.Text, wherever it is placed), columns and placements like the block
+ * order of the document (moved ids are taken out of every column and put
+ * after their local predecessor). Remote changes since `base` stay.
+ * @param {Y.Map<any>} entry - Block entry.
+ * @param {Y.Map<any>} store - Its item store.
+ * @param {object} base - Data the editor started from.
+ * @param {object} local - Data the editor has now (`usesItemStore` true).
+ * @returns {boolean} True when the shared document changed.
+ */
+const mergeColumnsEntry = (entry, store, base, local) => {
+  const ydata = entry.get('data');
+  if (!(ydata instanceof Y.Map)) {
+    setEntryData(entry, { type: 'columns', data: local });
+    return true;
+  }
+  let changed = false;
+  const mark = () => {
+    changed = true;
+  };
+  // Options (layout, gap, valign, marker): key by key, `columns` excluded.
+  const options = (data) => {
+    const out = {};
+    for (const key of Object.keys(data)) if (key !== 'columns') out[key] = data[key];
+    return out;
+  };
+  const baseData = isPlainObject(base) ? base : {};
+  if (!equal(options(baseData), options(local))) {
+    mergeMap(ydata, options(baseData), options(local), 2);
+    mark();
+  }
+  let ycolumns = ydata.get('columns');
+  if (!(ycolumns instanceof Y.Array)) {
+    ycolumns = new Y.Array();
+    ydata.set('columns', ycolumns);
+    mark();
+  }
+  const listOf = (ycolumn) => {
+    let list = ycolumn.get('items');
+    if (!(list instanceof Y.Array)) {
+      list = new Y.Array();
+      ycolumn.set('items', list);
+      mark();
+    }
+    return list;
+  };
+  const removeEverywhere = (id) => {
+    for (const ycolumn of ycolumns.toArray()) {
+      const list = ycolumn instanceof Y.Map ? ycolumn.get('items') : null;
+      if (!(list instanceof Y.Array)) continue;
+      const ids = list.toArray();
+      for (let i = ids.length - 1; i >= 0; i -= 1)
+        if (ids[i] === id) {
+          list.delete(i, 1);
+          mark();
+        }
+    }
+  };
+  // 1. Items: deleted ones leave the store (a delete wins over a move), changed ones merge in place.
+  const baseItems = itemsById(baseData);
+  const localItems = itemsById(local);
+  for (const id of baseItems.keys()) {
+    if (localItems.has(id)) continue;
+    if (store.has(id)) {
+      store.delete(id);
+      mark();
+    }
+    removeEverywhere(id);
+  }
+  const skipped = new Set();
+  for (const [id, item] of localItems) {
+    const content = itemContent(item);
+    const current = store.get(id);
+    if (current instanceof Y.Map) {
+      const before = baseItems.get(id);
+      const result = mergeValue(current, before ? itemContent(before) : undefined, content, ITEM_DEPTH);
+      if (result === 'replace') store.set(id, toShared(content, ITEM_DEPTH));
+      if (result !== 'same') mark();
+    } else if (baseItems.has(id)) {
+      // Deleted by someone else since `base`: the delete wins.
+      skipped.add(id);
+    } else {
+      store.set(id, toShared(content, ITEM_DEPTH));
+      mark();
+    }
+  }
+  // Columns shown inside the last allowed one (more than the limit, see `columnsPlacement`).
+  const folded = new Set(
+    ycolumns
+      .toArray()
+      .slice(COLUMNS_LIMITS.maxColumns)
+      .map(columnIdOf)
+      .filter((id) => id !== null)
+  );
+  // 2. Columns: removed ones go, new ones are placed after their local predecessor, a column
+  // whose position changed is placed again (its items stay in the store).
+  const baseColumns = columnsOfData(baseData);
+  const localColumns = columnsOfData(local).filter((column) => typeof column.id === 'string');
+  const baseColumnIds = new Set(baseColumns.map((column) => column.id));
+  const localColumnIds = new Set(localColumns.map((column) => column.id));
+  for (let i = ycolumns.length - 1; i >= 0; i -= 1) {
+    const id = columnIdOf(ycolumns.get(i));
+    if (id !== null && baseColumnIds.has(id) && !localColumnIds.has(id)) {
+      ycolumns.delete(i, 1);
+      mark();
+    }
+  }
+  const keptBase = baseColumns.map((column) => column.id).filter((id) => localColumnIds.has(id));
+  const localIds = localColumns.map((column) => column.id);
+  const keepColumns = new Set(lcsPairs(keptBase, localIds).map(([i]) => keptBase[i]));
+  localColumns.forEach((column, index) => {
+    const current = ycolumns.toArray().map(columnIdOf);
+    const at = current.indexOf(column.id);
+    if (at >= 0 && (keepColumns.has(column.id) || !baseColumnIds.has(column.id))) return;
+    if (at < 0 && baseColumnIds.has(column.id)) return; // removed by someone else: the removal wins
+    if (at >= 0) ycolumns.delete(at, 1);
+    const after = ycolumns.toArray().map(columnIdOf);
+    let position = 0;
+    for (let p = index - 1; p >= 0; p -= 1) {
+      const found = after.indexOf(localIds[p]);
+      if (found >= 0) {
+        position = found + 1;
+        break;
+      }
+    }
+    ycolumns.insert(position, [sharedColumn({ ...column, items: [] }, localItems)]);
+    mark();
+  });
+  // 3. Placements: like the block order of the document, per column.
+  const baseById = new Map(baseColumns.map((column) => [column.id, column]));
+  for (const column of localColumns) {
+    const ycolumn = ycolumns.toArray().find((candidate) => columnIdOf(candidate) === column.id);
+    if (!(ycolumn instanceof Y.Map)) continue;
+    const list = listOf(ycolumn);
+    const wanted = placedIds(column, localItems).filter((id) => !skipped.has(id));
+    const wantedSet = new Set(wanted);
+    // Only ids this column's own list holds count as kept: items shown here from a folded column
+    // or without a place are placed explicitly, so an item added after them stays after them.
+    const own = new Set(list.toArray());
+    const before = (baseById.has(column.id) ? placedIds(baseById.get(column.id), baseItems) : []).filter(
+      (id) => own.has(id)
+    );
+    const kept = before.filter((id) => wantedSet.has(id));
+    const keep = new Set(lcsPairs(kept, wanted).map(([i]) => kept[i]));
+    let touched = false;
+    wanted.forEach((id, index) => {
+      if (keep.has(id)) return;
+      removeEverywhere(id);
+      const current = list.toArray();
+      let position = 0;
+      for (let p = index - 1; p >= 0; p -= 1) {
+        const found = current.indexOf(wanted[p]);
+        if (found >= 0) {
+          position = found + 1;
+          break;
+        }
+      }
+      list.insert(position, [id]);
+      touched = true;
+      mark();
+    });
+    if (touched || before.some((id) => !wantedSet.has(id))) {
+      // Ids whose item is gone (a move that met a delete) are dropped from a column that changed anyway.
+      const ids = list.toArray();
+      for (let i = ids.length - 1; i >= 0; i -= 1)
+        if (typeof ids[i] !== 'string' || !(store.get(ids[i]) instanceof Y.Map)) {
+          list.delete(i, 1);
+          mark();
+        }
+    }
+  }
+  // 4. Columns that were shown inside the last allowed one are removed once none of their ids is
+  // shown from them any more (the local change placed their items in a column of its own).
+  if (folded.size) {
+    const shownFrom = new Map();
+    ycolumns.toArray().forEach((ycolumn, index) => {
+      const list = ycolumn instanceof Y.Map ? ycolumn.get('items') : null;
+      if (list instanceof Y.Array)
+        for (const id of list.toArray())
+          if (!shownFrom.has(id) && store.get(id) instanceof Y.Map) shownFrom.set(id, index);
+    });
+    for (let i = ycolumns.length - 1; i >= 0; i -= 1) {
+      const ycolumn = ycolumns.get(i);
+      const id = columnIdOf(ycolumn);
+      if (!folded.has(id) || localColumnIds.has(id)) continue;
+      const list = ycolumn instanceof Y.Map ? ycolumn.get('items') : null;
+      if ((list instanceof Y.Array ? list.toArray() : []).some((itemId) => shownFrom.get(itemId) === i))
+        continue;
+      ycolumns.delete(i, 1);
+      mark();
+    }
+  }
+  return changed;
+};
+
+/**
+ * Creates a block entry (a built-in columns block with its item store).
  * @param {{ type: string, data: object, tunes?: object }} block - Block.
  * @returns {Y.Map<any>} Entry (prelim).
  */
-const createEntry = (block) =>
-  new Y.Map([
-    ['type', block.type],
-    ['tunes', toShared(isPlainObject(block.tunes) ? block.tunes : {}, 2)],
-    ['data', toShared(isPlainObject(block.data) ? block.data : {}, 2)],
-  ]);
+const createEntry = (block) => {
+  const data = isPlainObject(block.data) ? block.data : {};
+  const tunes = ['tunes', toShared(isPlainObject(block.tunes) ? block.tunes : {}, 2)];
+  if (usesItemStore({ type: block.type, data })) {
+    const shared = sharedColumnsData(data);
+    return new Y.Map([['type', block.type], tunes, ['data', shared.data], [COLUMN_ITEMS, shared.items]]);
+  }
+  return new Y.Map([['type', block.type], tunes, ['data', toShared(data, 2)]]);
+};
 
 /**
  * Applies only what changed locally (base -> local) to a shared document.
@@ -1089,10 +1536,25 @@ export const applyLocalChanges = (doc, base, local, origin = 'local') => {
         continue;
       }
       const reference = before || readBlock(block.id, entry) || { type: block.type, data: {}, tunes: {} };
+      const store = itemStoreOf(entry);
       if (entry.get('type') !== block.type && reference.type !== block.type) {
         entry.set('type', block.type);
-        entry.set('data', toShared(isPlainObject(block.data) ? block.data : {}, 2));
+        setEntryData(entry, block);
         changed = true;
+      } else if (store && entry.get('type') === block.type) {
+        // Columns block with an item store (schema 4): moves keep the items.
+        if (usesItemStore(block)) {
+          changed =
+            mergeColumnsEntry(
+              entry,
+              store,
+              reference.data || {},
+              isPlainObject(block.data) ? block.data : {}
+            ) || changed;
+        } else if (!equal(readBlock(block.id, entry).data, block.data)) {
+          setEntryData(entry, block);
+          changed = true;
+        }
       } else {
         if (!before && entry.get('type') !== block.type) {
           entry.set('type', block.type);
