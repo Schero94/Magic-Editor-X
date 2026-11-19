@@ -2,6 +2,8 @@
 
 > Strapi 5 plugin (npm: magic-editor-x, plugin id: magic-editor-x, MIT) that adds an Editor.js custom field `plugin::magic-editor-x.richtext` with Media Library uploads, custom blocks (Settings or code), tables with merged cells, math (MathML) and footnotes, templates, patterns and synced blocks, comments on blocks and selected text with @mentions and notifications, block suggestions, version history, an audit trail, live collaboration across several Node processes, rendered Content API and GraphQL output, React and Vue components, and optional AI (Anthropic, OpenAI or an OpenAI-compatible server) and LanguageTool assistants that use the owner's servers.
 
+Current version: __PACKAGE_VERSION__ (npm).
+
 Requirements: Strapi `^5.38.0` (CI builds and tests 5.38.0 and 5.63.0), Node.js `>=22.12.0 <=26.x.x`, SQLite, PostgreSQL or MySQL/MariaDB. Install with `npm install magic-editor-x`; the current version is on npm.
 
 Key facts for code generation:
