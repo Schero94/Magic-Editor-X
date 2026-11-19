@@ -16,7 +16,7 @@ import {
 } from '../shared/ydoc.mjs';
 
 /**
- * Columns item store (2.6.1) on the server: a room written by 2.6.0 (columns
+ * Columns item store (2.6.2) on the server: a room written by 2.6.0 (columns
  * items nested in the columns) is moved to a new generation with the item
  * store as soon as it is loaded; connected clients follow without losing
  * edits; afterwards moving an item while someone types into it keeps the
@@ -299,6 +299,78 @@ test('a 2.6.0 room moves to the item store; then a move keeps concurrent typing 
     for (const sim of sims) sim.client.destroy();
     await stopInstance(a);
     await stopInstance(b);
+    await knex.destroy();
+  }
+});
+
+test('rolling deploy: a 2.6.0 socket in the room delays the upgrade; an upgraded room is not upgraded again soon', async () => {
+  const knex = await openDatabase();
+  const a = await startInstance(createInstance(knex));
+  const sims = [];
+  try {
+    await a.store.init();
+    await a.store.appendUpdate(ROOM, legacySeed(columnsDoc, 'legacy-roll'), 'seed');
+    await a.store.ensureGeneration(ROOM, 'legacy-roll');
+    // A socket of a 2.6.0 process (presence id without the protocol-4 prefix) is in the room.
+    await a.store.upsertPresence({
+      id: '00000000-0000-4000-8000-000000000000',
+      room: ROOM,
+      userId: 2,
+      name: 'Old P.',
+      color: 'primary',
+      canEdit: true,
+    });
+    sims.push(
+      simulatedEditor({
+        name: 'c0',
+        createCollabClient,
+        url: a.url,
+        requestSession: async () => ({ token: tokenFor(a), path: '/magic-editor-x/realtime', canEdit: true }),
+      })
+    );
+    await waitFor(() => sims[0].state.status === 'live', 'client live');
+    await sleep(2500);
+    let doc = await roomDoc(a.store);
+    assert.equal(epochOf(doc), 'legacy-roll', 'not upgraded while a 2.6.0 socket is in the room');
+    doc.destroy();
+    assert.deepEqual(await a.collab.upgradeRoom(ROOM), { upgraded: false });
+    // The old process is gone: the upgrade runs.
+    await a.store.removePresence('00000000-0000-4000-8000-000000000000');
+    let result = { upgraded: false };
+    for (let i = 0; i < 40 && !result.upgraded; i += 1) {
+      doc = await roomDoc(a.store);
+      const done = epochOf(doc) !== 'legacy-roll';
+      doc.destroy();
+      if (done) break;
+      result = await a.collab.upgradeRoom(ROOM);
+      if (!result.upgraded) await sleep(200);
+    }
+    doc = await roomDoc(a.store);
+    const epoch = epochOf(doc);
+    assert.notEqual(epoch, 'legacy-roll');
+    assert.equal(hasLegacyColumns(doc), false);
+    // A 2.6.0 process writes a block in the old layout straight into the table (no guard there):
+    // this process does not start yet another generation for it within ten minutes.
+    const before = Y.encodeStateVector(doc);
+    getTypes(doc).blocks.set(
+      'cols2',
+      new Y.Map([
+        ['type', 'columns'],
+        ['tunes', toShared({}, 2)],
+        ['data', toShared(columnsDoc.blocks[1].data, 2)],
+      ])
+    );
+    getTypes(doc).order.push(['cols2']);
+    await a.store.appendUpdate(ROOM, Y.encodeStateAsUpdate(doc, before), 'update', { epoch });
+    doc.destroy();
+    await sleep(500);
+    assert.deepEqual(await a.collab.upgradeRoom(ROOM), { upgraded: false });
+    doc = await roomDoc(a.store);
+    assert.equal(epochOf(doc), epoch, 'no second generation');
+    doc.destroy();
+  } finally {
+    for (const sim of sims) sim.client.destroy();
+    await stopInstance(a);
     await knex.destroy();
   }
 });

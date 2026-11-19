@@ -133,6 +133,40 @@ export const sharedTextAt = (doc, blockId, path) => {
 };
 
 /**
+ * The Y.Text a range anchor belongs to (2.6.2). The relative start position names its Y.Text
+ * itself, which stays right when the anchored text moved (a column item moved to another column
+ * keeps its Y.Text, but its data path changes); it is used when it is one of the block's text
+ * fields. Otherwise the stored data path is used, as before.
+ * @param {Y.Doc|null} doc - Room document.
+ * @param {string} blockId - Block id.
+ * @param {string} path - Data path stored with the anchor (where the text was when it was anchored).
+ * @param {string|null} start - Base64 relative start position.
+ * @returns {Y.Text|null} Shared text, or null.
+ */
+export const anchoredText = (doc, blockId, path, start) => {
+  if (!doc) return null;
+  const entry = doc.getMap('blocks').get(blockId);
+  if (!(entry instanceof Y.Map)) return null;
+  if (isRelPos(start)) {
+    try {
+      const at = Y.createAbsolutePositionFromRelativePosition(
+        Y.decodeRelativePosition(fromBase64(start)),
+        doc
+      );
+      if (
+        at &&
+        at.type instanceof Y.Text &&
+        sharedBlockTextLeaves(entry).some((leaf) => leaf.text === at.type)
+      )
+        return at.type;
+    } catch {
+      // an undecodable position falls back to the path
+    }
+  }
+  return sharedTextAt(doc, blockId, path);
+};
+
+/**
  * Encoded relative positions of a source range of a Y.Text.
  * @param {Y.Text} ytext - Shared text.
  * @param {number} start - Source start (inclusive).

@@ -1,4 +1,4 @@
-// Columns block: moving an item to another column keeps a concurrent edit of that item (2.6.1).
+// Columns block: moving an item to another column keeps a concurrent edit of that item (2.6.2).
 // Replica-level tests (the same harness as collab-convergence and columns.test.mjs): two clients,
 // a server document that checks every update with the live guard, and the editor modelled as JSON.
 import test from 'node:test';
@@ -496,16 +496,52 @@ test('guard: the item store and the placement lists are checked like any other b
     attempt((blocks) =>
       firstList(blocks).insert(
         0,
-        Array.from({ length: 201 }, () => 'a')
+        Array.from({ length: 801 }, () => 'a')
       )
     ).ok,
     false
   );
-  // More visible items than a column may hold (also through the store).
+  // More items than the store may hold (twice what the block shows).
   assert.equal(
     attempt((blocks) => {
-      for (let i = 0; i < 60; i += 1) store(blocks).set(`z${i}`, new Y.Map([['type', 'paragraph']]));
+      for (let i = 0; i < 401; i += 1) store(blocks).set(`z${i}`, new Y.Map([['type', 'paragraph']]));
     }).ok,
+    false
+  );
+  // 2.6.2 review: items without a place are checked too (keys, kinds, text length, total size).
+  const hidden = (fields) =>
+    attempt((blocks) => store(blocks).set('hidden1', new Y.Map(Object.entries(fields))));
+  assert.equal(hidden({ type: 'paragraph', text: new Y.Text('ok') }).ok, true);
+  assert.equal(hidden({ type: 'paragraph', onclick: new Y.Text('x') }).ok, false);
+  assert.equal(hidden({ type: 'script', text: new Y.Text('x') }).ok, false);
+  assert.equal(hidden({ type: 'paragraph', text: new Y.Text('x'.repeat(20001)) }).ok, false);
+  assert.equal(
+    attempt((blocks) => {
+      for (let i = 0; i < 60; i += 1)
+        store(blocks).set(
+          `h${i}`,
+          new Y.Map([
+            ['type', 'paragraph'],
+            ['text', new Y.Text('x'.repeat(19000))],
+          ])
+        );
+    }).ok,
+    false,
+    'all stored items together stay within the block size limit'
+  );
+  // A columns block in the 2.6.0 layout is not accepted as new structure (the server would start a
+  // new room generation for it again and again).
+  assert.equal(
+    attempt((blocks) =>
+      blocks.set(
+        'legacy2',
+        new Y.Map([
+          ['type', 'columns'],
+          ['tunes', new Y.Map()],
+          ['data', toShared(threeColumns().data, 2)],
+        ])
+      )
+    ).ok,
     false
   );
 });
@@ -533,4 +569,47 @@ test('more columns than allowed at once (concurrent "add a column"): the extra c
   assert.equal(out.flat().length, 7);
   const entry = getTypes(r.server).blocks.get('cols1');
   assert.equal(entry.get('data').get('columns').length, 2, 'the extra column maps were removed');
+});
+
+test('an item added at the end of a column after items shown there from a folded column stays last', () => {
+  const r = room(doc(threeColumns()), 3);
+  const [a, b, c] = r.clients;
+  a.edit((d) => columnsOf(d).push({ id: 'xa', items: [item('fa', 'From A')] }));
+  b.edit((d) => columnsOf(d).push({ id: 'xb', items: [item('fb', 'From B')] }));
+  settle(r);
+  // Four columns plus one folded into the fourth.
+  c.edit((d) => columnsOf(d).push({ id: 'xc', items: [] }));
+  let out = settle(r);
+  assert.equal(out.length, 4);
+  const shown = out[3].map((entry) => entry.split(':')[0]);
+  // Append a new item at the end of the fourth column as the editor shows it.
+  a.edit((d) => columnsOf(d)[3].items.push(item('last', 'Added last')));
+  out = settle(r);
+  assert.deepEqual(
+    out[3].map((entry) => entry.split(':')[0]),
+    [...shown, 'last']
+  );
+});
+
+test('near the item limit, merged valid changes are never refused and nothing is lost on save', () => {
+  const many = (prefix, n) => Array.from({ length: n }, (_, i) => item(`${prefix}${i}`, `${prefix} ${i}`));
+  const block = columnsBlock('cols1', [
+    { id: 'c1', items: [item('a', 'Alpha')] },
+    { id: 'c2', items: [item('b', 'Bravo')] },
+    { id: 'c3', items: many('p', 25) },
+    { id: 'c4', items: many('q', 25) },
+  ]);
+  const r = room(doc(block));
+  const [a, b] = r.clients;
+  a.edit((d) => setCount(d, 3));
+  b.edit((d) => columnsOf(d)[3].items.push(item('late', 'Typed by B')));
+  const out = settle(r);
+  assert.equal(out.flat().length, 53, 'every item is still in the room');
+  assert.ok(out.flat().includes('late:Typed by B'));
+  // Saving keeps every item: the policy moves what is beyond 50 into a new column.
+  const saved = cleanEditorValue(docToEditorData(r.server));
+  const ids = saved.blocks[0].data.columns.flatMap((column) => column.items.map((it) => it.id));
+  assert.equal(ids.length, 53);
+  assert.ok(ids.includes('late'));
+  assert.ok(saved.blocks[0].data.columns.every((column) => column.items.length <= 50));
 });

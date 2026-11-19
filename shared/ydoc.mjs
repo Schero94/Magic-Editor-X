@@ -22,7 +22,7 @@
  * visible. A concurrent "move" (delete + insert of the same id in `order`) and
  * a concurrent edit of that block therefore never lose data.
  *
- * Columns blocks (schema 4, 2.6.1): a Yjs type exists only once in a document
+ * Columns blocks (schema 4, 2.6.2): a Yjs type exists only once in a document
  * and cannot be moved, so nested items would be copied by a move and a
  * concurrent edit of the original would be lost. A built-in columns block
  * therefore keeps its items like the document keeps its blocks: the entry key
@@ -1062,7 +1062,7 @@ const itemsOfColumn = (column) => (Array.isArray(column.items) ? column.items.fi
  * @param {{ type: string, data: object }} block - Block (JSON).
  * @returns {boolean} Result.
  */
-const usesItemStore = (block) => {
+export const usesItemStore = (block) => {
   if (!block || block.type !== 'columns' || !isMarkedBuiltIn('columns', block.data)) return false;
   if (!Array.isArray(block.data.columns)) return false;
   const ids = new Set();
@@ -1387,7 +1387,12 @@ const mergeColumnsEntry = (entry, store, base, local) => {
     const list = listOf(ycolumn);
     const wanted = placedIds(column, localItems).filter((id) => !skipped.has(id));
     const wantedSet = new Set(wanted);
-    const before = baseById.has(column.id) ? placedIds(baseById.get(column.id), baseItems) : [];
+    // Only ids this column's own list holds count as kept: items shown here from a folded column
+    // or without a place are placed explicitly, so an item added after them stays after them.
+    const own = new Set(list.toArray());
+    const before = (baseById.has(column.id) ? placedIds(baseById.get(column.id), baseItems) : []).filter(
+      (id) => own.has(id)
+    );
     const kept = before.filter((id) => wantedSet.has(id));
     const keep = new Set(lcsPairs(kept, wanted).map(([i]) => kept[i]));
     let touched = false;

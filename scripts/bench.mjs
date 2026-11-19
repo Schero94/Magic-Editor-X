@@ -9,7 +9,7 @@
  *
  *   normalize + sanitize (normalizeEditorData + server cleanEditorValue),
  *   renderHtml / renderText / renderMarkdown (public API only),
- *   diffDocuments, find + replace, Yjs seed + apply (shared/ydoc.mjs),
+ *   diffDocuments, find + replace, Yjs seed + apply (shared/ydoc.mjs), columns item moves (2.6.2),
  *   quality lint, preset check, audit change summary (2.4).
  *
  * 2.5: whole documents with many editor fields (20 top-level fields, a
@@ -121,6 +121,50 @@ const editDocument = (data) => {
 };
 
 /**
+ * 2.6.2: document with a columns block every 10 blocks (3 columns of 4 items, built-in marker)
+ * and paragraphs in between, plus its edited copy: in every columns block one item moves to
+ * another column, and every second block goes to 2 columns (the items of the third move).
+ * @param {number} count - Number of blocks.
+ * @returns {{ data: object, edited: object }} Documents.
+ */
+const makeColumnsDocuments = (count) => {
+  const blocks = [];
+  for (let i = 0; i < count; i += 1) {
+    if (i % 10 !== 0) {
+      blocks.push({ id: `cp-${i}`, type: 'paragraph', data: { text: `Paragraph ${i} between columns.` } });
+      continue;
+    }
+    blocks.push({
+      id: `cb-${i}`,
+      type: 'columns',
+      data: {
+        columns: [0, 1, 2].map((c) => ({
+          id: `c${i}x${c}`,
+          items: [0, 1, 2, 3].map((n) => ({
+            id: `i${i}x${c}x${n}`,
+            type: 'paragraph',
+            text: `Item ${n} of ${c}`,
+          })),
+        })),
+        _mex: 1,
+      },
+    });
+  }
+  const data = { time: 1762850000000, version: '2.31.7', blocks };
+  const edited = structuredClone(data);
+  edited.blocks.forEach((block, index) => {
+    if (block.type !== 'columns') return;
+    const [first, second, third] = block.data.columns;
+    second.items.push(first.items.shift());
+    if ((index / 10) % 2 === 0) {
+      second.items.push(...third.items);
+      block.data.columns = [first, second];
+    }
+  });
+  return { data, edited };
+};
+
+/**
  * Median duration of `fn` in milliseconds per call.
  * @param {() => unknown} fn - Operation.
  * @returns {{ median: number, iterations: number }} Result.
@@ -145,9 +189,10 @@ const measure = (fn) => {
  * The measured operations. Each returns a deterministic counter.
  * @param {object} data - Normalised document.
  * @param {object} edited - Edited document.
+ * @param {{ data: object, edited: object }} columns - Columns documents (`makeColumnsDocuments`).
  * @returns {Record<string, () => number>} Operations.
  */
-const operations = (data, edited) => {
+const operations = (data, edited, { data: columnsData, edited: columnsEdited }) => {
   const preset = resolveFieldPreset({
     preset: 'full',
     maxBlocks: 10000,
@@ -175,6 +220,18 @@ const operations = (data, edited) => {
       applyLocalChanges(doc, data, edited);
       return docToEditorData(doc).blocks.length;
     },
+    // 2.6.2: columns blocks with an item store: seed, move items and change column counts, read back.
+    'ydoc columns move': () => {
+      const doc = new Y.Doc();
+      Y.applyUpdate(doc, createSeedUpdate(columnsData, 'bench'));
+      applyLocalChanges(doc, columnsData, columnsEdited);
+      return docToEditorData(doc)
+        .blocks.filter((block) => block.type === 'columns')
+        .reduce(
+          (sum, block) => sum + block.data.columns.reduce((n, column) => n + column.items.length, 0),
+          0
+        );
+    },
     lint: () => lintDocument(data).issues.length,
     presetCheck: () => checkPreset(data, preset).length,
     // Audit trail: counts of one save (block id + fingerprint comparison, no word diff).
@@ -189,7 +246,7 @@ const results = [];
 for (const size of SIZES) {
   const data = normalizeEditorData(makeDocument(size));
   const edited = editDocument(data);
-  for (const [name, fn] of Object.entries(operations(data, edited))) {
+  for (const [name, fn] of Object.entries(operations(data, edited, makeColumnsDocuments(size)))) {
     const counter = fn();
     const { median, iterations } = measure(fn);
     results.push({ size, name, median, iterations, counter });

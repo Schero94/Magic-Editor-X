@@ -75,7 +75,7 @@ Run it on SQLite and on PostgreSQL: start the same app with `DATABASE_CLIENT=pos
 
 ## Performance benchmark
 
-`npm run bench` (`scripts/bench.mjs`) builds synthetic documents of 500, 2000 and 5000 blocks from `tests/fixtures/editor-2x-all-blocks.json` (every block type, nested lists, tables, inline formatting, links) and measures the median of seven samples after a warm-up for normalise + sanitise, the three renderers, the version diff, find and replace, Yjs seed + apply, the quality lint and the preset check. Fast operations repeat inside a sample until it lasts 25 ms, so medians of small documents are stable. `--json` prints machine-readable results. CI runs it in the `bench` job.
+`npm run bench` (`scripts/bench.mjs`) builds synthetic documents of 500, 2000 and 5000 blocks from `tests/fixtures/editor-2x-all-blocks.json` (every block type, nested lists, tables, inline formatting, links) and measures the median of seven samples after a warm-up for normalise + sanitise, the three renderers, the version diff, find and replace, Yjs seed + apply, columns item moves in the Yjs mapping (2.6.2: a columns block every 10 blocks, items moved and column counts reduced), the quality lint and the preset check. Fast operations repeat inside a sample until it lasts 25 ms, so medians of small documents are stable. `--json` prints machine-readable results. CI runs it in the `bench` job.
 
 Thresholds live in `scripts/bench-thresholds.json` and are chosen so that the job does not flake on shared CI runners but still catches real regressions:
 

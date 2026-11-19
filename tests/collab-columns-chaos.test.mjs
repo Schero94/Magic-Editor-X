@@ -8,7 +8,7 @@ import { loadCollabClient, simulatedEditor, ioRef } from '../scripts/cluster/nod
 import { createSeedUpdate } from '../shared/ydoc.mjs';
 
 /**
- * Columns item store (2.6.1) under load: several real admin clients on two
+ * Columns item store (2.6.2) under load: several real admin clients on two
  * service instances type into paragraphs, table cells, list items and column
  * items, add items and move them between columns (also by changing the
  * number of columns), all at the same time. Every update must pass the live

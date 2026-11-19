@@ -337,6 +337,7 @@ Limits:
 - Up to 5000 blocks per field (the stored-content limit); rooms above 64 MiB of history refuse further edits until they are compacted.
 - Columns: moving an item to another column (fewer columns) keeps what others type into it at the same moment; when one person deletes an item that another moves, the delete wins. Cut and paste is not a move: cutting text and pasting it into another column removes the text and adds new text, so what someone types into the cut text at that moment is not carried over.
 - After an update, editor tabs opened before it show "Reload the page to keep editing live" until they are reloaded.
+- Several processes: run one version. During a rolling deploy, rooms that a process of the previous version still serves keep their old columns layout until that process is gone.
 
 ## Running several instances
 

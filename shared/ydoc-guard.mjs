@@ -17,7 +17,7 @@
 
 import * as Y from 'yjs';
 import { EDITOR_DATA_LIMITS, normalizeEditorData } from './editor-data.mjs';
-import { itemStoreOf, readBlock } from './ydoc.mjs';
+import { itemStoreOf, readBlock, readShared, usesItemStore } from './ydoc.mjs';
 import { BUILT_IN_MARKER, isBuiltInMarker, isMarkedBuiltIn } from './built-in-marker.mjs';
 import { isTableDataShapeValid } from './table.mjs';
 import { COMPONENT_ATTRIBUTE, COMPONENT_LIMITS } from './components.mjs';
@@ -30,6 +30,12 @@ const BLOCK_TYPE_PATTERN = /^[A-Za-z][A-Za-z0-9_-]{0,63}$/;
 const META_KEYS = { schema: 'number', time: 'number', version: 'string', epoch: 'string' };
 const MAX_KEY_LENGTH = 128;
 const MAX_BLOCK_BYTES = 1024 * 1024;
+/**
+ * Items of one columns block with an item store (2.6.2): twice what the block shows (4 columns of
+ * 50), so changes of several people that each stay within the limits always merge. The policy
+ * fits what is shown on save (`cleanColumnsData`).
+ */
+const ITEM_STORE_MAX = COLUMNS_LIMITS.maxColumns * COLUMNS_LIMITS.items * 2;
 
 /**
  * Checks a JSON value carried in an update.
@@ -259,9 +265,18 @@ const validComponentData = (block) => {
  */
 const validItemStore = (entry) => {
   const store = itemStoreOf(entry);
-  if (!store || store.size > COLUMNS_LIMITS.maxColumns * COLUMNS_LIMITS.items) return false;
-  for (const [id, value] of store.entries())
+  if (!store || store.size > ITEM_STORE_MAX) return false;
+  const items = [];
+  for (const [id, value] of store.entries()) {
     if (!COLUMN_ID.test(id) || !(value instanceof Y.Map)) return false;
+    const content = readShared(value, 6);
+    items.push({ ...content, id });
+  }
+  // Every stored item, placed or not, has the shape of a column item (keys, kinds, text length),
+  // and all of them together stay within the block size limit.
+  if (!isColumnsDataShapeValid({ columns: [{ id: 'store', items }] }, { maxItems: ITEM_STORE_MAX }))
+    return false;
+  if (JSON.stringify(items).length > MAX_BLOCK_BYTES) return false;
   const data = entry.get('data');
   if (!(data instanceof Y.Map)) return false;
   const columns = data.get('columns');
@@ -273,7 +288,7 @@ const validItemStore = (entry) => {
     if (!(column instanceof Y.Map)) return false;
     const list = column.get('items');
     if (list === undefined) continue;
-    if (!(list instanceof Y.Array) || list.length > COLUMNS_LIMITS.items * 4) return false;
+    if (!(list instanceof Y.Array) || list.length > ITEM_STORE_MAX * 2) return false;
     if (!list.toArray().every((id) => typeof id === 'string' && COLUMN_ID.test(id))) return false;
   }
   return true;
@@ -283,7 +298,7 @@ const validItemStore = (entry) => {
  * Validates the parts of a document a transaction changed.
  * @param {Y.Doc} doc - Room document after the update.
  * @param {{ ids: Set<string>, order: boolean, meta: boolean }} touched - Result of `touchedBy`.
- * @param {{ checkBlock?: (block: { id: string, type: string, data: object }) => string|null }} [options] - Extra per-block rule (field presets).
+ * @param {{ checkBlock?: (block: { id: string, type: string, data: object }) => string|null, createdNow?: (type: unknown) => boolean }} [options] - Extra per-block rule (field presets); `createdNow` tells whether a shared type was created by the update being checked.
  * @returns {string|null} Error code, or null when the document is valid.
  */
 export const validateTouched = (doc, touched, options = {}) => {
@@ -324,7 +339,23 @@ export const validateTouched = (doc, touched, options = {}) => {
       if (
         normalized.blocks[0].type === 'columns' &&
         isMarkedBuiltIn('columns', normalized.blocks[0].data) &&
-        !isColumnsDataShapeValid(normalized.blocks[0].data)
+        !isColumnsDataShapeValid(normalized.blocks[0].data, {
+          // 2.6.2: merged changes may briefly show more than 50 items in a column of a block with
+          // an item store (folded columns, items without a place); the store itself is bounded.
+          maxItems: itemStoreOf(entry) ? ITEM_STORE_MAX : COLUMNS_LIMITS.items,
+        })
+      )
+        return 'INVALID_BLOCK';
+      // 2.6.2: a columns block without an item store is accepted only as written before (rooms of
+      // 2.6.0 until their upgrade). New structure in that layout would make the server start a new
+      // room generation again and again (`hasLegacyColumns`).
+      if (
+        normalized.blocks[0].type === 'columns' &&
+        typeof options.createdNow === 'function' &&
+        !itemStoreOf(entry) &&
+        usesItemStore(block) &&
+        (options.createdNow(entry.get('data')) ||
+          (entry.get('data') instanceof Y.Map && options.createdNow(entry.get('data').get('columns'))))
       )
         return 'INVALID_BLOCK';
       // 2.6: adding or removing a key of a component block's data can turn custom data into a built-in
@@ -408,7 +439,13 @@ export const applyCheckedUpdate = (doc, update, options = {}) => {
   }
   const store = doc.store;
   if (store.pendingStructs || store.pendingDs) return { ok: false, code: 'MISSING_DEPENDENCY', dirty: true };
-  const error = validateTouched(doc, touched, options);
+  // Shared types this update created (2.6.2: legacy columns layout check).
+  const known = Y.decodeStateVector(vectorBefore);
+  const createdNow = (type) =>
+    type instanceof Y.AbstractType &&
+    Boolean(type._item) &&
+    type._item.id.clock >= (known.get(type._item.id.client) || 0);
+  const error = validateTouched(doc, touched, { ...options, createdNow });
   if (error) return { ok: false, code: error, dirty: true };
   if (!changed) {
     const vectorAfter = Y.encodeStateVector(doc);

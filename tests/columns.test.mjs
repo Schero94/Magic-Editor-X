@@ -424,7 +424,11 @@ test('guard: refuses built-in columns data outside the bounds or with foreign ke
   const attacker = new Y.Doc();
   Y.applyUpdate(attacker, seed);
   const before = Y.encodeStateVector(attacker);
-  applyEditorDataToDoc(attacker, doc(columnsBlock('cols1', tooMany.columns)));
+  // 2.6.2: a block with an item store may briefly show more than 50 items in a column (merged
+  // changes); the store holds at most 400 items.
+  const flood = clone(data);
+  flood.columns[0].items = Array.from({ length: 401 }, (_, i) => item(`i${i}`, ''));
+  applyEditorDataToDoc(attacker, doc(columnsBlock('cols1', flood.columns)));
   assert.equal(applyCheckedUpdate(server, Y.encodeStateAsUpdate(attacker, before)).ok, false);
 });
 
@@ -622,12 +626,27 @@ test('comments: range anchors address the text of one column item (data path and
   assert.ok(shared.includes('columns.0.items.3.text'));
   const ytext = sharedTextAt(room, 'cols1', 'columns.1.items.0.text');
   assert.equal(ytext.toString(), 'Right text');
-  // 2.6.1: the item keeps its Y.Text when it moves, so a range anchor follows it.
-  const range = encodeRange(ytext, 6, 10);
+  // 2.6.2: the item keeps its Y.Text when it moves. The anchor keeps the path it was made with
+  // (`columns.1.items.0.text`); the relative position names the moved Y.Text.
+  const { anchoredText } = await import('../shared/comment-relpos.mjs');
+  const range = encodeRange(ytext, 6, 10); // "text" of "Right text"
+  const anchor = { path: 'columns.1.items.0.text', ...range };
+  // A second item with the same text makes the quote ambiguous; then the item moves to column 1
+  // while someone types in front of the anchored word.
   const moved = clone(value);
-  moved.blocks[0].data.columns[0].items.push(moved.blocks[0].data.columns[1].items.shift());
+  moved.blocks[0].data.columns[1].items.push({ id: 'twin', type: 'paragraph', text: 'Right text' });
   applyEditorDataToDoc(room, moved);
-  assert.equal(sharedTextAt(room, 'cols1', 'columns.0.items.4.text'), ytext);
-  assert.deepEqual(resolveRange(room, ytext, range.start, range.end), { start: 6, end: 10 });
-  assert.equal(sharedTextAt(room, 'cols1', 'columns.1.items.0.text'), null);
+  const next = clone(moved);
+  const right = next.blocks[0].data.columns[1].items.shift();
+  right.text = 'Right moved text';
+  next.blocks[0].data.columns[0].items.push(right);
+  applyEditorDataToDoc(room, next);
+  const found = anchoredText(room, 'cols1', anchor.path, anchor.start);
+  assert.equal(found, ytext, 'the anchor finds the moved item, not the item now at its old path');
+  assert.equal(found.toString(), 'Right moved text');
+  assert.deepEqual(resolveRange(room, found, anchor.start, anchor.end), { start: 12, end: 16 });
+  // The stored path now points at the twin; the path alone would have found the wrong item.
+  assert.notEqual(sharedTextAt(room, 'cols1', anchor.path), ytext);
+  // An anchor without a relative position still uses its path.
+  assert.equal(anchoredText(room, 'cols1', 'columns.0.items.4.text', null), ytext);
 });

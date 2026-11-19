@@ -155,7 +155,7 @@ export const createCollabClient = ({
     if (notifyTimer || destroyed) return;
     notifyTimer = setTimeout(() => {
       notifyTimer = null;
-      // 2.6.1: never render a document that is not synced (after a start over it is empty until the
+      // 2.6.2: never render a document that is not synced (after a start over it is empty until the
       // resync arrives; an edit of that empty view would delete every block for everyone). The
       // first sync renders again.
       if (!destroyed && synced) onRemoteData();

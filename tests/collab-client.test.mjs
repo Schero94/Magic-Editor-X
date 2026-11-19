@@ -169,7 +169,7 @@ test('RETRY and STORE_FAILED keep the edit; INVALID_UPDATE starts over from the 
   client.destroy();
 });
 
-// 2.6.1 regression (cluster proof with column moves): a remote update scheduled a render (30 ms),
+// 2.6.2 regression (cluster proof with column moves): a remote update scheduled a render (30 ms),
 // then a refused update started over. The render ran on the new, still empty document, the
 // editor showed nothing, and the next edit was diffed against that: after the resync every block
 // the editor no longer showed was deleted for everyone.

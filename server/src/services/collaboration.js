@@ -50,11 +50,18 @@ const { parseFieldIdentity, basePathOf } = require('../../../shared/field-identi
  *   signal; every process re-checks its sockets within about a second.
  */
 
-// 4 (2.6.1): columns blocks keep their items in an item store (shared/ydoc.mjs, schema 4).
+// 4 (2.6.2): columns blocks keep their items in an item store (shared/ydoc.mjs, schema 4).
 // Editor tabs still running the 2.6.0 admin get UPGRADE_REQUIRED instead of writing the old layout.
 const PROTOCOL = 4;
 /** Idle time before a 2.6.0 room is moved to a new generation with the schema 4 layout. */
 const UPGRADE_IDLE_MS = 2000;
+/** At most one upgrade of a room per process in this time (a room cannot ping-pong between generations). */
+const UPGRADE_MIN_INTERVAL_MS = 10 * 60 * 1000;
+/**
+ * Prefix of the presence ids of protocol-4 sockets (2.6.2). A live presence row in a room without
+ * it belongs to a 2.6.0 process (rolling deploy): such a room is not upgraded until it is gone.
+ */
+const PRESENCE_PREFIX = 'p4-';
 const PROCESS_ID = randomUUID();
 const PRESENCE_TTL_MS = 30000;
 const HEARTBEAT_MS = 10000;
@@ -688,15 +695,24 @@ module.exports = ({ strapi }) => {
     const state = rooms.get(room);
     if (!state || !state.doc || state.switching || state.upgrading || !hasLegacyColumns(state.doc))
       return { upgraded: false };
+    if (state.upgradedAt && Date.now() - state.upgradedAt < UPGRADE_MIN_INTERVAL_MS)
+      return { upgraded: false };
     state.upgrading = true;
     try {
+      // Rolling deploy: a 2.6.0 process (or its clients) in this room would read the new layout as
+      // broken data and could compact it; wait until every live socket is a protocol-4 one.
+      const presence = await store().listPresence([room], Date.now() - PRESENCE_TTL_MS);
+      if (presence.some((row) => !String(row.id).startsWith(PRESENCE_PREFIX))) return { upgraded: false };
       const result = await compactGeneration(room, {
         idleMs: UPGRADE_IDLE_MS,
         minBytes: 0,
         ratio: 1,
         force: true,
       });
-      if (result.compacted) logger.info('collaboration room moved to the columns item store');
+      if (result.compacted) {
+        state.upgradedAt = Date.now();
+        logger.info('collaboration room moved to the columns item store');
+      }
       return { upgraded: result.compacted };
     } finally {
       state.upgrading = false;
@@ -1034,7 +1050,7 @@ module.exports = ({ strapi }) => {
     socket.data.name = claims.name;
     socket.data.color = claims.color;
     socket.data.cursor = null;
-    socket.data.presenceId = randomUUID();
+    socket.data.presenceId = `${PRESENCE_PREFIX}${randomUUID()}`;
     socket.data.sid = cleanSessionId(claims.sid);
     socket.data.sessionCheckedAt = Date.now();
     const state = roomState(room);

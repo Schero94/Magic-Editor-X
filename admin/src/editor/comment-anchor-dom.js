@@ -30,8 +30,8 @@ import {
 } from '../../../shared/comment-anchor.mjs';
 import {
   encodeRange,
+  anchoredText,
   resolveRange,
-  sharedTextAt,
   sharedBlockTextLeaves,
 } from '../../../shared/comment-relpos.mjs';
 
@@ -230,7 +230,7 @@ export const locateAnchor = ({ block, blockId, anchor, doc = null }) => {
   if (!clean) return { status: 'changed', range: null, via: null };
   const elements = textElements(block).map((element) => ({ element, map: domTextMap(element) }));
   if (doc && clean.start && clean.path) {
-    const ytext = sharedTextAt(doc, blockId, clean.path);
+    const ytext = anchoredText(doc, blockId, clean.path, clean.start);
     const source = ytext ? resolveRange(doc, ytext, clean.start, clean.end) : null;
     if (source) {
       const html = htmlTextMap(ytext.toString());

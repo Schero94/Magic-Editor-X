@@ -47,7 +47,7 @@ const RENDER_DELAY_MS = Number(process.env.MEX_CLUSTER_RENDER_DELAY_MS || 0);
 const PERMISSION_SLA_MS = 5000;
 // 2.6: component blocks in the room (a component uid the app allows in `body`, e.g. blocks.cta).
 const COMPONENT_UID = process.env.MEX_CLUSTER_COMPONENT || '';
-// 2.6.1: a columns block whose items are typed into, added and moved between columns.
+// 2.6.2: a columns block whose items are typed into, added and moved between columns.
 const COLUMNS = process.env.MEX_CLUSTER_COLUMNS === '1';
 const url = (port) => `http://127.0.0.1:${port}`;
 const results = [];
@@ -197,7 +197,7 @@ const markers = [];
 let counter = 0;
 const moves = { items: 0, counts: 0 };
 /**
- * 2.6.1: moves a random item of the columns block to another column, or changes the number of
+ * 2.6.2: moves a random item of the columns block to another column, or changes the number of
  * columns (fewer columns move the items of the removed ones to the last column, like the editor).
  * Items are never deleted, so every marker typed into an item must survive every move.
  * @param {object} sim - Simulated editor.
@@ -243,7 +243,7 @@ const slotEdit = (sim) => {
         for (const key of ['title', 'text'])
           if (typeof block.data.values[key] === 'string')
             slots.push((f) => (block.data.values[key] = f(block.data.values[key])));
-      // 2.6.1: every item of a columns block.
+      // 2.6.2: every item of a columns block.
       if (block.type === 'columns')
         block.data.columns.forEach((column) =>
           column.items.forEach((item) => slots.push((f) => (item.text = f(item.text))))

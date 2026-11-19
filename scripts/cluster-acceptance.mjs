@@ -17,7 +17,7 @@
  * `--component <uid>` (2.6) adds a component block of that uid to the collaboration proof; clients
  * also type into its `title` and `text` attributes (the app must allow the uid in `body`).
  *
- * `--columns` (2.6.1) adds a columns block to the collaboration proof; clients also type into its
+ * `--columns` (2.6.2) adds a columns block to the collaboration proof; clients also type into its
  * items, add items, move items to other columns and change the number of columns, all at the same
  * time (every moved item must keep every edit, and be shown once).
  *
@@ -174,7 +174,7 @@ try {
       MEX_CLUSTER_CLIENTS: option('clients', '12'),
       // 2.6: also edit a component block of this uid (the app must allow it in `body`).
       MEX_CLUSTER_COMPONENT: option('component', process.env.MEX_CLUSTER_COMPONENT || ''),
-      // 2.6.1: also type into, add and move the items of a columns block.
+      // 2.6.2: also type into, add and move the items of a columns block.
       MEX_CLUSTER_COLUMNS: flag('columns') ? '1' : process.env.MEX_CLUSTER_COLUMNS || '',
     },
     stdio: ['ignore', 'inherit', 'inherit', 'ipc'],
