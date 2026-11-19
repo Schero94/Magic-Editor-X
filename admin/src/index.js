@@ -5,6 +5,7 @@ import { PluginIcon } from './components/PluginIcon';
 import { PERMISSIONS } from './permissions';
 import { getTranslation } from './utils/getTranslation';
 import { registerBlock } from './editor/block-registry';
+import { addCoreBlocks, bindCoreBlocksApp } from './editor/core-blocks';
 import { createReactTool } from './editor/react-tool';
 import { createLogoutMiddleware } from './editor/drafts-logic.mjs';
 import { createSessionMiddleware } from './editor/session-state.mjs';
@@ -91,7 +92,14 @@ export default {
   register(app) {
     // `apis` (Strapi admin plugin API): the custom block SDK for the host app's
     // `src/admin/app.js`: `app.getPlugin('magic-editor-x').apis.registerBlock({ definition, tool })`.
-    app.registerPlugin({ id: PLUGIN_ID, name: PLUGIN_ID, apis: { registerBlock, createReactTool } });
+    // 2.7: `apis.addCoreBlocks({ [type]: block })` adds custom blocks to Strapi's core Blocks editor
+    // (Content Manager addRichTextBlocks) for the Core Blocks bridge.
+    bindCoreBlocksApp(app);
+    app.registerPlugin({
+      id: PLUGIN_ID,
+      name: PLUGIN_ID,
+      apis: { registerBlock, createReactTool, addCoreBlocks },
+    });
 
     // 2.4: homepage widget with the admin's comment mentions and replies (Strapi 5.13+ widget API).
     if (app.widgets && typeof app.widgets.register === 'function') {

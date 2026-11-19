@@ -97,6 +97,10 @@ export const changeSummary = (t, item) => {
   }
   if (item.event === 'settings.update' && Array.isArray(meta.keys) && meta.keys.length)
     parts.push(t('settings.audit.meta.keys', 'Sections: {keys}', { keys: meta.keys.join(', ') }));
+  if (item.event === 'settings.update' && meta.coreBlocks === 'on')
+    parts.push(t('settings.audit.meta.coreBlocksOn', 'Core Blocks bridge switched on'));
+  if (item.event === 'settings.update' && meta.coreBlocks === 'off')
+    parts.push(t('settings.audit.meta.coreBlocksOff', 'Core Blocks bridge switched off'));
   if (item.event === 'linkcheck.run')
     parts.push(
       t(

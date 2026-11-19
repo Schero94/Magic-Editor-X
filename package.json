@@ -109,6 +109,7 @@
     "test": "node --test --test-concurrency=4 \"tests/*.test.mjs\"",
     "test:admin": "node --import ./tests/admin/harness/setup.mjs --test \"tests/admin/*.test.jsx\"",
     "test:integration": "node --test --test-concurrency=1 \"tests/integration/*.test.mjs\"",
+    "test:core-blocks": "node --test --test-concurrency=1 tests/core-blocks.test.mjs tests/core-blocks-settings.test.mjs \"tests/core-blocks-host/*.test.mjs\"",
     "prepack": "npm run build",
     "docs:llms": "node scripts/build-llms-full.mjs",
     "schema": "node scripts/build-schema.mjs",

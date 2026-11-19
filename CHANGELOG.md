@@ -1,5 +1,32 @@
 # Changelog
 
+## [Unreleased]
+
+Minor release (2.7.0): no breaking changes, no migration. The new feature is off by default.
+
+### Added
+
+- **Core Blocks bridge:** custom blocks in Strapi's own Blocks field can now be saved and published. Strapi's server rejects every block type it does not know (`Block node is of invalid type`), so blocks added to the core Blocks editor with the Content Manager API `addRichTextBlocks` could not be saved through the admin, REST or the Document Service ([strapi/strapi discussion 25546](https://github.com/strapi/strapi/discussions/25546#discussioncomment-19718520)).
+  - Developers register a block type once on the server with `strapi.plugin('magic-editor-x').service('core-blocks').register({ type, validator })` (a Yup schema, or `(helpers) => schema` with `yup`, `textNodeValidator`, `linkNodeValidator`, `inlineNodeValidator`, `checkValidLink`) and add it to the editor with `app.getPlugin('magic-editor-x').apis.addCoreBlocks({ [type]: block })`, which wraps `addRichTextBlocks` (Strapi 5.46 and later).
+  - Admins turn it on in Settings > Magic Editor X > Configuration > "Custom blocks in Strapi Blocks fields" (switch, then Save; no restart). Config: `coreBlocks.enabled` (default `false`); the saved switch wins.
+  - Only registered types are validated by their own schema; built-in blocks and unregistered types go through Strapi's validation unchanged, and unregistered types keep Strapi's error. Stored custom nodes are the nodes the editor sent. With the bridge off nothing changes.
+  - Limits per custom node (depth 32, 10,000 values, 256 KB of text, 1000 custom nodes per write), no prototype keys, plain JSON only.
+  - A canary checks Strapi's validator at start; if Strapi changes the hook point, the bridge logs one error and stays out instead of weakening validation. **When Strapi validates custom blocks itself, the bridge turns itself off automatically** and hands the registered types to Strapi.
+  - Settings shows the status, the registered block types and block types the editor offers without server rules.
+  - Each registered type is probed against Strapi's own validator first: a type Strapi already validates itself (for example a block a later Strapi adds) is left to Strapi, logged once and listed in Settings.
+  - The canary runs each time the bridge is switched on, so saving the switch as on retries after a Strapi fix. Shutting Strapi down cancels pending state changes, so no other Strapi instance in the same process inherits the bridge.
+  - The audit trail records when the bridge is switched on or off.
+- CI job `core-blocks`: the bridge tests run on Strapi's real entity validator and a Strapi boot (Document Service create, update, publish) on the peer floor (5.38.0) and the newest Strapi 5.x for every pull request.
+
+### Changed
+
+- `GET /settings` adds `data.coreBlocks` (status and registered type names, no content); `PUT /settings` accepts an optional `coreBlocks: { enabled }`.
+
+### Security
+
+- Validator examples end with `.noUnknown()`; hosts should validate every key their renderer reads.
+- New review: [docs/security-audit-2.7.md](https://github.com/Schero94/Magic-Editor-X/blob/main/docs/security-audit-2.7.md).
+
 ## [2.6.2](https://github.com/Schero94/Magic-Editor-X/compare/v2.6.1...v2.6.2) (2026-11-19)
 
 

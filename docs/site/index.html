@@ -106,6 +106,7 @@
 
     <main class="layout" id="main-content">
       <nav class="side-nav" aria-label="Documentation sections">
+        <a href="#core-blocks">New in 2.7</a>
         <a href="#whats-new">New in 2.5</a>
         <a href="#features">Features</a>
         <a href="#screens">Screens</a>
@@ -121,6 +122,22 @@
       </nav>
 
       <div class="content">
+        <section class="section" id="core-blocks" aria-labelledby="core-blocks-title">
+          <h2 id="core-blocks-title">New in 2.7: custom blocks in Strapi's Blocks field</h2>
+          <p class="section-lead">
+            Strapi's own Blocks field lets developers add custom blocks to its editor, but Strapi's server rejects
+            them on save ("Block node is of invalid type"). The Core Blocks bridge lets the block types you register
+            pass that check, each against its own rules, until Strapi supports it itself
+            (<a href="https://github.com/strapi/strapi/discussions/25546">proposal</a>). It turns itself off when it does.
+          </p>
+          <ul class="check-list">
+            <li>Admins: Settings &gt; Magic Editor X &gt; Configuration, switch "Save registered custom blocks", Save. No restart. Off by default.</li>
+            <li>Developers: <code>strapi.plugin('magic-editor-x').service('core-blocks').register({ type, validator })</code> on the server and <code>app.getPlugin('magic-editor-x').apis.addCoreBlocks({ [type]: block })</code> in the admin.</li>
+            <li>Built-in and unregistered blocks are checked by Strapi exactly as before; stored custom blocks are what the editor sent.</li>
+          </ul>
+          <p><a href="https://github.com/Schero94/Magic-Editor-X#core-blocks-bridge">Developer guide in the README</a></p>
+        </section>
+
         <section class="section" id="whats-new" aria-labelledby="whats-new-title">
           <h2 id="whats-new-title">What's new in 2.5</h2>
           <p class="section-lead">
@@ -320,6 +337,26 @@
           <h2 id="screens-title">Screens</h2>
           <p class="section-lead">All screenshots use synthetic data (captured on Strapi 5.61.1 and 5.62.0; acceptance host: Strapi 5.63.0).</p>
           <div class="gallery">
+            <figure class="shot">
+              <img
+                src="./img/core-blocks-settings-1440.webp"
+                alt="Settings: the Core Blocks bridge switch, its status Active and the registered block type callout"
+                width="1025"
+                height="421"
+                loading="lazy"
+              />
+              <figcaption>Core Blocks bridge in Settings (2.7)</figcaption>
+            </figure>
+            <figure class="shot">
+              <img
+                src="./img/core-blocks-editor-1440.webp"
+                alt="Strapi's core Blocks editor with a paragraph and a custom callout block, saved and published"
+                width="1440"
+                height="900"
+                loading="lazy"
+              />
+              <figcaption>A custom block in Strapi's Blocks field, saved and published (2.7)</figcaption>
+            </figure>
             <figure class="shot">
               <img
                 src="./img/columns-toolbox.png"
@@ -1040,6 +1077,7 @@
                 <tr><td><code>languageTool.allowPrivateBaseUrl</code></td><td><code>false</code></td><td>Allow a LanguageTool server on a private network.</td></tr>
                 <tr><td><code>ai.allowPrivateBaseUrl</code></td><td><code>false</code></td><td>Allow AI servers on private networks (local models).</td></tr>
                 <tr><td><code>ai.altText.allowPrivateOrigins</code></td><td><code>[]</code></td><td>Exact origins of private image storage for alt text suggestions.</td></tr>
+                <tr><td><code>coreBlocks.enabled</code></td><td><code>false</code></td><td>Core Blocks bridge: registered custom blocks in Strapi's own Blocks field pass Strapi's validation; the Settings switch wins once saved; off by itself when Strapi supports custom blocks.</td></tr>
                 <tr><td><code>MAGIC_EDITOR_X_ENCRYPTION_KEY</code></td><td>unset</td><td>Environment variable that encrypts a stored AI key (32+ characters).</td></tr>
               </tbody>
             </table>
@@ -1184,7 +1222,8 @@
             <li>The audit trail keeps ids and counts, never content, e-mail or IP addresses.</li>
             <li>Strapi AI translations receive only the text of a field; the publishing guard also covers direct published writes and Releases readiness.</li>
             <li>The entry panel shows names only and only to admins who can read the entry; inserting from another entry needs read access to the source; local drafts stay in the admin's browser and are removed at logout (an ended session keeps them until you sign in again); private files are never stored signed.</li>
-            <li>Reviews: <a href="https://github.com/Schero94/Magic-Editor-X/blob/main/docs/security-audit-2.5.md">security-audit-2.5.md</a>, <a href="https://github.com/Schero94/Magic-Editor-X/blob/main/docs/security-audit-2.4.md">security-audit-2.4.md</a> and <a href="https://github.com/Schero94/Magic-Editor-X/blob/main/docs/security-audit-2.3.md">security-audit-2.3.md</a>.</li>
+            <li>The Core Blocks bridge (off by default) accepts only block types registered in server code, each checked by its own schema after size, depth and key limits; built-in and unknown blocks are checked by Strapi unchanged, and any failure rejects the write.</li>
+            <li>Reviews: <a href="https://github.com/Schero94/Magic-Editor-X/blob/main/docs/security-audit-2.7.md">security-audit-2.7.md</a>, <a href="https://github.com/Schero94/Magic-Editor-X/blob/main/docs/security-audit-2.5.md">security-audit-2.5.md</a>, <a href="https://github.com/Schero94/Magic-Editor-X/blob/main/docs/security-audit-2.4.md">security-audit-2.4.md</a> and <a href="https://github.com/Schero94/Magic-Editor-X/blob/main/docs/security-audit-2.3.md">security-audit-2.3.md</a>.</li>
           </ul>
         </section>
 

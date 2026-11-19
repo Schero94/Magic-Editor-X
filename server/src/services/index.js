@@ -28,4 +28,6 @@ module.exports = {
   reuse: require('./reuse'),
   // 2.5: private upload providers (signed Media Library URLs)
   media: require('./media'),
+  // 2.7: Core Blocks bridge (custom blocks in Strapi's core Blocks field)
+  'core-blocks': require('./core-blocks'),
 };

@@ -95,6 +95,8 @@ const settingsInputSchema = z.strictObject({
   ai: aiInputSchema,
   /** 2.3; omitted keeps the stored LanguageTool settings. */
   languageTool: languageToolInputSchema.optional(),
+  /** 2.7 Core Blocks bridge switch; omitted keeps the stored value (or the config default). */
+  coreBlocks: z.strictObject({ enabled: z.boolean() }).optional(),
 });
 
 /**
@@ -207,12 +209,25 @@ module.exports = ({ strapi }) => {
    * @param {object} raw - Stored settings.
    * @returns {object} DTO.
    */
+  /**
+   * 2.7: state of the Core Blocks bridge for the settings page (type names only, no content).
+   * @returns {object|undefined} DTO part; undefined when the service is missing.
+   */
+  const coreBlocksDto = () => {
+    try {
+      return strapi.plugin('magic-editor-x').service('core-blocks').status();
+    } catch {
+      return undefined;
+    }
+  };
+
   const toDto = (raw) => {
     const key = getEncryptionKey(strapi);
     const { apiKeyEncrypted, ...ai } = raw.ai;
     const envKey = Boolean(config('ai.apiKey', undefined));
     const { apiKeyEncrypted: ltKey, ...languageTool } = raw.languageTool || DEFAULT_LANGUAGE_TOOL;
     return {
+      coreBlocks: coreBlocksDto(),
       languageTool: {
         ...languageTool,
         hasApiKey: Boolean(ltKey),
@@ -388,6 +403,8 @@ module.exports = ({ strapi }) => {
      * @param {unknown} input - Request body.
      * @returns {Promise<object>} Stored settings DTO.
      * @throws {errors.ValidationError} On invalid input or a missing key re-entry.
+     * @sideeffect Writes the plugin store key `settings`; a sent `coreBlocks.enabled` (2.7) installs or
+     *   removes the Core Blocks bridge in this process at once (other processes follow within 30 s).
      */
     async update(input) {
       const parsed = settingsInputSchema.safeParse(input);
@@ -438,8 +455,14 @@ module.exports = ({ strapi }) => {
       const languageTool = parsed.data.languageTool
         ? nextLanguageTool(parsed.data.languageTool, raw.languageTool)
         : raw.languageTool;
-      const value = { ...raw, ai, languageTool };
+      const coreBlocks = parsed.data.coreBlocks
+        ? { enabled: parsed.data.coreBlocks.enabled }
+        : raw.coreBlocks;
+      const value = { ...raw, ai, languageTool, ...(coreBlocks ? { coreBlocks } : {}) };
       await store(strapi).set({ key: 'settings', value });
+      // 2.7: this process follows the switch at once, the others within 30 seconds.
+      if (parsed.data.coreBlocks)
+        await strapi.plugin('magic-editor-x').service('core-blocks').setEnabled(coreBlocks.enabled);
       return withLinkSchedule(toDto(value));
     },
 

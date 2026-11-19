@@ -85,6 +85,14 @@ module.exports = async ({ strapi }) => {
     logger.error('component block output could not be registered', error);
   }
 
+  // 2.7: Core Blocks bridge (opt-in): custom blocks of Strapi's core Blocks field pass Strapi's
+  // validation when their type is registered. Never throws; problems are logged once.
+  try {
+    await plugin.service('core-blocks').start();
+  } catch (error) {
+    logger.error('the Core Blocks bridge could not start', error);
+  }
+
   // Opt-in output transform (`?mex=`); registered first so it runs after the 1.x string parser below.
   strapi.server.use(plugin.middleware('render-output')({}, { strapi }));
 

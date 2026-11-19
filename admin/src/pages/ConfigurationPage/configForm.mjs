@@ -36,11 +36,15 @@ export const toLanguageToolDraft = (languageTool) =>
  * Builds the form draft from the server DTO.
  * @param {object} ai - `data.ai` from GET /settings.
  * @param {object} [languageTool] - `data.languageTool` (2.3).
+ * @param {object} [coreBlocks] - `data.coreBlocks` (2.7); absent on older servers, then never sent.
  * @returns {object} Draft.
  */
-export const toDraft = (ai, languageTool) => ({
+export const toDraft = (ai, languageTool, coreBlocks) => ({
   ...Object.fromEntries(SWITCHES.filter((key) => typeof ai[key] === 'boolean').map((key) => [key, ai[key]])),
   ...(languageTool ? { languageTool: toLanguageToolDraft(languageTool) } : {}),
+  ...(coreBlocks && typeof coreBlocks.enabled === 'boolean'
+    ? { coreBlocks: { enabled: coreBlocks.enabled } }
+    : {}),
   enabled: Boolean(ai.enabled),
   provider: PROVIDERS.includes(ai.provider) ? ai.provider : 'anthropic',
   baseUrl: ai.baseUrl || '',
@@ -135,9 +139,10 @@ export const validateDraft = (draft, { saved, ai, environment }) => {
 /**
  * Builds the PUT body. `apiKey` is omitted (keep), '' (remove) or the new value.
  * @param {object} draft - Draft.
- * @returns {{ ai: object }} Body.
+ * @param {object} [saved] - Stored draft; `coreBlocks` is sent only when it differs from it.
+ * @returns {{ ai: object, languageTool?: object, coreBlocks?: { enabled: boolean } }} Body.
  */
-export const toPayload = (draft) => {
+export const toPayload = (draft, saved) => {
   const ai = {
     enabled: Boolean(draft.enabled),
     provider: draft.provider,
@@ -150,7 +155,15 @@ export const toPayload = (draft) => {
   if (draft.apiKeyMode === 'replace') ai.apiKey = String(draft.apiKey || '').trim();
   for (const key of SWITCHES) if (typeof draft[key] === 'boolean') ai[key] = draft[key];
   const languageTool = draft.languageTool ? toLanguageToolPayload(draft.languageTool) : null;
-  return languageTool ? { ai, languageTool } : { ai };
+  const body = languageTool ? { ai, languageTool } : { ai };
+  // 2.7: sent only when the switch changed, so saving other settings never pins the config default.
+  if (
+    draft.coreBlocks &&
+    saved &&
+    (!saved.coreBlocks || draft.coreBlocks.enabled !== saved.coreBlocks.enabled)
+  )
+    body.coreBlocks = { enabled: Boolean(draft.coreBlocks.enabled) };
+  return body;
 };
 
 /**
@@ -251,6 +264,7 @@ export const mapServerErrors = (details) => {
     const field = key.startsWith('ai.') ? key.slice(3) : null;
     if (field && EDITABLE.concat(['apiKey'], SWITCHES).includes(field)) out[field] = message;
     else if (/^languageTool\.(enabled|baseUrl|username|level|apiKey)$/.test(key)) out[key] = message;
+    else if (key === 'coreBlocks.enabled') out[key] = message;
     else out._form = message;
   }
   if (!Object.keys(out).length && details && Array.isArray(details.formErrors) && details.formErrors[0]) {
@@ -270,7 +284,8 @@ export const sameDraft = (a, b) =>
   SWITCHES.every((key) => a[key] === b[key]) &&
   a.apiKeyMode === b.apiKeyMode &&
   (a.apiKeyMode !== 'replace' || a.apiKey === b.apiKey) &&
-  sameLanguageTool(a.languageTool, b.languageTool);
+  sameLanguageTool(a.languageTool, b.languageTool) &&
+  Boolean(a.coreBlocks && a.coreBlocks.enabled) === Boolean(b.coreBlocks && b.coreBlocks.enabled);
 
 /**
  * LanguageTool draft comparison.
