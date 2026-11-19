@@ -6,77 +6,177 @@
     <title>Magic Editor X: free Editor.js block editor for Strapi 5</title>
     <meta
       name="description"
-      content="Magic Editor X is a free Strapi 5 plugin: an Editor.js custom field with Media Library uploads, custom blocks, templates, block comments, version history, live collaboration across several servers, rendered Content API and GraphQL output, React and Vue components and optional AI and grammar assistants with your own provider."
+      content="Magic Editor X docs: a free Editor.js block editor field for Strapi 5 with custom blocks, version history, live collaboration and optional AI with your own key."
     />
-    <meta name="color-scheme" content="light dark" />
-    <meta name="theme-color" content="#f5f7fb" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#10131f" media="(prefers-color-scheme: dark)" />
     <link rel="canonical" href="https://schero94.github.io/Magic-Editor-X/" />
-    <link rel="icon" href="./img/icon.svg" type="image/svg+xml" />
-    <link rel="icon" href="./img/icon-128.png" type="image/png" sizes="128x128" />
-    <link rel="apple-touch-icon" href="./img/icon-512.png" />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <meta name="author" content="Schero D." />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#12151d" />
     <meta property="og:type" content="website" />
-    <meta property="og:site_name" content="Magic Editor X" />
+    <meta property="og:site_name" content="Magic Editor X documentation" />
+    <meta property="og:locale" content="en_US" />
     <meta property="og:title" content="Magic Editor X: Editor.js block editor for Strapi 5" />
     <meta
       property="og:description"
       content="Editor.js custom field for Strapi 5 with Media Library, custom blocks, version history, live collaboration and an AI assistant. Free and open source."
     />
     <meta property="og:url" content="https://schero94.github.io/Magic-Editor-X/" />
-    <meta property="og:image" content="https://schero94.github.io/Magic-Editor-X/img/editor-light-1440.png" />
+    <meta property="og:image" content="https://schero94.github.io/Magic-Editor-X/img/og.jpg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
     <meta property="og:image:alt" content="Magic Editor X field in the Strapi Content Manager" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Magic Editor X: Editor.js block editor for Strapi 5" />
+    <meta
+      name="twitter:description"
+      content="Editor.js custom field for Strapi 5 with Media Library, custom blocks, version history, live collaboration and an AI assistant."
+    />
+    <meta name="twitter:image" content="https://schero94.github.io/Magic-Editor-X/img/og.jpg" />
+    <link rel="icon" href="./img/icon.svg" type="image/svg+xml" />
+    <link rel="icon" href="./img/icon-128.png" type="image/png" sizes="128x128" />
+    <link rel="apple-touch-icon" href="./img/icon-512.png" />
+    <link rel="alternate" type="text/plain" href="./llms.txt" title="llms.txt" />
+    <link rel="preload" as="image" href="./img/editor-light-1440.png" type="image/png" fetchpriority="high" />
+    <link rel="stylesheet" href="./site.css" />
+    <link rel="stylesheet" href="./site-extra.css" />
+    <script src="./site.js" defer></script>
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
-        "@type": "SoftwareApplication",
-        "name": "Magic Editor X",
-        "alternateName": "magic-editor-x",
-        "applicationCategory": "DeveloperApplication",
-        "operatingSystem": "Node.js",
-        "description": "Strapi 5 plugin: Editor.js custom field with Media Library uploads, custom blocks, version history, live collaboration and an optional AI assistant.",
-        "license": "https://opensource.org/licenses/MIT",
-        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "EUR" },
-        "url": "https://schero94.github.io/Magic-Editor-X/",
-        "codeRepository": "https://github.com/Schero94/Magic-Editor-X"
+        "@graph": [
+          {
+            "@type": "SoftwareApplication",
+            "@id": "https://schero94.github.io/Magic-Editor-X/#software",
+            "name": "Magic Editor X",
+            "alternateName": "magic-editor-x",
+            "description": "Free Strapi 5 plugin: an Editor.js custom field with Media Library uploads, custom blocks, templates, comments, version history, live collaboration across several servers, rendered Content API and GraphQL output, and optional AI and grammar assistants with your own provider.",
+            "applicationCategory": "DeveloperApplication",
+            "applicationSubCategory": "Strapi plugin",
+            "operatingSystem": "Node.js 22+ / Strapi 5",
+            "softwareRequirements": "Strapi ^5.38.0, Node.js >=22.12.0 <=26.x.x",
+            "license": "https://opensource.org/licenses/MIT",
+            "isAccessibleForFree": true,
+            "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+            "url": "https://schero94.github.io/Magic-Editor-X/",
+            "downloadUrl": "https://www.npmjs.com/package/magic-editor-x",
+            "codeRepository": "https://github.com/Schero94/Magic-Editor-X",
+            "screenshot": "https://schero94.github.io/Magic-Editor-X/img/editor-light-1440.png",
+            "author": { "@type": "Person", "name": "Schero D.", "url": "https://schero94.github.io/" },
+            "sameAs": [
+              "https://github.com/Schero94/Magic-Editor-X",
+              "https://www.npmjs.com/package/magic-editor-x",
+              "https://schero94.github.io/plugins/magic-editor-x/"
+            ]
+          },
+          {
+            "@type": "BreadcrumbList",
+            "itemListElement": [
+              { "@type": "ListItem", "position": 1, "name": "Schero94", "item": "https://schero94.github.io/" },
+              { "@type": "ListItem", "position": 2, "name": "Plugins", "item": "https://schero94.github.io/plugins/" },
+              { "@type": "ListItem", "position": 3, "name": "Magic Editor X", "item": "https://schero94.github.io/Magic-Editor-X/" }
+            ]
+          },
+          {
+            "@type": "FAQPage",
+            "mainEntity": [
+              {
+                "@type": "Question",
+                "name": "Is Magic Editor X free?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Yes. It is MIT licensed. Every feature is available in every installation, with nothing to activate, no tiers and no usage limits."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Does live collaboration need Redis or sticky sessions?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "No. Several Node processes and machines that share one database work behind a load balancer without sticky sessions and without Redis. The proxy must allow WebSocket upgrades on collaboration.path (default /magic-editor-x/realtime)."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Does the AI assistant send my content to a third party?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Only to the provider the owner configures (Anthropic, OpenAI or an OpenAI-compatible server such as a local model), and only when someone uses an AI action. The key never reaches the browser, and results are suggestions: the server never writes content."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Can I convert existing Strapi Blocks, Markdown or HTML fields?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Yes. npx magic-editor-x migrate --uid api::article.article --from body --to content runs as a dry run and writes nothing; add --apply to convert."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "How do I show the content in my frontend?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Request ?mex=html, text, markdown or json from the Content API, use the GraphQL fields, or render the stored value with magic-editor-x/render or the React and Vue components."
+                }
+              }
+            ]
+          }
+        ]
       }
     </script>
-    <link rel="stylesheet" href="./site.css" />
-    <link rel="stylesheet" href="./site-extra.css" />
   </head>
   <body>
     <a class="skip-link" href="#main-content">Skip to content</a>
 
     <header class="topbar">
       <div class="topbar-inner">
-        <a class="brand" href="#main-content" aria-label="Magic Editor X documentation home">
+        <a class="brand" href="#top" aria-label="Magic Editor X documentation, back to top">
           <img class="brand-logo" src="./img/icon.svg" alt="" width="32" height="32" />
           <span>Magic Editor X</span>
         </a>
-        <nav class="top-links" aria-label="Primary navigation">
+        <nav class="top-links" aria-label="Project links">
           <a href="#install">Install</a>
           <a href="https://github.com/Schero94/Magic-Editor-X">GitHub</a>
           <a href="https://www.npmjs.com/package/magic-editor-x">npm</a>
+          <a href="https://github.com/Schero94/Magic-Editor-X/blob/main/CHANGELOG.md">Changelog</a>
         </nav>
       </div>
     </header>
 
-    <div class="hero-wrap">
+    <div class="hero-wrap" id="top">
       <section class="hero" aria-labelledby="page-title">
         <div class="hero-grid">
           <div class="hero-copy">
-            <span class="eyebrow">Strapi 5 plugin</span>
-            <h1 id="page-title">Blocks, history and live editing in the Content Manager.</h1>
+            <nav class="crumbs" aria-label="Breadcrumb">
+              <ol>
+                <li><a href="https://schero94.github.io/">Schero94</a></li>
+                <li><a href="https://schero94.github.io/plugins/">Plugins</a></li>
+                <li><span aria-current="page">Magic Editor X docs</span></li>
+              </ol>
+            </nav>
+            <h1 id="page-title">Blocks, history and live editing in the Content Manager</h1>
+            <p class="definition">
+              Magic Editor X is a free, MIT-licensed Strapi 5 plugin that adds an Editor.js block editor
+              field with Media Library uploads, custom blocks, version history and live collaboration.
+            </p>
             <p>
-              Magic Editor X adds an Editor.js field to Strapi 5. Write with headings, lists, tables, formulas,
+              Write with headings, lists, tables, formulas,
               footnotes, code, images from the Media Library, embeds and your own custom blocks, discuss and
               suggest changes, keep versions of every field and edit together in real time. Free under the MIT
               license, with nothing to activate and no limits.
             </p>
             <div class="hero-actions">
               <a class="button primary" href="#install">Install</a>
-              <a class="button" href="https://github.com/Schero94/Magic-Editor-X">Source on GitHub</a>
+              <a class="button" href="https://github.com/Schero94/Magic-Editor-X#readme">Read the README</a>
             </div>
             <code class="hero-install">npm install magic-editor-x</code>
+            <ul class="badges" aria-label="Compatibility and license">
+              <li>Strapi 5.38+ (acceptance host 5.63.0)</li>
+              <li>Node.js 22.12 to 26.x</li>
+              <li>SQLite, PostgreSQL, MySQL</li>
+              <li>MIT license</li>
+            </ul>
             <p class="shields" aria-label="Project status badges">
               <a href="https://www.npmjs.com/package/magic-editor-x"><img src="https://img.shields.io/npm/v/magic-editor-x.svg" alt="npm version" height="20" /></a>
               <a href="https://www.npmjs.com/package/magic-editor-x"><img src="https://img.shields.io/npm/dm/magic-editor-x.svg" alt="npm downloads" height="20" /></a>
@@ -85,16 +185,11 @@
               <a href="https://github.com/Schero94/Magic-Editor-X#compatibility"><img src="https://img.shields.io/badge/Strapi-5.38%2B-4945FF.svg" alt="Strapi 5.38+" height="20" /></a>
               <a href="https://schero94.github.io/Magic-Editor-X/"><img src="https://img.shields.io/badge/docs-project%20site-6d4aff.svg" alt="Documentation site" height="20" /></a>
             </p>
-            <div class="badges" aria-label="Compatibility">
-              <span class="badge">Strapi 5.38+ (tested on 5.63.0)</span>
-              <span class="badge">Node 22 and 24</span>
-              <span class="badge">SQLite, PostgreSQL, MySQL</span>
-              <span class="badge">MIT license</span>
-            </div>
           </div>
           <figure class="hero-shot">
             <img
               src="./img/editor-light-1440.png"
+              fetchpriority="high"
               alt="The Magic Editor X field with headings, a list and an image in the Content Manager edit view"
               width="1440"
               height="900"
@@ -104,8 +199,9 @@
       </section>
     </div>
 
-    <main class="layout" id="main-content">
+    <main class="layout" id="main-content" tabindex="-1">
       <nav class="side-nav" aria-label="Documentation sections">
+        <a href="#fit">Is it a fit?</a>
         <a href="#core-blocks">New in 2.7</a>
         <a href="#whats-new">New in 2.5</a>
         <a href="#features">Features</a>
@@ -118,10 +214,43 @@
         <a href="#api">API and permissions</a>
         <a href="#security">Security</a>
         <a href="#migration">Migration</a>
+        <a href="#faq">FAQ</a>
         <a href="#releases">Releases</a>
       </nav>
 
       <div class="content">
+        <section class="section summary" id="fit" aria-labelledby="fit-title">
+          <h2 id="fit-title">Is Magic Editor X the right fit?</h2>
+          <div class="fit-grid">
+            <div class="fit fit-yes">
+              <h3>Use it when</h3>
+              <ul>
+                <li>Editors need a block editor with tables, formulas, footnotes, code and Media Library images.</li>
+                <li>Several people edit the same entry and should see each other's changes live.</li>
+                <li>You want comments, suggestions and a version history for each field.</li>
+                <li>Your frontend wants rendered HTML, text or Markdown from the Content API.</li>
+              </ul>
+            </div>
+            <div class="fit fit-no">
+              <h3>Skip it when</h3>
+              <ul>
+                <li>Strapi's own Blocks or rich text field already covers what your editors write.</li>
+                <li>Your project runs Strapi 4, or Strapi 5 older than 5.38.</li>
+                <li>Your Node.js version is older than 22.12.</li>
+              </ul>
+            </div>
+            <div class="fit fit-req">
+              <h3>Requirements</h3>
+              <ul>
+                <li>Strapi <code>^5.38.0</code> (drop zone from 5.61, editor helper from 5.46)</li>
+                <li>Node.js <code>&gt;=22.12.0 &lt;=26.x.x</code></li>
+                <li>SQLite, PostgreSQL or MySQL/MariaDB</li>
+                <li>WebSocket upgrades on <code>collaboration.path</code> for live editing</li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
         <section class="section" id="core-blocks" aria-labelledby="core-blocks-title">
           <h2 id="core-blocks-title">New in 2.7: custom blocks in Strapi's Blocks field</h2>
           <p class="section-lead">
@@ -1236,6 +1365,50 @@
           </p>
         </section>
 
+        <section class="section" id="faq" aria-labelledby="faq-title">
+          <h2 id="faq-title">FAQ</h2>
+          <div class="faq">
+            <details>
+              <summary>Is Magic Editor X free?</summary>
+              <p>
+                Yes. It is MIT licensed. Every feature is available in every installation, with nothing
+                to activate, no tiers and no usage limits.
+              </p>
+            </details>
+            <details>
+              <summary>Does live collaboration need Redis or sticky sessions?</summary>
+              <p>
+                No. Several Node processes and machines that share one database work behind a load
+                balancer without sticky sessions and without Redis. The proxy must allow WebSocket
+                upgrades on <code>collaboration.path</code> (default <code>/magic-editor-x/realtime</code>).
+              </p>
+            </details>
+            <details>
+              <summary>Does the AI assistant send my content to a third party?</summary>
+              <p>
+                Only to the provider the owner configures (Anthropic, OpenAI or an OpenAI-compatible
+                server such as a local model), and only when someone uses an AI action. The key never
+                reaches the browser, and results are suggestions: the server never writes content.
+              </p>
+            </details>
+            <details>
+              <summary>Can I convert existing Strapi Blocks, Markdown or HTML fields?</summary>
+              <p>
+                Yes. <code>npx magic-editor-x migrate --uid api::article.article --from body --to content</code>
+                runs as a dry run and writes nothing; add <code>--apply</code> to convert.
+              </p>
+            </details>
+            <details>
+              <summary>How do I show the content in my frontend?</summary>
+              <p>
+                Request <code>?mex=html</code>, <code>text</code>, <code>markdown</code> or
+                <code>json</code> from the Content API, use the GraphQL fields, or render the stored value
+                with <code>magic-editor-x/render</code> or the React and Vue components.
+              </p>
+            </details>
+          </div>
+        </section>
+
         <section class="section" id="releases" aria-labelledby="releases-title">
           <h2 id="releases-title">Releases</h2>
           <div class="link-list">
@@ -1250,8 +1423,37 @@
     </main>
 
     <footer class="footer">
-      <p>Magic Editor X is free and open source under the MIT license.</p>
-      <p><a href="https://github.com/Schero94/Magic-Editor-X">github.com/Schero94/Magic-Editor-X</a></p>
+      <div class="footer-inner">
+        <div>
+          <p class="footer-name">Magic Editor X</p>
+          <p>
+            Editor.js block editor for Strapi 5. MIT licensed, maintained by
+            <a href="https://schero94.github.io/">Schero D.</a>
+          </p>
+          <p>
+            Overview and the other plugins:
+            <a href="https://schero94.github.io/plugins/magic-editor-x/">Magic Editor X on the plugin hub</a>.
+          </p>
+        </div>
+        <div>
+          <h2>Project</h2>
+          <ul>
+            <li><a href="https://github.com/Schero94/Magic-Editor-X">GitHub repository</a></li>
+            <li><a href="https://www.npmjs.com/package/magic-editor-x">npm package</a></li>
+            <li><a href="https://github.com/Schero94/Magic-Editor-X/blob/main/CHANGELOG.md">Changelog</a></li>
+            <li><a href="https://github.com/Schero94/Magic-Editor-X/issues">Issues</a></li>
+          </ul>
+        </div>
+        <div>
+          <h2>Docs</h2>
+          <ul>
+            <li><a href="https://github.com/Schero94/Magic-Editor-X#readme">README</a></li>
+            <li><a href="https://github.com/Schero94/Magic-Editor-X/blob/main/AGENTS.md">AGENTS.md (API contract)</a></li>
+            <li><a href="./llms.txt">llms.txt</a></li>
+            <li><a href="./llms-full.txt">llms-full.txt</a></li>
+          </ul>
+        </div>
+      </div>
     </footer>
   </body>
 </html>
