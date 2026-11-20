@@ -63,6 +63,7 @@ Live docs: <https://schero94.github.io/Magic-Editor-X/>
 - [Development and tests](#development-and-tests)
 - [Maintenance status](#maintenance-status)
 - [Languages](#languages)
+- [Showcase your company](#showcase-your-company)
 - [License](#license)
 
 ## Getting started in 3 steps
@@ -1346,6 +1347,12 @@ Actively maintained. Releases are made with semantic-release from `main`; every 
 ## Languages
 
 The admin is translated into English, German (formal Sie), French, Spanish and Portuguese.
+
+## Showcase your company
+
+Using Magic Editor X in production? [Add your company](https://github.com/Schero94/Magic-Editor-X/issues/new?template=showcase.yml) to the "Used by" section of the [documentation site](https://schero94.github.io/Magic-Editor-X/#used-by). The form asks for the company name, the website, a logo (PNG, JPEG or WebP, uploaded to the issue) and an optional one-line description.
+
+A maintainer reviews every request and approves it with the `showcase-approved` label. `.github/workflows/showcase.yml` then validates the issue with `.github/scripts/showcase.mjs`, converts the logo to a WebP of at most 320 x 160 pixels and opens a `docs:` pull request that changes `docs/site/showcase.json`. The logo appears on the site after that pull request is merged. Website links carry `rel="ugc noopener"`. To remove an entry, open an issue that names the company; a maintainer then applies the `showcase-remove` label.
 
 ## License
 
