@@ -37,6 +37,8 @@ import { normalizePalette } from '../../../../shared/inline-format.mjs';
 import { abbreviationAnnotation, annotationsFromSummaries } from '../../../../shared/blocks/annotations.mjs';
 import { createCspGuard } from '../../editor/tools/csp-guard';
 import { prepareEditorValue, prepareRemoteData, sanitizeInline } from '../../editor/sanitize';
+import { roomDiffersFromStored } from '../../editor/room-state.mjs';
+import { createSubmitGuard } from '../../editor/submit-guard.mjs';
 import { applyToEditor, blockKey, rememberBlocks } from '../../editor/apply-remote';
 import { holdSelection } from '../../editor/selection-keeper.mjs';
 import {
@@ -142,6 +144,7 @@ import { escapeHtml } from '../../../../shared/render/inline.mjs';
 // 2.5: local draft buffer (protect unsaved work) and lazy start of fields (performance).
 import { useDraftBuffer } from './useDraftBuffer';
 import { DraftNotice } from './DraftNotice';
+import { RoomNotice } from './RoomNotice';
 import { SessionBanner } from './SessionBanner';
 import { useLazyActivation } from './useLazyActivation';
 import { LazyPlaceholder } from './LazyPlaceholder';
@@ -462,9 +465,14 @@ const EditorFieldBody = ({
   const lastEmittedRawRef = useRef(null);
   const applyingRef = useRef(false);
   const saveTimerRef = useRef(null);
+  // 2.7.4: the running editor.save() of a scheduled save (the submit guard waits for it).
+  const savingRef = useRef(null);
   const collabRef = useRef(null);
   const pendingLocalRef = useRef(false);
   const syncedOnceRef = useRef(false);
+  // 2.7.4 (M3): the first room state held unsaved changes; `saved` is the stored value at that time.
+  const [roomNotice, setRoomNotice] = useState(null);
+  const savedValueRef = useRef(undefined);
   // 2.6: the editor shows the room (after its first render), so a found buffer is compared with the room.
   const [roomRendered, setRoomRendered] = useState(false);
   // What the editor shows as far as live collaboration knows: the content it was created with
@@ -734,38 +742,46 @@ const EditorFieldBody = ({
     [name]
   );
 
+  /** Saves the editor into the form now (the body of a scheduled save). */
+  const runSave = useCallback(async () => {
+    const editor = editorRef.current;
+    if (!editor || applyingRef.current) return;
+    pendingLocalRef.current = false;
+    try {
+      const data = await editor.save();
+      rememberBlocks(knownRef.current, data);
+      setStats(computeStats(data));
+      setCurrentData(data);
+      setContentVersion((version) => version + 1);
+      if (!userTouchedRef.current) {
+        emit(data, { baselineOnly: true });
+        return;
+      }
+      emit(data);
+      if (collabRef.current) {
+        collabRef.current.pushLocal(data);
+        markComponentsPushed(data);
+      }
+      if (undoRef.current) undoRef.current.record();
+    } catch {
+      // Editor.js rejects saves while a block is being re-rendered; the next change saves again.
+    }
+  }, [emit]);
   /** Saves the editor (debounced) after a local change; `delay` 0 saves at once. */
   const scheduleSave = useCallback(
     (delay = SAVE_DEBOUNCE_MS) => {
       if (applyingRef.current) return;
       pendingLocalRef.current = true;
       clearTimeout(saveTimerRef.current);
-      saveTimerRef.current = setTimeout(async () => {
-        const editor = editorRef.current;
-        if (!editor || applyingRef.current) return;
-        pendingLocalRef.current = false;
-        try {
-          const data = await editor.save();
-          rememberBlocks(knownRef.current, data);
-          setStats(computeStats(data));
-          setCurrentData(data);
-          setContentVersion((version) => version + 1);
-          if (!userTouchedRef.current) {
-            emit(data, { baselineOnly: true });
-            return;
-          }
-          emit(data);
-          if (collabRef.current) {
-            collabRef.current.pushLocal(data);
-            markComponentsPushed(data);
-          }
-          if (undoRef.current) undoRef.current.record();
-        } catch {
-          // Editor.js rejects saves while a block is being re-rendered; the next change saves again.
-        }
+      saveTimerRef.current = setTimeout(() => {
+        const running = runSave();
+        savingRef.current = running;
+        running.finally(() => {
+          if (savingRef.current === running) savingRef.current = null;
+        });
       }, delay);
     },
-    [emit]
+    [runSave]
   );
 
   // Editor.js reports changes with a delay. When focus leaves the editor (for
@@ -822,6 +838,17 @@ const EditorFieldBody = ({
       if (!['Shift', 'Control', 'Alt', 'Meta'].includes(event.key)) leaveArmed = false;
     };
     window.addEventListener('keydown', onKeyDown, true);
+    // 2.7.4 (m12): Save or Ctrl/Cmd+Enter right after typing waits until the input is in the form.
+    const stopSubmitGuard = createSubmitGuard({
+      holder,
+      isPending: () => Boolean(pendingLocalRef.current || savingRef.current),
+      flush: async () => {
+        if (pendingLocalRef.current && !applyingRef.current) {
+          clearTimeout(saveTimerRef.current);
+          await runSave();
+        } else if (savingRef.current) await savingRef.current;
+      },
+    });
     holder.addEventListener('focusout', onFocusOut);
     holder.addEventListener('input', onInput);
     holder.addEventListener('click', onClick);
@@ -830,13 +857,14 @@ const EditorFieldBody = ({
     const clearReady = markInputReady(holder);
     return () => {
       clearReady();
+      stopSubmitGuard();
       holder.removeEventListener('click', onClick);
       holder.removeEventListener('keyup', onKeyUp);
       holder.removeEventListener('focusout', onFocusOut);
       holder.removeEventListener('input', onInput);
       window.removeEventListener('keydown', onKeyDown, true);
     };
-  }, [ready, scheduleSave]);
+  }, [ready, scheduleSave, runSave]);
 
   /** Applies a document from outside (collaboration, history, form reset). */
   // 2.5 private upload providers: the field's media signer and its request (set in an effect below).
@@ -929,17 +957,34 @@ const EditorFieldBody = ({
         if (own.has(block.id)) knownRef.current.set(block.id, blockKey(block));
       });
       // The first room state only shows what is stored (normalised); it must
-      // not mark the form as changed. Later remote edits do.
+      // not mark the form as changed (unless it holds unsaved text, below). Later remote edits do.
       const first = !syncedOnceRef.current;
       syncedOnceRef.current = true;
+      const storedView = viewRef.current;
       await applyExternal(shared, { emitToForm: !first, live: true });
       // The editor's own serialisation of what it now shows is the base of the next local diff;
       // 2.6: component blocks count with the room's values, so edits not pushed yet stay a difference.
-      const shown = componentRoomView(await editor.save().catch(() => null));
+      const saved = await editor.save().catch(() => null);
+      const shown = componentRoomView(saved);
       client.markShown(catchUp, shown || shared);
       viewRef.current = shown || shared;
       reportUnpushedComponents();
       if (first) setRoomRendered(true);
+      // 2.7.4 (M3): a room keeps unsaved text for a while after the last editor left. When the first
+      // room state differs from the stored value, the form is marked as changed (Save stores what
+      // is shown) and a notice says so, with Discard to go back to the stored value.
+      if (first && saved && !userTouchedRef.current) {
+        const stored =
+          storedView && storedView.blocks && storedView.blocks.length
+            ? storedView
+            : prepareEditorValue(savedValueRef.current).data;
+        if (roomDiffersFromStored(saved, stored)) {
+          userTouchedRef.current = true;
+          lastEmittedRawRef.current = null;
+          emit(saved);
+          setRoomNotice({ saved: savedValueRef.current });
+        }
+      }
     },
     getInitialView: () => viewRef.current,
   });
@@ -1657,6 +1702,33 @@ const EditorFieldBody = ({
 
   // 2.5 local draft buffer: unsaved content survives a reload, a crash, a closed tab and an ended session.
   const savedValue = useMemo(() => savedValueOf(savedValues, name, savedKey), [savedValues, name, savedKey]);
+  useEffect(() => {
+    savedValueRef.current = savedValue;
+  }, [savedValue]);
+  // Once the entry was saved after the notice appeared, the shown content is stored: no notice.
+  const roomUnsaved = Boolean(roomNotice && roomNotice.saved === savedValue);
+
+  /** Discard on the room notice (M3): the stored value comes back, in the editor, the form and the room. */
+  const discardRoomChanges = useCallback(async () => {
+    const notice = roomNotice;
+    const editor = editorRef.current;
+    if (!notice || !editor) return;
+    setRoomNotice(null);
+    const stored = notice.saved === undefined ? null : notice.saved;
+    await applyExternal(prepareEditorValue(stored).data, { emitToForm: false, live: true });
+    // The form value goes back to the stored value itself, so the form is no longer modified.
+    onChangeRef.current(name, stored);
+    userTouchedRef.current = false;
+    const client = collabRef.current;
+    if (client) {
+      const local = await editor.save().catch(() => null);
+      if (local) {
+        client.pushLocal(local);
+        markComponentsPushed(local);
+        viewRef.current = componentRoomView(local) || local;
+      }
+    }
+  }, [applyExternal, name, roomNotice]);
   const draft = useDraftBuffer({
     enabled: Boolean(target.uid && config && config.drafts && config.drafts.enabled !== false),
     ttlHours: config && config.drafts ? config.drafts.ttlHours : undefined,
@@ -3134,6 +3206,9 @@ const EditorFieldBody = ({
             moreButtonRef={moreButtonRef}
           />
           {target.uid ? <SessionBanner t={t} /> : null}
+          {roomUnsaved && ready && !suggestMode ? (
+            <RoomNotice t={t} onDiscard={discardRoomChanges} disabled={readOnly} />
+          ) : null}
           {draft.notice && ready && !suggestMode ? (
             <DraftNotice
               t={t}
