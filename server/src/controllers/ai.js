@@ -94,6 +94,10 @@ const MESSAGES = {
   IMAGES_DISABLED: [503, 'Sending images to the AI provider is turned off'],
   FIELD_ACTIONS_DISABLED: [503, 'Whole-field AI actions are turned off'],
   BAD_RESPONSE: [502, 'The AI provider answered in an unexpected format'],
+  RESPONSE_TOO_LARGE: [502, 'The AI provider answer is too large'],
+  UNREACHABLE: [502, 'The AI provider could not be reached'],
+  EMPTY: [502, 'The AI provider returned an empty answer'],
+  PROVIDER_ERROR: [502, 'The AI provider answered with an error'],
 };
 
 const IMAGE_MESSAGES = {

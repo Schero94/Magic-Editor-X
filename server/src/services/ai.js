@@ -316,10 +316,13 @@ module.exports = ({ strapi }, dependencies = {}) => {
         acceptStatus: (status) => status >= 200 && status < 600,
       });
     } catch (error) {
-      throw providerError(
-        error && error.statusCode === 504 ? 'TIMEOUT' : 'UNREACHABLE',
-        error && error.statusCode === 504 ? 504 : 502
-      );
+      const status = error && error.statusCode;
+      if (status === 504) throw providerError('TIMEOUT', 504);
+      // Over MAX_RESPONSE_BYTES (1 MiB): the provider answered, but too much.
+      if (status === 413) throw providerError('RESPONSE_TOO_LARGE', 502);
+      // Not JSON (for example an HTML error page of a proxy).
+      if (status === 415) throw providerError('BAD_RESPONSE', 502);
+      throw providerError('UNREACHABLE', 502);
     }
     if (response.statusCode === 401 || response.statusCode === 403) throw providerError('AUTH_FAILED', 502);
     if (response.statusCode === 429) throw providerError('PROVIDER_RATE_LIMIT', 503);
