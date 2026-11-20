@@ -171,3 +171,17 @@ test('2.7.4 contrast and target sizes in editor blocks (m7, m8)', () => {
   assert.match(block('.mex-person__photo-button'), /min-height: \$\{s\(8\)\}/);
   assert.match(block('.mex-csp-blocked__link'), /min-height: \$\{s\(6\)\}/);
 });
+
+test('reduced motion stops the Editor.js block, popover and toolbar animations (2.7.4)', () => {
+  const styles = sources.find(([name]) => name === 'editor/tools/styles.js')[1];
+  const media = styles.split('@media (prefers-reduced-motion: reduce) {\n      .ce-block,')[1];
+  assert.ok(media, 'editor-wide reduced motion rule');
+  const rule = media.split('}')[0];
+  for (const selector of [
+    '.ce-popover--opened > .ce-popover__container',
+    '.ce-toolbar__plus--active',
+    '.embed-tool__preloader::before',
+  ])
+    assert.ok(rule.includes(selector), selector);
+  assert.match(rule, /animation: none/);
+});

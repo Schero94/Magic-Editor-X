@@ -128,7 +128,7 @@ const CommentMeta = ({ comment, t }) => {
  * @param {(blockId: string) => void} props.onSelectBlock - Shows the block in the editor.
  * @param {(message: string) => void} props.announce - Live-region message.
  * @param {(message: string) => void} props.fail - Error notification.
- * @param {{ current: HTMLElement|null }} props.fallbackFocusRef - Focus target after deleting the thread.
+ * @param {{ current: HTMLElement|null }} props.fallbackFocusRef - Focus target after deleting or resolving the thread.
  * @param {'anchored'|'changed'|'detached'|null} [props.anchorStatus] - 2.4: where the commented text of a range
  *   comment is (null for block comments).
  * @param {((threadId: string) => void)|null} [props.onShowRange] - 2.4: selects the commented text in the editor.
@@ -235,6 +235,13 @@ export const CommentThread = forwardRef(function CommentThread(
       fail(errorMessage(error));
     } finally {
       setBusy(null);
+      // 2.7.4: a resolved thread is hidden (resolved threads are off by default), so its button is
+      // gone. Focus moves to the panel heading instead of the page body.
+      window.requestAnimationFrame(() => {
+        const active = document.activeElement;
+        if ((!active || active === document.body || !active.isConnected) && fallbackFocusRef?.current)
+          fallbackFocusRef.current.focus();
+      });
     }
   };
 

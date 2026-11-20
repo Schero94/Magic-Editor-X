@@ -65,9 +65,11 @@ const toText = (html) =>
 
 /**
  * @param {object} props - Props.
+ * @param {() => void} [props.returnFocus] - 2.7.4: puts focus back into the editor (the selection, or the
+ *   applied text) when the dialog closes; the inline toolbar button that opened it is gone by then.
  * @returns {JSX.Element} Modal.
  */
-export const AiDialog = ({ t, request, config, target, onApply, onClose }) => {
+export const AiDialog = ({ t, request, config, target, onApply, onClose, returnFocus }) => {
   const { post } = useFetchClient();
   const actions = (config && config.actions) || Object.keys(ACTION_LABELS);
   const [action, setAction] = useState(actions[0] || 'improve');
@@ -113,7 +115,14 @@ export const AiDialog = ({ t, request, config, target, onApply, onClose }) => {
 
   return (
     <Modal.Root open onOpenChange={(open) => !open && onClose()}>
-      <Modal.Content aria-describedby={undefined}>
+      <Modal.Content
+        aria-describedby={undefined}
+        onCloseAutoFocus={(event) => {
+          if (!returnFocus) return;
+          event.preventDefault();
+          returnFocus();
+        }}
+      >
         <Modal.Header closeLabel={t('editor.ai.close', 'Close')}>
           <Modal.Title>{t('editor.ai.title', 'AI assistant')}</Modal.Title>
         </Modal.Header>

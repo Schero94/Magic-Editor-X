@@ -1684,6 +1684,37 @@ const EditorFieldBody = ({
     [scheduleSave]
   );
 
+  /**
+   * Focus after the inline AI dialog (2.7.4): the text the request was made for (after Replace, the
+   * caret behind the new text), else More tools. Never the page body.
+   * @param {{ range?: Range }|null} request - The AI request of the dialog.
+   * @returns {void}
+   */
+  const returnFromAi = useCallback(
+    (request) => {
+      const range = request && request.range;
+      const holder = holderRef.current;
+      const start = range && range.commonAncestorContainer;
+      const editable =
+        start && holder && holder.contains(start)
+          ? (start.nodeType === Node.ELEMENT_NODE ? start : start.parentElement)?.closest(
+              '[contenteditable="true"]'
+            )
+          : null;
+      if (!editable) {
+        focusToolsMenu();
+        return;
+      }
+      editable.focus({ preventScroll: true });
+      const selection = window.getSelection();
+      if (selection) {
+        selection.removeAllRanges();
+        selection.addRange(range);
+      }
+    },
+    [focusToolsMenu]
+  );
+
   /** Replaces the editor content with a document and stores it like a user edit. */
   const replaceContent = useCallback(
     async (data) => {
@@ -3551,6 +3582,7 @@ const EditorFieldBody = ({
             setAiRequest(null);
           }}
           onClose={() => setAiRequest(null)}
+          returnFocus={() => returnFromAi(aiRequest)}
         />
       ) : null}
       {blockAiRequest && aiAllowed && target.uid && !readOnly ? (

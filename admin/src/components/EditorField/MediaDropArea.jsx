@@ -93,10 +93,20 @@ export const MediaDropArea = ({
         event.dataTransfer.dropEffect = 'none';
       }
     };
+    // Editor.js marks the block under a drag (`ce-block--drop-target`: a dotted line and an arrow) and
+    // clears the mark in its own drop handler, which never runs for file drops handled here (2.7.4).
+    const clearDropTarget = () => {
+      const holder = holderRef.current;
+      if (holder)
+        holder
+          .querySelectorAll('.ce-block--drop-target')
+          .forEach((node) => node.classList.remove('ce-block--drop-target'));
+    };
     const onDrop = (event) => {
       if (!hasFiles(event) || forwarded.has(event)) return;
       event.stopPropagation();
       event.preventDefault();
+      clearDropTarget();
       if (!enabledRef.current) return;
       const holder = holderRef.current;
       const block = event.target && event.target.closest ? event.target.closest('.ce-block') : null;
