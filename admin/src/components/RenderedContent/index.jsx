@@ -5,6 +5,7 @@ import { MagicEditorXContent } from '../../../../shared/frameworks/react.mjs';
 import { sanitizeRawPreview } from './sanitize-raw';
 import { loadMath } from '../../editor/math-view';
 import { MATH_ATTRIBUTE } from '../../../../shared/sanitize-policy.mjs';
+import { CODE_FONT } from '../../editor/code-font.mjs';
 
 /**
  * Rendered output of Magic Editor X content inside the admin (field preview,
@@ -214,7 +215,7 @@ const Prose = styled.div`
   }
   & pre,
   & code {
-    font-family: ${({ theme }) => (theme.fonts && theme.fonts.code) || 'monospace'};
+    font-family: ${CODE_FONT};
     font-size: ${({ theme }) => theme.fontSizes[1]};
     overflow-wrap: normal;
   }

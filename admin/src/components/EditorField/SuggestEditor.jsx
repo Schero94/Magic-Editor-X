@@ -11,7 +11,7 @@ import {
   Textarea,
   Typography,
 } from '@strapi/design-system';
-import { ArrowClockwise, ArrowsCounterClockwise } from '@strapi/icons';
+import { RedoIcon, UndoIcon } from './icons';
 import styled from 'styled-components';
 import { buildTools, disposeTools, editorI18n, createUndoManager, INLINE_TOOLS } from '../../editor/tools';
 import { prepareEditorValue } from '../../editor/sanitize';
@@ -364,7 +364,7 @@ export const SuggestEditor = ({
             onClick={() => undoRef.current && undoRef.current.undo()}
             disabled={!ready || !undoState.canUndo}
           >
-            <ArrowsCounterClockwise />
+            <UndoIcon />
           </IconButton>
           <IconButton
             label={t('editor.toolbar.redo', 'Redo')}
@@ -372,7 +372,7 @@ export const SuggestEditor = ({
             onClick={() => undoRef.current && undoRef.current.redo()}
             disabled={!ready || !undoState.canRedo}
           >
-            <ArrowClockwise />
+            <RedoIcon />
           </IconButton>
           {pending ? (
             <ConfirmAction

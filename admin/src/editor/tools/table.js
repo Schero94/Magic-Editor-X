@@ -25,6 +25,7 @@ import {
   splitCell,
   toTableModel,
 } from '../../../../shared/table.mjs';
+import { DS_ICONS } from './ds-icons';
 
 /**
  * Table block (2.4). Replaces @editorjs/table with the same block name and
@@ -52,9 +53,7 @@ const ICON = (path) =>
 const S = 'stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"';
 
 const ICONS = {
-  table: ICON(
-    `<rect x="3" y="4" width="18" height="16" rx="2" ${S}/><path d="M3 10h18M3 15h18M10 4v16" ${S}/>`
-  ),
+  table: DS_ICONS.table,
   headerRow: ICON(
     `<rect x="3" y="4" width="18" height="16" rx="2" ${S}/><path d="M3 10h18" ${S}/><rect x="4" y="5" width="16" height="4" fill="currentColor"/>`
   ),

@@ -1,5 +1,6 @@
 import { css } from 'styled-components';
 import { setOpacity } from '@strapi/design-system';
+import { CODE_FONT } from '../code-font.mjs';
 
 /**
  * Styles for the Editor.js core UI and every tool, scoped under `.mex-editor`.
@@ -241,7 +242,7 @@ export const editorStyles = css`
       color: ${c('neutral800')};
       border-radius: ${radius};
       padding: 1px ${s(1)};
-      font-family: 'SFMono-Regular', Menlo, Consolas, monospace;
+      font-family: ${CODE_FONT};
       font-size: 0.9em;
     }
 
@@ -757,7 +758,7 @@ export const editorStyles = css`
     }
 
     .ce-code__textarea {
-      font-family: 'SFMono-Regular', Menlo, Consolas, monospace;
+      font-family: ${CODE_FONT};
       background: ${c('neutral100')};
       color: ${c('neutral800')};
       min-height: 120px;
@@ -1254,7 +1255,7 @@ export const editorStyles = css`
     }
 
     .ce-rawtool__textarea {
-      font-family: 'SFMono-Regular', Menlo, Consolas, monospace;
+      font-family: ${CODE_FONT};
       background: ${c('neutral100')};
       color: ${c('neutral800')};
       border-color: ${c('neutral200')};
@@ -1393,7 +1394,7 @@ export const editorStyles = css`
 
     /* Inline math (2.4): the TeX source is editable text in a chip. */
     .ce-block span[data-mex-math] {
-      font-family: 'SFMono-Regular', Menlo, Consolas, monospace;
+      font-family: ${CODE_FONT};
       font-size: 0.92em;
       color: ${c('neutral800')};
       background: ${c('secondary100')};
@@ -1449,7 +1450,7 @@ export const editorStyles = css`
     }
 
     .mex-math-tool__input {
-      font-family: 'SFMono-Regular', Menlo, Consolas, monospace;
+      font-family: ${CODE_FONT};
       min-height: 4.4rem;
       resize: vertical;
       width: 100%;
@@ -1570,7 +1571,7 @@ export const editorStyles = css`
         width: auto;
         padding-block: ${s(1)};
         padding-inline: ${s(2)};
-        font-family: 'SFMono-Regular', Menlo, Consolas, monospace;
+        font-family: ${CODE_FONT};
         font-size: ${f(1)};
       }
 
@@ -1578,7 +1579,7 @@ export const editorStyles = css`
         flex: 1 1 auto;
         min-width: 0;
         overflow-wrap: anywhere;
-        font-family: 'SFMono-Regular', Menlo, Consolas, monospace;
+        font-family: ${CODE_FONT};
         font-size: ${f(1)};
         color: ${c('neutral800')};
       }
@@ -1601,7 +1602,7 @@ export const editorStyles = css`
 
     .mex-code__body {
       display: flex;
-      font-family: 'SFMono-Regular', Menlo, Consolas, monospace;
+      font-family: ${CODE_FONT};
       font-size: ${f(1)};
       line-height: 1.6;
     }
@@ -2670,10 +2671,17 @@ export const editorStyles = css`
       cursor: pointer;
     }
 
+    /* 2.7.8: the DS default button tokens (white on primary in both themes; neutral0 was dark text
+       on primary in dark mode). */
     .mex-annotation-form__apply {
-      border: 1px solid ${c('primary600')};
-      background: ${c('primary600')};
-      color: ${c('neutral0')};
+      border: 1px solid ${c('buttonPrimary600')};
+      background: ${c('buttonPrimary600')};
+      color: ${c('buttonNeutral0')};
+
+      &:hover {
+        border-color: ${c('buttonPrimary500')};
+        background: ${c('buttonPrimary500')};
+      }
     }
 
     .mex-annotation-form__remove {

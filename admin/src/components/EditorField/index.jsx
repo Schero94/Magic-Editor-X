@@ -1667,12 +1667,42 @@ const EditorFieldBody = ({
         setFocusMode(false);
       }
     };
+    // 2.7.8: Tab stays inside the full screen editor (role="dialog", aria-modal), the way the DS
+    // FocusTrap wraps focus: from the last stop to the first and back. Dialogs opened from the
+    // editor live in their own portal and trap focus themselves.
+    const onTab = (event) => {
+      const frame = frameRef.current;
+      if (event.key !== 'Tab' || event.defaultPrevented || !frame || !frame.contains(document.activeElement))
+        return;
+      const stops = Array.from(
+        frame.querySelectorAll(
+          'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"]), [contenteditable="true"]'
+        )
+      ).filter(
+        (element) => element.getClientRects().length > 0 && !element.closest('[inert], [aria-hidden="true"]')
+      );
+      if (!stops.length) return;
+      const first = stops[0];
+      const last = stops[stops.length - 1];
+      const active = document.activeElement;
+      if (!event.shiftKey && (active === last || last.contains(active))) {
+        event.preventDefault();
+        event.stopPropagation();
+        first.focus();
+      } else if (event.shiftKey && (active === first || first.contains(active))) {
+        event.preventDefault();
+        event.stopPropagation();
+        last.focus();
+      }
+    };
+    window.addEventListener('keydown', onTab, true);
     const previous = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     document.addEventListener('keydown', onKey);
     return () => {
       document.body.style.overflow = previous;
       document.removeEventListener('keydown', onKey);
+      window.removeEventListener('keydown', onTab, true);
     };
   }, [fullscreen]);
 

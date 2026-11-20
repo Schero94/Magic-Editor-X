@@ -9,7 +9,8 @@ import {
   Typography,
   VisuallyHidden,
 } from '@strapi/design-system';
-import { ArrowClockwise, ArrowsCounterClockwise, Collapse, Expand } from '@strapi/icons';
+import { Collapse, Expand } from '@strapi/icons';
+import { RedoIcon, UndoIcon } from './icons';
 import styled from 'styled-components';
 import { FieldToolsMenu } from './FieldToolsMenu';
 import { exitTools } from '../../editor/field-tools.mjs';
@@ -136,7 +137,7 @@ export const EditorToolbar = ({
               onClick={onUndo}
               disabled={!ready || !canUndo}
             >
-              <ArrowsCounterClockwise />
+              <UndoIcon />
             </IconButton>
             <IconButton
               label={t('editor.toolbar.redo', 'Redo')}
@@ -144,7 +145,7 @@ export const EditorToolbar = ({
               onClick={onRedo}
               disabled={!ready || !canRedo}
             >
-              <ArrowClockwise />
+              <RedoIcon />
             </IconButton>
           </>
         )}
