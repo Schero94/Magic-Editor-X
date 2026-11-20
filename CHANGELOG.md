@@ -1,6 +1,12 @@
 # Changelog
 
-## [Unreleased]
+## [2.8.3](https://github.com/Schero94/Magic-Editor-X/compare/v2.8.2...v2.8.3) (2026-11-20)
+
+
+### Bug Fixes
+
+* **admin:** accessible names, focus, panels and translations in the editor field ([#38](https://github.com/Schero94/Magic-Editor-X/issues/38)) ([cd9e7c7](https://github.com/Schero94/Magic-Editor-X/commit/cd9e7c7576696cb3b917148fe8a8b5601c72444f))
+
 
 ### Fixed (editor field: names, focus, panels, translations)
 
