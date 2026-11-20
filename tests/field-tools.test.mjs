@@ -9,6 +9,7 @@ import {
   formatShortcut,
   groupFieldTools,
   modKeyName,
+  shortcutKeyName,
 } from '../admin/src/editor/field-tools.mjs';
 
 const noop = () => {};
@@ -78,10 +79,14 @@ test('exit buttons only for visible toggles that are on and name a way back', ()
 test('shortcuts render per platform, with WAI-ARIA names for aria-keyshortcuts', () => {
   assert.equal(modKeyName(true), 'Cmd');
   assert.equal(modKeyName(false), 'Ctrl');
-  assert.equal(formatShortcut('CMD+SHIFT+F', false), 'Ctrl+Shift+F');
-  assert.equal(formatShortcut('CMD+SHIFT+F', true), 'Cmd+Shift+F');
-  assert.equal(formatShortcut('CMD+ALT+P', false), 'Ctrl+Alt+P');
-  assert.equal(formatShortcut('CMD+/', true), 'Cmd+/');
+  // 2.7.4 (c1): the Editor.js block menu notation (beautifyShortcut), so all hints in a field match.
+  assert.equal(formatShortcut('CMD+SHIFT+F', false), 'Ctrl + ⇧ + F');
+  assert.equal(formatShortcut('CMD+SHIFT+F', true), '⌘ + ⇧ + F');
+  assert.equal(formatShortcut('CMD+ALT+P', false), 'Ctrl + Alt + P');
+  assert.equal(formatShortcut('CMD+ALT+P', true), '⌘ + ⌥ + P');
+  assert.equal(formatShortcut('CMD+/', true), '⌘ + /');
+  assert.equal(shortcutKeyName('CMD', false), 'Ctrl');
+  assert.equal(shortcutKeyName('Tab', true), 'Tab');
   assert.equal(formatShortcut('', true), '');
   assert.equal(formatShortcut(undefined, true), '');
   assert.equal(ariaShortcut('CMD+SHIFT+F', false), 'Control+Shift+F');

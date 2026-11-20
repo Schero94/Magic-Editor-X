@@ -130,6 +130,20 @@ export class CodeHighlightTool {
         }
       });
       this.nodes.filename.addEventListener('paste', (event) => event.stopPropagation());
+      // 2.7.4 (m5): Editor.js puts the caret into the first input of a new block, which is this
+      // optional label. The first such focus of a new, empty block goes to the code area instead;
+      // a click into the label still lands there.
+      let redirect = !this.data.code && !this.data.filename;
+      let userMoved = false;
+      this.nodes.filename.addEventListener('pointerdown', () => (userMoved = true));
+      this.nodes.filename.addEventListener('focus', () => {
+        const moved = userMoved;
+        userMoved = false;
+        if (!redirect) return;
+        redirect = false;
+        if (moved || !this.nodes.input) return;
+        this.nodes.input.focus();
+      });
       this.nodes.filename.addEventListener('input', () => {
         this.data.filename = this.nodes.filename.value;
         this.changed();

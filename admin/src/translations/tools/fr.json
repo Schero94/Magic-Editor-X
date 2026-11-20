@@ -217,6 +217,7 @@
   "tools.csp.hostBlocked": "L'administration n'autorise pas le contenu de {host}. Le bloc est enregistré sans modification et s'affiche toujours sur votre site.",
   "tools.csp.blockedGeneric": "L'administration n'autorise pas ce contenu. Le bloc est enregistré sans modification et s'affiche toujours sur votre site.",
   "tools.csp.howTo": "Comment l'autoriser",
+  "tools.embed.unknown": "Cette intégration ({service}) n'est pas disponible dans cet éditeur. Le bloc est enregistré sans modification.",
   "tools.csp.askAdmin": "Demandez à un administrateur de l'autoriser dans la Content Security Policy.",
   "tools.image.altRequired": "Texte alternatif (obligatoire)",
   "tools.image.alt": "Texte alternatif",

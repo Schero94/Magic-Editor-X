@@ -1,6 +1,6 @@
 import { Box, Button, Flex, Modal, Typography } from '@strapi/design-system';
 import styled from 'styled-components';
-import { modKeyName } from '../../editor/field-tools.mjs';
+import { shortcutKeyName } from '../../editor/field-tools.mjs';
 
 /**
  * Keyboard shortcut help (Ctrl/Cmd + /). Lists the editor's own shortcuts,
@@ -43,7 +43,7 @@ const Table = styled.table`
 const Combo = ({ combo }) => (
   <Flex gap={1} wrap="wrap" tag="span">
     {combo.split('+').map((key, index) => (
-      <Keys key={`${key}-${index}`}>{key === 'CMD' ? modKeyName() : key}</Keys>
+      <Keys key={`${key}-${index}`}>{shortcutKeyName(key)}</Keys>
     ))}
   </Flex>
 );
@@ -56,6 +56,7 @@ const Combo = ({ combo }) => (
  * @param {(name: string) => boolean} [props.hasInline] - Whether an inline tool is available (2.4: inline math, footnotes).
  * @param {() => void} props.onClose - Closes the dialog.
  * @param {boolean} [props.comments] - 2.4: comments are shown in this field (range comment keys).
+ * @param {() => void} [props.returnFocus] - 2.7.4: focuses the opener (the caret, or More tools) when the dialog closes.
  * @returns {JSX.Element} Dialog.
  */
 export const ShortcutsDialog = ({
@@ -65,6 +66,7 @@ export const ShortcutsDialog = ({
   hasInline = () => true,
   onClose,
   comments = false,
+  returnFocus,
 }) => {
   const editorKeys = [
     ['CMD+Z', t('editor.shortcuts.undo', 'Undo')],
@@ -125,7 +127,15 @@ export const ShortcutsDialog = ({
 
   return (
     <Modal.Root open onOpenChange={(open) => !open && onClose()}>
-      <Modal.Content aria-describedby={undefined}>
+      <Modal.Content
+        aria-describedby={undefined}
+        onCloseAutoFocus={(event) => {
+          // 2.7.4 (m4): back to the caret or More tools, never to the page body.
+          if (!returnFocus) return;
+          event.preventDefault();
+          returnFocus();
+        }}
+      >
         <Modal.Header closeLabel={t('editor.shortcuts.close', 'Close')}>
           <Modal.Title>{t('editor.shortcuts.title', 'Keyboard shortcuts')}</Modal.Title>
         </Modal.Header>

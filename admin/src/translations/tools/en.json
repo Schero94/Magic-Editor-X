@@ -217,6 +217,7 @@
   "tools.csp.hostBlocked": "The admin does not allow content from {host}. The block is saved unchanged and still appears on your website.",
   "tools.csp.blockedGeneric": "The admin does not allow this content. The block is saved unchanged and still appears on your website.",
   "tools.csp.howTo": "How to allow it",
+  "tools.embed.unknown": "This embed ({service}) is not available in this editor. The block is saved unchanged.",
   "tools.csp.askAdmin": "Ask an administrator to allow it in the Content Security Policy.",
   "tools.image.altRequired": "Alternative text (required)",
   "tools.image.alt": "Alternative text",

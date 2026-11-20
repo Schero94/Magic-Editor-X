@@ -358,6 +358,41 @@ const minHeightOf = (value) => {
 };
 
 /**
+ * Remembers the focused element and the caret (2.7.4), so a dialog can give them back.
+ * @param {{ current: object|null }} ref - Holder of `{ element, range }`.
+ * @returns {void}
+ */
+const rememberCaret = (ref) => {
+  const selection = window.getSelection();
+  ref.current = {
+    element: document.activeElement,
+    range: selection && selection.rangeCount ? selection.getRangeAt(0).cloneRange() : null,
+  };
+};
+
+/**
+ * Focuses the remembered element and restores the caret, or calls `fallback`.
+ * @param {{ current: object|null }} ref - Holder from `rememberCaret`.
+ * @param {() => void} fallback - Focus target when nothing usable was remembered.
+ * @returns {void}
+ */
+const restoreCaret = (ref, fallback) => {
+  const saved = ref.current;
+  ref.current = null;
+  const element = saved && saved.element;
+  if (!element || element === document.body || !element.isConnected || typeof element.focus !== 'function') {
+    fallback();
+    return;
+  }
+  element.focus({ preventScroll: true });
+  const selection = window.getSelection();
+  if (saved.range && selection && element.contains(saved.range.startContainer)) {
+    selection.removeAllRanges();
+    selection.addRange(saved.range);
+  }
+};
+
+/**
  * Comparable form of editor content (blocks only; time changes on every save).
  * @param {object|null} data - Editor data.
  * @returns {string} Fingerprint.
@@ -470,6 +505,8 @@ const EditorFieldBody = ({
   const [findOpen, setFindOpen] = useState(false);
   const [qualityOpen, setQualityOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  // 2.7.4 (m4): where the shortcuts dialog returns focus (the caret when opened with Ctrl/Cmd+/).
+  const shortcutsReturnRef = useRef(null);
   const [focusMode, setFocusMode] = useState(false);
   const [toolShortcuts, setToolShortcuts] = useState([]);
   const frameRef = useRef(null);
@@ -480,6 +517,8 @@ const EditorFieldBody = ({
   });
   const focusOnStartRef = useRef(false);
   const [commentsOpen, setCommentsOpen] = useState(false);
+  // 2.7.4: the panel last opened from More tools gets focus when it renders (m3).
+  const [menuPanel, setMenuPanel] = useState(null);
   const [commentFocusThread, setCommentFocusThread] = useState(null);
   const [currentBlockId, setCurrentBlockId] = useState(null);
   // 2.3: grammar check panel and whole-field AI actions.
@@ -1977,6 +2016,7 @@ const EditorFieldBody = ({
 
   const closeQuality = useCallback(() => {
     setQualityOpen(false);
+    setMenuPanel(null);
     window.requestAnimationFrame(() => focusToolsMenu());
   }, [focusToolsMenu]);
 
@@ -2021,6 +2061,7 @@ const EditorFieldBody = ({
       } else if (!event.shiftKey && event.key === '/') {
         event.preventDefault();
         event.stopPropagation();
+        rememberCaret(shortcutsReturnRef);
         setShortcutsOpen(true);
       }
     };
@@ -2059,6 +2100,7 @@ const EditorFieldBody = ({
 
   const closeComments = useCallback(() => {
     setCommentsOpen(false);
+    setMenuPanel(null);
     window.requestAnimationFrame(() => focusToolsMenu());
   }, [focusToolsMenu]);
 
@@ -2296,6 +2338,7 @@ const EditorFieldBody = ({
     setGrammarOpen(false);
     setCommentsOpen(false);
     setSuggestionsOpen(false);
+    setMenuPanel(null);
     setPreviewOpen(false);
     setFocusMode(false);
     clearHighlight();
@@ -2393,6 +2436,7 @@ const EditorFieldBody = ({
 
   const closeSuggestions = useCallback(() => {
     setSuggestionsOpen(false);
+    setMenuPanel(null);
     window.requestAnimationFrame(() => moreButtonRef.current && moreButtonRef.current.focus());
   }, []);
 
@@ -2913,7 +2957,13 @@ const EditorFieldBody = ({
       pressed: commentsOpen,
       movesFocus: true,
       visible: commentsEnabled,
-      onSelect: () => (commentsOpen ? closeComments() : setCommentsOpen(true)),
+      onSelect: () => {
+        if (commentsOpen) closeComments();
+        else {
+          setMenuPanel('comments');
+          setCommentsOpen(true);
+        }
+      },
     },
     {
       id: 'history',
@@ -2941,7 +2991,13 @@ const EditorFieldBody = ({
       pressed: suggestionsOpen,
       movesFocus: true,
       visible: suggestionsEnabled,
-      onSelect: () => (suggestionsOpen ? closeSuggestions() : setSuggestionsOpen(true)),
+      onSelect: () => {
+        if (suggestionsOpen) closeSuggestions();
+        else {
+          setMenuPanel('suggestions');
+          setSuggestionsOpen(true);
+        }
+      },
     },
     {
       id: 'suggest',
@@ -2969,7 +3025,13 @@ const EditorFieldBody = ({
       },
       pressed: qualityOpen,
       movesFocus: true,
-      onSelect: () => (qualityOpen ? closeQuality() : setQualityOpen(true)),
+      onSelect: () => {
+        if (qualityOpen) closeQuality();
+        else {
+          setMenuPanel('quality');
+          setQualityOpen(true);
+        }
+      },
     },
     {
       id: 'fieldAi',
@@ -3041,7 +3103,10 @@ const EditorFieldBody = ({
       icon: <Command />,
       shortcut: 'CMD+/',
       movesFocus: true,
-      onSelect: () => setShortcutsOpen(true),
+      onSelect: () => {
+        shortcutsReturnRef.current = null;
+        setShortcutsOpen(true);
+      },
     },
     // 2.5 "Use existing content": blocks from another entry, field or language.
     {
@@ -3157,6 +3222,7 @@ const EditorFieldBody = ({
           {suggestionsOpen && suggestionsEnabled && ready && !suggestMode ? (
             <PanelSlot padding={2} $fullscreen={fullscreen}>
               <SuggestionsPanel
+                autoFocus={menuPanel === 'suggestions'}
                 t={t}
                 suggestions={suggestions}
                 current={currentData}
@@ -3200,6 +3266,7 @@ const EditorFieldBody = ({
           {qualityOpen && ready && !suggestMode ? (
             <PanelSlot padding={2} $fullscreen={fullscreen}>
               <QualityPanel
+                autoFocus={menuPanel === 'quality'}
                 t={t}
                 data={currentData}
                 options={fieldOptions || undefined}
@@ -3218,6 +3285,7 @@ const EditorFieldBody = ({
           {commentsOpen && commentsEnabled && ready && !suggestMode ? (
             <PanelSlot padding={2} $fullscreen={fullscreen}>
               <CommentsPanel
+                autoFocus={menuPanel === 'comments'}
                 t={t}
                 comments={comments}
                 blocks={commentBlocks}
@@ -3529,6 +3597,7 @@ const EditorFieldBody = ({
           hasInline={(tool) => !readOnly && (!preset.inline || preset.inline.includes(tool))}
           onClose={() => setShortcutsOpen(false)}
           comments={commentsEnabled}
+          returnFocus={() => restoreCaret(shortcutsReturnRef, focusToolsMenu)}
         />
       ) : null}
       {[...componentMounts].map(([key, mount]) =>

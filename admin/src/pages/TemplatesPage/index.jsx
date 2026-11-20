@@ -74,23 +74,23 @@ const TemplatesPage = () => {
 
   if (rbacLoading || data.status === 'loading') {
     return (
-      <Page.Main>
+      <>
         <Page.Title>{title}</Page.Title>
         <Page.Loading />
-      </Page.Main>
+      </>
     );
   }
   if (!allowedActions.canManage) {
     return (
-      <Page.Main>
+      <>
         <Page.Title>{title}</Page.Title>
         <Page.NoPermissions />
-      </Page.Main>
+      </>
     );
   }
   if (data.status === 'error') {
     return (
-      <Page.Main>
+      <>
         <Page.Title>{title}</Page.Title>
         <Page.Error
           content={t('settings.templates.loadError', 'The templates could not be loaded.')}
@@ -100,7 +100,7 @@ const TemplatesPage = () => {
             </Button>
           }
         />
-      </Page.Main>
+      </>
     );
   }
 

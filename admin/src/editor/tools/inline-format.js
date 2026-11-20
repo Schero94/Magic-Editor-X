@@ -400,6 +400,37 @@ export const SuperscriptTool = createScriptTool('sup');
 export const SubscriptTool = createScriptTool('sub');
 
 /**
+ * Keeps stored `<sub>` and `<sup>` when the field does not offer the script buttons (2.7.4).
+ * Editor.js 2.31 cleans a block with the sanitize rules of the inline tools in its inline toolbar
+ * (`BlockToolAdapter.baseSanitizeConfig`), so without the subscript tool every save and paste
+ * dropped `<sub>` that the stored content, an import or the API had. This tool only contributes
+ * the rules: `render()` returns an empty MenuConfig, so the inline toolbar shows no button.
+ */
+export class ScriptKeepTool {
+  static get isInline() {
+    return true;
+  }
+
+  static get title() {
+    return '';
+  }
+
+  static get sanitize() {
+    return { sup: { ...SUP_SANITIZE }, sub: {} };
+  }
+
+  render() {
+    return [];
+  }
+
+  surround() {}
+
+  checkState() {
+    return false;
+  }
+}
+
+/**
  * Builds the inline tool of an annotation definition (2.5): a toolbar button
  * that wraps the selection and shows a small form with the attributes
  * (inputs for text and links, a select for a list) and one primary action

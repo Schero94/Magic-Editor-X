@@ -40,23 +40,23 @@ const CustomBlocksPage = () => {
 
   if (rbacLoading || data.status === 'loading') {
     return (
-      <Page.Main>
+      <>
         <Page.Title>{title}</Page.Title>
         <Page.Loading />
-      </Page.Main>
+      </>
     );
   }
   if (!allowedActions.canManage) {
     return (
-      <Page.Main>
+      <>
         <Page.Title>{title}</Page.Title>
         <Page.NoPermissions />
-      </Page.Main>
+      </>
     );
   }
   if (data.status === 'error') {
     return (
-      <Page.Main>
+      <>
         <Page.Title>{title}</Page.Title>
         <Page.Error
           content={t('settings.blocks.loadError', 'The custom blocks could not be loaded.')}
@@ -66,7 +66,7 @@ const CustomBlocksPage = () => {
             </Button>
           }
         />
-      </Page.Main>
+      </>
     );
   }
 

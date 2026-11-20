@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { usePanelAutoFocus } from './usePanelFocus';
 import { useIntl } from 'react-intl';
 import {
   Badge,
@@ -216,6 +217,7 @@ const BlockChange = ({ before, after, t }) => {
  * @returns {JSX.Element} Panel.
  */
 export const SuggestionsPanel = ({
+  autoFocus = false,
   t,
   suggestions,
   current,
@@ -231,6 +233,7 @@ export const SuggestionsPanel = ({
   const [busy, setBusy] = useState(null);
   const [announcement, setAnnouncement] = useState('');
   const headingRef = useRef(null);
+  usePanelAutoFocus(autoFocus, headingRef);
   const cardRefs = useRef(new Map());
   const { loaded, error, counts, actions, newFromOthers, clearNew } = suggestions;
 

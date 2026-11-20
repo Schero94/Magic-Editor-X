@@ -16,9 +16,11 @@ import {
  * Loads, edits, validates and saves the plugin settings.
  * Load failures keep the form hidden (status 'error') so defaults can never
  * overwrite stored settings.
+ * @param {{ enabled?: boolean }} [options] - `enabled` false (permissions still loading or missing)
+ *   sends no request (2.7.4: no 403 in the console for people without access).
  * @returns {object} Form state and actions.
  */
-export const useConfigurationForm = () => {
+export const useConfigurationForm = ({ enabled = true } = {}) => {
   const { get, put, post } = useFetchClient();
   const [status, setStatus] = useState('loading');
   const [dto, setDto] = useState(null);
@@ -59,8 +61,8 @@ export const useConfigurationForm = () => {
   );
 
   useEffect(() => {
-    fetchSettings();
-  }, [fetchSettings]);
+    if (enabled) fetchSettings();
+  }, [enabled, fetchSettings]);
 
   const load = useCallback(() => {
     setStatus('loading');
