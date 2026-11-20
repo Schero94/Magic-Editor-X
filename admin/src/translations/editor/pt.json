@@ -771,5 +771,18 @@
   "editor.session.opened": "Inicie sessão no novo separador. Esta página continua aberta com as suas alterações.",
   "editor.session.blocked": "O seu navegador bloqueou o novo separador.",
   "editor.session.blockedLink": "Abrir a página de início de sessão",
-  "editor.session.resumed": "Tem sessão iniciada novamente. Guarde a entrada para manter as suas alterações."
+  "editor.session.resumed": "Tem sessão iniciada novamente. Guarde a entrada para manter as suas alterações.",
+  "editor.toolbar.add": "Adicionar um bloco",
+  "editor.toolbar.blockMenu": "Abrir o menu do bloco",
+  "editor.shortcuts.blockMenu": "Menu do bloco atual (mover, excluir, converter)",
+  "editor.shortcuts.addBlock": "Escolher um tipo de bloco (em um bloco vazio)",
+  "editor.shortcuts.blockControls": "Botões e opções dentro de um bloco (Shift+Tab: voltar)",
+  "editor.room.discardTitle": "Descartar as alterações não salvas para todos?",
+  "editor.room.discardBody": "O conteúdo salvo volta a este campo para todas as pessoas que editam esta entrada agora. O texto não salvo delas neste campo também é removido. Você pode desfazer isso logo em seguida.",
+  "editor.room.discardConfirm": "Descartar para todos",
+  "editor.room.discarded": "As alterações não salvas foram descartadas para todos. Este campo mostra o conteúdo salvo.",
+  "editor.room.discardedRemote": "Alguém nesta sessão ao vivo voltou este campo ao conteúdo salvo. O seu texto não salvo neste campo foi removido.",
+  "editor.room.undoDiscard": "Desfazer",
+  "editor.room.restoreText": "Restaurar meu texto",
+  "editor.room.dismiss": "Dispensar"
 }

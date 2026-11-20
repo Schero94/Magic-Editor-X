@@ -1,5 +1,15 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed (editor field: keyboard, typing speed, paste, live session)
+
+- **Keyboard path to the block menu.** Ctrl/Cmd+/ opened the plugin's shortcut help, which blocked Editor.js' own shortcut for the block menu, and the **+** and block menu (⋮⋮) handles had no role, name or tab stop. Ctrl/Cmd+/ opens the block menu of the current block again; the shortcut help moved to **Ctrl/Cmd+Alt+/** (also More tools > Keyboard shortcuts). Both handles are buttons with names ("Add a block", "Open the block menu") that open with Enter or Space. The shortcut help and the README list the keyboard path.
+- **Controls inside blocks were not reachable by keyboard.** Editor.js moves Tab and the arrow keys only between text inputs, so the audio and video Choose buttons, the person photo, the toggle's show/hide, the column style and layout, the button block's style and "new tab", and the inputs, select and switch of component blocks were skipped. Tab and Shift+Tab now stop on them in document order, the arrow keys stop on a control Editor.js would skip (not on selects), tools that use Tab themselves (lists, tables, code) keep it, and every control in a block shows a focus ring.
+- **Typing lag in long documents.** Every keystroke sanitised the whole document with DOMPurify several times (form value, rendered key, draft fingerprint) and compared it in canonical JSON: about 150 ms per key at 2,000 blocks. The inline sanitiser and the canonical JSON of blocks are cached by input (same output, so the same security; the server still sanitises on save), Editor.js' save and the form update run in separate tasks, the field's panels update as a React transition, and the draft fingerprints are only computed after signing in again. At 2,000 blocks a keystroke now takes p95 about 40 ms with no task over 50 ms (see the PR for the measurements).
+- **Bold from Word was lost on paste.** Word writes `<b style='mso-bidi-font-weight:normal'>` and the check for Google Docs' `<b style="font-weight:normal">` wrapper matched the text `font-weight:normal` inside the other property. Inline styles are now read by exact property name, everywhere in the HTML import.
+- **"Discard changes" in the live session notice removed other people's text without asking.** It now asks first in a Strapi confirmation that says it affects everyone editing the field, then shows a notice with **Undo** (focused) that puts the previous text back for everyone. People in the same session get a notice that the field went back to the saved content, with **Restore my text**.
+
 ## [2.8.1](https://github.com/Schero94/Magic-Editor-X/compare/v2.8.0...v2.8.1) (2026-11-20)
 
 

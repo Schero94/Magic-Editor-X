@@ -3,7 +3,7 @@ import styled from 'styled-components';
 import { shortcutKeyName } from '../../editor/field-tools.mjs';
 
 /**
- * Keyboard shortcut help (Ctrl/Cmd + /). Lists the editor's own shortcuts,
+ * Keyboard shortcut help (Ctrl/Cmd + Alt + /; 2.7.8: Ctrl/Cmd + / opens the Editor.js block menu). Lists the editor's own shortcuts,
  * the block and inline tool shortcuts and the Markdown shortcuts.
  */
 
@@ -72,10 +72,13 @@ export const ShortcutsDialog = ({
     ['CMD+Z', t('editor.shortcuts.undo', 'Undo')],
     ['CMD+SHIFT+Z', t('editor.shortcuts.redo', 'Redo')],
     ['CMD+SHIFT+F', t('editor.shortcuts.find', 'Find and replace')],
-    ['CMD+/', t('editor.shortcuts.help', 'Show keyboard shortcuts')],
+    ['CMD+ALT+/', t('editor.shortcuts.help', 'Show keyboard shortcuts')],
+    ['CMD+/', t('editor.shortcuts.blockMenu', 'Block menu of the current block (move, delete, convert)')],
+    ['/', t('editor.shortcuts.addBlock', 'Choose a block type (in an empty block)')],
     ['CMD+ALT+P', t('editor.shortcuts.preview', 'Show or hide the rendered preview')],
     ['Tab', t('editor.shortcuts.toolbox', 'Choose a block type (in an empty block)')],
     ['Escape+Tab', t('editor.shortcuts.leave', 'Leave the editor')],
+    ['Tab', t('editor.shortcuts.blockControls', 'Buttons and options inside a block (Shift+Tab: back)')],
     ['Tab', t('editor.shortcuts.tableCell', 'Next table cell (Shift+Tab: previous cell)')],
     ['ALT+F10', t('editor.shortcuts.tableTools', 'Table tools (in a table cell)')],
     ['CMD+SHIFT+V', t('editor.shortcuts.plainPaste', 'Paste as plain text')],

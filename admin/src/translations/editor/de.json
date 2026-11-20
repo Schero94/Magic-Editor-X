@@ -771,5 +771,18 @@
   "editor.session.opened": "Melden Sie sich im neuen Tab an. Diese Seite bleibt mit Ihren Änderungen geöffnet.",
   "editor.session.blocked": "Ihr Browser hat den neuen Tab blockiert.",
   "editor.session.blockedLink": "Anmeldeseite öffnen",
-  "editor.session.resumed": "Sie sind wieder angemeldet. Speichern Sie den Eintrag, um Ihre Änderungen zu behalten."
+  "editor.session.resumed": "Sie sind wieder angemeldet. Speichern Sie den Eintrag, um Ihre Änderungen zu behalten.",
+  "editor.toolbar.add": "Block hinzufügen",
+  "editor.toolbar.blockMenu": "Blockmenü öffnen",
+  "editor.shortcuts.blockMenu": "Blockmenü des aktuellen Blocks (verschieben, löschen, umwandeln)",
+  "editor.shortcuts.addBlock": "Blocktyp wählen (in einem leeren Block)",
+  "editor.shortcuts.blockControls": "Schaltflächen und Optionen in einem Block (Umschalt+Tab: zurück)",
+  "editor.room.discardTitle": "Nicht gespeicherte Änderungen für alle verwerfen?",
+  "editor.room.discardBody": "Der gespeicherte Inhalt kehrt in diesem Feld für alle zurück, die diesen Eintrag gerade bearbeiten. Auch deren nicht gespeicherter Text in diesem Feld wird entfernt. Sie können das direkt danach rückgängig machen.",
+  "editor.room.discardConfirm": "Für alle verwerfen",
+  "editor.room.discarded": "Die nicht gespeicherten Änderungen wurden für alle verworfen. Dieses Feld zeigt den gespeicherten Inhalt.",
+  "editor.room.discardedRemote": "Jemand in dieser Live-Sitzung hat dieses Feld auf den gespeicherten Inhalt zurückgesetzt. Ihr nicht gespeicherter Text in diesem Feld wurde entfernt.",
+  "editor.room.undoDiscard": "Rückgängig",
+  "editor.room.restoreText": "Meinen Text wiederherstellen",
+  "editor.room.dismiss": "Ausblenden"
 }

@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@strapi/strapi/admin';
 import { prepareEditorValue } from '../../editor/sanitize';
-import { stableStringify } from '../../../../shared/ydoc.mjs';
+import { stableStringifyBlocks } from '../../../../shared/ydoc.mjs';
 import { diffDocuments, summarizeDiff } from '../../../../shared/diff.mjs';
 import { comparableBlocks } from '../../../../shared/default-tunes.mjs';
 import {
@@ -29,7 +29,7 @@ const fingerprint = (value) => {
   // 2.6: default tune values count as no tune (shared/default-tunes.mjs): the room and the form
   // write the same content in both shapes, which made an equal buffer look different.
   // A non-breaking space is written as `&nbsp;` by the editor and as U+00A0 or a space after a round trip.
-  const key = stableStringify(
+  const key = stableStringifyBlocks(
     comparableBlocks(data && Array.isArray(data.blocks) ? data.blocks : [])
   ).replace(/&nbsp;|\u00a0/g, ' ');
   return { data, key };
@@ -274,8 +274,15 @@ export const useDraftBuffer = ({
   ]);
 
   // 2.6: signed in again. Strapi reloads the entry and resets the form: put the buffered text back once.
-  const valueKey = useMemo(() => fingerprint(value).key, [value]);
-  const savedKey = useMemo(() => fingerprint(savedValue).key, [savedValue]);
+  // 2.7.8: the keys matter only after signing in again; they are not computed while typing
+  // (a full-document fingerprint on every keystroke was part of the typing lag at 2,000 blocks),
+  // and the form value is read deferred so this never blocks an urgent render.
+  const deferredValue = useDeferredValue(value);
+  const valueKey = useMemo(
+    () => (resumedAt ? fingerprint(deferredValue).key : null),
+    [deferredValue, resumedAt]
+  );
+  const savedKey = useMemo(() => (resumedAt ? fingerprint(savedValue).key : null), [savedValue, resumedAt]);
   useEffect(() => {
     if (!id || !ready || readOnly || !resumedAt || typeof onRecover !== 'function') return undefined;
     if (recoveredRef.current === resumedAt) return undefined;

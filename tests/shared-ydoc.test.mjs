@@ -280,3 +280,23 @@ test('three-way text merge keeps every whole insert and delete of both sides (pr
     }
   }
 });
+
+test('2.7.8: stableStringifyBlocks and stableStringifyCached equal stableStringify', async () => {
+  const { stableStringify, stableStringifyBlocks, stableStringifyCached } =
+    await import('../shared/ydoc.mjs');
+  const blocks = [
+    { id: 'a', type: 'paragraph', data: { text: 'x', b: undefined }, tunes: { z: 1, a: 2 } },
+    { type: 'paragraph', id: 'a', data: { b: undefined, text: 'x' }, tunes: { a: 2, z: 1 } },
+    { id: 'c', type: 'list', data: { items: [{ content: 'i', items: [] }, undefined] } },
+    null,
+    'raw',
+  ];
+  for (let round = 0; round < 2; round += 1) {
+    assert.equal(stableStringifyBlocks(blocks), stableStringify(blocks));
+    for (const block of blocks) assert.equal(stableStringifyCached(block), stableStringify(block));
+  }
+  // `undefined` and an absent key are different canonical values; the cache must not merge them.
+  assert.equal(stableStringifyCached({ a: undefined }), '{"a":null}');
+  assert.equal(stableStringifyCached({}), '{}');
+  assert.equal(stableStringifyBlocks('x'), stableStringify('x'));
+});

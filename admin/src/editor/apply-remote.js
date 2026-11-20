@@ -1,4 +1,4 @@
-import { stableStringify } from '../../../shared/ydoc.mjs';
+import { stableStringify, stableStringifyCached } from '../../../shared/ydoc.mjs';
 import { meaningfulTunes } from '../../../shared/default-tunes.mjs';
 import { applyComponentValues } from './tools/component';
 import { deleteBlockKeepingFocus } from './focus-guard.mjs';
@@ -25,7 +25,11 @@ export const blockKey = (block) => {
   // Blocks are treated as immutable; unchanged blocks keep their identity, so the key is cached.
   let key = keys.get(block);
   if (key === undefined) {
-    key = stableStringify({ type: block.type, data: block.data || {}, tunes: meaningfulTunes(block.tunes) });
+    key = stableStringifyCached({
+      type: block.type,
+      data: block.data || {},
+      tunes: meaningfulTunes(block.tunes),
+    });
     keys.set(block, key);
   }
   return key;
