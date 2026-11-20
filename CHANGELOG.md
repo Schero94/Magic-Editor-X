@@ -1,6 +1,12 @@
 # Changelog
 
-## [Unreleased]
+## [2.7.7](https://github.com/Schero94/Magic-Editor-X/compare/v2.7.6...v2.7.7) (2026-11-20)
+
+
+### Bug Fixes
+
+* API and output re-audit findings (AI key endpoint, list start, GraphQL locale in components, Markdown output, imports, uploads) ([#33](https://github.com/Schero94/Magic-Editor-X/issues/33)) ([3e0236d](https://github.com/Schero94/Magic-Editor-X/commit/3e0236d66fa106ba25d6e1ab1ee90ad2bdfe8a1b))
+
 
 ### Security
 
