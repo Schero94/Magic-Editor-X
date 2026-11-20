@@ -1,5 +1,14 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- **Tab froze with a closed toggle.** editorjs-indent-tune 1.4.4 re-queued its layout step as a microtask for as long as a block measured 0 px wide. Children of a closed toggle are hidden, so a window resize or More tools > Suggest changes froze the browser tab. The indent tune wrapper now waits for such a block with a ResizeObserver and applies the indent when the toggle opens.
+- **Link preview with a blocked image.** The Content Security Policy notice took the place of the preview image inside the card row and squeezed the title and description to one character per line. The notice now takes its own row under the text.
+- **Unsaved live-session text looked saved.** A collaboration room keeps unsaved text for `roomTtlMinutes`. When an editor opened the entry within that time, the field showed the text with Save disabled, and saving other fields stored the old value. The field now marks the form as changed and shows a notice ("not saved yet") with Discard changes, which brings the stored value back for everyone in the room.
+- **Last keystrokes before saving.** Text typed less than 40 ms before Ctrl/Cmd+Enter, Ctrl/Cmd+S or a Save click could be missing from the saved entry. The field now finishes handing its content to the form before the save runs.
+
 ## [2.7.3](https://github.com/Schero94/Magic-Editor-X/compare/v2.7.2...v2.7.3) (2026-11-20)
 
 

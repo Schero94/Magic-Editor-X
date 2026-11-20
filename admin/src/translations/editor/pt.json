@@ -733,6 +733,8 @@
   "editor.drafts.conflict": "O conteúdo salvo mudou desde então. Ao restaurar, ele é substituído no editor ({count, plural, one {# bloco é diferente} other {# blocos são diferentes}}).",
   "editor.drafts.conflictPlain": "O conteúdo salvo mudou desde então. Ao restaurar, ele é substituído no editor.",
   "editor.drafts.discard": "Descartar",
+  "editor.room.unsaved": "Este campo mostra alterações de uma sessão de edição ao vivo que ainda não foram salvas. Salve a entrada para mantê-las.",
+  "editor.room.discard": "Descartar alterações",
   "editor.drafts.restore": "Restaurar",
   "editor.drafts.restored": "Alterações restauradas. Salve a entrada para mantê-las.",
   "editor.component.badge": "Componente",

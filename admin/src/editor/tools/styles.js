@@ -2002,11 +2002,18 @@ export const editorStyles = css`
       background: ${c('neutral0')};
       color: ${c('neutral800')};
       text-decoration: none;
+      flex-wrap: wrap;
     }
 
     .mex-link__text {
-      flex: 1;
+      flex: 1 1 0;
       min-width: 0;
+    }
+
+    /* A blocked preview image: the notice takes its own row under the text instead of squeezing it. */
+    .mex-link__card > .mex-csp-blocked {
+      flex: 1 1 100%;
+      order: 1;
     }
 
     .mex-link__title {

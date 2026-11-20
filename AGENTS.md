@@ -61,7 +61,7 @@ admin/src/
   editor/core-blocks.js      2.7: admin API `addCoreBlocks` (Core Blocks bridge, + core-blocks-logic.mjs)
   components/EntryPanel/     2.5: the one Content Manager side panel (presence, comments, quality; sections.jsx); EntryWidgets/ homepage widgets
   components/EditorField/    field input, toolbar, history modal (+ VersionDiff), AI dialog, quality panel, find and replace, shortcuts dialog, block selection bar, collaboration hook, comments (useComments, CommentsPanel, CommentThread, CommentMarkers), templates (TemplateDialog, SaveTemplateDialog, useTemplates), FieldPreview
-  editor/                    tools (+ alt-text.js image tool, toc.js, mention.js, sanitize-config.js), styles, sanitize, collab client, apply-remote, paste (+ paste-logic.mjs), markdown-shortcuts (+ logic), find-highlight, restore-block.mjs, input-tracking.mjs (readiness/edit tracking), style-owners.mjs (shared editor styles)
+  editor/                    tools (+ alt-text.js image tool, toc.js, mention.js, sanitize-config.js), styles, sanitize, collab client, apply-remote, paste (+ paste-logic.mjs), markdown-shortcuts (+ logic), find-highlight, restore-block.mjs, input-tracking.mjs (readiness/edit tracking), style-owners.mjs (shared editor styles), room-state.mjs (unsaved room content check), submit-guard.mjs (flush before Save)
   pages/                     ConfigurationPage, CustomBlocksPage, TemplatesPage
   components/ui/             shared page building blocks
   components/RenderedContent/ rendered output in the admin (React renderer, prose styles, embed placeholder, DOMPurify for raw HTML)

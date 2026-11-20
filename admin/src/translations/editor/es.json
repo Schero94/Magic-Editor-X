@@ -733,6 +733,8 @@
   "editor.drafts.conflict": "El contenido guardado ha cambiado desde entonces. Al restaurar se reemplaza en el editor ({count, plural, one {# bloque es distinto} other {# bloques son distintos}}).",
   "editor.drafts.conflictPlain": "El contenido guardado ha cambiado desde entonces. Al restaurar se reemplaza en el editor.",
   "editor.drafts.discard": "Descartar",
+  "editor.room.unsaved": "Este campo muestra cambios de una sesión de edición en vivo que aún no se han guardado. Guarde la entrada para conservarlos.",
+  "editor.room.discard": "Descartar cambios",
   "editor.drafts.restore": "Restaurar",
   "editor.drafts.restored": "Cambios restaurados. Guarde la entrada para conservarlos.",
   "editor.component.badge": "Componente",
