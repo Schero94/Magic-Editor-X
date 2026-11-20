@@ -306,3 +306,43 @@ test('custom block import report: an entry without a name is described, no liter
   assert.match(result.html, /An entry without a name: the definition is not valid\./);
   assert.doesNotMatch(result.html, /\?: the definition/);
 });
+
+test('desktop tables: Enter and Space press the row action buttons (the DS cell no longer swallows them)', async () => {
+  const native = window.matchMedia;
+  // Desktop layout (large breakpoint): the lists render as DS tables.
+  window.matchMedia = globalThis.matchMedia = (query) => ({
+    ...native(query),
+    matches: /min-width/.test(query),
+  });
+  try {
+    for (const [ui, path, name] of [
+      [<CustomBlocksPage key="cb" />, CUSTOM_BLOCKS, 'Edit Callout'],
+      [<TemplatesPage key="tpl" />, '/settings/magic-editor-x/templates', 'Edit Release note'],
+    ]) {
+      pluginRoutes();
+      await checkStrictEntry(ui, {
+        path,
+        permissions: ALL,
+        whileMounted: async () => {
+          await waitFor(() => document.querySelector('table'), `${name}: the table layout`);
+          const edit = button(name);
+          assert.ok(edit.closest('td'), `${name} sits in a table cell`);
+          for (const key of ['Enter', ' ']) {
+            const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true });
+            await act(async () => {
+              edit.dispatchEvent(event);
+            });
+            assert.equal(event.defaultPrevented, false, `${name}: ${JSON.stringify(key)} reaches the button`);
+          }
+          const event = new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true });
+          await act(async () => {
+            edit.dispatchEvent(event);
+          });
+          assert.equal(event.defaultPrevented, true, 'arrow keys still move inside the table');
+        },
+      });
+    }
+  } finally {
+    window.matchMedia = globalThis.matchMedia = native;
+  }
+});

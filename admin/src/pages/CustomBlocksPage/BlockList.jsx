@@ -17,6 +17,7 @@ import { ArrowDown, ArrowUp, Duplicate, Pencil, Trash } from '@strapi/icons';
 import { ConfirmAction, useBreakpoint, useT } from '../../components/ui';
 import { blockTypeLabel } from './messages';
 import { IconPreview } from './Preview';
+import { keepButtonKeys } from '../tableKeys.mjs';
 
 /**
  * Row actions shared by the table and the card list.
@@ -37,7 +38,8 @@ const RowActions = ({
   const t = useT();
   const label = block.label || block.name;
   return (
-    <Flex gap={1} wrap="wrap">
+    // Enter and Space press the focused button (the DS table cell would swallow them).
+    <Flex gap={1} wrap="wrap" onKeyDown={keepButtonKeys}>
       <IconButton
         label={t('settings.blocks.action.edit', 'Edit {label}', { label })}
         variant="ghost"

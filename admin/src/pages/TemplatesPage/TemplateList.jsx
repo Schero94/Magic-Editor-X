@@ -20,6 +20,7 @@ import { useFetchClient } from '../../utils/fetch-client';
 import { ConfirmAction, useBreakpoint, useT } from '../../components/ui';
 import { normalizeScope } from '../../../../shared/templates.mjs';
 import { API } from '../../utils/api';
+import { keepButtonKeys } from '../tableKeys.mjs';
 
 /**
  * Template list of the settings page: table from the large breakpoint up,
@@ -132,7 +133,8 @@ const RowActions = ({
   const t = useT();
   const name = template.name;
   return (
-    <Flex gap={1} wrap="wrap">
+    // Enter and Space press the focused button (the DS table cell would swallow them).
+    <Flex gap={1} wrap="wrap" onKeyDown={keepButtonKeys}>
       <IconButton
         label={t('settings.templates.action.preview', 'Preview {name}', { name })}
         variant="ghost"
