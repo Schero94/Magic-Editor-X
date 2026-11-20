@@ -1,5 +1,12 @@
 # Changelog
 
+## [Unreleased]
+
+### Security
+
+- **The `ai.apiKey` key is bound to its endpoint.** An admin with the settings permissions could point the AI provider at another base URL (Settings, or `POST /magic-editor-x/settings/ai/test`) and the key from `config/plugins.js` was sent there, although a stored key already had this protection. The `ai.apiKey` key is now only sent to the base URL it is configured for: the new option `ai.apiKeyBaseUrl`, or, when that is unset, the official Anthropic (`https://api.anthropic.com`) and OpenAI (`https://api.openai.com`) APIs. Another base URL gets no key until an admin enters one (it is then stored encrypted and used only there); saving another base URL without a key answers 400 on `ai.apiKey`, a connection test sends no key, and the Configuration page opens the key field and says where the `ai.apiKey` key goes. A key entered for a connection test is now used as typed instead of the `ai.apiKey` key. Switching back to the configured base URL drops a key stored for the other endpoint. `GET /magic-editor-x/settings` adds `ai.hasStoredApiKey` and `ai.apiKeyEnvironmentBaseUrls`; `ai.apiKeyFromEnvironment` and `ai.hasApiKey` now describe the saved endpoint.
+  - **Migration:** if you use `ai.apiKey` with an OpenAI-compatible server, a proxy or any base URL other than the official APIs, set `ai.apiKeyBaseUrl` to that base URL in `config/plugins.js`. Until then the AI actions answer 503 `NO_API_KEY` (Anthropic, OpenAI) or reach the server without a key (OpenAI-compatible).
+
 ## [2.7.6](https://github.com/Schero94/Magic-Editor-X/compare/v2.7.5...v2.7.6) (2026-11-20)
 
 

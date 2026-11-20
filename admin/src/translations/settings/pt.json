@@ -6,6 +6,7 @@
   "settings.ai.enabled.privacy": "Quando um editor executa uma ação de IA, o texto selecionado é enviado para {provider}. Nada é enviado enquanto o assistente estiver desativado.",
   "settings.ai.key.cannotStoreHint": "Defina MAGIC_EDITOR_X_ENCRYPTION_KEY (pelo menos 32 caracteres) no servidor para guardar aqui uma chave, ou indique ai.apiKey em config/plugins.js.",
   "settings.ai.key.environmentHint": "É usada a definição ai.apiKey de config/plugins.js, que prevalece sobre uma chave guardada.",
+  "settings.ai.key.environmentOtherHint": "A chave ai.apiKey de config/plugins.js só é enviada para {baseUrls}. Introduza uma chave para este URL base.",
   "settings.ai.key.hint": "Deixe em branco para manter a chave guardada. A chave nunca volta a ser mostrada depois de guardar.",
   "settings.ai.key.keep": "Manter a chave guardada",
   "settings.ai.key.label": "Chave de API",

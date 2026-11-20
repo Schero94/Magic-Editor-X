@@ -518,18 +518,12 @@ module.exports = ({ strapi }, dependencies = {}) => {
      * @throws {Error} Provider error with a code.
      */
     async test(aiInput) {
+      // runtimeAi never sends the stored or the environment key to another endpoint than the
+      // one it is configured for; a key entered for the test is used as typed.
       const runtime = await settings().runtimeAi({
         ...aiInput,
         maxOutputTokens: Math.min(aiInput.maxOutputTokens, 256),
       });
-      const current = await settings().runtimeAi();
-      if (
-        !aiInput.apiKey &&
-        (aiInput.provider !== current.ai.provider || aiInput.baseUrl !== current.ai.baseUrl)
-      ) {
-        // A stored key is never sent to a different endpoint.
-        runtime.apiKey = strapi.config.get('plugin::magic-editor-x.ai.apiKey') || null;
-      }
       try {
         await callProvider(runtime, 'Reply with the single word OK.', 'OK');
         return { ok: true };

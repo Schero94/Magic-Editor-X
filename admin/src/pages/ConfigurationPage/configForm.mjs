@@ -4,6 +4,8 @@
  * "what did the server change" comparison. No React, so `node --test` covers it.
  */
 
+import { OFFICIAL_BASE_URLS, environmentKeyCovers } from '../../../../shared/ai-endpoint.mjs';
+
 export const PROVIDERS = Object.freeze(['anthropic', 'openai', 'openai-compatible']);
 export const MODEL_PATTERN = /^[A-Za-z0-9._:/@-]+$/;
 export const LIMITS = Object.freeze({
@@ -79,6 +81,23 @@ export const endpointChanged = (draft, saved) =>
   draft.provider !== saved.provider || draft.baseUrl !== saved.baseUrl;
 
 /**
+ * True when the server sends the `ai.apiKey` key from config/plugins.js with
+ * these settings: only to the base URLs it is configured for
+ * (`ai.apiKeyEnvironmentBaseUrls`, the same rule as the server). DTOs of older
+ * servers without that list fall back to `apiKeyFromEnvironment`.
+ * @param {object} draft - Draft (provider, base URL).
+ * @param {object} ai - Stored DTO.
+ * @param {{ baseUrls?: Record<string, string> }} [defaults] - environment.defaults.
+ * @returns {boolean} Result.
+ */
+export const environmentKeyApplies = (draft, ai, defaults) => {
+  if (!ai) return false;
+  if (!Array.isArray(ai.apiKeyEnvironmentBaseUrls)) return Boolean(ai.apiKeyFromEnvironment);
+  const baseUrls = { ...OFFICIAL_BASE_URLS, ...((defaults && defaults.baseUrls) || {}) };
+  return environmentKeyCovers(draft, ai.apiKeyEnvironmentBaseUrls, baseUrls);
+};
+
+/**
  * Validates the draft with the server's rules. Returns error codes per field.
  * @param {object} draft - Draft.
  * @param {{ saved: object, ai: object, environment: object }} context - Stored draft, stored DTO and environment.
@@ -128,9 +147,10 @@ export const validateDraft = (draft, { saved, ai, environment }) => {
     saved &&
     endpointChanged(draft, saved) &&
     ai &&
-    ai.hasApiKey &&
-    !ai.apiKeyFromEnvironment
+    !environmentKeyApplies(draft, ai, environment && environment.defaults) &&
+    (ai.hasApiKey || (Array.isArray(ai.apiKeyEnvironmentBaseUrls) && ai.apiKeyEnvironmentBaseUrls.length > 0))
   ) {
+    // Neither the stored key nor the ai.apiKey key is sent to another endpoint.
     errors.apiKey = 'reenter';
   }
   return errors;

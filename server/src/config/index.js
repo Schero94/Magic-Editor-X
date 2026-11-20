@@ -47,8 +47,17 @@ const defaults = {
   ai: {
     /** Allow AI base URLs on private or loopback hosts (local models). Owner opt-in only. */
     allowPrivateBaseUrl: false,
-    /** Optional API key from the environment; when set it wins over a key stored in the settings. */
+    /**
+     * Optional API key from the environment; when set it wins over a key stored in the
+     * settings, but only for the base URL it is configured for (`apiKeyBaseUrl`).
+     */
     apiKey: undefined,
+    /**
+     * Base URL the `apiKey` is sent to (for example `https://llm.example.com`). Unset: the
+     * official Anthropic and OpenAI APIs only. Another base URL in the settings gets the
+     * key only when an admin enters it there (it is then stored encrypted).
+     */
+    apiKeyBaseUrl: undefined,
     requestsPerMinute: 20,
     timeoutMs: 60000,
     altText: {
@@ -306,6 +315,20 @@ const isOrigin = (value) => {
   }
 };
 
+/**
+ * True for an http(s) URL without user name or password (`ai.apiKeyBaseUrl`).
+ * @param {string} value - Candidate.
+ * @returns {boolean} Result.
+ */
+const isBaseUrl = (value) => {
+  try {
+    const url = new URL(value);
+    return ['http:', 'https:'].includes(url.protocol) && !url.username && !url.password;
+  } catch {
+    return false;
+  }
+};
+
 const configSchema = z.looseObject({
   debug: z.boolean(),
   rawHtml: z.enum(['sanitize', 'allow', 'disable']),
@@ -322,6 +345,7 @@ const configSchema = z.looseObject({
   ai: z.looseObject({
     allowPrivateBaseUrl: z.boolean(),
     apiKey: z.string().min(1).max(500).optional(),
+    apiKeyBaseUrl: z.string().max(500).refine(isBaseUrl).optional(),
     requestsPerMinute: positiveInt(1000),
     timeoutMs: z.number().int().min(1000).max(300000),
     altText: z.looseObject({

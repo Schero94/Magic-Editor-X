@@ -6,6 +6,7 @@
   "settings.ai.enabled.privacy": "When an editor runs an AI action, the selected text is sent to {provider}. Nothing is sent while the assistant is off.",
   "settings.ai.key.cannotStoreHint": "Set MAGIC_EDITOR_X_ENCRYPTION_KEY (at least 32 characters) on the server to store a key here, or pass ai.apiKey in config/plugins.js.",
   "settings.ai.key.environmentHint": "The ai.apiKey setting in config/plugins.js is used and overrides a stored key.",
+  "settings.ai.key.environmentOtherHint": "The ai.apiKey key from config/plugins.js is only sent to {baseUrls}. Enter a key for this base URL.",
   "settings.ai.key.hint": "Leave empty to keep the stored key. The key is never shown again after saving.",
   "settings.ai.key.keep": "Keep the stored key",
   "settings.ai.key.label": "API key",
