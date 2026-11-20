@@ -19,6 +19,8 @@ import { useFetchClient } from '../../utils/fetch-client';
 import { PERMISSIONS } from '../../permissions';
 import { API, readApiError } from '../../utils/api';
 import { PageShell, SectionCard, refocusIfLost, useT } from '../../components/ui';
+import { PAGE_HEADING } from '../focusTargets.mjs';
+import { activeElement, useFocusRestore } from '../useFocusRestore';
 import { RenderedContent } from '../../components/RenderedContent';
 import { resetEditorConfigCache } from '../../hooks/useEditorConfig';
 import {
@@ -46,7 +48,10 @@ const TemplatesPage = () => {
   const { post, put, del } = useFetchClient();
   const { toggleNotification } = useNotification();
   const { allowedActions, isLoading: rbacLoading } = useRBAC(PERMISSIONS.templatesManage);
-  const data = useTemplateList();
+  // 2.7.8: nothing is requested before the permission check allows it (no 403 for reviewers).
+  const data = useTemplateList({ enabled: !rbacLoading && Boolean(allowedActions.canManage) });
+  // 2.7.8: focus after actions that disable or replace the control that had it.
+  const requestFocus = useFocusRestore();
   const [editing, setEditing] = useState(null);
   const [preview, setPreview] = useState(null);
   const [busyId, setBusyId] = useState(null);
@@ -72,7 +77,12 @@ const TemplatesPage = () => {
     setSearchParams(next, { replace: true });
   }, [editParam, handledEdit, searchParams, setSearchParams]);
 
-  if (rbacLoading || data.status === 'loading') {
+  const retry = async () => {
+    await data.reload();
+    requestFocus([PAGE_HEADING]);
+  };
+
+  if (rbacLoading || (allowedActions.canManage && data.status === 'loading')) {
     return (
       <>
         <Page.Title>{title}</Page.Title>
@@ -95,7 +105,7 @@ const TemplatesPage = () => {
         <Page.Error
           content={t('settings.templates.loadError', 'The templates could not be loaded.')}
           action={
-            <Button variant="secondary" onClick={data.reload}>
+            <Button variant="secondary" onClick={retry}>
               {t('settings.retry', 'Try again')}
             </Button>
           }
@@ -161,6 +171,8 @@ const TemplatesPage = () => {
     resetEditorConfigCache();
     await data.reload();
     setEditing({ template, key: `${template.id}:${template.updatedAt || Date.now()}` });
+    // The edit view starts again with the restored content: focus goes to its title.
+    requestFocus([PAGE_HEADING]);
   };
 
   if (editing) {
@@ -178,6 +190,9 @@ const TemplatesPage = () => {
   }
 
   const onToggle = async (template, enabled) => {
+    // The switch stays enabled (and keeps focus) while the request runs; repeats wait for it.
+    if (busyId) return;
+    const opener = activeElement();
     setBusyId(template.id);
     try {
       const { data: response } = await put(API.template(template.id), withEnabled(template, enabled));
@@ -194,10 +209,12 @@ const TemplatesPage = () => {
       failed(error, t('settings.templates.toggleError', 'The template could not be updated.'));
     } finally {
       setBusyId(null);
+      requestFocus([opener, createRef]);
     }
   };
 
   const onDuplicate = async (template) => {
+    const opener = activeElement();
     setBusyId(template.id);
     try {
       const { data: response } = await post(API.templateDuplicate(template.id), {});
@@ -212,6 +229,7 @@ const TemplatesPage = () => {
       failed(error, t('settings.templates.duplicateError', 'The template could not be duplicated.'));
     } finally {
       setBusyId(null);
+      requestFocus([opener, createRef]);
     }
   };
 
@@ -225,7 +243,7 @@ const TemplatesPage = () => {
       direction
     );
     if (!ids) return;
-    const opener = typeof document !== 'undefined' ? document.activeElement : null;
+    const opener = activeElement();
     setBusyId(template.id);
     try {
       const { data: response } = await put(API.templatesOrder, { ids });
@@ -234,7 +252,7 @@ const TemplatesPage = () => {
       failed(error, t('settings.templates.moveError', 'The order could not be saved.'));
     } finally {
       setBusyId(null);
-      requestAnimationFrame(() => refocusIfLost(opener, createRef.current));
+      requestFocus([opener, createRef]);
     }
   };
 
@@ -252,7 +270,16 @@ const TemplatesPage = () => {
     }
   };
 
-  const openCreate = () => setEditing({ template: null, key: Date.now() });
+  // The editor view replaces the list (and the button that opened it): a new template starts in
+  // its Name field, an existing one at the page title.
+  const openCreate = () => {
+    setEditing({ template: null, key: Date.now() });
+    requestFocus(['main input[name="name"]', PAGE_HEADING]);
+  };
+  const openEdit = (template) => {
+    setEditing({ template, key: Date.now() });
+    requestFocus([PAGE_HEADING]);
+  };
 
   return (
     <PageShell
@@ -272,7 +299,14 @@ const TemplatesPage = () => {
           variant="danger"
           closeLabel={t('settings.close', 'Close')}
           action={
-            <Button variant="tertiary" size="S" onClick={data.reload}>
+            <Button
+              variant="tertiary"
+              size="S"
+              onClick={async () => {
+                await data.reload();
+                requestFocus([createRef, PAGE_HEADING]);
+              }}
+            >
               {t('settings.retry', 'Try again')}
             </Button>
           }
@@ -336,7 +370,7 @@ const TemplatesPage = () => {
                 previewOpenerRef.current = typeof document !== 'undefined' ? document.activeElement : null;
                 setPreview(template);
               }}
-              onEdit={(template) => setEditing({ template, key: Date.now() })}
+              onEdit={openEdit}
               onDuplicate={onDuplicate}
               onMove={onMove}
               onDelete={onDelete}

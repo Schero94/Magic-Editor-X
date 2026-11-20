@@ -3,6 +3,7 @@ import { useFetchClient } from '../../utils/fetch-client';
 import { API, readApiError } from '../../utils/api';
 import {
   adjustedFields,
+  visibleFormErrors,
   mapServerErrors,
   sameDraft,
   toDraft,
@@ -28,6 +29,12 @@ export const useConfigurationForm = ({ enabled = true } = {}) => {
   const [draft, setDraft] = useState(null);
   const [serverErrors, setServerErrors] = useState({});
   const [showErrors, setShowErrors] = useState(false);
+  // 2.7.8: fields the user left (blur) or changed after leaving show their errors at once,
+  // before Save. Keys as in `errors` (`maxInputChars`, `languageTool.baseUrl`).
+  const [touched, setTouched] = useState({});
+  // 2.7.8: errors that only a connection test raises (an empty LanguageTool base URL while the
+  // check is off is fine for saving, but there is nothing to test).
+  const [testErrors, setTestErrors] = useState({});
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testingLanguageTool, setTestingLanguageTool] = useState(false);
@@ -51,6 +58,8 @@ export const useConfigurationForm = ({ enabled = true } = {}) => {
           setDraft(next);
           setServerErrors({});
           setShowErrors(false);
+          setTouched({});
+          setTestErrors({});
           setStatus('ready');
         },
         () => {
@@ -66,7 +75,7 @@ export const useConfigurationForm = ({ enabled = true } = {}) => {
 
   const load = useCallback(() => {
     setStatus('loading');
-    fetchSettings();
+    return fetchSettings();
   }, [fetchSettings]);
 
   const errors = useMemo(() => {
@@ -80,6 +89,15 @@ export const useConfigurationForm = ({ enabled = true } = {}) => {
       }),
     };
   }, [draft, dto, saved]);
+
+  /**
+   * Marks a field as visited (on blur), so its error shows without waiting for Save.
+   * @param {string} key - Error key (`maxInputChars`, `languageTool.baseUrl`).
+   */
+  const touch = useCallback(
+    (key) => setTouched((current) => (current[key] ? current : { ...current, [key]: true })),
+    []
+  );
 
   const setField = useCallback((key, value) => {
     setDraft((current) => ({ ...current, [key]: value }));
@@ -97,6 +115,13 @@ export const useConfigurationForm = ({ enabled = true } = {}) => {
   /** Updates one LanguageTool draft value (2.3); errors use `languageTool.<key>`. */
   const setLanguageToolField = useCallback((key, value) => {
     setDraft((current) => ({ ...current, languageTool: { ...current.languageTool, [key]: value } }));
+    setTestErrors((current) => {
+      const name = `languageTool.${key}`;
+      if (!current[name]) return current;
+      const next = { ...current };
+      delete next[name];
+      return next;
+    });
     setServerErrors((current) => {
       const name = `languageTool.${key}`;
       if (!current[name] && !current._form) return current;
@@ -139,6 +164,8 @@ export const useConfigurationForm = ({ enabled = true } = {}) => {
       setDraft(stored);
       setServerErrors({});
       setShowErrors(false);
+      setTouched({});
+      setTestErrors({});
       return { ok: true, adjusted };
     } catch (error) {
       const info = readApiError(error);
@@ -155,6 +182,8 @@ export const useConfigurationForm = ({ enabled = true } = {}) => {
     setDraft(saved);
     setServerErrors({});
     setShowErrors(false);
+    setTouched({});
+    setTestErrors({});
   }, [saved]);
 
   /**
@@ -192,7 +221,11 @@ export const useConfigurationForm = ({ enabled = true } = {}) => {
       (key) =>
         key.startsWith('languageTool.') && (key !== 'languageTool.apiKey' || lt.apiKeyMode === 'replace')
     );
-    if (!lt || !String(lt.baseUrl || '').trim()) return { ok: false, invalid: true, missingUrl: true };
+    if (!lt || !String(lt.baseUrl || '').trim()) {
+      // 2.7.8: the message says "Fix the highlighted fields", so the base URL is highlighted.
+      if (lt) setTestErrors({ 'languageTool.baseUrl': 'required' });
+      return { ok: false, invalid: true, missingUrl: true };
+    }
     if (blocking.length) return { ok: false, invalid: true };
     setTestingLanguageTool(true);
     try {
@@ -208,11 +241,10 @@ export const useConfigurationForm = ({ enabled = true } = {}) => {
     }
   }, [draft, errors, post]);
 
-  const visibleErrors = useMemo(() => {
-    const merged = showErrors ? { ...errors } : {};
-    for (const [key, value] of Object.entries(serverErrors)) merged[key] = { server: value };
-    return merged;
-  }, [errors, serverErrors, showErrors]);
+  const visibleErrors = useMemo(
+    () => visibleFormErrors({ errors, serverErrors, testErrors, touched, showErrors }),
+    [errors, serverErrors, testErrors, touched, showErrors]
+  );
 
   return {
     status,
@@ -228,6 +260,7 @@ export const useConfigurationForm = ({ enabled = true } = {}) => {
     setLanguageToolField,
     setCoreBlocksEnabled,
     testLanguageTool,
+    touch,
     reload: load,
     setField,
     replaceDraft,

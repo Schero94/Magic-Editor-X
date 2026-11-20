@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useIntl } from 'react-intl';
 import {
   Alert,
   Badge,
   Box,
   Button,
+  DatePicker,
   EmptyStateLayout,
   Field,
   Flex,
@@ -28,6 +29,9 @@ import { PERMISSIONS } from '../../permissions';
 import { API } from '../../utils/api';
 import { PageShell, SectionCard, useBreakpoint, useT } from '../../components/ui';
 import { EVENT_LABELS, actorLabel, changeSummary, eventLabel } from '../../components/audit/auditText';
+import { PAGE_HEADING } from '../focusTargets.mjs';
+import { activeElement, useFocusRestore } from '../useFocusRestore';
+import { fromDateValue, toDateValue } from './auditDates.mjs';
 
 const ALL = '__all__';
 const UID_PATTERN = /^(api|plugin)::[a-z0-9-]{1,60}\.[a-z0-9-]{1,60}$/;
@@ -52,13 +56,19 @@ const readFilters = (query) => {
   };
 };
 
+/** Content types of the plugin itself, shown by name instead of their uid in "Where". */
+const PLUGIN_TARGETS = {
+  'plugin::magic-editor-x.template': ['settings.audit.target.template', 'Template or synced block'],
+};
+
 /**
  * Filter form. Keyed by the applied filters, so it starts from them again
  * after "Apply" or "Reset" (or a URL change).
- * @param {{ t: Function, applied: object, actors: Array<{ id: number, name: string|null }>, active: boolean, onApply: (draft: object) => void, onReset: () => void }} props - Props.
+ * @param {{ t: Function, locale: string, applied: object, actors: Array<{ id: number, name: string|null }>, active: boolean, onApply: (draft: object) => void, onReset: () => void, applyRef: object, formRef: object }} props - Props;
+ *   `applyRef` and `formRef` let the page put focus back after the form starts again (2.7.8).
  * @returns {JSX.Element} Section.
  */
-const AuditFilters = ({ t, applied, actors, active, onApply, onReset }) => {
+const AuditFilters = ({ t, locale, applied, actors, active, onApply, onReset, applyRef, formRef }) => {
   const [draft, setDraft] = useState(applied);
   const uidInvalid = draft.uid !== '' && !UID_PATTERN.test(draft.uid);
   const documentInvalid = draft.documentId !== '' && !DOCUMENT_ID_PATTERN.test(draft.documentId);
@@ -81,7 +91,7 @@ const AuditFilters = ({ t, applied, actors, active, onApply, onReset }) => {
         ) : null
       }
     >
-      <Box tag="form" onSubmit={apply} noValidate>
+      <Box tag="form" ref={formRef} onSubmit={apply} noValidate>
         <Grid.Root gap={{ initial: 4, medium: 6 }}>
           <Grid.Item col={4} s={6} xs={12} direction="column" alignItems="stretch">
             <Field.Root name="event">
@@ -161,10 +171,13 @@ const AuditFilters = ({ t, applied, actors, active, onApply, onReset }) => {
           <Grid.Item col={4} s={6} xs={12} direction="column" alignItems="stretch">
             <Field.Root name="from">
               <Field.Label>{t('settings.audit.filter.from', 'From')}</Field.Label>
-              <TextInput
-                type="date"
-                value={draft.from}
-                onChange={(event) => setDraft({ ...draft, from: event.target.value })}
+              {/* 2.7.8: the DS date picker shows and reads the date in the admin language's format. */}
+              <DatePicker
+                locale={locale}
+                value={toDateValue(draft.from)}
+                onChange={(date) => setDraft({ ...draft, from: fromDateValue(date) })}
+                onClear={() => setDraft({ ...draft, from: '' })}
+                clearLabel={t('settings.audit.filter.clearFrom', 'Clear the start date')}
               />
             </Field.Root>
           </Grid.Item>
@@ -178,17 +191,19 @@ const AuditFilters = ({ t, applied, actors, active, onApply, onReset }) => {
               }
             >
               <Field.Label>{t('settings.audit.filter.to', 'To')}</Field.Label>
-              <TextInput
-                type="date"
-                value={draft.to}
-                onChange={(event) => setDraft({ ...draft, to: event.target.value })}
+              <DatePicker
+                locale={locale}
+                value={toDateValue(draft.to)}
+                onChange={(date) => setDraft({ ...draft, to: fromDateValue(date) })}
+                onClear={() => setDraft({ ...draft, to: '' })}
+                clearLabel={t('settings.audit.filter.clearTo', 'Clear the end date')}
               />
               <Field.Error />
             </Field.Root>
           </Grid.Item>
         </Grid.Root>
         <Flex gap={2} wrap="wrap" paddingTop={6}>
-          <Button type="submit" startIcon={<Filter />} disabled={!canApply}>
+          <Button ref={applyRef} type="submit" startIcon={<Filter />} disabled={!canApply}>
             {t('settings.audit.apply', 'Apply filters')}
           </Button>
         </Flex>
@@ -207,7 +222,7 @@ const AuditFilters = ({ t, applied, actors, active, onApply, onReset }) => {
  */
 const AuditPage = () => {
   const t = useT();
-  const { formatDate } = useIntl();
+  const { formatDate, locale } = useIntl();
   const { get } = useFetchClient();
   const { isBelowLarge, isBelowMedium } = useBreakpoint();
   const audit = useRBAC(PERMISSIONS.auditRead);
@@ -225,6 +240,13 @@ const AuditPage = () => {
   });
   const [nonce, setNonce] = useState(0);
   const [actors, setActors] = useState([]);
+  // 2.7.8: Refresh and "Try again" are disabled or replaced while the list loads, Apply and Reset
+  // start the filter form again: focus goes back to a stable control, never to <body>.
+  const requestFocus = useFocusRestore();
+  const refreshRef = useRef(null);
+  const applyRef = useRef(null);
+  const formRef = useRef(null);
+  const focusAfterLoad = useRef(null);
   const allowed = audit.allowedActions.canRead && settings.allowedActions.canRead;
   const appliedKey = JSON.stringify(applied);
   const requestKey = `${appliedKey}|${page}|${pageSize}|${nonce}`;
@@ -269,7 +291,19 @@ const AuditPage = () => {
     return () => controller.abort();
   }, [allowed, get, paramsKey, requestKey]);
 
-  const load = () => setNonce((value) => value + 1);
+  const load = () => {
+    focusAfterLoad.current = [activeElement(), refreshRef, PAGE_HEADING];
+    setNonce((value) => value + 1);
+  };
+
+  // Runs the focus move a reload asked for once its result is shown.
+  const loading = result.key !== requestKey;
+  useEffect(() => {
+    if (loading || !focusAfterLoad.current) return;
+    const candidates = focusAfterLoad.current;
+    focusAfterLoad.current = null;
+    requestFocus(candidates);
+  }, [loading, requestFocus]);
 
   useEffect(() => {
     if (!allowed) return undefined;
@@ -302,21 +336,27 @@ const AuditPage = () => {
     );
   }
 
+  const firstFilter = () =>
+    formRef.current && formRef.current.querySelector('[role="combobox"], input, button');
   const apply = (draft) => {
     const next = { page: 1, pageSize };
     for (const key of FILTER_KEYS) next[key] = draft[key] || undefined;
     setQuery(next);
+    requestFocus([applyRef, firstFilter, PAGE_HEADING]);
   };
+  // "Reset filters" disappears with the filters it resets: focus goes to the first filter.
   const reset = () => {
     const cleared = Object.fromEntries(FILTER_KEYS.map((key) => [key, undefined]));
     setQuery({ ...cleared, page: 1, pageSize });
+    requestFocus([firstFilter, applyRef, PAGE_HEADING]);
   };
   const active = FILTER_KEYS.some((key) => applied[key]);
   const when = (value) => formatDate(new Date(value), { dateStyle: 'medium', timeStyle: 'short' });
   const targetText = (item) => {
     const target = item.target || {};
     if (!target.uid) return t('settings.audit.target.none', 'Plugin settings');
-    const parts = [target.uid];
+    const own = PLUGIN_TARGETS[target.uid];
+    const parts = [own ? t(own[0], own[1]) : target.uid];
     if (target.documentId) parts.push(target.documentId);
     if (target.locale) parts.push(target.locale);
     if (target.field) parts.push(target.field);
@@ -327,6 +367,9 @@ const AuditPage = () => {
     <AuditFilters
       key={appliedKey}
       t={t}
+      locale={locale}
+      applyRef={applyRef}
+      formRef={formRef}
       applied={applied}
       actors={actors}
       active={active}
@@ -360,6 +403,13 @@ const AuditPage = () => {
           active
             ? t('settings.audit.emptyFiltered', 'No events match these filters.')
             : t('settings.audit.empty', 'No events recorded yet.')
+        }
+        action={
+          active ? (
+            <Button variant="secondary" onClick={reset}>
+              {t('settings.audit.reset', 'Reset filters')}
+            </Button>
+          ) : undefined
         }
       />
     );
@@ -462,6 +512,7 @@ const AuditPage = () => {
       )}
       primaryAction={
         <Button
+          ref={refreshRef}
           variant="secondary"
           startIcon={<ArrowClockwise />}
           onClick={load}

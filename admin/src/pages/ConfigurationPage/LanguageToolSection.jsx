@@ -38,7 +38,7 @@ const hostOf = (t, baseUrl) => {
  */
 export const LanguageToolSection = ({ form, readOnly, onTest }) => {
   const t = useT();
-  const { draft, dto, errors, setLanguageToolField, replaceDraft, testingLanguageTool } = form;
+  const { draft, dto, errors, setLanguageToolField, replaceDraft, testingLanguageTool, touch } = form;
   const lt = draft.languageTool;
   const stored = dto.languageTool;
   if (!lt || !stored) return null;
@@ -95,6 +95,7 @@ export const LanguageToolSection = ({ form, readOnly, onTest }) => {
         <Grid.Item col={12} direction="column" alignItems="stretch" minWidth={0}>
           <Field.Root
             name="languageTool.baseUrl"
+            onBlur={() => touch('languageTool.baseUrl')}
             error={err('baseUrl')}
             hint={t(
               'settings.languageTool.baseUrl.hint',
@@ -117,6 +118,7 @@ export const LanguageToolSection = ({ form, readOnly, onTest }) => {
         <Grid.Item col={6} xs={12} s={12} m={6} direction="column" alignItems="stretch" minWidth={0}>
           <Field.Root
             name="languageTool.username"
+            onBlur={() => touch('languageTool.username')}
             error={err('username')}
             hint={t(
               'settings.languageTool.username.hint',

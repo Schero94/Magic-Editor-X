@@ -538,8 +538,6 @@
   "settings.palette.page": "Seitenhintergrund",
   "settings.palette.colors": "Textfarben",
   "settings.palette.highlights": "Hervorhebungen",
-  "settings.palette.light": "Helles Design",
-  "settings.palette.dark": "Dunkles Design",
   "settings.palette.css": "CSS für Ihre Website",
   "settings.palette.copy": "CSS kopieren",
   "settings.palette.annotations": "Anmerkungen für die Feldoption „Anmerkungen“: {names}",
@@ -567,5 +565,15 @@
   "settings.coreBlocks.native": "Sobald Strapi eigene Blöcke selbst prüft, schaltet sich die Brücke ab und übergibt die registrierten Blocktypen an Strapi.",
   "settings.audit.meta.coreBlocksOn": "Core-Blocks-Brücke eingeschaltet",
   "settings.audit.meta.coreBlocksOff": "Core-Blocks-Brücke ausgeschaltet",
-  "settings.coreBlocks.claimed": "Strapi prüft {types} bereits selbst, daher überlässt die Brücke diese Blocktypen Strapi."
+  "settings.coreBlocks.claimed": "Strapi prüft {types} bereits selbst, daher überlässt die Brücke diese Blocktypen Strapi.",
+  "settings.blocks.modal.discardTitle": "Ihre Änderungen verwerfen?",
+  "settings.blocks.modal.discardConfirm": "Änderungen verwerfen",
+  "settings.blocks.modal.discardBody": "Der Dialog wird geschlossen und der begonnene Block wird nicht angelegt. Ihre Eingaben gehen verloren.",
+  "settings.blocks.modal.discardBodyEdit": "Der Dialog wird geschlossen und Ihre Änderungen am Block {label} gehen verloren. Der gespeicherte Block bleibt unverändert.",
+  "settings.blocks.importSkippedUnnamed": "Ein Eintrag ohne Namen: Die Definition ist ungültig.",
+  "settings.audit.target.template": "Vorlage oder synchronisierter Block",
+  "settings.audit.filter.clearFrom": "Startdatum löschen",
+  "settings.audit.filter.clearTo": "Enddatum löschen",
+  "settings.palette.values": "{name} · helles Design {light}, dunkles Design {dark}",
+  "settings.blocks.importSkippedSummary": "{count, plural, one {# Eintrag wurde übersprungen:} other {# Einträge wurden übersprungen:}}"
 }

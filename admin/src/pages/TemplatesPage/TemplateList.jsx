@@ -209,7 +209,8 @@ const RowActions = ({
 };
 
 /**
- * Availability switch with an accessible name.
+ * Availability switch with an accessible name. It stays enabled while its request runs (2.7.8):
+ * disabling it dropped keyboard focus to <body>; the page ignores repeats until the answer.
  * @param {{ template: object, busy: boolean, onToggle: Function }} props - Props.
  * @returns {JSX.Element} Switch.
  */
@@ -218,7 +219,7 @@ const EnabledSwitch = ({ template, busy, onToggle }) => {
   return (
     <Switch
       checked={template.enabled}
-      disabled={busy}
+      aria-busy={busy || undefined}
       onCheckedChange={(checked) => onToggle(template, checked === true)}
       aria-label={t('settings.templates.action.toggle', 'Offer {name} in the editor', {
         name: template.name,

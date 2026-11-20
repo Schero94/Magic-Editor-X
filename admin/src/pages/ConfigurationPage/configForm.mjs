@@ -259,6 +259,27 @@ export const validateLanguageTool = (lt, { saved, dto, environment } = {}) => {
 };
 
 /**
+ * Errors the form shows (2.7.8). Client errors of a field show once the user left it (`touched`)
+ * or after Save or a test (`showErrors`); errors a connection test raised (`testErrors`, for
+ * example an empty base URL) show until the field changes; server errors always show.
+ * @param {{ errors?: Record<string, string>, serverErrors?: Record<string, string>, testErrors?: Record<string, string>, touched?: Record<string, boolean>, showErrors?: boolean }} state - Form state.
+ * @returns {Record<string, string|{ server: string }>} Field -> error code, or `{ server }` for a server message.
+ */
+export const visibleFormErrors = ({
+  errors = {},
+  serverErrors = {},
+  testErrors = {},
+  touched = {},
+  showErrors = false,
+}) => {
+  const merged = {};
+  for (const [key, value] of Object.entries(errors)) if (showErrors || touched[key]) merged[key] = value;
+  for (const [key, value] of Object.entries(testErrors)) if (!merged[key]) merged[key] = value;
+  for (const [key, value] of Object.entries(serverErrors)) merged[key] = { server: value };
+  return merged;
+};
+
+/**
  * Names the editable fields whose stored value differs from what was sent.
  * @param {object} draft - Sent draft.
  * @param {object} stored - Draft built from the server response.

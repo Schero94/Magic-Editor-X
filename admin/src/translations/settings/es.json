@@ -538,8 +538,6 @@
   "settings.palette.page": "fondo de la página",
   "settings.palette.colors": "Colores de texto",
   "settings.palette.highlights": "Resaltados",
-  "settings.palette.light": "Tema claro",
-  "settings.palette.dark": "Tema oscuro",
   "settings.palette.css": "CSS para su sitio",
   "settings.palette.copy": "Copiar el CSS",
   "settings.palette.annotations": "Anotaciones para la opción de campo «Anotaciones»: {names}",
@@ -567,5 +565,15 @@
   "settings.coreBlocks.native": "Cuando Strapi compruebe por sí mismo los bloques personalizados, el puente se desactivará y entregará los tipos de bloque registrados a Strapi.",
   "settings.audit.meta.coreBlocksOn": "Puente Core Blocks activado",
   "settings.audit.meta.coreBlocksOff": "Puente Core Blocks desactivado",
-  "settings.coreBlocks.claimed": "Strapi ya comprueba {types} por sí mismo, así que el puente le deja estos tipos de bloque."
+  "settings.coreBlocks.claimed": "Strapi ya comprueba {types} por sí mismo, así que el puente le deja estos tipos de bloque.",
+  "settings.blocks.modal.discardTitle": "¿Descartar sus cambios?",
+  "settings.blocks.modal.discardConfirm": "Descartar cambios",
+  "settings.blocks.modal.discardBody": "El diálogo se cierra y el bloque que empezó no se crea. Lo que introdujo se pierde.",
+  "settings.blocks.modal.discardBodyEdit": "El diálogo se cierra y se pierden sus cambios en el bloque {label}. El bloque guardado no cambia.",
+  "settings.blocks.importSkippedUnnamed": "Una entrada sin nombre: la definición no es válida.",
+  "settings.audit.target.template": "Plantilla o bloque sincronizado",
+  "settings.audit.filter.clearFrom": "Borrar la fecha de inicio",
+  "settings.audit.filter.clearTo": "Borrar la fecha de fin",
+  "settings.palette.values": "{name} · tema claro {light}, tema oscuro {dark}",
+  "settings.blocks.importSkippedSummary": "{count, plural, one {Se omitió # entrada:} other {Se omitieron # entradas:}}"
 }

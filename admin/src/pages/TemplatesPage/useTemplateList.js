@@ -5,9 +5,11 @@ import { API } from '../../utils/api';
 /**
  * Loads every template (`GET /templates?all=true`) and the Magic Editor X
  * fields for scope selection (`GET /templates/targets`).
+ * @param {{ enabled?: boolean }} [options] - `enabled` false (permissions still loading or
+ *   missing) sends no request (2.7.8: no 403 in the console for reviewers).
  * @returns {object} State and actions.
  */
-export const useTemplateList = () => {
+export const useTemplateList = ({ enabled = true } = {}) => {
   const { get } = useFetchClient();
   const [status, setStatus] = useState('loading');
   const [templates, setTemplates] = useState([]);
@@ -57,9 +59,10 @@ export const useTemplateList = () => {
   );
 
   useEffect(() => {
+    if (!enabled) return;
     fetchTemplates();
     fetchTargets();
-  }, [fetchTemplates, fetchTargets]);
+  }, [enabled, fetchTemplates, fetchTargets]);
 
   const reload = useCallback(() => {
     if (!loaded.current) setStatus('loading');

@@ -94,7 +94,8 @@ const RowActions = ({
 };
 
 /**
- * Enable/disable switch with an accessible name.
+ * Enable/disable switch with an accessible name. It stays enabled while its request runs (2.7.8):
+ * disabling it dropped keyboard focus to <body>; the page ignores repeats until the answer.
  * @param {{ block: object, busy: boolean, onToggle: Function }} props - Props.
  * @returns {JSX.Element} Switch.
  */
@@ -103,7 +104,7 @@ const EnabledSwitch = ({ block, busy, onToggle }) => {
   return (
     <Switch
       checked={block.enabled}
-      disabled={busy}
+      aria-busy={busy || undefined}
       onCheckedChange={(checked) => onToggle(block, checked === true)}
       aria-label={t('settings.blocks.action.toggle', 'Show {label} in the editor toolbox', {
         label: block.label || block.name,

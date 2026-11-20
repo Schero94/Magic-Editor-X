@@ -538,8 +538,6 @@
   "settings.palette.page": "page background",
   "settings.palette.colors": "Text colours",
   "settings.palette.highlights": "Highlights",
-  "settings.palette.light": "Light theme",
-  "settings.palette.dark": "Dark theme",
   "settings.palette.css": "CSS for your site",
   "settings.palette.copy": "Copy the CSS",
   "settings.palette.annotations": "Annotations for the field option \"Annotations\": {names}",
@@ -567,5 +565,15 @@
   "settings.coreBlocks.native": "When Strapi checks custom blocks itself, the bridge turns itself off and hands the registered block types to Strapi.",
   "settings.audit.meta.coreBlocksOn": "Core Blocks bridge switched on",
   "settings.audit.meta.coreBlocksOff": "Core Blocks bridge switched off",
-  "settings.coreBlocks.claimed": "Strapi already validates {types} itself, so the bridge leaves these block types to Strapi."
+  "settings.coreBlocks.claimed": "Strapi already validates {types} itself, so the bridge leaves these block types to Strapi.",
+  "settings.blocks.modal.discardTitle": "Discard your changes?",
+  "settings.blocks.modal.discardConfirm": "Discard changes",
+  "settings.blocks.modal.discardBody": "The dialog closes and the block you started is not created. What you entered is lost.",
+  "settings.blocks.modal.discardBodyEdit": "The dialog closes and your changes to the block {label} are lost. The saved block stays as it is.",
+  "settings.blocks.importSkippedUnnamed": "An entry without a name: the definition is not valid.",
+  "settings.audit.target.template": "Template or synced block",
+  "settings.audit.filter.clearFrom": "Clear the start date",
+  "settings.audit.filter.clearTo": "Clear the end date",
+  "settings.palette.values": "{name} · light theme {light}, dark theme {dark}",
+  "settings.blocks.importSkippedSummary": "{count, plural, one {# entry was skipped:} other {# entries were skipped:}}"
 }
