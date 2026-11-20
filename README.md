@@ -42,6 +42,7 @@ Live docs: <https://schero94.github.io/Magic-Editor-X/>
 - [Working together and reusing content (2.5)](#working-together-and-reusing-content-25)
 - [Component blocks, columns and Live Preview (2.6)](#component-blocks-columns-and-live-preview-26)
 - [Data format](#data-format)
+- [TypeScript types per field](#typescript-types-per-field)
 - [Rendering content](#rendering-content)
 - [Content API and GraphQL output](#content-api-and-graphql-output)
 - [Custom blocks in code (SDK)](#custom-blocks-in-code-sdk)
@@ -91,7 +92,7 @@ Every feature is available in every installation. There is nothing to activate, 
 - **Paste and import:** Word, Google Docs, LibreOffice, web pages and Markdown become real blocks (tables keep merged cells, header cells and alignment; videos and audio from the web are copied into the Media Library); a CLI migrates Strapi Blocks, Markdown and HTML fields. See [Paste, import and migration](#paste-import-and-migration).
 - **Media:** alternative text and "decorative image" on image blocks and gallery images, a focal point that frontends keep visible when they crop; images keep their Media Library id and responsive formats.
 - **Quality checks:** accessibility lint (alternative texts, heading order, link texts, table headers, contrast of custom colours, videos without captions, empty tables of contents), a link check and an optional scheduled check of every external link, with an optional publishing guard. See [Quality checks](#quality-checks).
-- **Renderers, schema and types:** `magic-editor-x/render` (HTML, plain text, Markdown; framework-free and XSS-safe), React and Vue components (`magic-editor-x/react`, `magic-editor-x/vue`), guides for React, Vue/Nuxt and Astro, `magic-editor-x/schema` (JSON Schema) and `magic-editor-x/types` (TypeScript). See [Rendering content](#rendering-content).
+- **Renderers, schema and types:** `magic-editor-x/render` (HTML, plain text, Markdown; framework-free and XSS-safe), React and Vue components (`magic-editor-x/react`, `magic-editor-x/vue`), guides for React, Vue/Nuxt and Astro, `magic-editor-x/schema` (JSON Schema) and `magic-editor-x/types` (TypeScript), plus `npx magic-editor-x types` for types of the blocks each of your fields allows. See [Rendering content](#rendering-content) and [TypeScript types per field](#typescript-types-per-field).
 - **Content API and GraphQL output:** `?mex=html|text|markdown|json` on Content API requests and `<field>Rendered` / `<field>Resolved` in GraphQL, with internal links, mentions, embedded entries, media and synced blocks resolved with the caller's permissions. See [Content API and GraphQL output](#content-api-and-graphql-output).
 - **Custom blocks:** define your own blocks in Settings: simple blocks with fields (text, textarea, URL, number, select, checkbox, image, colour) and an optional HTML template, or embedded-entry blocks that link an entry of another content type. Import and export as JSON. Blocks that need code (own editor UI, strict data rules, own output) are defined once with the block SDK; see [Custom blocks in code (SDK)](#custom-blocks-in-code-sdk).
 - **Version history:** named versions, a word-level comparison with the current content (tune changes shown as "Alignment: left → center"), restore of the whole field or a single block; automatic versions during live sessions. Fields inside repeatable components and dynamic zones have their own history (2.4). Synced block sources keep versions too.
@@ -784,6 +785,50 @@ Tunes are stored per block in `tunes`: `alignmentTune: { alignment }`, `textVari
 
 The Content API returns the object as stored. Entries saved with 1.x may still contain a JSON string until they are saved again; with `api.autoParseJSON` (default) the plugin parses such strings in Content API GET responses. Only Magic Editor X fields are parsed (also inside components, dynamic zones and populated relations); other fields are returned as stored.
 
+## TypeScript types per field
+
+`magic-editor-x/types` describes every block a field could hold. For a frontend that should know exactly what one field can contain, generate types from your project:
+
+```bash
+npx magic-editor-x types --out src/types/magic-editor-x.ts                           # every field
+npx magic-editor-x types --uid api::article.article --out src/types/article-body.ts  # one content type and its components
+```
+
+Run it from the Strapi project root, like `migrate`. It loads the project the same way (`compileStrapi`, `createStrapi().load()`, no HTTP server) and reads:
+
+- every content type and component with a Magic Editor X field, and each field's preset options (`preset`, `allowedBlocks`, `headingLevels`, `allowedComponents`), resolved with the same code the server uses on save;
+- the custom blocks from Settings > Magic Editor X > Custom blocks, enabled and disabled (stored content can hold both);
+- the blocks registered in code with the [block SDK](#custom-blocks-in-code-sdk).
+
+The generated module has, per field, a discriminated union of the block types the preset allows (heading levels narrowed, component blocks only for the listed components), typed `data` for Settings custom blocks (from their field definitions) and SDK blocks (from their schema), and a map from uid and field name to the value type:
+
+```ts
+import type { ArticleBodyBlock, MagicEditorXFieldValues } from './types/magic-editor-x';
+
+type Body = MagicEditorXFieldValues['api::article.article']['body']; // { time, blocks: ArticleBodyBlock[], version } | null
+
+const text = (block: ArticleBodyBlock) => {
+  switch (block.type) {
+    case 'paragraph':
+      return block.data.text;
+    case 'header':
+      return `H${block.data.level}`; // level is 2 | 3 with the "basic" preset
+    default:
+      return '';
+  }
+};
+```
+
+Options: `--out <file>` (default: print to stdout; Strapi's log lines go to stderr), `--uid <uid>` (repeatable; a content type or component and every component it uses), `--import-from <module>` (where the built-in block types come from, default `magic-editor-x/types`). Run it again after you change a content type, a field preset or a custom block; the output is deterministic, so a CI job can compare it with the committed file.
+
+What the types promise and what they do not:
+
+- Settings custom block fields are optional (`?`), because blocks saved before a field was added do not have it. An empty number field is stored as `''`. Text fields are inline HTML (`InlineHtml`).
+- A name in `allowedBlocks` without a definition (for example a deleted custom block) is typed with `Record<string, unknown>` data and named in a comment.
+- The block limits (`maxBlocks`, `maxCharacters`), link targets and required alternative texts are listed in each field's comment; TypeScript cannot check them. The server still enforces every rule on save.
+
+The command only reads. It writes nothing but the output file and makes no network requests: while it runs, `fetch()` refuses every request (Strapi's own update check and telemetry use it), telemetry is off and scheduled jobs are stopped. The database connection from the project's configuration is used as usual. Bootstrap code of other plugins in your project still runs, as with `migrate`. The same generator is available in code: `await strapi.plugin('magic-editor-x').service('types').generate({ uids })` returns `{ code, fields, customBlocks, codeBlocks }`.
+
 ## Rendering content
 
 `npm i magic-editor-x` also gives you a framework-free renderer (ESM and CommonJS, no dependencies, no Node built-ins, so it runs in Node, browsers and edge runtimes), a JSON Schema and TypeScript types:
@@ -803,7 +848,7 @@ const markdown = renderMarkdown(entry.body); // feeds, LLM context, export
 - **Safe by default:** stored inline HTML is re-parsed and only the editor's own tags and attributes survive (entities are decoded before URL checks, `javascript:`/`data:` links are dropped, `target="_blank"` gets `rel="noopener noreferrer"`), so the output is safe even for content that did not pass the server sanitiser. Raw HTML blocks are left out unless you pass `rawHtml: 'allow'` together with your own `sanitizeRaw` function. Embeds become iframes (`sandbox`, `loading="lazy"`, `referrerpolicy`) only for `embedHosts` (default: YouTube, youtube-nocookie, Vimeo player, CodePen, Twitch, Figma, Miro); other embeds become links.
 - **Output:** HTML elements with stable `mex-` classes (tunes as `mex-align-*`, `mex-variant-*`, `mex-indent-N`), images with `srcset` from the Media Library `formats`, width, height and lazy loading (`imageSizes`, default `100vw`), decorative images with `alt=""`, toggles as `<details>`. Custom blocks render as `<div class="mex-block mex-<name>" data-mex-block>` with escaped values unless you pass an override. Markdown is CommonMark plus GFM tables and task lists: adjacent or nested marks of one kind are written as one run, a line break at the end of a block, item or cell is dropped, and two lists in a row get different markers (`-`/`*`, `1.`/`1)`) so they stay two lists. Emphasis that ends in punctuation right before a letter (`<b>"a"</b>b`) cannot be expressed in CommonMark and stays literal there. Plain text uses blank lines between blocks.
 - **Deterministic:** the same value always gives the same string.
-- **Schema:** `magic-editor-x/schema` is a JSON Schema (draft 2020-12) of the stored value with one data schema per block type; validate content in CI. **Types:** `import type { MagicEditorXData, MagicEditorXBlock } from 'magic-editor-x/types'`.
+- **Schema:** `magic-editor-x/schema` is a JSON Schema (draft 2020-12) of the stored value with one data schema per block type; validate content in CI. **Types:** `import type { MagicEditorXData, MagicEditorXBlock } from 'magic-editor-x/types'`, or types per field with [`npx magic-editor-x types`](#typescript-types-per-field).
 
 ### Options added in 2.3
 
