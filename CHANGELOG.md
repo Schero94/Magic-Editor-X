@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.7.5](https://github.com/Schero94/Magic-Editor-X/compare/v2.7.4...v2.7.5) (2026-11-20)
+
+
+### Bug Fixes
+
+* **admin:** sub/sup, panel focus, target sizes, contrast, settings landmarks, unknown embeds, shortcut labels ([#30](https://github.com/Schero94/Magic-Editor-X/issues/30)) ([67c04ef](https://github.com/Schero94/Magic-Editor-X/commit/67c04efa72d04541c802fab4e07f2ff7c4cd99de))
+
 ## [2.7.4](https://github.com/Schero94/Magic-Editor-X/compare/v2.7.3...v2.7.4) (2026-11-20)
 
 
