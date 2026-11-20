@@ -192,21 +192,58 @@ const hasBlockChild = (node) =>
   (node.children || []).some((child) => isElement(child) && BLOCK_ELEMENTS.has(child.name));
 
 /**
+ * Value of one CSS property in an inline style attribute, matched by its exact
+ * name (2.7.8: a substring match read `mso-bidi-font-weight:normal` as
+ * `font-weight:normal` and dropped Word's bold).
+ * @param {string} style - Style attribute.
+ * @param {string} name - Lower-case property name.
+ * @returns {string|null} Lower-case value without `!important`, or null.
+ */
+export const cssProperty = (style, name) => {
+  let found = null;
+  for (const declaration of String(style || '').split(';')) {
+    const colon = declaration.indexOf(':');
+    if (colon < 0) continue;
+    if (declaration.slice(0, colon).trim().toLowerCase() !== name) continue;
+    // The last declaration wins, as in CSS.
+    found = declaration
+      .slice(colon + 1)
+      .replace(/!important/i, '')
+      .trim()
+      .toLowerCase();
+  }
+  return found;
+};
+
+/**
+ * True when a style sets a normal font weight (`font-weight: normal` or `400`).
+ * Only the exact property counts: Word writes `mso-bidi-font-weight:normal` on
+ * real bold text (2.7.8).
+ * @param {string} style - Lower-case style attribute.
+ * @returns {boolean} Result.
+ */
+const isNormalWeight = (style) => /^(normal|400)$/.test(cssProperty(style, 'font-weight') || '');
+
+/**
  * Inline marks from a style attribute (Google Docs and Word use styled spans).
+ * Properties are matched by exact name, so vendor properties such as
+ * `mso-bidi-font-weight` never count as `font-weight`.
  * @param {string} style - Lower-case style attribute.
  * @returns {string[]} Mark names.
  */
 const marksFromStyle = (style) => {
   const marks = [];
   if (!style) return marks;
-  const weight = /font-weight\s*:\s*([a-z0-9]+)/.exec(style);
-  if (weight && (/^(bold|bolder)$/.test(weight[1]) || Number(weight[1]) >= 600)) marks.push('bold');
-  if (/font-style\s*:\s*(italic|oblique)/.test(style)) marks.push('italic');
-  const decoration = /text-decoration(?:-line)?\s*:\s*([^;]+)/.exec(style);
-  if (decoration && /underline/.test(decoration[1])) marks.push('underline');
-  if (decoration && /line-through/.test(decoration[1])) marks.push('strike');
-  const align = /vertical-align\s*:\s*(super|sub)/.exec(style);
-  if (align) marks.push(align[1] === 'super' ? 'sup' : 'sub');
+  const weight = cssProperty(style, 'font-weight');
+  if (weight && (/^(bold|bolder)$/.test(weight) || Number(weight) >= 600)) marks.push('bold');
+  if (/^(italic|oblique)/.test(cssProperty(style, 'font-style') || '')) marks.push('italic');
+  const decoration = [cssProperty(style, 'text-decoration'), cssProperty(style, 'text-decoration-line')]
+    .filter(Boolean)
+    .join(' ');
+  if (/underline/.test(decoration)) marks.push('underline');
+  if (/line-through/.test(decoration)) marks.push('strike');
+  const align = cssProperty(style, 'vertical-align');
+  if (align === 'super' || align === 'sub') marks.push(align === 'super' ? 'sup' : 'sub');
   return marks;
 };
 
@@ -296,7 +333,7 @@ const inlineOf = (nodes, state, depth = 0) => {
     const marks = [];
     const tagMark = TAG_MARKS[name];
     // Google Docs wraps the whole clipboard in <b style="font-weight:normal">.
-    if (tagMark && !(tagMark === 'bold' && /font-weight\s*:\s*(normal|400)/.test(style))) marks.push(tagMark);
+    if (tagMark && !(tagMark === 'bold' && isNormalWeight(style))) marks.push(tagMark);
     for (const mark of marksFromStyle(style)) if (!marks.includes(mark)) marks.push(mark);
     for (const mark of marks) inner = wrapMark(inner, mark);
     html += inner;

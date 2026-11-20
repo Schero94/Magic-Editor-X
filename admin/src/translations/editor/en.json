@@ -771,5 +771,18 @@
   "editor.session.opened": "Sign in in the new tab. This page stays open with your changes.",
   "editor.session.blocked": "Your browser blocked the new tab.",
   "editor.session.blockedLink": "Open the sign-in page",
-  "editor.session.resumed": "You are signed in again. Save the entry to keep your changes."
+  "editor.session.resumed": "You are signed in again. Save the entry to keep your changes.",
+  "editor.toolbar.add": "Add a block",
+  "editor.toolbar.blockMenu": "Open the block menu",
+  "editor.shortcuts.blockMenu": "Block menu of the current block (move, delete, convert)",
+  "editor.shortcuts.addBlock": "Choose a block type (in an empty block)",
+  "editor.shortcuts.blockControls": "Buttons and options inside a block (Shift+Tab: back)",
+  "editor.room.discardTitle": "Discard the unsaved changes for everyone?",
+  "editor.room.discardBody": "The saved content comes back in this field for everyone editing this entry right now. Their unsaved text in this field is removed too. You can undo this right after.",
+  "editor.room.discardConfirm": "Discard for everyone",
+  "editor.room.discarded": "The unsaved changes were discarded for everyone. This field shows the saved content.",
+  "editor.room.discardedRemote": "Someone in this live session brought this field back to the saved content. Your unsaved text in this field was removed.",
+  "editor.room.undoDiscard": "Undo",
+  "editor.room.restoreText": "Restore my text",
+  "editor.room.dismiss": "Dismiss"
 }

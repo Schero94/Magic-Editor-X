@@ -771,5 +771,18 @@
   "editor.session.opened": "Inicie sesión en la pestaña nueva. Esta página sigue abierta con sus cambios.",
   "editor.session.blocked": "Su navegador bloqueó la pestaña nueva.",
   "editor.session.blockedLink": "Abrir la página de inicio de sesión",
-  "editor.session.resumed": "Ha vuelto a iniciar sesión. Guarde la entrada para conservar sus cambios."
+  "editor.session.resumed": "Ha vuelto a iniciar sesión. Guarde la entrada para conservar sus cambios.",
+  "editor.toolbar.add": "Añadir un bloque",
+  "editor.toolbar.blockMenu": "Abrir el menú del bloque",
+  "editor.shortcuts.blockMenu": "Menú del bloque actual (mover, eliminar, convertir)",
+  "editor.shortcuts.addBlock": "Elegir un tipo de bloque (en un bloque vacío)",
+  "editor.shortcuts.blockControls": "Botones y opciones dentro de un bloque (Mayús+Tab: atrás)",
+  "editor.room.discardTitle": "¿Descartar los cambios sin guardar para todos?",
+  "editor.room.discardBody": "El contenido guardado vuelve a este campo para todas las personas que editan esta entrada ahora mismo. Su texto sin guardar en este campo también se elimina. Puede deshacerlo justo después.",
+  "editor.room.discardConfirm": "Descartar para todos",
+  "editor.room.discarded": "Los cambios sin guardar se descartaron para todos. Este campo muestra el contenido guardado.",
+  "editor.room.discardedRemote": "Alguien en esta sesión en vivo devolvió este campo al contenido guardado. Su texto sin guardar en este campo se eliminó.",
+  "editor.room.undoDiscard": "Deshacer",
+  "editor.room.restoreText": "Restaurar mi texto",
+  "editor.room.dismiss": "Descartar aviso"
 }

@@ -1,4 +1,13 @@
-import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import {
+  startTransition,
+  useCallback,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { createPortal } from 'react-dom';
 import { useIntl } from 'react-intl';
 import { useHref, useLocation, useNavigate } from 'react-router-dom';
@@ -37,7 +46,7 @@ import { normalizePalette } from '../../../../shared/inline-format.mjs';
 import { abbreviationAnnotation, annotationsFromSummaries } from '../../../../shared/blocks/annotations.mjs';
 import { createCspGuard } from '../../editor/tools/csp-guard';
 import { prepareEditorValue, prepareRemoteData, sanitizeInline } from '../../editor/sanitize';
-import { roomDiffersFromStored } from '../../editor/room-state.mjs';
+import { roomDiffersFromStored, roomWasReset } from '../../editor/room-state.mjs';
 import { createSubmitGuard } from '../../editor/submit-guard.mjs';
 import { applyToEditor, blockKey, rememberBlocks } from '../../editor/apply-remote';
 import { holdSelection } from '../../editor/selection-keeper.mjs';
@@ -47,7 +56,7 @@ import {
   reportUnpushedComponents,
 } from '../../editor/tools/component';
 import { computeStats } from '../../../../shared/editor-data.mjs';
-import { stableStringify } from '../../../../shared/ydoc.mjs';
+import { stableStringify, stableStringifyBlocks } from '../../../../shared/ydoc.mjs';
 import { useEditorConfig } from '../../hooks/useEditorConfig';
 import { getTranslation } from '../../utils/getTranslation';
 import { API, readApiError } from '../../utils/api';
@@ -144,7 +153,9 @@ import { escapeHtml } from '../../../../shared/render/inline.mjs';
 // 2.5: local draft buffer (protect unsaved work) and lazy start of fields (performance).
 import { useDraftBuffer } from './useDraftBuffer';
 import { DraftNotice } from './DraftNotice';
-import { RoomNotice } from './RoomNotice';
+import { RoomNotice, RoomResetNotice } from './RoomNotice';
+import { focusTabStop, isTextStop, nextTabStop, skippedControl } from '../../editor/block-tab-stops.mjs';
+import { decorateToolbar } from '../../editor/toolbar-a11y.mjs';
 import { SessionBanner } from './SessionBanner';
 import { useLazyActivation } from './useLazyActivation';
 import { LazyPlaceholder } from './LazyPlaceholder';
@@ -397,7 +408,13 @@ const restoreCaret = (ref, fallback) => {
  * @param {object|null} data - Editor data.
  * @returns {string} Fingerprint.
  */
-const contentKey = (data) => stableStringify(data && Array.isArray(data.blocks) ? data.blocks : []);
+const contentKey = (data) => stableStringifyBlocks(data && Array.isArray(data.blocks) ? data.blocks : []);
+
+/**
+ * Resolves in a new task, so long work before and after does not add up to one long task.
+ * @returns {Promise<void>} Resolves after the browser had a chance to handle input and paint.
+ */
+const yieldToBrowser = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 /**
  * Fingerprint of content as the field would render it (normalised and
@@ -462,6 +479,9 @@ const EditorFieldBody = ({
   const undoRef = useRef(null);
   const knownRef = useRef(new Map());
   const lastEmittedRef = useRef(null);
+  // 2.7.8: what was emitted last (source for the lazy rendered key) and the object handed to the form.
+  const lastEmittedSourceRef = useRef(null);
+  const lastEmittedValueRef = useRef(undefined);
   const lastEmittedRawRef = useRef(null);
   const applyingRef = useRef(false);
   const saveTimerRef = useRef(null);
@@ -472,6 +492,9 @@ const EditorFieldBody = ({
   const syncedOnceRef = useRef(false);
   // 2.7.4 (M3): the first room state held unsaved changes; `saved` is the stored value at that time.
   const [roomNotice, setRoomNotice] = useState(null);
+  // 2.7.8: after unsaved room changes were discarded ({ kind: 'self'|'remote', previous, focus }).
+  const [roomReset, setRoomReset] = useState(null);
+  const roomUndoRef = useRef(null);
   const savedValueRef = useRef(undefined);
   // 2.6: the editor shows the room (after its first render), so a found buffer is compared with the room.
   const [roomRendered, setRoomRendered] = useState(false);
@@ -720,7 +743,9 @@ const EditorFieldBody = ({
       const key = contentKey(next);
       if (key === lastEmittedRawRef.current) return;
       lastEmittedRawRef.current = key;
-      lastEmittedRef.current = renderedKey(next);
+      // 2.7.8: the rendered key (a full sanitise) is computed only when a different value arrives.
+      lastEmittedRef.current = null;
+      lastEmittedSourceRef.current = next;
       if (baselineOnly) return;
       // Editor.js reuses the tune objects of a block between saves, and the
       // Content Manager form freezes what it stores. Hand over a copy so the
@@ -737,6 +762,7 @@ const EditorFieldBody = ({
         }
         copy.fieldKey = key;
       }
+      lastEmittedValueRef.current = copy;
       onChangeRef.current(name, copy);
     },
     [name]
@@ -749,10 +775,18 @@ const EditorFieldBody = ({
     pendingLocalRef.current = false;
     try {
       const data = await editor.save();
+      // 2.7.8: Editor.js' save of a long document is one task; the form update
+      // and the field's own state follow in the next task, and the field's
+      // panels (stats, comments, quality) re-render as a transition that React
+      // can interrupt. Each task stays short while typing in 2,000 blocks.
+      await yieldToBrowser();
+      if (editorRef.current !== editor) return;
       rememberBlocks(knownRef.current, data);
-      setStats(computeStats(data));
-      setCurrentData(data);
-      setContentVersion((version) => version + 1);
+      startTransition(() => {
+        setStats(computeStats(data));
+        setCurrentData(data);
+        setContentVersion((version) => version + 1);
+      });
       if (!userTouchedRef.current) {
         emit(data, { baselineOnly: true });
         return;
@@ -836,6 +870,38 @@ const EditorFieldBody = ({
         return;
       }
       if (!['Shift', 'Control', 'Alt', 'Meta'].includes(event.key)) leaveArmed = false;
+      // 2.7.8 (re-audit major 2): the arrow keys stop on controls Editor.js would skip between two texts.
+      if (
+        ['ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight'].includes(event.key) &&
+        !event.shiftKey &&
+        !event.altKey &&
+        !event.ctrlKey &&
+        !event.metaKey
+      ) {
+        const from = document.activeElement;
+        window.setTimeout(() => {
+          const control = skippedControl(holder, from, document.activeElement);
+          if (control) control.focus();
+        }, 0);
+        return;
+      }
+      // 2.7.8 (re-audit major 2): Tab reaches the controls inside blocks (audio and video Choose,
+      // person photo, toggle, column style and layout, button style and new tab). Editor.js only
+      // moves between text inputs; text-to-text moves and tools with their own Tab stay as they were.
+      if (event.key === 'Tab' && !event.altKey && !event.ctrlKey && !event.metaKey) {
+        const active = document.activeElement;
+        const selection = window.getSelection();
+        // An empty block opens the block types on Tab, a selection belongs to the inline toolbar.
+        if (active && active.isContentEditable && !event.shiftKey && !String(active.textContent || '').trim())
+          return;
+        if (selection && !selection.isCollapsed && isTextStop(active)) return;
+        const { target, handled } = nextTabStop(holder, active, event.shiftKey);
+        if (!handled) return;
+        event.stopPropagation();
+        if (!target) return;
+        event.preventDefault();
+        focusTabStop(target, event.shiftKey);
+      }
     };
     window.addEventListener('keydown', onKeyDown, true);
     // 2.7.4 (m12): Save or Ctrl/Cmd+Enter right after typing waits until the input is in the form.
@@ -961,6 +1027,8 @@ const EditorFieldBody = ({
       const first = !syncedOnceRef.current;
       syncedOnceRef.current = true;
       const storedView = viewRef.current;
+      // 2.7.8: what this editor showed before the update (its own unsaved text included).
+      const shownBefore = first ? null : prepareEditorValue(currentDataRef.current).data;
       await applyExternal(shared, { emitToForm: !first, live: true });
       // The editor's own serialisation of what it now shows is the base of the next local diff;
       // 2.6: component blocks count with the room's values, so edits not pushed yet stay a difference.
@@ -970,6 +1038,23 @@ const EditorFieldBody = ({
       viewRef.current = shown || shared;
       reportUnpushedComponents();
       if (first) setRoomRendered(true);
+      // 2.7.8: someone else discarded the unsaved room changes (the room went back to the stored value).
+      if (!first && saved) {
+        const storedNow = prepareEditorValue(savedValueRef.current).data;
+        if (roomWasReset(shownBefore, shown || shared, storedNow)) {
+          setRoomNotice(null);
+          // This person's own discard (an echo of it) keeps its Undo notice.
+          setRoomReset((current) =>
+            current && current.kind === 'self'
+              ? current
+              : { kind: 'remote', previous: shownBefore, focus: false }
+          );
+          // The form goes back to the stored value itself, so it is no longer marked as changed.
+          lastEmittedRawRef.current = contentKey(shown || shared);
+          onChangeRef.current(name, savedValueRef.current === undefined ? null : savedValueRef.current);
+          userTouchedRef.current = false;
+        }
+      }
       // 2.7.4 (M3): a room keeps unsaved text for a while after the last editor left. When the first
       // room state differs from the stored value, the form is marked as changed (Save stores what
       // is shown) and a notice says so, with Discard to go back to the stored value.
@@ -1454,8 +1539,11 @@ const EditorFieldBody = ({
   // Value changes from outside the editor (form reset after save/discard, locale switch).
   useEffect(() => {
     if (!ready || collaboration.active) return;
+    // 2.7.8: the form gives back the object this field emitted: nothing to compare (typing in long documents).
+    if (value !== null && value !== undefined && value === lastEmittedValueRef.current) return;
     const prepared = prepareEditorValue(value);
     const key = contentKey(prepared.data);
+    if (lastEmittedRef.current === null) lastEmittedRef.current = renderedKey(lastEmittedSourceRef.current);
     if (key === lastEmittedRef.current) return;
     lastEmittedRef.current = key;
     applyExternal(prepared.data, { emitToForm: false });
@@ -1744,6 +1832,8 @@ const EditorFieldBody = ({
     const notice = roomNotice;
     const editor = editorRef.current;
     if (!notice || !editor) return;
+    // 2.7.8: what the room showed before, for Undo.
+    const before = prepareEditorValue(await editor.save().catch(() => null)).data;
     setRoomNotice(null);
     const stored = notice.saved === undefined ? null : notice.saved;
     await applyExternal(prepareEditorValue(stored).data, { emitToForm: false, live: true });
@@ -1759,7 +1849,39 @@ const EditorFieldBody = ({
         viewRef.current = componentRoomView(local) || local;
       }
     }
+    if (before) setRoomReset({ kind: 'self', previous: before, focus: true });
   }, [applyExternal, name, roomNotice]);
+
+  /** Focuses the editor text (after the room notices close). */
+  const focusEditorText = useCallback(() => {
+    window.requestAnimationFrame(() => {
+      const holder = holderRef.current;
+      const first = holder && holder.querySelector('[contenteditable="true"]');
+      if (first) first.focus();
+    });
+  }, []);
+
+  /** 2.7.8: Undo (own discard) or Restore (someone else's): the previous room text comes back for everyone. */
+  const undoRoomReset = useCallback(async () => {
+    const reset = roomReset;
+    if (!reset || !reset.previous) return;
+    setRoomReset(null);
+    await replaceContent(reset.previous);
+    if (reset.kind === 'self') {
+      setRoomNotice({ saved: savedValueRef.current });
+      window.requestAnimationFrame(() => {
+        const discard =
+          frameRef.current && frameRef.current.querySelector('[data-testid="mex-room-discard"]');
+        if (discard) discard.focus();
+        else focusEditorText();
+      });
+    } else focusEditorText();
+  }, [roomReset, replaceContent, focusEditorText]);
+
+  const dismissRoomReset = useCallback(() => {
+    setRoomReset(null);
+    focusEditorText();
+  }, [focusEditorText]);
   const draft = useDraftBuffer({
     enabled: Boolean(target.uid && config && config.drafts && config.drafts.enabled !== false),
     ttlHours: config && config.drafts ? config.drafts.ttlHours : undefined,
@@ -2055,7 +2177,17 @@ const EditorFieldBody = ({
   // selected blocks or the block with the caret (with selected text the inline AI tool runs).
   const blockAiByKey = Boolean(aiAllowed && target.uid && !readOnly);
 
-  // Editor shortcuts: Ctrl/Cmd+Shift+F find and replace, Ctrl/Cmd+/ help.
+  // 2.7.8: "+" and the block menu handle are buttons with names (Editor.js renders a div and a span).
+  useEffect(() => {
+    if (!ready) return undefined;
+    return decorateToolbar(holderRef.current, {
+      add: t('editor.toolbar.add', 'Add a block'),
+      menu: t('editor.toolbar.blockMenu', 'Open the block menu'),
+    });
+  }, [ready, t]);
+
+  // Editor shortcuts: Ctrl/Cmd+Shift+F find and replace, Ctrl/Cmd+Alt+/ help.
+  // 2.7.8: Ctrl/Cmd+/ (without Alt) belongs to Editor.js again: it opens the block menu.
   useEffect(() => {
     if (!ready) return undefined;
     const onKey = (event) => {
@@ -2064,7 +2196,17 @@ const EditorFieldBody = ({
       // Suggest mode has its own editor; the field's tools stay closed (2.4).
       if (suggestModeRef.current) return;
       const mod = event.metaKey || event.ctrlKey;
-      if (!mod || event.altKey) return;
+      if (!mod) return;
+      if (event.altKey) {
+        // Ctrl/Cmd+Alt+/ opens the shortcut help (macOS writes "÷" for Alt+/, so the key code counts too).
+        if (!event.shiftKey && (event.code === 'Slash' || event.key === '/')) {
+          event.preventDefault();
+          event.stopPropagation();
+          rememberCaret(shortcutsReturnRef);
+          setShortcutsOpen(true);
+        }
+        return;
+      }
       if (event.shiftKey && (event.key === 'g' || event.key === 'G') && blockAiByKey) {
         const selection = window.getSelection();
         const holder = holderRef.current;
@@ -2089,11 +2231,6 @@ const EditorFieldBody = ({
         event.preventDefault();
         event.stopPropagation();
         setFindOpen(true);
-      } else if (!event.shiftKey && event.key === '/') {
-        event.preventDefault();
-        event.stopPropagation();
-        rememberCaret(shortcutsReturnRef);
-        setShortcutsOpen(true);
       }
     };
     window.addEventListener('keydown', onKey, true);
@@ -3132,7 +3269,7 @@ const EditorFieldBody = ({
       group: 'view',
       label: t('editor.toolbar.shortcuts', 'Keyboard shortcuts'),
       icon: <Command />,
-      shortcut: 'CMD+/',
+      shortcut: 'CMD+ALT+/',
       movesFocus: true,
       onSelect: () => {
         shortcutsReturnRef.current = null;
@@ -3238,7 +3375,23 @@ const EditorFieldBody = ({
           />
           {target.uid ? <SessionBanner t={t} /> : null}
           {roomUnsaved && ready && !suggestMode ? (
-            <RoomNotice t={t} onDiscard={discardRoomChanges} disabled={readOnly} />
+            <RoomNotice
+              t={t}
+              onDiscard={discardRoomChanges}
+              disabled={readOnly}
+              fallbackFocusRef={roomUndoRef}
+            />
+          ) : null}
+          {roomReset && ready && !suggestMode ? (
+            <RoomResetNotice
+              t={t}
+              kind={roomReset.kind}
+              onUndo={undoRoomReset}
+              onDismiss={dismissRoomReset}
+              autoFocus={roomReset.focus}
+              undoRef={roomUndoRef}
+              disabled={readOnly}
+            />
           ) : null}
           {draft.notice && ready && !suggestMode ? (
             <DraftNotice

@@ -82,13 +82,27 @@ const ALLOWED_ATTR = Array.from(new Set(Object.values(INLINE_ATTRIBUTES).flat())
 const ANNOTATION_VALUE_ATTRIBUTE = /^data-mex-a-[a-z][a-z0-9]{0,23}$/;
 
 /**
- * Sanitises inline HTML (paragraph text, captions, table cells).
- * @param {string} html - Untrusted HTML.
+ * 2.7.8: results of `sanitizeInline` by input string. Every change of a
+ * field sanitised the whole document again (form value, rendered key, draft
+ * fingerprint), which cost about 155 ms per keystroke at 2,000 blocks. The
+ * sanitiser is a pure function of its input (fixed config, hooks that only
+ * read the node), so an unchanged string gets the same output from the
+ * cache; only changed text is parsed again. Least recently used entries are
+ * dropped beyond the limit, and very long strings are not kept. The server
+ * still sanitises on save and stays the authority.
+ */
+const INLINE_CACHE_LIMIT = 20000;
+const INLINE_CACHE_MAX_LENGTH = 65536;
+const inlineCache = new Map();
+
+/**
+ * Sanitises inline HTML without the cache.
+ * @param {string} input - Untrusted HTML.
  * @returns {string} Safe HTML.
  */
-export const sanitizeInline = (html) =>
+const sanitizeInlineUncached = (input) =>
   canonicalInlineExtras(
-    instance().sanitize(String(html || ''), {
+    instance().sanitize(input, {
       ALLOWED_TAGS: [...INLINE_TAGS],
       ALLOWED_ATTR,
       ALLOW_DATA_ATTR: false,
@@ -109,6 +123,32 @@ export const sanitizeInline = (html) =>
       ],
     })
   );
+
+/**
+ * Sanitises inline HTML (paragraph text, captions, table cells).
+ * Memoised by input (see `inlineCache`).
+ * @param {string} html - Untrusted HTML.
+ * @returns {string} Safe HTML.
+ */
+export const sanitizeInline = (html) => {
+  const input = String(html || '');
+  if (input === '') return '';
+  if (input.length > INLINE_CACHE_MAX_LENGTH) return sanitizeInlineUncached(input);
+  const hit = inlineCache.get(input);
+  if (hit !== undefined) {
+    // Refresh the entry so it is dropped last.
+    inlineCache.delete(input);
+    inlineCache.set(input, hit);
+    return hit;
+  }
+  const clean = sanitizeInlineUncached(input);
+  inlineCache.set(input, clean);
+  if (inlineCache.size > INLINE_CACHE_LIMIT) inlineCache.delete(inlineCache.keys().next().value);
+  return clean;
+};
+
+/** Size of the inline sanitiser cache (tests). @returns {number} Entries. */
+export const inlineCacheSize = () => inlineCache.size;
 
 /**
  * Sanitises markup of a custom block template (admin-defined, rendered for every editor).

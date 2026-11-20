@@ -771,5 +771,18 @@
   "editor.session.opened": "Connectez-vous dans le nouvel onglet. Cette page reste ouverte avec vos modifications.",
   "editor.session.blocked": "Votre navigateur a bloqué le nouvel onglet.",
   "editor.session.blockedLink": "Ouvrir la page de connexion",
-  "editor.session.resumed": "Vous êtes de nouveau connecté. Enregistrez l’entrée pour conserver vos modifications."
+  "editor.session.resumed": "Vous êtes de nouveau connecté. Enregistrez l’entrée pour conserver vos modifications.",
+  "editor.toolbar.add": "Ajouter un bloc",
+  "editor.toolbar.blockMenu": "Ouvrir le menu du bloc",
+  "editor.shortcuts.blockMenu": "Menu du bloc actuel (déplacer, supprimer, convertir)",
+  "editor.shortcuts.addBlock": "Choisir un type de bloc (dans un bloc vide)",
+  "editor.shortcuts.blockControls": "Boutons et options dans un bloc (Maj+Tab : retour)",
+  "editor.room.discardTitle": "Abandonner les modifications non enregistrées pour tout le monde ?",
+  "editor.room.discardBody": "Le contenu enregistré revient dans ce champ pour toutes les personnes qui modifient cette entrée en ce moment. Leur texte non enregistré dans ce champ est aussi supprimé. Vous pourrez l'annuler juste après.",
+  "editor.room.discardConfirm": "Abandonner pour tout le monde",
+  "editor.room.discarded": "Les modifications non enregistrées ont été abandonnées pour tout le monde. Ce champ affiche le contenu enregistré.",
+  "editor.room.discardedRemote": "Une personne de cette session en direct a rétabli le contenu enregistré de ce champ. Votre texte non enregistré dans ce champ a été supprimé.",
+  "editor.room.undoDiscard": "Annuler",
+  "editor.room.restoreText": "Restaurer mon texte",
+  "editor.room.dismiss": "Masquer"
 }

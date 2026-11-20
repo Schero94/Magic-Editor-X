@@ -119,6 +119,13 @@ export const editorStyles = css`
         background: ${c('neutral150')};
         color: ${c('neutral800')};
       }
+
+      /* 2.7.8: the handles are keyboard buttons (editor/toolbar-a11y.mjs). */
+      &:focus-visible {
+        outline: 2px solid ${c('primary600')};
+        outline-offset: 1px;
+        color: ${c('neutral800')};
+      }
     }
 
     .ce-toolbar__settings-btn[draggable='true'] {
@@ -148,6 +155,21 @@ export const editorStyles = css`
 
     [contenteditable='true']:focus-visible {
       outline: none;
+    }
+
+    /* 2.7.8: every control inside a block shows a focus ring (tools may refine it below). */
+    .ce-block
+      :is(
+        button,
+        select,
+        input[type='checkbox'],
+        input[type='radio'],
+        [role='switch'],
+        [role='button'],
+        a[href]
+      ):focus-visible {
+      outline: 2px solid ${c('primary600')};
+      outline-offset: 2px;
     }
 
     [data-placeholder]:empty::before,

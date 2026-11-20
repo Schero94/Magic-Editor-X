@@ -81,6 +81,51 @@ export const stableStringify = (value) => {
   return `{${keys.map((key) => `${JSON.stringify(key)}:${stableStringify(value[key])}`).join(',')}}`;
 };
 
+/** `undefined` becomes `null`, as in `stableStringify`, so the native key below is unambiguous. */
+const nullReplacer = (_key, value) => (value === undefined ? null : value);
+const STABLE_CACHE_LIMIT = 20000;
+const stableCache = new Map();
+
+/**
+ * `stableStringify` of a list of blocks with a cache per block (2.7.8). The
+ * key of each block is the native `JSON.stringify` of it, which is much faster
+ * than the canonical form; a block that did not change since the last call
+ * gets its canonical string from the cache. The output is exactly
+ * `stableStringify(blocks)`. Typing in a 2,000-block field compared whole
+ * documents several times per keystroke.
+ * @param {Array<unknown>} blocks - Blocks.
+ * @returns {string} Canonical JSON of the list.
+ */
+export const stableStringifyBlocks = (blocks) => {
+  if (!Array.isArray(blocks)) return stableStringify(blocks);
+  const parts = new Array(blocks.length);
+  for (let index = 0; index < blocks.length; index += 1) parts[index] = stableStringifyCached(blocks[index]);
+  return `[${parts.join(',')}]`;
+};
+
+/**
+ * `stableStringify` of one value with the cache described above (2.7.8).
+ * @param {unknown} value - Value (a block).
+ * @returns {string} Canonical JSON, exactly `stableStringify(value)`.
+ */
+export const stableStringifyCached = (value) => {
+  if (value === null || typeof value !== 'object') return stableStringify(value);
+  let raw;
+  try {
+    raw = JSON.stringify(value, nullReplacer);
+  } catch {
+    raw = undefined;
+  }
+  if (typeof raw !== 'string') return stableStringify(value);
+  let canonical = stableCache.get(raw);
+  if (canonical === undefined) {
+    canonical = stableStringify(value);
+    stableCache.set(raw, canonical);
+    if (stableCache.size > STABLE_CACHE_LIMIT) stableCache.delete(stableCache.keys().next().value);
+  }
+  return canonical;
+};
+
 const equal = (a, b) => a === b || stableStringify(a) === stableStringify(b);
 
 /**

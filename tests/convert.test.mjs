@@ -305,3 +305,27 @@ test('DOM adapter maps nodes like the htmlparser2 adapter', () => {
   const nodes = parseHtmlWithDom('<p>ignored</p>', FakeParser);
   assert.equal(htmlToBlocks('x', { parse: () => nodes }).blocks[0].data.text, 'Hi <b>there</b>');
 });
+
+test('2.7.8: Word bold with mso-bidi-font-weight:normal keeps bold; Google Docs wrapper does not', () => {
+  const word = htmlToBlocks(
+    "<p class=MsoNormal>Plain <b style='mso-bidi-font-weight:normal'>word bold</b> and <i style='mso-bidi-font-style:normal'>italic</i></p>",
+    { parse }
+  ).blocks;
+  assert.equal(word.length, 1);
+  assert.match(word[0].data.text, /<b>word bold<\/b>/);
+  assert.match(word[0].data.text, /<i>italic<\/i>/);
+  const gdocs = htmlToBlocks(
+    '<b style="font-weight:normal;" id="docs-internal-guid-1"><p><span style="font-weight:700">real bold</span> plain</p></b>',
+    { parse }
+  ).blocks;
+  assert.equal(gdocs.length, 1);
+  assert.equal(gdocs[0].data.text, '<b>real bold</b> plain');
+  // A span whose only weight is a vendor property is not bold.
+  const vendor = htmlToBlocks('<p><span style="mso-bidi-font-weight:bold">not bold</span></p>', {
+    parse,
+  }).blocks;
+  assert.equal(vendor[0].data.text, 'not bold');
+  // Inline wrapper without blocks: font-weight:400 on <b> is not bold, a later bold declaration wins.
+  assert.equal(htmlToInline('<b style="font-weight: 400">x</b>', parse), 'x');
+  assert.equal(htmlToInline('<b style="font-weight:400; font-weight: 700">y</b>', parse), '<b>y</b>');
+});

@@ -1,5 +1,5 @@
 import { comparableBlocks } from '../../../shared/default-tunes.mjs';
-import { stableStringify } from '../../../shared/ydoc.mjs';
+import { stableStringifyBlocks } from '../../../shared/ydoc.mjs';
 
 /**
  * Live collaboration room vs. stored value (2.7.4, M3).
@@ -17,7 +17,7 @@ import { stableStringify } from '../../../shared/ydoc.mjs';
  * @returns {string} Fingerprint.
  */
 const fingerprint = (blocks) =>
-  stableStringify(
+  stableStringifyBlocks(
     comparableBlocks(Array.isArray(blocks) ? blocks : []).filter(
       (block) =>
         // An empty paragraph is what an empty field shows; it is not content.
@@ -37,3 +37,15 @@ const fingerprint = (blocks) =>
  */
 export const roomDiffersFromStored = (room, stored) =>
   fingerprint(room && room.blocks) !== fingerprint(stored && stored.blocks);
+
+/**
+ * True when a live update brought a room with unsaved changes back to the stored value (2.7.8):
+ * another person discarded the unsaved changes (or undid them all). The field then says so and
+ * offers to put the previous text back.
+ * @param {{ blocks?: Array<object> }|null|undefined} before - Room content shown before the update.
+ * @param {{ blocks?: Array<object> }|null|undefined} after - Room content shown after the update.
+ * @param {{ blocks?: Array<object> }|null|undefined} stored - Stored value, prepared.
+ * @returns {boolean} Result.
+ */
+export const roomWasReset = (before, after, stored) =>
+  Boolean(before && after) && roomDiffersFromStored(before, stored) && !roomDiffersFromStored(after, stored);
