@@ -1,6 +1,12 @@
 # Changelog
 
-## [Unreleased]
+## [2.8.4](https://github.com/Schero94/Magic-Editor-X/compare/v2.8.3...v2.8.4) (2026-11-20)
+
+
+### Bug Fixes
+
+* **admin:** native Strapi look in the editor field (DS icons, tabs, tooltips, tokens) ([#39](https://github.com/Schero94/Magic-Editor-X/issues/39)) ([a035b48](https://github.com/Schero94/Magic-Editor-X/commit/a035b489106b65c873b2b634482b08418f3d49fb))
+
 
 ### Changed (editor field: native Strapi look)
 
