@@ -1,6 +1,12 @@
 # Changelog
 
-## [Unreleased]
+## [2.7.6](https://github.com/Schero94/Magic-Editor-X/compare/v2.7.5...v2.7.6) (2026-11-20)
+
+
+### Bug Fixes
+
+* **admin:** focus after AI and resolved comments, reduced motion, leftover drop line ([#31](https://github.com/Schero94/Magic-Editor-X/issues/31)) ([c71db51](https://github.com/Schero94/Magic-Editor-X/commit/c71db517fd198499d7d662cf5b7de6ae3b59bce3))
+
 
 ### Fixed
 
