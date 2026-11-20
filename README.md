@@ -537,7 +537,7 @@ npx magic-editor-x migrate --uid api::article.article --from body --to content  
 npx magic-editor-x migrate --uid api::article.article --from body --to content --apply    # convert
 ```
 
-Options: `--format auto|blocks|markdown|html` (auto: Blocks fields as Strapi Blocks, Rich text as Markdown, text and string as HTML when they contain tags, else Markdown, JSON as Strapi Blocks or Editor.js), `--locale <code>` or `--locale '*'` (all locales), `--overwrite` (replace a target that already has content), `--batch 50`, `--limit <n>`, `--json` (machine-readable report on stdout; Strapi's own log lines go to stderr), `--out report.json`. Re-running skips converted documents (idempotent). The report counts scanned, converted, skipped and failed documents and lists lossy conversions (for example a skipped image) by document id and note, never content. Drafts are converted; publish afterwards. The same is available in code: `strapi.plugin('magic-editor-x').service('migrate').run({ uid, from, to, format, locale, dryRun, overwrite })`.
+Options: `--format auto|blocks|markdown|html` (auto: Blocks fields as Strapi Blocks, Rich text as Markdown, text and string as HTML when they contain tags, else Markdown, JSON as Strapi Blocks or Editor.js), `--locale <code>` or `--locale '*'` (all locales), `--overwrite` (replace a target that already has content), `--batch 50`, `--limit <n>`, `--json` (machine-readable report on stdout; Strapi's own log lines go to stderr), `--out report.json`. Re-running skips converted documents (idempotent). The report counts scanned, converted, skipped and failed documents and lists lossy conversions (for example a skipped image, or a custom Blocks node type reported as `unsupported-node`; see [Core Blocks bridge](#core-blocks-bridge)) by document id and note, never content. Drafts are converted; publish afterwards. The same is available in code: `strapi.plugin('magic-editor-x').service('migrate').run({ uid, from, to, format, locale, dryRun, overwrite })`.
 
 ## Version history
 
@@ -975,6 +975,7 @@ Strapi's own **Blocks** field (the core rich text field, not the Magic Editor X 
 - **When Strapi supports it:** if the running Strapi validates custom blocks itself (`strapi.customBlocks`, as proposed in the RFC), the bridge turns itself off, logs this once and hands the registered types to Strapi's registry. Settings then shows "Handled by Strapi".
 - Permissions: unchanged. The switch needs "Update settings" like the other settings; the bridge adds no route and no action.
 - Compatibility: the server part works from Strapi 5.38; the editor helper needs `addRichTextBlocks`, which Strapi added in 5.46.0.
+- Converting to Magic Editor X: `magic-editor-x migrate` (format `blocks`) and `strapiBlocksToEditor` convert Strapi's built-in node types only. Custom node types, including the types you register for the bridge (for example `callout`), have no Editor.js equivalent: they are left out and listed in the report as `unsupported-node` with their type (never guessed or turned into paragraphs). Convert them yourself, for example into a [custom block](#custom-blocks-in-code-sdk), after the migration. Code blocks keep their exact text, including a trailing line break.
 
 ## Strapi AI translations and Releases
 

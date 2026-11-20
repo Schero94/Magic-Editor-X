@@ -1,5 +1,18 @@
 # Changelog
 
+## [Unreleased]
+
+Patch release: conversion fixes from the 2.7 API audit. No breaking changes, no migration.
+
+### Fixed
+
+- **Markdown quote captions round-trip.** `renderMarkdown` writes a quote caption as a last `> — Name` paragraph, but `markdownToBlocks` read it back as part of the quote text, so Markdown export and import (and Markdown paste) moved the caption into the text. A last quote paragraph that starts with an em dash and a space now becomes the quote caption again; quotes without that line are unchanged.
+- **Strapi Blocks code keeps its trailing line break.** `strapiBlocksToEditor` (used by `magic-editor-x migrate --format blocks`) dropped the final line break of a code node. Strapi Blocks store the exact code, so it is now kept. Markdown fences and HTML `<pre>` still drop their formatting line break.
+
+### Documentation
+
+- Core Blocks bridge and migration: custom Blocks node types (for example a type registered for the bridge) are not converted to Editor.js blocks; they are left out and reported as `unsupported-node` with their type. The README says so and how to handle them.
+
 ## [2.7.2](https://github.com/Schero94/Magic-Editor-X/compare/v2.7.1...v2.7.2) (2026-11-20)
 
 
