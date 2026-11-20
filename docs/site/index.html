@@ -115,6 +115,14 @@
               },
               {
                 "@type": "Question",
+                "name": "How does Magic Editor X compare with CKEditor 5, TinyMCE and Strapi's Blocks field?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Magic Editor X includes live co-editing, comments, suggestions, version history and AI with your own key at no cost. CKEditor 5 and TinyMCE offer these as paid plans or add-ons, and Strapi's Blocks field has no tables or embeds. Magic Editor X is weaker where Editor.js sets limits: suggestions cover whole blocks, table cells hold inline text only, and images are cropped in the Media Library, not in the editor. Sources, checked 2026-11, are linked in the comparison section."
+                }
+              },
+              {
+                "@type": "Question",
                 "name": "How do I show the content in my frontend?",
                 "acceptedAnswer": {
                   "@type": "Answer",
@@ -137,7 +145,8 @@
           <span>Magic Editor X</span>
         </a>
         <nav class="top-links" aria-label="Project links">
-          <a href="#install">Install</a>
+          <a href="#compare">How it compares</a>
+        <a href="#install">Install</a>
           <a href="https://github.com/Schero94/Magic-Editor-X">GitHub</a>
           <a href="https://www.npmjs.com/package/magic-editor-x">npm</a>
           <a href="https://github.com/Schero94/Magic-Editor-X/blob/main/CHANGELOG.md">Changelog</a>
@@ -1151,6 +1160,109 @@
           </div>
         </section>
 
+        <!-- comparison:start -->
+        <section class="section" id="compare" aria-labelledby="compare-title">
+          <h2 id="compare-title">How Magic Editor X compares</h2>
+          <p class="section-lead">
+            Magic Editor X is free under the MIT license, and every feature below works in every installation.
+            CKEditor 5 and TinyMCE sell collaboration, history and AI as paid plans or add-ons, and Strapi's own
+            Blocks field has fewer block types. Competitor facts were checked against the linked vendor pages as of
+            2026-11. Plans and prices change, so follow the links before you decide. "Not documented" means the
+            vendor pages we checked say nothing either way.
+          </p>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col">Feature</th>
+                  <th scope="col">Magic Editor X (MIT, free)</th>
+                  <th scope="col">CKEditor 5 (paid plans)</th>
+                  <th scope="col">TinyMCE (paid plans)</th>
+                  <th scope="col">Strapi Blocks field and Strapi plans</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">License and cost</th>
+                  <td>MIT. No plans, add-ons or usage limits.</td>
+                  <td>GPL 2+ for self-hosted open-source projects, or paid plans from $144/month billed annually (<a href="https://ckeditor.com/pricing/">source</a>)</td>
+                  <td>GPL 2+ open source, or paid plans from $79/month billed annually (<a href="https://www.tiny.cloud/pricing/">source</a>)</td>
+                  <td>Blocks is in every edition; Content History and Strapi AI need Growth or Enterprise</td>
+                </tr>
+                <tr>
+                  <th scope="row">Real-time co-editing</th>
+                  <td>Yes, character-level, several Node processes, no sticky sessions</td>
+                  <td>Add-on to Professional, or Custom (<a href="https://ckeditor.com/pricing/">source</a>)</td>
+                  <td>Plugin retired on 31 December 2023 (<a href="https://www.tiny.cloud/docs/tinymce/6/rtc-introduction/">source</a>)</td>
+                  <td>Not documented</td>
+                </tr>
+                <tr>
+                  <th scope="row">Comments on selected text</th>
+                  <td>Yes, with replies and @mentions</td>
+                  <td>Add-on to Professional, or Custom (<a href="https://ckeditor.com/pricing/">source</a>)</td>
+                  <td>Professional and Enterprise (<a href="https://www.tiny.cloud/pricing/">source</a>)</td>
+                  <td>Not documented</td>
+                </tr>
+                <tr>
+                  <th scope="row">Suggestions and track changes</th>
+                  <td><strong>Block-level only</strong>: whole blocks are replaced, inserted or deleted</td>
+                  <td>Track changes, add-on to Professional, or Custom (<a href="https://ckeditor.com/pricing/">source</a>)</td>
+                  <td>Suggested Edits, add-on to Professional, or Enterprise (<a href="https://www.tiny.cloud/pricing/">source</a>)</td>
+                  <td>Not documented</td>
+                </tr>
+                <tr>
+                  <th scope="row">Version history</th>
+                  <td>Named and automatic versions, word-level comparison, restore a field or one block</td>
+                  <td>Revision history, add-on to Professional, or Custom (<a href="https://ckeditor.com/pricing/">source</a>)</td>
+                  <td>Revision History, add-on to Professional, or Enterprise (<a href="https://www.tiny.cloud/pricing/">source</a>)</td>
+                  <td>Content History on Growth (14 days) and Enterprise (30 to 90 days); view and restore, no comparison described (<a href="https://docs.strapi.io/cms/features/content-history">source</a>)</td>
+                </tr>
+                <tr>
+                  <th scope="row">AI writing help</th>
+                  <td>Your own key: Anthropic, OpenAI or a compatible server such as a local model. Fixed actions, no free-form prompt</td>
+                  <td>CKEditor AI, add-on from Essential (<a href="https://ckeditor.com/pricing/">source</a>)</td>
+                  <td>TinyMCE AI, add-on from Essential (<a href="https://www.tiny.cloud/pricing/">source</a>)</td>
+                  <td>Strapi AI (translations, Media Library alt text and captions), Growth or a paid Enterprise add-on (<a href="https://docs.strapi.io/cms/ai/for-content-managers">source</a>)</td>
+                </tr>
+                <tr>
+                  <th scope="row">Tables</th>
+                  <td>Header row and column, merged cells, caption. <strong>Cells hold inline text only</strong></td>
+                  <td>Yes (<a href="https://ckeditor.com/docs/ckeditor5/latest/features/index.html">source</a>)</td>
+                  <td>Yes (<a href="https://www.tiny.cloud/docs/tinymce/latest/plugins/">source</a>)</td>
+                  <td>No: paragraph, heading, quote, list, image and code only (<a href="https://github.com/strapi/strapi/blob/develop/packages/core/core/src/services/entity-validator/blocks-validator.ts">source</a>)</td>
+                </tr>
+                <tr>
+                  <th scope="row">Word content</th>
+                  <td>Paste from Word, Google Docs and LibreOffice. <strong>No .docx file import, no Word or PDF export</strong></td>
+                  <td>Enhanced paste from Essential, Import from Word from Professional (<a href="https://ckeditor.com/pricing/">source</a>)</td>
+                  <td>PowerPaste from Professional, Word import as a usage add-on (<a href="https://www.tiny.cloud/pricing/">source</a>)</td>
+                  <td>Not documented</td>
+                </tr>
+                <tr>
+                  <th scope="row">Image crop</th>
+                  <td><strong>No crop in the editor</strong>; a focal point per block; crop in Strapi's Media Library</td>
+                  <td>Not documented</td>
+                  <td>Image Editing from Essential (<a href="https://www.tiny.cloud/pricing/">source</a>)</td>
+                  <td>Media Library Crop &amp; Focus area editor, free since 5.54 (<a href="https://docs.strapi.io/cms/features/media-library">source</a>)</td>
+                </tr>
+                <tr>
+                  <th scope="row">Accessibility checks</th>
+                  <td>15 rules with an optional publishing guard</td>
+                  <td>Not documented</td>
+                  <td>Accessibility Checker from Professional (<a href="https://www.tiny.cloud/pricing/">source</a>)</td>
+                  <td>Not documented</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <ul class="check-list">
+            <li>Payload (Lexical): multiplayer editing is announced under Payload for Enterprise but not available yet (<a href="https://payloadcms.com/enterprise/multi-player-editing">source</a>); tables are an experimental feature (<a href="https://payloadcms.com/docs/rich-text/official-features">source</a>); uploads have crop and a focal point (<a href="https://payloadcms.com/docs/upload/overview">source</a>).</li>
+            <li>Sanity: real-time multiplayer editing with character-level sync (<a href="https://www.sanity.io/studio">source</a>); comments, also on words in Portable Text, on the Growth plan (<a href="https://www.sanity.io/docs/studio/comments">source</a>); image crop and hotspot (<a href="https://www.sanity.io/docs/studio/image-type">source</a>).</li>
+            <li>Where Magic Editor X is weaker: suggestions cover whole blocks, table cells hold inline text only, there is no crop inside the editor, the AI actions are a fixed list, and there is no .docx file import. The full list is in the <a href="https://github.com/Schero94/Magic-Editor-X#how-magic-editor-x-compares">README</a>.</li>
+          </ul>
+        </section>
+        <!-- comparison:end -->
+
         <section class="section" id="install" aria-labelledby="install-title">
           <h2 id="install-title">Install</h2>
           <ol class="steps">
@@ -1399,6 +1511,17 @@
               <p>
                 Yes. <code>npx magic-editor-x migrate --uid api::article.article --from body --to content</code>
                 runs as a dry run and writes nothing; add <code>--apply</code> to convert.
+              </p>
+            </details>
+            <details>
+              <summary>How does Magic Editor X compare with CKEditor 5, TinyMCE and Strapi's Blocks field?</summary>
+              <p>
+                Magic Editor X includes live co-editing, comments, suggestions, version history and AI with your
+                own key at no cost. CKEditor 5 and TinyMCE offer these as paid plans or add-ons, and Strapi's
+                Blocks field has no tables or embeds. Magic Editor X is weaker where Editor.js sets limits:
+                suggestions cover whole blocks, table cells hold inline text only, and images are cropped in the
+                Media Library, not in the editor. The <a href="#compare">comparison</a> links every source
+                (checked 2026-11).
               </p>
             </details>
             <details>
