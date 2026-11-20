@@ -261,9 +261,12 @@ const createHandlers = (deps) => {
     }
   };
   return {
-    fromMarkdown: guard((args) =>
-      finishConversion(markdownToBlocks(args.markdown, { parse: parseHtmlWithHtmlparser2 }), args, rawHtml())
-    ),
+    fromMarkdown: guard((args) => {
+      const converted = markdownToBlocks(args.markdown, { parse: parseHtmlWithHtmlparser2 });
+      // Lists or quotes nested deeper than the converter reads (refused before marked runs).
+      if (converted.report.skipped.some((entry) => entry.reason === 'too-deep')) return fail('TOO_DEEP');
+      return finishConversion(converted, args, rawHtml());
+    }),
     fromHtml: guard((args) =>
       finishConversion(htmlToBlocks(args.html, { parse: parseHtmlWithHtmlparser2 }), args, rawHtml())
     ),

@@ -64,6 +64,15 @@ export const footnoteOptions = (options) => {
  * Counts footnotes in reading order and gives each one a unique anchor id.
  * @returns {{ add: (id: string) => { n: number, anchor: string } }} Allocator.
  */
+/**
+ * A TeX line that CommonMark would read as the start of another block inside
+ * a `$$` paragraph (list item, heading, quote, fence, rule, HTML block, table).
+ * The Markdown renderer indents such lines by four more spaces (an indented
+ * line continues the paragraph and TeX ignores the spaces); `markdownToBlocks`
+ * removes them again.
+ */
+export const MATH_BLOCK_START = /^[ \t]*(?:[-+*#>=_~`<|]|\d{1,9}[.)])/;
+
 export const createFootnoteNumbers = () => {
   const used = new Map();
   let count = 0;
