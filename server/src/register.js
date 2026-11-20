@@ -158,12 +158,16 @@ const registerOutputParam = (strapi) => {
 };
 
 /**
- * Registers the custom field and the Document Service middleware that
- * normalises and sanitises Magic Editor X values on every write (Content
- * Manager, Content API, imports, scripts). Invalid values are rejected with a
- * 400 instead of being stored.
- * @param {{ strapi: import('@strapi/strapi').Core.Strapi }} context - Strapi.
+ * Document Service actions whose `params.data` is written to the database and
+ * therefore passes the save sanitiser (checked against the installed
+ * @strapi/core 5.63 `document-service/repository.js`): `create` and `update`
+ * store `data`; `clone` (the Content Manager "Duplicate") merges `data` over
+ * the copied draft before it stores the new document. `publish`,
+ * `unpublish` and `discardDraft` ignore `data` (they copy rows that were
+ * stored, and therefore sanitised, by one of these actions).
  */
+const WRITE_ACTIONS = Object.freeze(['create', 'update', 'clone']);
+
 /**
  * True when a raw value holds a block of type `component` whose data has the
  * built-in shape but no `_mex` marker (written by an import or script, 2.6).
@@ -191,6 +195,14 @@ const hasUnmarkedComponentBlock = (value) => {
   );
 };
 
+/**
+ * Registers the custom field and the Document Service middleware that
+ * normalises and sanitises Magic Editor X values on every write that carries
+ * data (`WRITE_ACTIONS`: Content Manager create, update and duplicate, Content
+ * API, imports, scripts). Invalid values are rejected with a 400 instead of
+ * being stored.
+ * @param {{ strapi: import('@strapi/strapi').Core.Strapi }} context - Strapi.
+ */
 module.exports = ({ strapi }) => {
   strapi.customFields.register({
     name: 'richtext',
@@ -206,8 +218,7 @@ module.exports = ({ strapi }) => {
   let warnedUnmarked = false;
   const saveMiddleware = async (ctx, next) => {
     const sanitize = strapi.config.get('plugin::magic-editor-x.sanitizeOnSave') !== false;
-    if (!sanitize || !['create', 'update'].includes(ctx.action) || !ctx.params || !ctx.params.data)
-      return next();
+    if (!sanitize || !WRITE_ACTIONS.includes(ctx.action) || !ctx.params || !ctx.params.data) return next();
     const contentType = ctx.contentType || strapi.contentType(ctx.uid);
     if (!contentType || !schemaHasEditorFields(strapi, contentType, cache)) return next();
     const rawHtml = strapi.config.get('plugin::magic-editor-x.rawHtml') || 'sanitize';
@@ -308,3 +319,4 @@ module.exports = ({ strapi }) => {
 };
 
 module.exports.hasUnmarkedComponentBlock = hasUnmarkedComponentBlock;
+module.exports.WRITE_ACTIONS = WRITE_ACTIONS;

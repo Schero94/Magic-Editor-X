@@ -1,5 +1,21 @@
 # Changelog
 
+## [Unreleased]
+
+Patch release: security fixes from the 2.7 API audit. No breaking changes, no migration.
+
+### Security
+
+- **Content Manager "Duplicate" stored editor content unsanitised.** The save sanitiser (a Document Service middleware) only ran for `create` and `update`; the Content Manager duplicate (`POST /content-manager/collection-types/:uid/clone/:id`, Document Service `clone` with `data`) stored script tags, event handlers, `javascript:` links and unsanitised raw HTML as sent. It now runs for every Document Service action that writes `data` (`create`, `update`, `clone`; checked against `@strapi/core` 5.63: `publish`, `unpublish` and `discardDraft` copy stored rows and take no `data`). Entries duplicated with an earlier version can still hold the unsanitised values: open and save them once (any update runs the sanitiser); `?mex=` output is cleaned in any case.
+- **`?mex=json` output returned stored values as they were.** REST `?mex=json` and the GraphQL `<field>Resolved` fields now run every stored value through the same sanitiser as the save path (field preset, raw HTML mode) before references are resolved, like the rendered formats. Values written past the save middleware (older versions, direct database writes, imports) no longer reach the API unclean.
+- **Image uploads kept the client's file extension.** `POST /magic-editor-x/image/byFile`, `/image/byUrl` and `/media/byUrl` stored a checked PNG sent as `poly.html` (or `.svg`, `.xhtml`) under that name, and the upload provider served it as `text/html` from the Strapi origin. The stored extension now always follows the content type detected from the file's bytes (`poly.html` becomes `poly.png`). Image routes accept raster images only (JPEG, PNG, GIF, WebP, AVIF); SVG and HTML are never stored through them.
+- **Media Library upload security settings now apply to the editor's uploads.** `plugin::upload.security.deniedTypes` and `allowedTypes` (exact types or `*` patterns) are checked against the detected type of every image, media and attachment upload; a refused type answers 415.
+- **Backslash URLs.** `sanitizeUrl` (the URL fields of blocks) accepted `/\evil.example`, which browsers read as the protocol-relative `//evil.example`. Any URL with a backslash is now refused, like the inline link policy already did.
+
+### Fixed
+
+- A damaged PNG (valid signature, broken chunk checksum) uploaded to `/image/byFile` or `/image/byUrl` answers 400 `The image file is damaged` instead of 500 with an error log line. When the Media Library itself refuses a file (for example Strapi's faulty-image check), the editor routes answer 400 `The file is damaged or not a valid file of its type`; other upload failures stay 500 with a fixed message.
+
 # [2.7.0](https://github.com/Schero94/Magic-Editor-X/compare/v2.6.2...v2.7.0) (2026-11-19)
 
 
