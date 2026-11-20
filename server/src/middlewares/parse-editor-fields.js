@@ -1,6 +1,7 @@
 'use strict';
 
 const { looksLikeEditorData } = require('../../../shared/editor-data.mjs');
+const { walkOutput, routeContentType } = require('../utils/output-walk');
 
 /**
  * Content API response middleware (enabled by `api.autoParseJSON`, default on).
@@ -9,47 +10,56 @@ const { looksLikeEditorData } = require('../../../shared/editor-data.mjs');
  * contained strings. 2.x stores objects; entries saved with 1.x keep their
  * string until they are saved again. This middleware turns such strings into
  * objects in GET responses under the REST prefix, so every consumer sees one
- * shape. Only strings that parse to an Editor.js document (`{ blocks: [] }`)
- * are touched.
+ * shape.
+ *
+ * Schema-aware (fix after the 2.7 API audit): only the values of Magic Editor X fields are
+ * parsed (top-level fields, components, dynamic zones and populated
+ * relations, in the flat and the v4 response format; the same walk as `?mex=`
+ * in `utils/output-walk.js`), on Content API routes of `api::` content types.
+ * Strings in any other field (text, JSON fields, other plugins' routes) are
+ * returned as stored, even when they look like an Editor.js document. Only
+ * strings that parse to an Editor.js document (`{ blocks: [] }`) are touched.
  */
 
 const MAX_STRING = 5 * 1024 * 1024;
-const MAX_DEPTH = 12;
 
 /**
- * Walks response data and parses Editor.js JSON strings in place.
- * @param {unknown} value - Response data.
- * @param {number} depth - Current depth.
- * @returns {unknown} Value with parsed editor fields.
+ * Parses one stored 1.x JSON string into an Editor.js object.
+ * @param {unknown} item - Stored field value.
+ * @returns {unknown} The parsed document, or the value unchanged when it is
+ *   not a JSON string of an Editor.js document.
  */
-const parseValue = (value, depth = 0) => {
-  if (depth > MAX_DEPTH || value === null || typeof value !== 'object') return value;
-  if (value instanceof Date) return value;
-  if (Array.isArray(value)) {
-    for (let i = 0; i < value.length; i += 1) value[i] = parseValue(value[i], depth + 1);
-    return value;
+const parseEditorString = (item) => {
+  if (
+    typeof item !== 'string' ||
+    item.length <= 12 ||
+    item.length >= MAX_STRING ||
+    item.charCodeAt(0) !== 123 ||
+    !item.includes('"blocks"')
+  )
+    return item;
+  try {
+    const parsed = JSON.parse(item);
+    return looksLikeEditorData(parsed) ? parsed : item;
+  } catch {
+    // not JSON: keep the string
+    return item;
   }
-  for (const key of Object.keys(value)) {
-    const item = value[key];
-    if (typeof item === 'string') {
-      if (
-        item.length > 12 &&
-        item.length < MAX_STRING &&
-        item.charCodeAt(0) === 123 &&
-        item.includes('"blocks"')
-      ) {
-        try {
-          const parsed = JSON.parse(item);
-          if (looksLikeEditorData(parsed)) value[key] = parsed;
-        } catch {
-          // not JSON: keep the string
-        }
-      }
-    } else if (item && typeof item === 'object') {
-      value[key] = parseValue(item, depth + 1);
-    }
-  }
-  return value;
+};
+
+/**
+ * Parses the Magic Editor X values of response data in place, following the
+ * content-type schema.
+ * @param {object} strapi - Strapi instance.
+ * @param {object} schema - Content-type schema of `data`.
+ * @param {unknown} data - Response data (entry or list).
+ * @returns {unknown} The same data.
+ */
+const parseEditorFields = (strapi, schema, data) => {
+  walkOutput(strapi, schema, data, (holder, key) => {
+    holder[key] = parseEditorString(holder[key]);
+  });
+  return data;
 };
 
 /**
@@ -69,12 +79,15 @@ const middleware =
     if (path !== prefix && !path.startsWith(`${prefix}/`)) return;
     if (!/json/i.test(String(ctx.type || ''))) return;
     try {
-      if (Object.prototype.hasOwnProperty.call(ctx.body, 'data')) ctx.body.data = parseValue(ctx.body.data);
-      else ctx.body = parseValue(ctx.body);
+      const uid = routeContentType(ctx.state && ctx.state.route);
+      const schema = uid ? strapi.contentType(uid) : null;
+      if (!schema || !Object.prototype.hasOwnProperty.call(ctx.body, 'data')) return;
+      ctx.body.data = parseEditorFields(strapi, schema, ctx.body.data);
     } catch {
       // never break a response
     }
   };
 
 module.exports = middleware;
-module.exports.parseValue = parseValue;
+module.exports.parseEditorString = parseEditorString;
+module.exports.parseEditorFields = parseEditorFields;

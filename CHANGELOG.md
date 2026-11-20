@@ -1,5 +1,17 @@
 # Changelog
 
+## [Unreleased]
+
+Patch release (fix from the 2.7 API audit). The documented contract is unchanged; one undocumented side effect is gone, see Migration.
+
+### Fixed
+
+- **`api.autoParseJSON` parsed strings in fields that are not Magic Editor X fields.** The response middleware that turns 1.x JSON strings into objects walked every value of every Content API GET response and parsed any string that looked like an Editor.js document, also in text, string and JSON fields and on other plugins' routes. It now follows the content-type schema and parses only the values of Magic Editor X fields: top-level fields, components, dynamic zones and populated relations, in the flat and the v4 response format, on Content API routes of `api::` content types. For Magic Editor X fields the behaviour is identical.
+
+### Migration
+
+- Nothing to do for Magic Editor X fields. If a client relied on the old side effect (a text, string or JSON field, or another plugin's route, that held an Editor.js JSON string and came back as an object), it now receives the string as stored: parse it in the client, or store such content in a Magic Editor X field.
+
 # [2.7.0](https://github.com/Schero94/Magic-Editor-X/compare/v2.6.2...v2.7.0) (2026-11-19)
 
 
