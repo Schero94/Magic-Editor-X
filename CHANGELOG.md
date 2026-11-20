@@ -2,13 +2,35 @@
 
 ## [Unreleased]
 
-Patch release: fixes from the 2.7 API audit. No breaking changes, no migration.
+Patch release: conversion fixes from the 2.7 API audit. No breaking changes, no migration.
+
+### Fixed
+
+- **Markdown quote captions round-trip.** `renderMarkdown` writes a quote caption as a last `> — Name` paragraph, but `markdownToBlocks` read it back as part of the quote text, so Markdown export and import (and Markdown paste) moved the caption into the text. A last quote paragraph that starts with an em dash and a space now becomes the quote caption again; quotes without that line are unchanged.
+- **Strapi Blocks code keeps its trailing line break.** `strapiBlocksToEditor` (used by `magic-editor-x migrate --format blocks`) dropped the final line break of a code node. Strapi Blocks store the exact code, so it is now kept. Markdown fences and HTML `<pre>` still drop their formatting line break.
+
+### Documentation
+
+- Core Blocks bridge and migration: custom Blocks node types (for example a type registered for the bridge) are not converted to Editor.js blocks; they are left out and reported as `unsupported-node` with their type. The README says so and how to handle them.
+
+## [2.7.1](https://github.com/Schero94/Magic-Editor-X/compare/v2.7.0...v2.7.1) (2026-11-20)
+
+
+### Bug Fixes
+
+* **security:** sanitise duplicated entries, clean mex=json output, safe upload names ([#26](https://github.com/Schero94/Magic-Editor-X/issues/26)) ([1e8634a](https://github.com/Schero94/Magic-Editor-X/commit/1e8634af541ab1604dd250f065d603787320d390))
+
+
+Patch release: fixes from the 2.7 API audit. No breaking changes; one undocumented side effect of `api.autoParseJSON` is gone, see Migration.
+
+### Migration
+
+- Nothing to do for Magic Editor X fields. If a client relied on the old side effect (a text, string or JSON field, or another plugin's route, that held an Editor.js JSON string and came back as an object), it now receives the string as stored: parse it in the client, or store such content in a Magic Editor X field.
 
 ### Fixed
 
 - A damaged PNG (valid signature, broken chunk checksum) uploaded to `/image/byFile` or `/image/byUrl` answers 400 `The image file is damaged` instead of 500 with an error log line. When the Media Library itself refuses a file (for example Strapi's faulty-image check), the editor routes answer 400 `The file is damaged or not a valid file of its type`; other upload failures stay 500 with a fixed message.
-- **Markdown quote captions round-trip.** `renderMarkdown` writes a quote caption as a last `> — Name` paragraph, but `markdownToBlocks` read it back as part of the quote text, so Markdown export and import (and Markdown paste) moved the caption into the text. A last quote paragraph that starts with an em dash and a space now becomes the quote caption again; quotes without that line are unchanged.
-- **Strapi Blocks code keeps its trailing line break.** `strapiBlocksToEditor` (used by `magic-editor-x migrate --format blocks`) dropped the final line break of a code node. Strapi Blocks store the exact code, so it is now kept. Markdown fences and HTML `<pre>` still drop their formatting line break.
+- **`api.autoParseJSON` parsed strings in fields that are not Magic Editor X fields.** The response middleware that turns 1.x JSON strings into objects walked every value of every Content API GET response and parsed any string that looked like an Editor.js document, also in text, string and JSON fields and on other plugins' routes. It now follows the content-type schema and parses only the values of Magic Editor X fields: top-level fields, components, dynamic zones and populated relations, in the flat and the v4 response format, on Content API routes of `api::` content types. For Magic Editor X fields the behaviour is identical.
 
 ### Security
 
@@ -17,10 +39,6 @@ Patch release: fixes from the 2.7 API audit. No breaking changes, no migration.
 - **Image uploads kept the client's file extension.** `POST /magic-editor-x/image/byFile`, `/image/byUrl` and `/media/byUrl` stored a checked PNG sent as `poly.html` (or `.svg`, `.xhtml`) under that name, and the upload provider served it as `text/html` from the Strapi origin. The stored extension now always follows the content type detected from the file's bytes (`poly.html` becomes `poly.png`). Image routes accept raster images only (JPEG, PNG, GIF, WebP, AVIF); SVG and HTML are never stored through them.
 - **Media Library upload security settings now apply to the editor's uploads.** `plugin::upload.security.deniedTypes` and `allowedTypes` (exact types or `*` patterns) are checked against the detected type of every image, media and attachment upload; a refused type answers 415.
 - **Backslash URLs.** `sanitizeUrl` (the URL fields of blocks) accepted `/\evil.example`, which browsers read as the protocol-relative `//evil.example`. Any URL with a backslash is now refused, like the inline link policy already did.
-
-### Documentation
-
-- Core Blocks bridge and migration: custom Blocks node types (for example a type registered for the bridge) are not converted to Editor.js blocks; they are left out and reported as `unsupported-node` with their type. The README says so and how to handle them.
 
 # [2.7.0](https://github.com/Schero94/Magic-Editor-X/compare/v2.6.2...v2.7.0) (2026-11-19)
 
