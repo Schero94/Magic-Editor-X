@@ -160,7 +160,7 @@ const TARGETS = new Set(['_blank', '_self', '_parent', '_top']);
 /**
  * Validates a URL for use in stored content.
  * Allows http(s), mailto, tel and site-relative URLs; rejects javascript:, data:,
- * protocol-relative URLs, control characters and credentials.
+ * protocol-relative URLs (also spelled with backslashes), control characters and credentials.
  * @param {unknown} value - Candidate URL.
  * @param {{ schemes?: readonly string[], allowRelative?: boolean }} [options] - Allowed schemes.
  * @returns {string} The URL, or '' when it is not allowed.
@@ -173,7 +173,9 @@ export const sanitizeUrl = (value, options = {}) => {
   if (!url || url.length > MAX_URL_LENGTH) return '';
   // eslint-disable-next-line no-control-regex -- control characters are exactly what must be rejected here
   if (/[\u0000-\u001f\u007f\s]/.test(url) && !/^(mailto|tel):/i.test(url)) return '';
-  if (url.startsWith('//') || url.startsWith('\\')) return '';
+  // Browsers read `\` as `/` in http(s) URLs, so `/\evil.example` and `\\evil.example` are
+  // protocol-relative. A backslash is never valid in a URL (RFC 3986 encodes it as %5C).
+  if (url.startsWith('//') || url.includes('\\')) return '';
   const scheme = /^([a-zA-Z][a-zA-Z0-9+.-]{0,20}):/.exec(url);
   if (!scheme) {
     return allowRelative && /^[/#?.]/.test(url) ? url : '';
