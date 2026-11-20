@@ -16,6 +16,7 @@ import {
 } from '@strapi/design-system';
 import { ArrowClockwise, Eye, Pencil } from '@strapi/icons';
 import { ConfirmDialog, useNotification } from '@strapi/strapi/admin';
+import { refocusLater } from './usePanelFocus';
 import { useFetchClient } from '../../utils/fetch-client';
 import styled from 'styled-components';
 import { API, readApiError } from '../../utils/api';
@@ -108,6 +109,7 @@ export const HistoryModal = ({
   const [saving, setSaving] = useState(false);
   const [preview, setPreview] = useState(null);
   const [confirm, setConfirm] = useState(null);
+  const restoreOpenerRef = useRef(null);
   const [restoring, setRestoring] = useState(false);
   const [label, setLabel] = useState('');
   const [renaming, setRenaming] = useState(null);
@@ -372,7 +374,13 @@ export const HistoryModal = ({
               </IconButton>
             ) : null}
             {canWrite && item.restorable && !locked ? (
-              <Button variant="secondary" onClick={() => setConfirm(item)}>
+              <Button
+                variant="secondary"
+                onClick={(event) => {
+                  restoreOpenerRef.current = event.currentTarget;
+                  setConfirm(item);
+                }}
+              >
                 {t('editor.history.restore', 'Restore')}
               </Button>
             ) : null}
@@ -609,7 +617,15 @@ export const HistoryModal = ({
           ) : null}
         </Footer>
       </Modal.Content>
-      <Dialog.Root open={Boolean(confirm)} onOpenChange={(open) => !open && !restoring && setConfirm(null)}>
+      <Dialog.Root
+        open={Boolean(confirm)}
+        onOpenChange={(open) => {
+          if (open || restoring) return;
+          setConfirm(null);
+          // 2.7.8: Cancel or Escape returns focus to the Restore button that asked.
+          refocusLater(restoreOpenerRef.current);
+        }}
+      >
         {confirm ? (
           <ConfirmDialog
             title={t('editor.history.confirmTitle', 'Restore version {version}?', {

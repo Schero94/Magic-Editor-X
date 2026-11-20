@@ -11,6 +11,7 @@ import {
 } from '@strapi/design-system';
 import { Cross } from '@strapi/icons';
 import styled from 'styled-components';
+import { closeOnEscape, usePanelAutoFocus } from './usePanelFocus';
 import { API, readApiError } from '../../utils/api';
 import {
   collectSegments,
@@ -143,6 +144,7 @@ export const afterReplacement = (matches, applied, replacement) => {
  * @param {(match: object|null, occurrence?: number) => void} props.onSelect - Highlights a match (null clears).
  * @param {() => void} props.onClose - Closes the panel.
  * @param {boolean} [props.readOnly] - No "Apply" buttons.
+ * @param {boolean} [props.autoFocus=true] - 2.7.8: the panel opens from More tools; its heading takes focus.
  * @returns {JSX.Element} Panel.
  */
 export const GrammarPanel = ({
@@ -154,12 +156,15 @@ export const GrammarPanel = ({
   onSelect,
   onClose,
   readOnly = false,
+  autoFocus = true,
 }) => {
   const [state, setState] = useState({ status: 'idle', matches: [], parts: [], truncated: false, error: '' });
   const [current, setCurrent] = useState(null);
   const [announcement, setAnnouncement] = useState('');
   const [notice, setNotice] = useState('');
   const abortRef = useRef(null);
+  const headingRef = useRef(null);
+  usePanelAutoFocus(autoFocus, headingRef);
 
   useEffect(
     () => () => {
@@ -298,11 +303,12 @@ export const GrammarPanel = ({
       hasRadius
       minWidth={0}
       data-testid="mex-grammar-panel"
+      onKeyDown={(event) => closeOnEscape(event, onClose)}
     >
       <Flex direction="column" alignItems="stretch" gap={4}>
         <Flex justifyContent="space-between" alignItems="flex-start" gap={2}>
           <Flex direction="column" alignItems="flex-start" gap={1} minWidth={0}>
-            <Typography variant="delta" tag="h3">
+            <Typography variant="delta" tag="h3" ref={headingRef} tabIndex={-1}>
               {t('editor.grammar.title', 'Grammar check')}
             </Typography>
             <Typography variant="pi" textColor="neutral600">

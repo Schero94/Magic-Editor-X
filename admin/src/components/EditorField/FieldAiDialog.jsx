@@ -21,6 +21,7 @@ import {
   readSegment,
   segmentPlainText,
 } from '../../../../shared/ai-fields.mjs';
+import { aiErrorEntry } from '../../editor/ai-errors.mjs';
 
 /**
  * Whole-field AI actions (2.3): translate every text of the field or
@@ -32,15 +33,9 @@ import {
  * paragraph.
  */
 
+/** Codes this dialog words differently from the shared AI messages (`editor/ai-errors.mjs`). */
 const ERROR_MESSAGES = {
-  DISABLED: ['editor.ai.error.disabled', 'The AI assistant is turned off.'],
   FIELD_ACTIONS_DISABLED: ['editor.aiField.error.off', 'Whole-field AI actions are turned off.'],
-  NOT_CONFIGURED: ['editor.ai.error.notConfigured', 'The AI assistant is not configured yet.'],
-  NO_API_KEY: ['editor.ai.error.noKey', 'The AI provider key is missing.'],
-  AUTH_FAILED: ['editor.ai.error.auth', 'The AI provider rejected the key.'],
-  PROVIDER_RATE_LIMIT: ['editor.ai.error.busy', 'The AI provider is busy. Try again later.'],
-  TIMEOUT: ['editor.ai.error.timeout', 'The AI provider did not answer in time.'],
-  REFUSED: ['editor.ai.error.refused', 'The AI provider declined this request.'],
   BAD_RESPONSE: ['editor.aiField.error.format', 'The answer had an unexpected format. Nothing changed.'],
 };
 
@@ -152,7 +147,7 @@ export const FieldAiDialog = ({
       if (abort.current && abort.current.signal.aborted) return;
       const info = error && error.mismatch ? { code: 'BAD_RESPONSE' } : readApiError(error);
       const [key, text] =
-        ERROR_MESSAGES[info.code] ||
+        aiErrorEntry(info.code, ERROR_MESSAGES) ||
         (info.status === 429
           ? ['editor.ai.error.rateLimit', 'You sent many requests. Try again in a minute.']
           : info.status === 413

@@ -16,7 +16,7 @@ import styled from 'styled-components';
 import { extractLinks } from '../../../../shared/quality.mjs';
 import { API, readApiError } from '../../utils/api';
 import { useQualityIssues } from './useQualityIssues';
-import { usePanelAutoFocus } from './usePanelFocus';
+import { closeOnEscape, refocusIfLost, usePanelAutoFocus } from './usePanelFocus';
 
 /**
  * Quality panel of one editor field: accessibility issues of the current
@@ -229,6 +229,7 @@ export const QualityPanel = ({
   const [announcement, setAnnouncement] = useState('');
   const requestRef = useRef(0);
   const headingRef = useRef(null);
+  const checkButtonRef = useRef(null);
   usePanelAutoFocus(autoFocus, headingRef);
   const links = useMemo(() => extractLinks(data), [data]);
   const linkCount = links.internal.length + links.external.length + links.media.length;
@@ -263,18 +264,21 @@ export const QualityPanel = ({
         external: [],
       };
       if (!externalEnabled) result.external = links.external.map(({ url }) => ({ url, status: 'skipped' }));
-      const problems = [...result.internal, ...result.media, ...result.external].filter((item) =>
-        PROBLEMS.has(item.status)
-      ).length;
+      const all = [...result.internal, ...result.media, ...result.external];
+      const problems = all.filter((item) => PROBLEMS.has(item.status)).length;
+      // 2.7.8: "no problems" only when something was checked (external links may all be skipped).
+      const checked = all.filter((item) => item.status !== 'skipped').length;
       setCheck({ state: 'done', result, message: '' });
       setAnnouncement(
-        t(
-          'editor.quality.links.done',
-          'Link check finished: {count, plural, =0 {no problems} one {# problem} other {# problems}}',
-          {
-            count: problems,
-          }
-        )
+        checked === 0
+          ? t('editor.quality.links.noneChecked', 'No links were checked.')
+          : t(
+              'editor.quality.links.done',
+              'Link check finished: {count, plural, =0 {no problems} one {# problem} other {# problems}}',
+              {
+                count: problems,
+              }
+            )
       );
     } catch (error) {
       if (requestRef.current !== id) return;
@@ -285,6 +289,9 @@ export const QualityPanel = ({
           : t('editor.quality.links.failed', 'The links could not be checked.');
       setCheck({ state: 'error', result: null, message });
       setAnnouncement(message);
+    } finally {
+      // 2.7.8: the button is disabled while it loads, which dropped focus to the page body.
+      if (requestRef.current === id) refocusIfLost(checkButtonRef);
     }
   }, [externalEnabled, fetchClient, links, t]);
 
@@ -489,6 +496,7 @@ export const QualityPanel = ({
       borderColor="neutral200"
       hasRadius
       minWidth={0}
+      onKeyDown={onClose ? (event) => closeOnEscape(event, onClose) : undefined}
     >
       <Flex direction="column" alignItems="stretch" gap={4}>
         <Flex justifyContent="space-between" alignItems="flex-start" gap={2}>
@@ -593,6 +601,7 @@ export const QualityPanel = ({
               {t('editor.quality.links.title', 'Links and media')}
             </Typography>
             <Button
+              ref={checkButtonRef}
               variant="secondary"
               size="S"
               onClick={runCheck}

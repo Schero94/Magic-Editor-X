@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { usePanelAutoFocus } from './usePanelFocus';
+import { useClaimLostFocus, usePanelAutoFocus } from './usePanelFocus';
+import { nameExcerpt } from './CommentThread';
 import { useIntl } from 'react-intl';
 import {
   Badge,
@@ -70,6 +71,18 @@ const Deleted = styled.del`
 `;
 
 const MAX_VALUE_CHARS = 200;
+
+/**
+ * Plain text of a block for accessible names (2.7.8).
+ * @param {object|null} block - Block.
+ * @returns {string} Text (empty for blocks without text).
+ */
+const blockPlainText = (block) => {
+  if (!block || !block.data) return '';
+  const data = block.data;
+  const value = data.text || data.caption || data.title || data.code || '';
+  return typeof value === 'string' ? value : '';
+};
 
 const OPS = {
   update: { key: 'editor.suggestions.op.update', text: 'Change', tone: 'warning600' },
@@ -234,6 +247,8 @@ export const SuggestionsPanel = ({
   const [announcement, setAnnouncement] = useState('');
   const headingRef = useRef(null);
   usePanelAutoFocus(autoFocus, headingRef);
+  // 2.7.8: opened after a reviewer sent suggestions (the suggest editor that had focus is gone).
+  useClaimLostFocus(headingRef);
   const cardRefs = useRef(new Map());
   const { loaded, error, counts, actions, newFromOthers, clearNew } = suggestions;
 
@@ -412,6 +427,12 @@ export const SuggestionsPanel = ({
           const after = suggestion.op === 'delete' ? null : suggestion.proposed;
           const decidable = canDecide && state !== 'missing';
           const working = busy === suggestion.id || busy === 'all';
+          // 2.7.8: repeated actions get names that say which suggestion they act on.
+          const named = {
+            name: authorName(suggestion),
+            op: t(op.key, op.text),
+            excerpt: nameExcerpt(blockPlainText(after || before)),
+          };
           return (
             <li key={suggestion.id}>
               <Card
@@ -473,7 +494,16 @@ export const SuggestionsPanel = ({
                     {decidable && state === 'outdated' ? (
                       <ConfirmAction
                         trigger={
-                          <Button size="S" variant="success-light" disabled={working}>
+                          <Button
+                            size="S"
+                            variant="success-light"
+                            disabled={working}
+                            aria-label={t(
+                              'editor.suggestions.acceptNamed',
+                              'Accept suggestion by {name}: {op}, {excerpt}',
+                              named
+                            )}
+                          >
                             {t('editor.suggestions.accept', 'Accept')}
                           </Button>
                         }
@@ -499,6 +529,11 @@ export const SuggestionsPanel = ({
                         loading={busy === suggestion.id}
                         disabled={working}
                         data-testid="mex-suggestion-accept"
+                        aria-label={t(
+                          'editor.suggestions.acceptNamed',
+                          'Accept suggestion by {name}: {op}, {excerpt}',
+                          named
+                        )}
                       >
                         {t('editor.suggestions.accept', 'Accept')}
                       </Button>
@@ -510,6 +545,11 @@ export const SuggestionsPanel = ({
                         onClick={() => reject(item)}
                         disabled={working}
                         data-testid="mex-suggestion-reject"
+                        aria-label={t(
+                          'editor.suggestions.rejectNamed',
+                          'Reject suggestion by {name}: {op}, {excerpt}',
+                          named
+                        )}
                       >
                         {t('editor.suggestions.reject', 'Reject')}
                       </Button>
@@ -517,7 +557,16 @@ export const SuggestionsPanel = ({
                     {suggestion.author.own ? (
                       <ConfirmAction
                         trigger={
-                          <Button size="S" variant="tertiary" disabled={working}>
+                          <Button
+                            size="S"
+                            variant="tertiary"
+                            disabled={working}
+                            aria-label={t(
+                              'editor.suggestions.withdrawNamed',
+                              'Withdraw suggestion: {op}, {excerpt}',
+                              named
+                            )}
+                          >
                             {t('editor.suggestions.withdraw', 'Withdraw')}
                           </Button>
                         }
@@ -535,6 +584,11 @@ export const SuggestionsPanel = ({
                       <Button
                         variant="ghost"
                         size="S"
+                        aria-label={t(
+                          'editor.suggestions.showNamed',
+                          'Show block of the suggestion by {name}: {op}, {excerpt}',
+                          named
+                        )}
                         onClick={() =>
                           onSelectBlock(
                             suggestion.op === 'insert'
