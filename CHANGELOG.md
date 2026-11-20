@@ -1,6 +1,12 @@
 # Changelog
 
-## [Unreleased]
+# [2.8.0](https://github.com/Schero94/Magic-Editor-X/compare/v2.7.7...v2.8.0) (2026-11-20)
+
+
+### Features
+
+* generate TypeScript types per field preset and custom block ([#37](https://github.com/Schero94/Magic-Editor-X/issues/37)) ([8bff3c9](https://github.com/Schero94/Magic-Editor-X/commit/8bff3c9b921a6da449e0f1a7feb1d02d56533e13))
+
 
 ### Added
 
