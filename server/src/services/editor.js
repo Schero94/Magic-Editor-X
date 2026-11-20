@@ -7,7 +7,7 @@ const path = require('node:path');
 const { isUtf8 } = require('node:buffer');
 const zlib = require('node:zlib');
 const ogs = require('open-graph-scraper');
-const { fetchBounded, validateHttpUrl } = require('../utils/url-security');
+const { fetchBounded, privateOriginOptions, validateHttpUrl } = require('../utils/url-security');
 
 /**
  * Editor helpers: link previews, uploads into the Strapi Media Library and the
@@ -319,16 +319,19 @@ module.exports = ({ strapi }, dependencies = {}) => {
    * Fetch options for a by-URL upload. An origin the owner listed in
    * `uploads.allowPrivateOrigins` (exact `URL.origin`) may be private or
    * loopback (intranet media server, test server); redirects from it are never
-   * followed. Every other URL must be public.
+   * followed, the connection is pinned to the resolved address, and
+   * link-local or cloud metadata addresses stay refused, also when a listed
+   * host name resolves to them (`privateOriginOptions`, shared with
+   * `ai.altText.allowPrivateOrigins` and the link check). Every other URL must
+   * be public.
    * @param {URL} target - Validated URL.
    * @returns {object} Options for fetchBounded.
+   * @throws {Error} 400 when a listed origin points at a metadata or link-local address.
    */
-  const originOptions = (target) => {
-    const allowed = config('uploads.allowPrivateOrigins', []);
-    return Array.isArray(allowed) && allowed.includes(target.origin)
-      ? { allowPrivate: true, maxRedirects: 0 }
-      : { maxRedirects: 2 };
-  };
+  const originOptions = (target) =>
+    privateOriginOptions(target.href, config('uploads.allowPrivateOrigins', []), {
+      resolve: dependencies.lookup,
+    }) || { maxRedirects: 2 };
 
   /**
    * Parses an outbound URL; with a listed private origin the private-address check is skipped.
@@ -432,6 +435,43 @@ module.exports = ({ strapi }, dependencies = {}) => {
     return file;
   };
 
+  let integrityWarned = false;
+
+  /**
+   * Refuses a raster image whose pixel data cannot be decoded, with the same
+   * check the Media Library uses (`plugin::upload` `image-manipulation`:
+   * `isImage` reads the header with sharp, `isFaultyImage` decodes the pixels
+   * with sharp's default `failOn: 'warning'`). Strapi's upload service only
+   * runs it for files sharp already recognises, so a JPEG, GIF or WebP with a
+   * valid signature and broken data was stored. PNG keeps its own CRC check.
+   * @param {string} filepath - Temporary file.
+   * @param {string} mime - Detected type.
+   * @param {string} message - 400 message.
+   * @returns {Promise<void>}
+   * @throws {Error} 400 when the image is damaged.
+   */
+  const assertIntactImage = async (filepath, mime, message) => {
+    if (!IMAGE_MIMES.has(mime) || mime === 'image/png') return;
+    let manipulation;
+    try {
+      manipulation = strapi.plugin('upload').service('image-manipulation');
+    } catch {
+      manipulation = null;
+    }
+    if (
+      !manipulation ||
+      typeof manipulation.isImage !== 'function' ||
+      typeof manipulation.isFaultyImage !== 'function'
+    ) {
+      if (!integrityWarned) strapi.log.warn('[magic-editor-x] image integrity check unavailable');
+      integrityWarned = true;
+      return;
+    }
+    const file = { filepath, getStream: () => fileSystem.createReadStream(filepath) };
+    if (!(await manipulation.isImage(file)) || (await manipulation.isFaultyImage(file)))
+      throw httpError(message, 400);
+  };
+
   const imageResponse = (file) => ({
     success: 1,
     file: {
@@ -503,6 +543,7 @@ module.exports = ({ strapi }, dependencies = {}) => {
       if (!mime) throw httpError('The file is not a supported image', 400);
       if (mime === 'image/png' && !isIntactPng(await fileSystem.promises.readFile(filepath)))
         throw httpError('The image file is damaged', 400);
+      await assertIntactImage(filepath, mime, 'The image file is damaged');
       // The stored extension follows the detected type, never the client's file name.
       const name = withExtension(
         safeFilename(file.originalFilename || file.name, 'image'),
@@ -544,6 +585,7 @@ module.exports = ({ strapi }, dependencies = {}) => {
       const filepath = path.join(directory, 'upload');
       try {
         await fileSystem.promises.writeFile(filepath, downloaded.body, { flag: 'wx', mode: 0o600 });
+        await assertIntactImage(filepath, mime, 'The image file is damaged');
         const uploaded = await toMediaLibrary(
           {
             filepath,
@@ -650,6 +692,9 @@ module.exports = ({ strapi }, dependencies = {}) => {
       );
       if (!matchesAttachmentSignature(extension, mime, head))
         throw httpError('The file content does not match its type', 400);
+      if (mime === 'image/png' && !isIntactPng(await fileSystem.promises.readFile(filepath)))
+        throw httpError('The file is damaged or not a valid file of its type', 400);
+      await assertIntactImage(filepath, mime, 'The file is damaged or not a valid file of its type');
       const uploaded = await toMediaLibrary(
         { filepath, originalFilename: name, mimetype: mime, detectedMimeType: mime, size },
         user

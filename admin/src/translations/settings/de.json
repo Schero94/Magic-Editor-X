@@ -6,6 +6,7 @@
   "settings.ai.enabled.privacy": "Wenn eine Redakteurin oder ein Redakteur eine KI-Aktion ausführt, wird der markierte Text an {provider} gesendet. Solange der Assistent aus ist, wird nichts gesendet.",
   "settings.ai.key.cannotStoreHint": "Setzen Sie MAGIC_EDITOR_X_ENCRYPTION_KEY (mindestens 32 Zeichen) auf dem Server, um hier einen Schlüssel zu speichern, oder übergeben Sie ai.apiKey in config/plugins.js.",
   "settings.ai.key.environmentHint": "Die Einstellung ai.apiKey in config/plugins.js wird verwendet und hat Vorrang vor einem gespeicherten Schlüssel.",
+  "settings.ai.key.environmentOtherHint": "Der Schlüssel aus ai.apiKey in config/plugins.js wird nur an {baseUrls} gesendet. Geben Sie für diese Basis-URL einen Schlüssel ein.",
   "settings.ai.key.hint": "Leer lassen, um den gespeicherten Schlüssel zu behalten. Nach dem Speichern wird der Schlüssel nie wieder angezeigt.",
   "settings.ai.key.keep": "Gespeicherten Schlüssel behalten",
   "settings.ai.key.label": "API-Schlüssel",

@@ -15,7 +15,7 @@ import {
 import { prepareBlocks, resolveMedia, overrideFor, scalarFields, annotateHeadings } from './common.mjs';
 import { buildTocTree } from '../toc.mjs';
 import { groupColumnItems } from '../columns.mjs';
-import { createFootnoteNumbers, footnoteOptions } from './math-notes.mjs';
+import { MATH_BLOCK_START, createFootnoteNumbers, footnoteOptions } from './math-notes.mjs';
 
 /**
  * Footnotes of the Markdown render in progress (2.4); see `text.mjs`.
@@ -65,6 +65,7 @@ const displayMath = (tex) => {
     tex
       .split('\n')
       .filter((line) => line.trim())
+      .map((line, index) => (index > 0 && MATH_BLOCK_START.test(line) ? `    ${line}` : line))
       .join('\n')
       .trim()
   );
@@ -145,49 +146,234 @@ const codeSpan = (code) => {
 const rawText = (nodes) =>
   nodes.map((n) => (n.type === 'text' ? n.value : n.tag === 'br' ? '\n' : rawText(n.children))).join('');
 
+/** Emphasis kind of the inline tags Markdown writes with delimiter runs. */
+const MARK_KINDS = Object.freeze({ b: 'strong', strong: 'strong', i: 'em', em: 'em', s: 'del' });
+
+const isBreak = (node) => node.type === 'element' && node.tag === 'br';
+const isBlankText = (node) => node.type === 'text' && !node.value.trim();
+const isCodeNode = (node) => node.type === 'element' && node.tag === 'code';
+
 /**
- * Markdown of parsed inline nodes.
- * @param {Array} nodes - Parsed nodes.
+ * Emphasis kind of a node (`strong`, `em`, `del`) or null.
+ * @param {object} node - Parsed node.
+ * @returns {string|null} Kind.
+ */
+const markKind = (node) =>
+  node.type === 'element' && !isMathNode(node) && !isFootnoteNode(node) ? MARK_KINDS[node.tag] || null : null;
+
+/**
+ * Appends a node, merging it into the previous one when Markdown would write
+ * them as one run: adjacent text, adjacent code spans (`` `a``b` `` is one
+ * span with two backticks inside) and adjacent marks of one kind
+ * (`**a****b**` is not bold in CommonMark). Merged nodes are copies.
+ * @param {Array<object>} list - Normalised siblings (changed in place).
+ * @param {object} node - Next node.
+ * @param {WeakSet<object>} own - Nodes created here (safe to change).
+ */
+const pushMerged = (list, node, own) => {
+  const prev = list[list.length - 1];
+  const kind = markKind(node);
+  const merges =
+    prev &&
+    ((prev.type === 'text' && node.type === 'text') ||
+      (isCodeNode(prev) && isCodeNode(node)) ||
+      (kind !== null && markKind(prev) === kind));
+  if (!merges) {
+    list.push(node);
+    return;
+  }
+  let target = prev;
+  if (!own.has(target)) {
+    target = prev.type === 'text' ? { ...prev } : { ...prev, children: prev.children.slice() };
+    own.add(target);
+    list[list.length - 1] = target;
+  }
+  if (node.type === 'text') target.value += node.value;
+  else if (isCodeNode(node)) target.children.push(...node.children);
+  else for (const child of node.children) pushMerged(target.children, child, own);
+};
+
+/**
+ * Normalises inline nodes for Markdown emphasis: a mark inside a mark of the
+ * same kind (and a link inside a link) is unwrapped, adjacent runs are merged (see `pushMerged`), and
+ * line breaks at the start or end of a mark move outside it, because the `\`
+ * of a hard break before a closing delimiter would escape it.
+ * @param {Array<object>} nodes - Parsed nodes.
+ * @param {Set<string>} [active] - Mark kinds of the ancestors.
+ * @param {WeakSet<object>} [own] - Nodes created here.
+ * @returns {Array<object>} Normalised nodes (the input is never changed).
+ */
+const normalizeMarks = (nodes, active = new Set(), own = new WeakSet()) => {
+  const out = [];
+  for (const node of nodes) {
+    const kind = markKind(node);
+    if (
+      node.type !== 'element' ||
+      isBreak(node) ||
+      isCodeNode(node) ||
+      isMathNode(node) ||
+      isFootnoteNode(node)
+    ) {
+      pushMerged(out, node, own);
+      continue;
+    }
+    // A link inside a link cannot be written in Markdown (the inner one would win): only its text is kept.
+    const scope = kind || (node.tag === 'a' ? 'link' : null);
+    const nested = Boolean(scope) && active.has(scope);
+    const children = normalizeMarks(
+      node.children,
+      scope && !nested ? new Set([...active, scope]) : active,
+      own
+    );
+    if (nested) {
+      for (const child of children) pushMerged(out, child, own);
+      continue;
+    }
+    // Breaks at the edges of a mark or link move outside it (`**x\\**` and `[x\\](u)` break).
+    let start = 0;
+    let end = children.length;
+    const edge = (child) => isBreak(child) || isBlankText(child);
+    if (children.some(isBreak)) {
+      while (start < end && edge(children[start])) start += 1;
+      while (end > start && edge(children[end - 1])) end -= 1;
+    }
+    for (const child of children.slice(0, start)) pushMerged(out, child, own);
+    if (end > start || !kind) {
+      const copy = { ...node, children: children.slice(start, end) };
+      own.add(copy);
+      pushMerged(out, copy, own);
+    }
+    for (const child of children.slice(end)) pushMerged(out, child, own);
+  }
+  return out;
+};
+
+/**
+ * Drops line breaks (and blank text around them) at the start and end of a
+ * text: a hard break needs text after it, so a trailing `<br>` left a literal
+ * `\` at the end of the paragraph, heading, list item or cell.
+ * @param {Array<object>} nodes - Normalised nodes.
+ * @returns {Array<object>} Nodes.
+ */
+const trimBreaks = (nodes) => {
+  let start = 0;
+  let end = nodes.length;
+  while (start < end && (isBreak(nodes[start]) || isBlankText(nodes[start]))) start += 1;
+  while (end > start && (isBreak(nodes[end - 1]) || isBlankText(nodes[end - 1]))) end -= 1;
+  return start === 0 && end === nodes.length ? nodes : nodes.slice(start, end);
+};
+
+/** Letters and digits: `_` does not open or close emphasis next to them. */
+const WORD_CHAR = /[\p{L}\p{N}]/u;
+
+/**
+ * Markdown of one parsed inline node. Bold and italic return their content
+ * only; the caller picks the delimiter from the neighbours.
+ * @param {object} node - Parsed node.
+ * @param {object} options - Render options (`links`).
+ * @returns {string|{ italic: string }|{ strong: string }} Markdown.
+ */
+const nodeToMarkdown = (node, options) => {
+  if (node.type === 'text') return escapeMarkdown(node.value);
+  if (isMathNode(node)) return inlineMath(nodesToText(node.children));
+  if (isFootnoteNode(node)) {
+    if (!notes) return '';
+    const { n } = notes.numbers.add(node.attrs['data-mex-footnote']);
+    const label = `${notes.prefix}${n}`;
+    notes.items.push({ label, note: node.note || [] });
+    return `[^${label}]`;
+  }
+  const inner = () => nodesToMarkdown(node.children, options);
+  switch (node.tag) {
+    case 'br':
+      return '\\\n';
+    case 'b':
+    case 'strong':
+      return { strong: inner() };
+    case 'i':
+    case 'em':
+      return { italic: inner() };
+    case 's':
+      return wrap('~~', inner());
+    case 'code':
+      return codeSpan(rawText(node.children));
+    case 'a': {
+      const attrs = resolveLinkAttributes(node.attrs, options.links);
+      const text = inner();
+      if (!attrs || !attrs.href) return text;
+      return `[${text || escapeMarkdown(attrs.href)}](${linkUrl(attrs.href)}${linkTitle(attrs.title)})`;
+    }
+    default:
+      return inner();
+  }
+};
+
+/** Punctuation and symbols (CommonMark's punctuation for flanking rules). */
+const PUNCTUATION = /[\p{P}\p{S}]/u;
+
+/** An `_` delimiter (text underscores are escaped as `\_`; code spans are removed first). */
+const UNESCAPED_UNDERSCORE = /(?:^|[^\\])_/;
+const CODE_SPAN = /(`+)[^`]*?\1/g;
+
+/**
+ * True when Markdown contains an `_` emphasis delimiter outside code spans.
+ * @param {string} markdown - Inline Markdown.
+ * @returns {boolean} Result.
+ */
+const hasUnderscoreDelimiter = (markdown) => UNESCAPED_UNDERSCORE.test(markdown.replace(CODE_SPAN, ''));
+
+/**
+ * Markdown of normalised inline nodes. Italic is `_x_`, or `*x*` next to a
+ * letter or digit, where `_` cannot open or close emphasis (`a_b_c`). Bold is
+ * `**x**`, or `__x__` when it ends in punctuation right before `~~`, which
+ * marked does not close with `*` (CommonMark itself allows both).
+ * @param {Array} nodes - Normalised nodes (see `normalizeMarks`).
  * @param {object} options - Render options (`links`).
  * @returns {string} Markdown.
  */
-const nodesToMarkdown = (nodes, options) =>
-  nodes
-    .map((node) => {
-      if (node.type === 'text') return escapeMarkdown(node.value);
-      if (isMathNode(node)) return inlineMath(nodesToText(node.children));
-      if (isFootnoteNode(node)) {
-        if (!notes) return '';
-        const { n } = notes.numbers.add(node.attrs['data-mex-footnote']);
-        const label = `${notes.prefix}${n}`;
-        notes.items.push({ label, note: node.note || [] });
-        return `[^${label}]`;
-      }
-      const inner = () => nodesToMarkdown(node.children, options);
-      switch (node.tag) {
-        case 'br':
-          return '\\\n';
-        case 'b':
-        case 'strong':
-          return wrap('**', inner());
-        case 'i':
-        case 'em':
-          return wrap('_', inner());
-        case 's':
-          return wrap('~~', inner());
-        case 'code':
-          return codeSpan(rawText(node.children));
-        case 'a': {
-          const attrs = resolveLinkAttributes(node.attrs, options.links);
-          const text = inner();
-          if (!attrs || !attrs.href) return text;
-          return `[${text || escapeMarkdown(attrs.href)}](${linkUrl(attrs.href)}${linkTitle(attrs.title)})`;
-        }
-        default:
-          return inner();
-      }
-    })
-    .join('');
+const nodesToMarkdown = (nodes, options) => {
+  const parts = nodes.map((node) => nodeToMarkdown(node, options));
+  const firstChar = (part) => {
+    if (!part) return '';
+    if (typeof part === 'string') return part.slice(0, 1);
+    return '*';
+  };
+  let out = '';
+  parts.forEach((part, index) => {
+    if (typeof part === 'string') {
+      // `!` right before a link or footnote would turn it into an image.
+      if (part.startsWith('[') && out.endsWith('!')) out = `${out.slice(0, -1)}\\!`;
+      out += part;
+      return;
+    }
+    const before = out.slice(-1);
+    const after = firstChar(parts[index + 1]);
+    if (typeof part.italic === 'string') {
+      // `*` inside a word, and around `__` (marked does not pair `_` with a `__` inside it).
+      const star = WORD_CHAR.test(before) || WORD_CHAR.test(after) || hasUnderscoreDelimiter(part.italic);
+      out += wrap(star ? '*' : '_', part.italic);
+      return;
+    }
+    const inner = part.strong.trimEnd();
+    const underscore =
+      after === '~' &&
+      inner === part.strong &&
+      PUNCTUATION.test(inner.slice(-1)) &&
+      !WORD_CHAR.test(before) &&
+      !hasUnderscoreDelimiter(inner);
+    out += wrap(underscore ? '__' : '**', part.strong);
+  });
+  return out;
+};
+
+/**
+ * Markdown of parsed inline nodes, normalised for CommonMark emphasis and
+ * without line breaks at the ends.
+ * @param {Array} nodes - Parsed nodes.
+ * @param {object} options - Render options.
+ * @returns {string} Markdown.
+ */
+const inlineMarkdown = (nodes, options) => nodesToMarkdown(trimBreaks(normalizeMarks(nodes)), options);
 
 /**
  * Markdown of inline HTML.
@@ -195,7 +381,7 @@ const nodesToMarkdown = (nodes, options) =>
  * @param {object} options - Render options.
  * @returns {string} Markdown (trimmed).
  */
-const md = (html, options) => nodesToMarkdown(parseInline(html), options).trim();
+const md = (html, options) => inlineMarkdown(parseInline(html), options).trim();
 
 /** One line: line breaks become spaces (headings, table cells). */
 const oneLine = (text) => text.replace(/\\\n/g, ' ').replace(/\n/g, ' ');
@@ -213,6 +399,43 @@ const prefixLines = (text, prefix) =>
     .join('\n');
 
 /**
+ * Render option (internal): write the top-level list with `*` bullets or `1)`
+ * numbers. CommonMark joins two lists with the same bullet or delimiter into
+ * one even across a blank line, so a list block right after another one uses
+ * the other marker and stays a list of its own.
+ */
+const LIST_ALT = Symbol('magic-editor-x.markdown.listAlt');
+
+/** First list marker of a line: the bullet (`-`, `*`, `+`) or the number delimiter (`.`, `)`). */
+const LIST_START = /^(?:([-*+])|\d{1,9}([.)]))(?:[ \t]|$)/;
+
+/**
+ * List marker a block starts with, or null.
+ * @param {string} text - Markdown of one block.
+ * @returns {string|null} Marker.
+ */
+const firstListMarker = (text) => {
+  const match = LIST_START.exec(text.split('\n', 1)[0]);
+  return match ? match[1] || match[2] : null;
+};
+
+/**
+ * List marker of the last top-level line when a block ends with a list, or null.
+ * @param {string} text - Markdown of one block.
+ * @returns {string|null} Marker.
+ */
+const lastListMarker = (text) => {
+  const lines = text.split('\n');
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    const line = lines[index];
+    if (!line.trim() || /^[ \t]/.test(line)) continue;
+    const match = LIST_START.exec(line);
+    return match ? match[1] || match[2] : null;
+  }
+  return null;
+};
+
+/**
  * Markdown list lines; nested lists are indented to the content column.
  * @param {Array} items - Clean items.
  * @param {string} style - List style.
@@ -224,11 +447,14 @@ const prefixLines = (text, prefix) =>
  */
 const listLines = (items, style, start, options, indent, depth) => {
   const lines = [];
+  // The other list markers of CommonMark when the previous block ended with a list of the same kind.
+  const alt = depth === 0 && options[LIST_ALT] === true;
+  const bullet = alt ? '*' : '-';
   items.forEach((item, index) => {
     const content = typeof item === 'string' ? item : item.content;
-    let marker = '-';
-    if (style === 'ordered') marker = `${start + index}.`;
-    else if (style === 'checklist') marker = `- [${item.meta && item.meta.checked ? 'x' : ' '}]`;
+    let marker = bullet;
+    if (style === 'ordered') marker = `${start + index}${alt ? ')' : '.'}`;
+    else if (style === 'checklist') marker = `${bullet} [${item.meta && item.meta.checked ? 'x' : ' '}]`;
     const childIndent = `${indent}${' '.repeat((style === 'checklist' ? 2 : marker.length) + 1)}`;
     const text = md(content, options).replace(/\n/g, `\n${childIndent}`);
     lines.push(`${indent}${marker} ${text}`.trimEnd());
@@ -302,7 +528,9 @@ const RENDERERS = {
     ).join('\n'),
   checklist: (b, o) =>
     b.data.items
-      .map((item) => `- [${item.checked ? 'x' : ' '}] ${oneLine(md(item.text, o))}`.trimEnd())
+      .map((item) =>
+        `${o[LIST_ALT] === true ? '*' : '-'} [${item.checked ? 'x' : ' '}] ${oneLine(md(item.text, o))}`.trimEnd()
+      )
       .join('\n'),
   warning: (b, o) => {
     const title = md(b.data.title, o);
@@ -424,13 +652,15 @@ const RENDERERS = {
   math: (b) => (b.data.display === false ? inlineMath(b.data.tex) : displayMath(b.data.tex)),
   // Component blocks (2.5): site-specific; nothing unless `overrides.component` returns Markdown.
   component: () => '',
-  toc: (b) => {
+  toc: (b, o) => {
     const tree = buildTocTree(b.headings || [], b.data);
     if (!tree.length) return '';
     const ordered = b.data.style === 'ordered';
+    const alt = o[LIST_ALT] === true;
     const lines = (nodes, indent) =>
       nodes.flatMap((node, index) => {
-        const marker = ordered ? `${index + 1}.` : '-';
+        const top = alt && indent === '';
+        const marker = ordered ? `${index + 1}${top ? ')' : '.'}` : top ? '*' : '-';
         const text = escapeMarkdown(node.text);
         // Markdown has no heading ids of its own: entries link to the GitHub-style slug
         // that Markdown renderers (GitHub, markdown-it-anchor, rehype-slug) give the heading.
@@ -510,7 +740,7 @@ export const renderMarkdown = (value, options = {}) => {
     const markdown = renderContent(value, opts);
     if (!notes.items.length) return markdown;
     const definitions = notes.items.map((item) => {
-      const body = nodesToMarkdown(item.note, opts).trim().replace(/\n/g, '\n    ');
+      const body = inlineMarkdown(item.note, opts).trim().replace(/\n/g, '\n    ');
       return `[^${item.label}]: ${body}`.trimEnd();
     });
     return [markdown, definitions.join('\n')].filter(Boolean).join('\n\n');
@@ -526,31 +756,55 @@ export const renderMarkdown = (value, options = {}) => {
  * @returns {string} Markdown.
  */
 const renderContent = (value, opts) => {
-  const render = (blocks) =>
-    blocks
-      .map((block) => {
-        const override = overrideFor(opts, block.type);
-        if (override) {
-          const out = override(
-            {
-              id: block.id,
-              type: block.type,
-              data: block.data,
-              tunes: block.tunes,
-              children: block.children,
-            },
-            { escape: escapeMarkdown, inline: (html) => md(html, opts), renderChildren: render }
-          );
-          if (typeof out === 'string') return out;
-        }
-        if (block.known) return RENDERERS[block.type](block, opts, render);
-        if (block.definition) return registeredMarkdown(block, opts);
-        return scalarFields(block.data)
-          .map(([, v]) => md(v, opts))
-          .filter(Boolean)
-          .join('\n\n');
-      })
-      .filter((text) => text && text.trim() !== '')
+  const renderBlock = (block, o) => {
+    const override = overrideFor(o, block.type);
+    if (override) {
+      const out = override(
+        {
+          id: block.id,
+          type: block.type,
+          data: block.data,
+          tunes: block.tunes,
+          children: block.children,
+        },
+        { escape: escapeMarkdown, inline: (html) => md(html, o), renderChildren: render }
+      );
+      if (typeof out === 'string') return out;
+    }
+    if (block.known) return RENDERERS[block.type](block, o, render);
+    if (block.definition) return registeredMarkdown(block, o);
+    return scalarFields(block.data)
+      .map(([, v]) => md(v, o))
+      .filter(Boolean)
       .join('\n\n');
+  };
+  /**
+   * Probes the list marker a block starts with, without recording its footnotes.
+   * @param {object} block - Prepared block.
+   * @returns {string|null} Marker.
+   */
+  const probeMarker = (block) => {
+    const real = notes;
+    notes = real ? { numbers: createFootnoteNumbers(), items: [], prefix: real.prefix } : null;
+    try {
+      const text = renderBlock(block, opts);
+      return typeof text === 'string' ? firstListMarker(text) : null;
+    } finally {
+      notes = real;
+    }
+  };
+  function render(blocks) {
+    const out = [];
+    let previous = null;
+    for (const block of blocks) {
+      // Two lists with the same marker would become one list: the second one uses the other marker.
+      const alt = previous !== null && probeMarker(block) === previous;
+      const text = renderBlock(block, alt ? { ...opts, [LIST_ALT]: true } : opts);
+      if (!text || text.trim() === '') continue;
+      out.push(text);
+      previous = lastListMarker(text);
+    }
+    return out.join('\n\n');
+  }
   return render(annotateHeadings(prepareBlocks(value, opts), opts));
 };

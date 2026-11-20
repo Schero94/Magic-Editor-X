@@ -10,6 +10,11 @@ const { paletteCss } = require('../../../shared/inline-format.mjs');
 const { paletteContrastIssues } = require('../../../shared/quality.mjs');
 const { paletteOf } = require('../utils/inline-policy');
 const { mcpStatus } = require('../mcp');
+const {
+  OFFICIAL_BASE_URLS,
+  environmentKeyBaseUrls,
+  environmentKeyCovers,
+} = require('../../../shared/ai-endpoint.mjs');
 
 /**
  * Admin-editable settings, stored in the plugin store under `settings`.
@@ -28,11 +33,7 @@ const { mcpStatus } = require('../mcp');
 
 const PROVIDERS = ['anthropic', 'openai', 'openai-compatible'];
 const DEFAULT_MODELS = { anthropic: 'claude-opus-5-5', openai: 'gpt-6-luna', 'openai-compatible': '' };
-const DEFAULT_BASE_URLS = {
-  anthropic: 'https://api.anthropic.com',
-  openai: 'https://api.openai.com',
-  'openai-compatible': '',
-};
+const DEFAULT_BASE_URLS = OFFICIAL_BASE_URLS;
 
 const DEFAULT_AI = {
   enabled: false,
@@ -181,6 +182,32 @@ module.exports = ({ strapi }) => {
   const effectiveBaseUrl = (ai) => (ai.baseUrl || DEFAULT_BASE_URLS[ai.provider] || '').replace(/\/+$/, '');
 
   /**
+   * The provider key from the plugin config (`ai.apiKey`), or null.
+   * @returns {string|null} Key.
+   */
+  const environmentKey = () => {
+    const value = config('ai.apiKey', undefined);
+    return typeof value === 'string' && value ? value : null;
+  };
+
+  /**
+   * Base URLs the environment key is configured for: `ai.apiKeyBaseUrl`, else
+   * the official Anthropic and OpenAI APIs. Empty without an environment key.
+   * @returns {string[]} Normalised base URLs.
+   */
+  const environmentKeyUrls = () =>
+    environmentKey() ? environmentKeyBaseUrls(config('ai.apiKeyBaseUrl', undefined)) : [];
+
+  /**
+   * True when the environment key may be sent with these settings. Like the
+   * stored key, it is never sent to another base URL: an admin who points the
+   * provider elsewhere must enter a key for that endpoint.
+   * @param {{ provider: string, baseUrl: string }} ai - Settings.
+   * @returns {boolean} Result.
+   */
+  const environmentKeyApplies = (ai) => environmentKeyCovers(ai, environmentKeyUrls());
+
+  /**
    * Validates a base URL against the SSRF policy without network access.
    * @param {string} url - Base URL.
    * @returns {void}
@@ -224,7 +251,8 @@ module.exports = ({ strapi }) => {
   const toDto = (raw) => {
     const key = getEncryptionKey(strapi);
     const { apiKeyEncrypted, ...ai } = raw.ai;
-    const envKey = Boolean(config('ai.apiKey', undefined));
+    // The environment key counts only for the endpoint it is configured for.
+    const envKey = environmentKeyApplies(raw.ai);
     const { apiKeyEncrypted: ltKey, ...languageTool } = raw.languageTool || DEFAULT_LANGUAGE_TOOL;
     return {
       coreBlocks: coreBlocksDto(),
@@ -238,7 +266,10 @@ module.exports = ({ strapi }) => {
       ai: {
         ...ai,
         hasApiKey: envKey || Boolean(apiKeyEncrypted),
+        hasStoredApiKey: Boolean(apiKeyEncrypted),
         apiKeyFromEnvironment: envKey,
+        // Base URLs the `ai.apiKey` key is sent to ([] without one); no key material.
+        apiKeyEnvironmentBaseUrls: environmentKeyUrls(),
         apiKeyUnreadable:
           !envKey && Boolean(apiKeyEncrypted) && (!key || decryptSecret(apiKeyEncrypted, key) === null),
         canStoreApiKey: Boolean(key),
@@ -434,10 +465,21 @@ module.exports = ({ strapi }) => {
           });
         }
         apiKeyEncrypted = encryptSecret(next.apiKey.trim(), key);
-      } else if (endpointChanged && current.apiKeyEncrypted) {
+      } else if (endpointChanged && environmentKeyApplies(next)) {
+        // The environment key is used there. A key stored for the previous endpoint is dropped,
+        // so it can never reach this one (for example after ai.apiKey is removed from the config).
+        apiKeyEncrypted = null;
+      } else if (endpointChanged && (current.apiKeyEncrypted || environmentKey())) {
+        // Neither the stored key nor the environment key is redirected to another endpoint.
         throw new errors.ValidationError('Validation failed', {
           formErrors: [],
-          fieldErrors: { 'ai.apiKey': ['Enter the API key again when you change the provider or base URL.'] },
+          fieldErrors: {
+            'ai.apiKey': [
+              current.apiKeyEncrypted
+                ? 'Enter the API key again when you change the provider or base URL.'
+                : 'Enter an API key for this base URL. The ai.apiKey key is only sent to the base URL it is configured for (ai.apiKeyBaseUrl).',
+            ],
+          },
         });
       }
 
@@ -509,19 +551,30 @@ module.exports = ({ strapi }) => {
 
     /**
      * Settings with the decrypted key, for the AI service only. Never returned to a client.
+     *
+     * Key choice: a key entered for a connection test; else the environment key
+     * (`ai.apiKey`) when the endpoint is the one it is configured for; else the
+     * stored key when the endpoint is the one it was saved for. No key is ever
+     * sent to another endpoint without being entered again.
      * @param {object} [override] - Unsaved settings for a connection test.
      * @returns {Promise<{ ai: object, apiKey: string|null }>} Runtime settings.
      */
     async runtimeAi(override) {
       const raw = await readRaw();
       const ai = override ? { ...raw.ai, ...override } : raw.ai;
-      const envKey = config('ai.apiKey', undefined);
-      let apiKey = typeof envKey === 'string' && envKey ? envKey : null;
-      if (!apiKey && override && typeof override.apiKey === 'string' && override.apiKey)
-        apiKey = override.apiKey;
-      if (!apiKey && ai.apiKeyEncrypted) {
+      const entered =
+        override && typeof override.apiKey === 'string' && override.apiKey.trim()
+          ? override.apiKey.trim()
+          : null;
+      if (entered) return { ai, apiKey: entered };
+      const envKey = environmentKey();
+      if (envKey && environmentKeyApplies(ai)) return { ai, apiKey: envKey };
+      const sameEndpoint =
+        !override || (override.provider === raw.ai.provider && override.baseUrl === raw.ai.baseUrl);
+      let apiKey = null;
+      if (sameEndpoint && !(override && override.apiKey === '') && raw.ai.apiKeyEncrypted) {
         const key = getEncryptionKey(strapi);
-        apiKey = key ? decryptSecret(ai.apiKeyEncrypted, key) : null;
+        apiKey = key ? decryptSecret(raw.ai.apiKeyEncrypted, key) : null;
       }
       return { ai, apiKey };
     },

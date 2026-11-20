@@ -22,6 +22,7 @@ import {
   escapeText,
   imageBlock,
   isBlankInline,
+  checklistBlock,
   listBlock,
   tidyInline,
   withIds,
@@ -606,7 +607,20 @@ const listItemsOf = (node, state, depth = 0) => {
 const flattenItems = (items) => items.flatMap((item) => [item, ...flattenItems(item.items || [])]);
 
 /**
- * Converts `<ul>`/`<ol>` into a list or checklist block.
+ * `start` of an `<ol>`: an integer as written, else 1 (a missing, empty or
+ * invalid attribute is not 0, which `Number('')` would give).
+ * @param {object} node - `<ol>` element.
+ * @returns {number} First number.
+ */
+const listStart = (node) => {
+  const value = attr(node, 'start').trim();
+  return /^-?\d{1,9}$/.test(value) ? Number(value) : 1;
+};
+
+/**
+ * Converts `<ul>`/`<ol>` into a list or checklist block. A task list with
+ * nested items becomes a `list` block with the `checklist` style, which keeps
+ * the nesting; a flat one stays a `checklist` block.
  * @param {object} ctx - Context.
  * @param {object} node - List element.
  */
@@ -616,13 +630,9 @@ const pushList = (ctx, node) => {
   if (!items.length) return;
   const flat = flattenItems(items);
   if (flat.every((item) => item.task)) {
-    push(ctx, {
-      type: 'checklist',
-      data: { items: flat.map((item) => ({ text: item.content, checked: Boolean(item.checked) })) },
-    });
+    push(ctx, checklistBlock(items, flat));
   } else {
-    const start = Number(attr(node, 'start'));
-    push(ctx, listBlock(node.name === 'ol', items, Number.isInteger(start) ? start : 1));
+    push(ctx, listBlock(node.name === 'ol', items, listStart(node)));
   }
   pushImages(ctx, state.images);
 };
@@ -759,7 +769,24 @@ const pushCode = (ctx, node, filename) => {
 };
 
 /**
- * Converts `<figure>` with an image, a video frame or code (2.4) and an optional caption.
+ * Converts `<blockquote>` into a quote block.
+ * @param {object} ctx - Context.
+ * @param {object} node - `<blockquote>`.
+ * @param {string} [caption=''] - Caption HTML (the `<figcaption>` of a quote figure).
+ */
+const pushQuote = (ctx, node, caption = '') => {
+  const state = { images: [] };
+  const text = tidyInline(inlineOf(node.children, state));
+  if (!isBlankInline(text) || !isBlankInline(caption))
+    push(ctx, {
+      type: 'quote',
+      data: { text, caption: isBlankInline(caption) ? '' : caption, alignment: 'left' },
+    });
+  pushImages(ctx, state.images);
+};
+
+/**
+ * Converts `<figure>` with an image, a video frame, code (2.4) or a quote and an optional caption.
  * @param {object} ctx - Context.
  * @param {object} node - `<figure>`.
  */
@@ -795,6 +822,11 @@ const pushFigure = (ctx, node) => {
   }
   // 2.4: code with a file name (`<figure><figcaption>name</figcaption><pre>`, the renderers' output).
   const body = children.filter((child) => isElement(child) && child.name !== 'figcaption');
+  // A quote with its attribution (`<figure><blockquote>…</blockquote><figcaption>`, the renderers' quote).
+  if (body.length === 1 && body[0].name === 'blockquote') {
+    pushQuote(ctx, body[0], caption);
+    return;
+  }
   const pre = body.length === 1 ? (body[0].name === 'pre' ? body[0] : find(body[0].children, 'pre')) : null;
   if (pre) {
     pushCode(ctx, pre, captionNode ? textOf(captionNode) : '');
@@ -871,15 +903,10 @@ const walkBlocks = (ctx, nodes, depth) => {
         flush();
         pushList(ctx, node);
         continue;
-      case 'blockquote': {
+      case 'blockquote':
         flush();
-        const state = { images: [] };
-        const text = tidyInline(inlineOf(node.children, state));
-        if (!isBlankInline(text))
-          push(ctx, { type: 'quote', data: { text, caption: '', alignment: 'left' } });
-        pushImages(ctx, state.images);
+        pushQuote(ctx, node);
         continue;
-      }
       case 'pre':
         flush();
         pushCode(ctx, node);
