@@ -784,5 +784,20 @@
   "editor.room.discardedRemote": "Jemand in dieser Live-Sitzung hat dieses Feld auf den gespeicherten Inhalt zurückgesetzt. Ihr nicht gespeicherter Text in diesem Feld wurde entfernt.",
   "editor.room.undoDiscard": "Rückgängig",
   "editor.room.restoreText": "Meinen Text wiederherstellen",
-  "editor.room.dismiss": "Ausblenden"
+  "editor.room.dismiss": "Ausblenden",
+  "editor.ai.error.unreachable": "Der KI-Anbieter ist nicht erreichbar. Versuchen Sie es später erneut.",
+  "editor.ai.error.badResponse": "Die KI-Antwort hatte ein unerwartetes Format. Nichts wurde geändert.",
+  "editor.ai.error.tooLarge": "Die KI-Antwort ist zu groß. Versuchen Sie es mit einem kürzeren Text.",
+  "editor.ai.error.empty": "Der KI-Anbieter hat ohne Text geantwortet. Versuchen Sie es erneut.",
+  "editor.ai.error.provider": "Der KI-Anbieter hat mit einem Fehler geantwortet. Versuchen Sie es später erneut.",
+  "editor.comments.editNamed": "Kommentar von {name} bearbeiten: {excerpt}",
+  "editor.comments.deleteNamed": "Kommentar von {name} löschen: {excerpt}",
+  "editor.comments.replyNamed": "{name} antworten: {excerpt}",
+  "editor.comments.resolveNamed": "Kommentar von {name} als erledigt markieren: {excerpt}",
+  "editor.comments.reopenNamed": "Kommentar von {name} wieder öffnen: {excerpt}",
+  "editor.quality.links.noneChecked": "Es wurden keine Links geprüft.",
+  "editor.suggestions.acceptNamed": "Vorschlag von {name} annehmen: {op}, {excerpt}",
+  "editor.suggestions.rejectNamed": "Vorschlag von {name} ablehnen: {op}, {excerpt}",
+  "editor.suggestions.withdrawNamed": "Vorschlag zurückziehen: {op}, {excerpt}",
+  "editor.suggestions.showNamed": "Block des Vorschlags von {name} anzeigen: {op}, {excerpt}"
 }

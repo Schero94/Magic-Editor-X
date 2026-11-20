@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { usePanelAutoFocus } from './usePanelFocus';
+import { escapeBelongsInside, usePanelAutoFocus } from './usePanelFocus';
 import {
   Box,
   Button,
@@ -263,7 +263,7 @@ export const CommentsPanel = ({
   };
 
   const onKeyDown = (event) => {
-    if (event.key !== 'Escape' || event.defaultPrevented) return;
+    if (event.key !== 'Escape' || escapeBelongsInside(event)) return;
     const tag = event.target && event.target.tagName;
     if (tag === 'TEXTAREA' || tag === 'INPUT') return;
     if (
@@ -361,13 +361,15 @@ export const CommentsPanel = ({
             <Typography variant="delta" tag="h3" id="mex-comments-title" ref={headingRef} tabIndex={-1}>
               {t('editor.comments.title', 'Comments')}
             </Typography>
-            <Typography variant="pi" textColor="neutral600" data-testid="mex-comments-summary">
-              {t(
-                'editor.comments.summary',
-                '{open, plural, one {# open thread} other {# open threads}} · {resolved} resolved',
-                { open: counts.open, resolved: counts.resolved }
-              )}
-            </Typography>
+            {loaded ? (
+              <Typography variant="pi" textColor="neutral600" data-testid="mex-comments-summary">
+                {t(
+                  'editor.comments.summary',
+                  '{open, plural, one {# open thread} other {# open threads}} · {resolved} resolved',
+                  { open: counts.open, resolved: counts.resolved }
+                )}
+              </Typography>
+            ) : null}
           </Flex>
           <IconButton label={t('editor.comments.close', 'Close comments')} variant="ghost" onClick={onClose}>
             <Cross />
@@ -411,27 +413,30 @@ export const CommentsPanel = ({
           </Box>
         ) : null}
 
-        <Flex gap={4} wrap="wrap" alignItems="center" justifyContent="space-between">
-          {canWrite ? (
-            <Button
-              ref={newButtonRef}
-              variant="secondary"
-              size="S"
-              startIcon={<Plus />}
-              onClick={startComposing}
-              disabled={composing || blocks.length === 0}
-            >
-              {t('editor.comments.new', 'Comment on a block')}
-            </Button>
-          ) : (
-            <Typography variant="pi" textColor="neutral600">
-              {t('editor.comments.readOnly', 'You can read comments but not add any.')}
-            </Typography>
-          )}
-          <Checkbox checked={showResolved} onCheckedChange={(value) => setShowResolved(value === true)}>
-            {t('editor.comments.showResolved', 'Show resolved threads')}
-          </Checkbox>
-        </Flex>
+        {/* 2.7.8: before the first load (or when it failed) nothing is known about counts or rights. */}
+        {loaded ? (
+          <Flex gap={4} wrap="wrap" alignItems="center" justifyContent="space-between">
+            {canWrite ? (
+              <Button
+                ref={newButtonRef}
+                variant="secondary"
+                size="S"
+                startIcon={<Plus />}
+                onClick={startComposing}
+                disabled={composing || blocks.length === 0}
+              >
+                {t('editor.comments.new', 'Comment on a block')}
+              </Button>
+            ) : (
+              <Typography variant="pi" textColor="neutral600">
+                {t('editor.comments.readOnly', 'You can read comments but not add any.')}
+              </Typography>
+            )}
+            <Checkbox checked={showResolved} onCheckedChange={(value) => setShowResolved(value === true)}>
+              {t('editor.comments.showResolved', 'Show resolved threads')}
+            </Checkbox>
+          </Flex>
+        ) : null}
 
         {canWrite && blocks.length === 0 ? (
           <Typography variant="pi" textColor="neutral600">

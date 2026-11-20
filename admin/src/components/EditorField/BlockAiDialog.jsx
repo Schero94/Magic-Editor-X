@@ -18,6 +18,7 @@ import { sanitizeInline } from '../../editor/sanitize';
 import { segmentPlainText } from '../../../../shared/ai-fields.mjs';
 import { applyBlockResult, blockSegments, changeViews } from '../../../../shared/ai-blocks.mjs';
 import { TextOps } from './VersionDiff';
+import { aiErrorEntry } from '../../editor/ai-errors.mjs';
 
 /**
  * Block-aware AI actions (2.4): rewrite, shorten, translate or change the
@@ -44,14 +45,8 @@ const TONE_LABELS = {
   persuasive: ['editor.ai.tone.persuasive', 'Persuasive'],
 };
 
+/** Codes this dialog words differently from the shared AI messages (`editor/ai-errors.mjs`). */
 const ERROR_MESSAGES = {
-  DISABLED: ['editor.ai.error.disabled', 'The AI assistant is turned off.'],
-  NOT_CONFIGURED: ['editor.ai.error.notConfigured', 'The AI assistant is not configured yet.'],
-  NO_API_KEY: ['editor.ai.error.noKey', 'The AI provider key is missing.'],
-  AUTH_FAILED: ['editor.ai.error.auth', 'The AI provider rejected the key.'],
-  PROVIDER_RATE_LIMIT: ['editor.ai.error.busy', 'The AI provider is busy. Try again later.'],
-  TIMEOUT: ['editor.ai.error.timeout', 'The AI provider did not answer in time.'],
-  REFUSED: ['editor.ai.error.refused', 'The AI provider declined this request.'],
   BAD_RESPONSE: ['editor.aiField.error.format', 'The answer had an unexpected format. Nothing changed.'],
 };
 
@@ -164,7 +159,7 @@ export const BlockAiDialog = ({
       if (abort.current && abort.current.signal.aborted) return;
       const info = error && error.mismatch ? { code: 'BAD_RESPONSE' } : readApiError(error);
       const [key, text] =
-        ERROR_MESSAGES[info.code] ||
+        aiErrorEntry(info.code, ERROR_MESSAGES) ||
         (info.status === 429
           ? ['editor.ai.error.rateLimit', 'You sent many requests. Try again in a minute.']
           : info.status === 413

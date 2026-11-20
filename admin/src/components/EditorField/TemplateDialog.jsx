@@ -12,6 +12,7 @@ import {
   Typography,
 } from '@strapi/design-system';
 import { ConfirmDialog } from '@strapi/strapi/admin';
+import { refocusLater } from './usePanelFocus';
 import styled from 'styled-components';
 import { RenderedContent } from '../RenderedContent';
 import { useTemplates } from './useTemplates';
@@ -347,7 +348,11 @@ export const TemplateDialog = ({
       <Dialog.Root
         open={Boolean(confirm)}
         onOpenChange={(next) => {
-          if (!next && !busy) setConfirm(null);
+          if (!next && !busy) {
+            setConfirm(null);
+            // 2.7.8: Cancel or Escape returns focus to the button that asked.
+            refocusLater(applyRef.current);
+          }
         }}
       >
         <ConfirmDialog

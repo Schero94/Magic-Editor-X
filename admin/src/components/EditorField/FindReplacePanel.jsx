@@ -45,6 +45,9 @@ export const FindReplacePanel = ({ t, getData, onApply, onSelect, onClose, readO
   const [status, setStatus] = useState('');
   const findRef = useRef(null);
   const busyRef = useRef(false);
+  const panelRef = useRef(null);
+  const replaceRef = useRef(null);
+  const replaceAllRef = useRef(null);
 
   useEffect(() => {
     if (findRef.current) findRef.current.focus();
@@ -98,7 +101,27 @@ export const FindReplacePanel = ({ t, getData, onApply, onSelect, onClose, readO
       await search();
     } finally {
       busyRef.current = false;
+      // 2.7.8: after Replace all the replace buttons are disabled (no matches left) and the editor
+      // may have taken focus: focus stays in the panel, on the button used or the Find input.
+      keepFocusInPanel(all ? replaceAllRef : replaceRef);
     }
+  };
+
+  /**
+   * Keeps focus in the panel after a replace.
+   * @param {{ current: HTMLElement|null }} preferred - Button that was used.
+   * @returns {void}
+   */
+  const keepFocusInPanel = (preferred) => {
+    window.requestAnimationFrame(() =>
+      window.requestAnimationFrame(() => {
+        const panel = panelRef.current;
+        if (!panel || panel.contains(document.activeElement)) return;
+        const button = preferred.current;
+        const target = button && !button.disabled && button.isConnected ? button : findRef.current;
+        if (target) target.focus();
+      })
+    );
   };
 
   const onFindKey = (event) => {
@@ -123,6 +146,7 @@ export const FindReplacePanel = ({ t, getData, onApply, onSelect, onClose, readO
 
   return (
     <Box
+      ref={panelRef}
       tag="section"
       aria-label={t('editor.find.title', 'Find and replace')}
       padding={4}
@@ -223,10 +247,10 @@ export const FindReplacePanel = ({ t, getData, onApply, onSelect, onClose, readO
           </IconButton>
           {readOnly ? null : (
             <>
-              <Button variant="secondary" onClick={() => replace(false)} disabled={!count}>
+              <Button ref={replaceRef} variant="secondary" onClick={() => replace(false)} disabled={!count}>
                 {t('editor.find.replace', 'Replace')}
               </Button>
-              <Button variant="secondary" onClick={() => replace(true)} disabled={!count}>
+              <Button ref={replaceAllRef} variant="secondary" onClick={() => replace(true)} disabled={!count}>
                 {t('editor.find.replaceAll', 'Replace all')}
               </Button>
             </>

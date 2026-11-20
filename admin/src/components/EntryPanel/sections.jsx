@@ -1,6 +1,6 @@
 import { useId, useState } from 'react';
 import { useIntl } from 'react-intl';
-import { Box, Button, Flex, TextButton, Typography } from '@strapi/design-system';
+import { Box, Button, Flex, Typography } from '@strapi/design-system';
 import styled from 'styled-components';
 import { requestFieldPanel } from '../../editor/entry-panel-events.mjs';
 import { fieldProblems, fieldsWith } from './logic.mjs';
@@ -146,12 +146,15 @@ const FieldRow = ({ t, field, text, action, actionLabel, panel }) => {
         </div>
       </Box>
       <Box flex="0 0 auto">
-        <TextButton
+        {/* 2.7.8: a DS button (32 px high, at least 24 x 24 px): the text button was a 16 px target. */}
+        <Button
+          variant="ghost"
+          size="S"
           aria-label={actionLabel}
           onClick={() => setHint(!requestFieldPanel({ field: field.field, path: field.path, panel }))}
         >
           {action}
-        </TextButton>
+        </Button>
       </Box>
     </Row>
   );
@@ -298,7 +301,7 @@ const SummaryStatus = ({ t, summary }) => {
   if (summary.status === 'error' && !summary.data)
     return (
       <Flex direction="column" alignItems="flex-start" gap={2}>
-        <Typography variant="pi" textColor="neutral600">
+        <Typography variant="pi" textColor="danger600" role="alert">
           {t('entryPanel.error', 'Comments and quality could not be loaded.')}
         </Typography>
         <Button size="S" variant="tertiary" onClick={summary.reload}>

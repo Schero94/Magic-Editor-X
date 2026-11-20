@@ -334,5 +334,10 @@
   "tools.columns.valignMenu": "Vertikale Ausrichtung",
   "tools.columns.valign.top": "Oben",
   "tools.columns.valign.center": "Mitte",
-  "tools.columns.valign.bottom": "Unten"
+  "tools.columns.valign.bottom": "Unten",
+  "tools.code.plainText": "Nur Text",
+  "tools.code.markup": "HTML und XML",
+  "tools.common.captionPlaceholder": "Bildunterschrift eingeben",
+  "tools.attaches.titlePlaceholder": "Dateititel",
+  "tools.tunes.indent": "Einrücken"
 }

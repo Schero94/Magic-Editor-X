@@ -14,6 +14,7 @@ import { useFetchClient } from '../../utils/fetch-client';
 import { API, readApiError } from '../../utils/api';
 import { changeViews } from '../../../../shared/ai-blocks.mjs';
 import { TextOps } from './VersionDiff';
+import { aiErrorEntry } from '../../editor/ai-errors.mjs';
 
 /**
  * AI assistant dialog: the admin picks an action for the selected text, the
@@ -43,16 +44,6 @@ const TONE_LABELS = {
   confident: ['editor.ai.tone.confident', 'Confident'],
   formal: ['editor.ai.tone.formal', 'Formal'],
   persuasive: ['editor.ai.tone.persuasive', 'Persuasive'],
-};
-
-const ERROR_MESSAGES = {
-  DISABLED: ['editor.ai.error.disabled', 'The AI assistant is turned off.'],
-  NOT_CONFIGURED: ['editor.ai.error.notConfigured', 'The AI assistant is not configured yet.'],
-  NO_API_KEY: ['editor.ai.error.noKey', 'The AI provider key is missing.'],
-  AUTH_FAILED: ['editor.ai.error.auth', 'The AI provider rejected the key.'],
-  PROVIDER_RATE_LIMIT: ['editor.ai.error.busy', 'The AI provider is busy. Try again later.'],
-  TIMEOUT: ['editor.ai.error.timeout', 'The AI provider did not answer in time.'],
-  REFUSED: ['editor.ai.error.refused', 'The AI provider declined this request.'],
 };
 
 /**
@@ -103,7 +94,7 @@ export const AiDialog = ({ t, request, config, target, onApply, onClose, returnF
       if (abort.current && abort.current.signal.aborted) return;
       const info = readApiError(error);
       const [key, text] =
-        ERROR_MESSAGES[info.code] ||
+        aiErrorEntry(info.code) ||
         (info.status === 429
           ? ['editor.ai.error.rateLimit', 'You sent many requests. Try again in a minute.']
           : info.status === 413

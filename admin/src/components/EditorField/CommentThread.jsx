@@ -1,9 +1,10 @@
-import { forwardRef, useState } from 'react';
+import { forwardRef, useRef, useState } from 'react';
 import { useIntl } from 'react-intl';
 import { Badge, Box, Button, Flex, Typography } from '@strapi/design-system';
 import styled from 'styled-components';
 import { ConfirmAction } from '../ui/ConfirmAction';
 import { MentionTextarea } from './MentionTextarea';
+import { refocusLater } from './usePanelFocus';
 import { normalizeExcerpt, relativeTimeParts } from '../../../../shared/comments.mjs';
 import { mentionSegments } from '../../../../shared/comment-mentions.mjs';
 
@@ -87,6 +88,30 @@ const List = styled.ol`
   gap: ${({ theme }) => theme.spaces[3]};
 `;
 
+/** Characters of a comment or quote in an action's accessible name (2.7.8). */
+const NAME_EXCERPT = 40;
+
+/**
+ * Short excerpt for accessible names of repeated actions ("Edit comment by Ben M.: First words…").
+ * @param {string|null|undefined} text - Comment body or quote.
+ * @returns {string} Excerpt.
+ */
+export const nameExcerpt = (text) => {
+  const plain = normalizeExcerpt(String(text || '').replace(/<[^>]*>/g, ' '));
+  return plain.length > NAME_EXCERPT ? `${plain.slice(0, NAME_EXCERPT - 1)}…` : plain;
+};
+
+/**
+ * Display name of a comment author.
+ * @param {object} comment - Comment.
+ * @param {Function} t - Translator.
+ * @returns {string} Name.
+ */
+const authorOf = (comment, t) =>
+  comment.author.deleted
+    ? t('editor.comments.deletedUser', 'Deleted user')
+    : comment.author.name || t('editor.comments.deletedUser', 'Deleted user');
+
 /**
  * Author name, relative time (absolute time as tooltip) and "edited".
  * @param {object} props - Props.
@@ -96,9 +121,7 @@ const List = styled.ol`
  */
 const CommentMeta = ({ comment, t }) => {
   const { formatRelativeTime, formatDate } = useIntl();
-  const name = comment.author.deleted
-    ? t('editor.comments.deletedUser', 'Deleted user')
-    : comment.author.name || t('editor.comments.deletedUser', 'Deleted user');
+  const name = authorOf(comment, t);
   const { value, unit } = relativeTimeParts(comment.createdAt);
   const absolute = formatDate(comment.createdAt, { dateStyle: 'medium', timeStyle: 'short' });
   return (
@@ -162,6 +185,9 @@ export const CommentThread = forwardRef(function CommentThread(
   const [replyMentions, setReplyMentions] = useState([]);
   const [editing, setEditing] = useState(null);
   const [busy, setBusy] = useState(null);
+  // 2.7.8: focus targets after a reply is sent or cancelled and after an edit is saved or cancelled.
+  const replyButtonRef = useRef(null);
+  const editButtonsRef = useRef(new Map());
   const resolved = thread.status === 'resolved';
   // 2.4: a thread written under a positional path before 2.4 that belongs to no single entry (read-only).
   const positional = Boolean(thread.positional);
@@ -198,6 +224,7 @@ export const CommentThread = forwardRef(function CommentThread(
       setReply('');
       setReplyMentions([]);
       setReplying(false);
+      refocusLater(replyButtonRef);
       announce(t('editor.comments.announce.replied', 'Reply added'));
     } catch (error) {
       fail(errorMessage(error));
@@ -211,13 +238,31 @@ export const CommentThread = forwardRef(function CommentThread(
     setBusy(`edit:${editing.id}`);
     try {
       reportDropped(await actions.edit(editing.id, editing.value, editing.mentions));
-      setEditing(null);
+      stopEditing(editing.id);
       announce(t('editor.comments.announce.saved', 'Comment saved'));
     } catch (error) {
       fail(errorMessage(error));
     } finally {
       setBusy(null);
     }
+  };
+
+  /** Leaves the edit box and puts focus back on the comment's Edit button. */
+  const stopEditing = (id) => {
+    setEditing(null);
+    refocusLater(() => editButtonsRef.current.get(id) || null);
+  };
+
+  /** Closes the reply box and puts focus back on Reply. */
+  const stopReplying = () => {
+    setReplying(false);
+    refocusLater(replyButtonRef);
+  };
+
+  const first = thread.comments[0] || null;
+  const threadName = {
+    name: first ? authorOf(first, t) : '',
+    excerpt: nameExcerpt(quote || (first ? first.body : '') || excerpt),
   };
 
   const toggleResolved = async () => {
@@ -377,7 +422,7 @@ export const CommentThread = forwardRef(function CommentThread(
                         onMentionsChange={(next) => setEditing((current) => ({ ...current, mentions: next }))}
                         search={searchMentions}
                         onSubmit={saveEdit}
-                        onCancel={() => setEditing(null)}
+                        onCancel={() => stopEditing(comment.id)}
                         t={t}
                         autoFocus
                       />
@@ -390,7 +435,7 @@ export const CommentThread = forwardRef(function CommentThread(
                         >
                           {t('editor.comments.save', 'Save')}
                         </Button>
-                        <Button size="S" variant="tertiary" onClick={() => setEditing(null)}>
+                        <Button size="S" variant="tertiary" onClick={() => stopEditing(comment.id)}>
                           {t('editor.comments.cancel', 'Cancel')}
                         </Button>
                       </Flex>
@@ -406,6 +451,14 @@ export const CommentThread = forwardRef(function CommentThread(
                         <Button
                           variant="ghost"
                           size="S"
+                          ref={(node) => {
+                            if (node) editButtonsRef.current.set(comment.id, node);
+                            else editButtonsRef.current.delete(comment.id);
+                          }}
+                          aria-label={t('editor.comments.editNamed', 'Edit comment by {name}: {excerpt}', {
+                            name: authorOf(comment, t),
+                            excerpt: nameExcerpt(comment.body),
+                          })}
                           onClick={() =>
                             setEditing({
                               id: comment.id,
@@ -420,7 +473,18 @@ export const CommentThread = forwardRef(function CommentThread(
                       {canDelete ? (
                         <ConfirmAction
                           trigger={
-                            <Button variant="ghost" size="S">
+                            <Button
+                              variant="ghost"
+                              size="S"
+                              aria-label={t(
+                                'editor.comments.deleteNamed',
+                                'Delete comment by {name}: {excerpt}',
+                                {
+                                  name: authorOf(comment, t),
+                                  excerpt: nameExcerpt(comment.body),
+                                }
+                              )}
+                            >
                               {t('editor.comments.delete', 'Delete')}
                             </Button>
                           }
@@ -474,7 +538,7 @@ export const CommentThread = forwardRef(function CommentThread(
                   onMentionsChange={setReplyMentions}
                   search={searchMentions}
                   onSubmit={sendReply}
-                  onCancel={() => setReplying(false)}
+                  onCancel={stopReplying}
                   t={t}
                   autoFocus
                 />
@@ -482,17 +546,33 @@ export const CommentThread = forwardRef(function CommentThread(
                   <Button size="S" onClick={sendReply} loading={busy === 'reply'} disabled={!reply.trim()}>
                     {t('editor.comments.reply', 'Reply')}
                   </Button>
-                  <Button size="S" variant="tertiary" onClick={() => setReplying(false)}>
+                  <Button size="S" variant="tertiary" onClick={stopReplying}>
                     {t('editor.comments.cancel', 'Cancel')}
                   </Button>
                 </Flex>
               </>
             ) : (
               <Flex gap={2} wrap="wrap">
-                <Button size="S" variant="secondary" onClick={() => setReplying(true)}>
+                <Button
+                  size="S"
+                  variant="secondary"
+                  ref={replyButtonRef}
+                  aria-label={t('editor.comments.replyNamed', 'Reply to {name}: {excerpt}', threadName)}
+                  onClick={() => setReplying(true)}
+                >
                   {t('editor.comments.reply', 'Reply')}
                 </Button>
-                <Button size="S" variant="tertiary" onClick={toggleResolved} loading={busy === 'resolve'}>
+                <Button
+                  size="S"
+                  variant="tertiary"
+                  onClick={toggleResolved}
+                  loading={busy === 'resolve'}
+                  aria-label={
+                    resolved
+                      ? t('editor.comments.reopenNamed', 'Reopen comment by {name}: {excerpt}', threadName)
+                      : t('editor.comments.resolveNamed', 'Resolve comment by {name}: {excerpt}', threadName)
+                  }
+                >
                   {resolved ? t('editor.comments.reopen', 'Reopen') : t('editor.comments.resolve', 'Resolve')}
                 </Button>
               </Flex>

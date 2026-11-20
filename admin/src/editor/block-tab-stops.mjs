@@ -168,3 +168,18 @@ export const skippedControl = (holder, from, to, isVisible) => {
   if (!between.length) return null;
   return forward ? between[0] : between[between.length - 1];
 };
+
+/**
+ * The control to focus in a block that was just inserted from the block types (2.7.8): video, audio
+ * and attachment blocks have no text, so Editor.js put the caret in the next paragraph and the
+ * block's "Choose" button had to be found by mouse. Null when the block has text to type in.
+ * @param {Element|null} block - Inserted `.ce-block`.
+ * @param {(element: Element) => boolean} [isVisible] - Visibility check.
+ * @returns {Element|null} Control.
+ */
+export const insertedBlockControl = (block, isVisible = (element) => element.getClientRects().length > 0) => {
+  if (!block || !block.classList || !block.classList.contains('ce-block')) return null;
+  const stops = tabStops(block.parentElement || block, isVisible).filter((stop) => block.contains(stop));
+  if (!stops.length || stops.some(isTextStop)) return null;
+  return stops[0];
+};

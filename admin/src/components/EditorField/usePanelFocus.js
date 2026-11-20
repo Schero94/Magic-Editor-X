@@ -22,3 +22,84 @@ export const usePanelAutoFocus = (enabled, targetRef) => {
     return () => window.cancelAnimationFrame(frame);
   }, [enabled, targetRef]);
 };
+
+/**
+ * Escape inside a field panel closes it (2.7.8). Keys an inner control already handled (an open
+ * select, menu or dialog prevents the default) and keys inside a dialog are left alone.
+ * @param {KeyboardEvent|import('react').KeyboardEvent} event - Key event.
+ * @param {() => void} onClose - Closes the panel (returns focus to More tools).
+ * @returns {void}
+ */
+export const closeOnEscape = (event, onClose) => {
+  if (event.key !== 'Escape' || typeof onClose !== 'function' || escapeBelongsInside(event)) return;
+  event.preventDefault();
+  event.stopPropagation();
+  onClose();
+};
+
+/**
+ * True when Escape belongs to something inside the panel: a dialog, menu or listbox, or an
+ * expanded select or combobox. `defaultPrevented` is not used: the DS IconButton's Radix tooltip
+ * prevents the default of every Escape while it shows, so a focused Close button never closed
+ * the panel (2.7.8).
+ * @param {KeyboardEvent|import('react').KeyboardEvent} event - Key event.
+ * @returns {boolean} Result.
+ */
+export const escapeBelongsInside = (event) => {
+  const target = event.target;
+  if (!target || typeof target.closest !== 'function') return false;
+  if (target.closest('[role="dialog"], [role="alertdialog"], [role="listbox"], [role="menu"]')) return true;
+  return target.getAttribute('aria-expanded') === 'true';
+};
+
+/**
+ * Puts focus back on an element after a dialog closed (2.7.8). Radix restores focus to the
+ * element focused before the dialog, which is lost when the dialog was nested in a modal or
+ * opened from code; two frames later the element (when still in the page) gets it explicitly.
+ * @param {HTMLElement|{ current: HTMLElement|null }|(() => HTMLElement|null)|null|undefined} element - Element to
+ *   focus (the opener), a ref or a getter.
+ * @returns {void}
+ */
+export const refocusLater = (element) => {
+  if (!element || typeof window === 'undefined') return;
+  window.requestAnimationFrame(() =>
+    window.requestAnimationFrame(() => {
+      // A ref is read late: the element may only exist after the next render (a Reply button).
+      const target =
+        typeof element === 'function' ? element() : 'current' in element ? element.current : element;
+      if (target && target.isConnected) target.focus();
+    })
+  );
+};
+
+/**
+ * After an action whose button was disabled while busy, focus goes back to that button when it
+ * fell to the page body (2.7.8). Focus that moved somewhere on purpose stays there.
+ * @param {HTMLElement|{ current: HTMLElement|null }|(() => HTMLElement|null)|null|undefined} element - Button, ref or getter.
+ * @returns {void}
+ */
+export const refocusIfLost = (element) => {
+  if (!element || typeof window === 'undefined') return;
+  window.requestAnimationFrame(() =>
+    window.requestAnimationFrame(() => {
+      const active = document.activeElement;
+      if (active && active !== document.body && active.isConnected) return;
+      const target =
+        typeof element === 'function' ? element() : 'current' in element ? element.current : element;
+      if (target && target.isConnected) target.focus();
+    })
+  );
+};
+
+/**
+ * When a panel opens and focus is on the page body (the element that had it was removed, for
+ * example the suggest-mode editor after "Send suggestions"), the panel heading takes it (2.7.8).
+ * Called as a hook; runs once after mount.
+ * @param {import('react').RefObject<HTMLElement>} targetRef - Panel heading (`tabIndex={-1}`).
+ * @returns {void}
+ */
+export const useClaimLostFocus = (targetRef) => {
+  useEffect(() => {
+    refocusIfLost(targetRef);
+  }, [targetRef]);
+};

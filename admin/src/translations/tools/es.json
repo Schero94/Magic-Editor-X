@@ -334,5 +334,10 @@
   "tools.columns.valignMenu": "Alineación vertical",
   "tools.columns.valign.top": "Arriba",
   "tools.columns.valign.center": "Centro",
-  "tools.columns.valign.bottom": "Abajo"
+  "tools.columns.valign.bottom": "Abajo",
+  "tools.code.plainText": "Texto sin formato",
+  "tools.code.markup": "HTML y XML",
+  "tools.common.captionPlaceholder": "Escriba un pie de foto",
+  "tools.attaches.titlePlaceholder": "Título del archivo",
+  "tools.tunes.indent": "Sangría"
 }

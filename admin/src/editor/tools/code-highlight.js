@@ -26,13 +26,26 @@ import { MAX_CODE_FILENAME, cleanCodeFilename } from '../../../../shared/sanitiz
 const labelOf = (language) => CODE_LANGUAGE_LABELS[language] || language;
 
 /**
+ * 2.7.8: the two labels that are words, not product names, follow the admin language.
+ * @param {string} language - Language id.
+ * @param {(id: string, text: string) => string} t - Translator.
+ * @returns {string} Label.
+ */
+const translatedLabelOf = (language, t) => {
+  if (language === 'plaintext') return t('tools.code.plainText', 'Plain text');
+  if (language === 'markup') return t('tools.code.markup', 'HTML and XML');
+  return labelOf(language);
+};
+
+/**
  * Options of the language select: the shared list plus a stored language outside it.
  * @param {string} current - Current language.
+ * @param {(id: string, text: string) => string} t - Translator.
  * @returns {Array<{ value: string, label: string }>} Options.
  */
-const languageOptions = (current) => {
+const languageOptions = (current, t) => {
   const ids = CODE_LANGUAGES.includes(current) ? CODE_LANGUAGES : [...CODE_LANGUAGES, current];
-  return ids.map((value) => ({ value, label: labelOf(value) }));
+  return ids.map((value) => ({ value, label: translatedLabelOf(value, t) }));
 };
 
 /**
@@ -107,7 +120,7 @@ export class CodeHighlightTool {
       header.appendChild(
         el('span', {
           className: 'mex-code__language',
-          text: labelOf(this.data.language),
+          text: translatedLabelOf(this.data.language, (id, text) => this.t(id, text)),
         })
       );
     } else {
@@ -149,7 +162,10 @@ export class CodeHighlightTool {
         this.changed();
       });
       header.appendChild(this.nodes.filename);
-      this.nodes.language = select(languageOptions(this.data.language), this.data.language);
+      this.nodes.language = select(
+        languageOptions(this.data.language, (id, text) => this.t(id, text)),
+        this.data.language
+      );
       this.nodes.language.setAttribute('aria-label', this.t('tools.code.language', 'Language'));
       // Arrow keys and Enter belong to the select, not to Editor.js block navigation.
       this.nodes.language.addEventListener('keydown', (event) => {

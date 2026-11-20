@@ -154,8 +154,20 @@ import { escapeHtml } from '../../../../shared/render/inline.mjs';
 import { useDraftBuffer } from './useDraftBuffer';
 import { DraftNotice } from './DraftNotice';
 import { RoomNotice, RoomResetNotice } from './RoomNotice';
-import { focusTabStop, isTextStop, nextTabStop, skippedControl } from '../../editor/block-tab-stops.mjs';
-import { decorateToolbar } from '../../editor/toolbar-a11y.mjs';
+import {
+  focusTabStop,
+  insertedBlockControl,
+  isTextStop,
+  nextTabStop,
+  skippedControl,
+} from '../../editor/block-tab-stops.mjs';
+import {
+  decorateDivButtons,
+  decorateToolbar,
+  inlineToolbarItems,
+  labelInlineToolbar,
+  toolTitles,
+} from '../../editor/toolbar-a11y.mjs';
 import { SessionBanner } from './SessionBanner';
 import { useLazyActivation } from './useLazyActivation';
 import { LazyPlaceholder } from './LazyPlaceholder';
@@ -410,6 +422,36 @@ const restoreCaret = (ref, fallback) => {
  */
 const contentKey = (data) => stableStringifyBlocks(data && Array.isArray(data.blocks) ? data.blocks : []);
 
+/** Tools that work while suggest mode shows its own editor (2.7.8): the others act on the hidden field. */
+const SUGGEST_MODE_TOOLS = ['shortcuts'];
+
+/**
+ * Puts the caret into a block once a dialog has closed and handed focus back (2.7.8: the Media
+ * Library dialog's trigger, the placeholder block, no longer exists, so focus fell to the page).
+ * @param {object} editor - Editor.js instance.
+ * @param {number} index - Block index.
+ * @param {'start'|'end'} position - Caret position.
+ * @returns {void}
+ */
+const caretAfterDialog = (editor, index, position) => {
+  window.setTimeout(() => {
+    try {
+      const count = editor.blocks.getBlocksCount();
+      if (!count) return;
+      const target = Math.min(Math.max(0, index), count - 1);
+      if (editor.caret.setToBlock(target, position)) return;
+      // A block without text (an image without caption input): focus its first control.
+      const block = editor.blocks.getBlockByIndex(target);
+      const holder = block && block.holder;
+      const control =
+        holder && holder.querySelector('button, input, [contenteditable="true"], [tabindex="0"]');
+      if (control) control.focus();
+    } catch {
+      // The editor was destroyed meanwhile.
+    }
+  }, 60);
+};
+
 /**
  * Resolves in a new task, so long work before and after does not add up to one long task.
  * @returns {Promise<void>} Resolves after the browser had a chance to handle input and paint.
@@ -596,6 +638,8 @@ const EditorFieldBody = ({
   // 2.5 "Use existing content": insert dialog, block clipboard (paste and the "Copy block" tune).
   const [reuseOpen, setReuseOpen] = useState(false);
   const toolNamesRef = useRef(new Set());
+  // 2.7.8: translated tool names for the inline toolbar buttons.
+  const toolTitlesRef = useRef({});
   const pasteBlocksRef = useRef(null);
   const copyBlockRef = useRef(null);
   const reuseFocusRef = useRef(null);
@@ -840,10 +884,68 @@ const EditorFieldBody = ({
     // Editor.js uses Tab to open its block menu. Escape followed by Tab leaves
     // the editor, so keyboard users are never trapped inside it.
     let leaveArmed = false;
+    // 2.7.8: the text selection behind the inline toolbar, restored when Escape leaves the toolbar.
+    let textRange = null;
+    const onSelection = () => {
+      const selection = window.getSelection();
+      if (!selection || !selection.rangeCount || selection.isCollapsed) return;
+      const node = selection.anchorNode;
+      const element = node && (node.nodeType === 1 ? node : node.parentElement);
+      if (element && holder.contains(element) && element.closest('[contenteditable="true"]'))
+        textRange = selection.getRangeAt(0).cloneRange();
+    };
+    const backToText = () => {
+      const range = textRange;
+      const host =
+        range && range.startContainer.isConnected
+          ? (range.startContainer.nodeType === 1
+              ? range.startContainer
+              : range.startContainer.parentElement
+            ).closest('[contenteditable="true"]')
+          : null;
+      if (!host) return;
+      host.focus();
+      const selection = window.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(range);
+    };
     // Registered on window (capture) because Editor.js listens on document.
     const onKeyDown = (event) => {
       if (!holder.contains(document.activeElement)) {
         leaveArmed = false;
+        return;
+      }
+      // 2.7.8: keyboard entry into the inline toolbar (Alt+F10 with selected text, as in the table
+      // and column tools), arrow keys between its buttons, Escape back to the selected text.
+      const inToolbar = document.activeElement.closest('.ce-inline-toolbar');
+      if (event.altKey && event.key === 'F10' && !event.ctrlKey && !event.metaKey && !inToolbar) {
+        const items = inlineToolbarItems(holder);
+        const selection = window.getSelection();
+        if (items.length && selection && !selection.isCollapsed) {
+          event.preventDefault();
+          event.stopPropagation();
+          onSelection();
+          items[0].focus();
+          return;
+        }
+      }
+      if (inToolbar && event.key === 'Escape') {
+        window.setTimeout(backToText, 0);
+        return;
+      }
+      if (
+        inToolbar &&
+        ['ArrowRight', 'ArrowLeft'].includes(event.key) &&
+        document.activeElement.tagName !== 'INPUT'
+      ) {
+        const items = inlineToolbarItems(holder);
+        const index = items.indexOf(document.activeElement);
+        if (index >= 0) {
+          event.preventDefault();
+          event.stopPropagation();
+          const step = event.key === 'ArrowRight' ? 1 : -1;
+          items[(index + step + items.length) % items.length].focus();
+        }
         return;
       }
       if (event.key === 'Escape') {
@@ -904,6 +1006,7 @@ const EditorFieldBody = ({
       }
     };
     window.addEventListener('keydown', onKeyDown, true);
+    document.addEventListener('selectionchange', onSelection);
     // 2.7.4 (m12): Save or Ctrl/Cmd+Enter right after typing waits until the input is in the form.
     const stopSubmitGuard = createSubmitGuard({
       holder,
@@ -929,6 +1032,7 @@ const EditorFieldBody = ({
       holder.removeEventListener('focusout', onFocusOut);
       holder.removeEventListener('input', onInput);
       window.removeEventListener('keydown', onKeyDown, true);
+      document.removeEventListener('selectionchange', onSelection);
     };
   }, [ready, scheduleSave, runSave]);
 
@@ -1377,6 +1481,11 @@ const EditorFieldBody = ({
     });
     const toolNames = new Set(Object.keys(tools));
     toolNamesRef.current = toolNames;
+    toolTitlesRef.current = toolTitles(
+      tools,
+      editorI18n(t).messages.toolNames,
+      t('tools.ui.convertTo', 'Convert to')
+    );
     // User input is tracked before Editor.js renders the blocks: after the
     // create -> edit redirect several fields mount at once, and text typed
     // before this field's effects ran was never reported to the form.
@@ -1643,6 +1752,8 @@ const EditorFieldBody = ({
         const block = editor.blocks.getBlockByIndex(index);
         if (block && block.name === 'mediaLib') editor.blocks.delete(index);
       }
+      // 2.7.8: focus goes to the last inserted image (the dialog's trigger, the placeholder, is gone).
+      if (images.length) caretAfterDialog(editor, start + images.length - 1, 'end');
       scheduleSave();
     },
     [mediaRequest, scheduleSave]
@@ -1659,6 +1770,8 @@ const EditorFieldBody = ({
     if (editor && Number.isInteger(request.blockIndex)) {
       const block = editor.blocks.getBlockByIndex(request.blockIndex);
       if (block && block.name === 'mediaLib') editor.blocks.delete(request.blockIndex);
+      // 2.7.8: Escape or Close puts the caret back where the block was inserted.
+      caretAfterDialog(editor, Math.max(0, request.blockIndex - 1), 'end');
     }
   }, [mediaRequest]);
 
@@ -2185,6 +2298,42 @@ const EditorFieldBody = ({
       menu: t('editor.toolbar.blockMenu', 'Open the block menu'),
     });
   }, [ready, t]);
+
+  // 2.7.8: inline toolbar buttons get the tool's name; a video, audio or attachment block inserted
+  // from the block types gets focus on its control (Editor.js put the caret in the next paragraph).
+  useEffect(() => {
+    const holder = holderRef.current;
+    if (!ready || !holder) return undefined;
+    const stopLabels = labelInlineToolbar(holder, (name) => toolTitlesRef.current[name]);
+    const stopDivButtons = decorateDivButtons(holder);
+    let insertedAt = 0;
+    const onToolbox = (event) => {
+      if (event.target && event.target.closest && event.target.closest('.ce-toolbox, .ce-popover'))
+        if (event.type === 'click' || event.key === 'Enter') insertedAt = Date.now();
+    };
+    const redactor = holder.querySelector('.codex-editor__redactor');
+    const observer = new MutationObserver((records) => {
+      if (!insertedAt || Date.now() - insertedAt > 1500) return;
+      for (const record of records)
+        for (const node of record.addedNodes) {
+          const control = insertedBlockControl(node);
+          if (!control) continue;
+          insertedAt = 0;
+          window.requestAnimationFrame(() => control.focus());
+          return;
+        }
+    });
+    if (redactor) observer.observe(redactor, { childList: true });
+    holder.addEventListener('click', onToolbox, true);
+    holder.addEventListener('keydown', onToolbox, true);
+    return () => {
+      stopLabels();
+      stopDivButtons();
+      observer.disconnect();
+      holder.removeEventListener('click', onToolbox, true);
+      holder.removeEventListener('keydown', onToolbox, true);
+    };
+  }, [ready]);
 
   // Editor shortcuts: Ctrl/Cmd+Shift+F find and replace, Ctrl/Cmd+Alt+/ help.
   // 2.7.8: Ctrl/Cmd+/ (without Alt) belongs to Editor.js again: it opens the block menu.
@@ -3371,6 +3520,7 @@ const EditorFieldBody = ({
             stats={stats}
             limits={{ maxBlocks: preset.maxBlocks, maxCharacters: preset.maxCharacters }}
             tools={fieldTools}
+            onlyTools={suggestMode ? SUGGEST_MODE_TOOLS : null}
             moreButtonRef={moreButtonRef}
           />
           {target.uid ? <SessionBanner t={t} /> : null}
@@ -3567,6 +3717,9 @@ const EditorFieldBody = ({
                 ref={holderRef}
                 style={lazy.deferred && !ready ? WAITING_HOLDER_STYLE : undefined}
                 className="mex-editor"
+                // 2.7.8: the field label names the editor (as Strapi's Blocks field does).
+                role="group"
+                aria-labelledby={label ? `${name}-label` : undefined}
                 lang={target.locale || undefined}
                 dir={direction}
                 $minHeight={minHeight}

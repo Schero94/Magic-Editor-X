@@ -1,4 +1,5 @@
 import { css } from 'styled-components';
+import { setOpacity } from '@strapi/design-system';
 
 /**
  * Styles for the Editor.js core UI and every tool, scoped under `.mex-editor`.
@@ -112,8 +113,19 @@ export const editorStyles = css`
     .ce-toolbar__settings-btn {
       color: ${c('neutral600')};
       border-radius: ${radius};
-      width: 24px;
-      height: 24px;
+      /* 2.7.8: Editor.js turns the handles into white floating buttons below 650 px (fixed light
+         colours, 2.4:1 in dark mode). They use DS surface, border and size instead: 32 px touch
+         targets on phones, 24 px from the DS small breakpoint up. */
+      width: 32px;
+      height: 32px;
+      background-color: ${c('neutral0')};
+      border-color: ${c('neutral200')};
+      box-shadow: none;
+
+      ${({ theme }) => theme.breakpoints.small} {
+        width: 24px;
+        height: 24px;
+      }
 
       &:hover {
         background: ${c('neutral150')};
@@ -552,6 +564,17 @@ export const editorStyles = css`
 
     .ce-popover__container {
       box-shadow: ${({ theme }) => theme.shadows.popupShadow};
+    }
+
+    /* 2.7.8: the bottom sheet's backdrop (Editor.js below 650 px) is the DS overlay colour, and the
+       sheet keeps the DS radius instead of Editor.js' 10 px. */
+    .ce-popover__overlay {
+      background: ${({ theme }) => setOpacity(theme.colors.neutral800, 0.2)};
+      opacity: 1;
+    }
+
+    .ce-popover .ce-popover__container {
+      border-radius: ${radius};
     }
 
     .ce-popover-item__title,
@@ -1138,6 +1161,8 @@ export const editorStyles = css`
       --color-line: ${c('neutral200')};
       --color-bg: ${c('neutral0')};
       --color-bg-secondary: ${c('neutral150')};
+      /* 2.7.8: the download button's hover colour (the package's own rule wins a tie). */
+      --color-bg-secondary--hover: ${c('neutral200')};
       --color-text-secondary: ${c('neutral600')};
     }
 
@@ -1155,6 +1180,31 @@ export const editorStyles = css`
     .cdx-attaches__download-button {
       background: ${c('neutral150')};
       color: ${c('neutral800')};
+    }
+
+    /* 2.7.8: @editorjs/image and Editor.js' loader and empty search use fixed light colours. */
+    .image-tool {
+      --bg-color: ${c('neutral150')};
+      --front-color: ${c('primary600')};
+      --border-color: ${c('neutral200')};
+    }
+
+    .cdx-loader {
+      border-color: ${c('neutral200')};
+
+      &::before {
+        border-color: ${c('neutral200')};
+        border-left-color: ${c('primary600')};
+      }
+    }
+
+    .ce-popover__nothing-found-message {
+      color: ${c('neutral600')};
+    }
+
+    /* 2.7.8: native checkboxes, radios, selects and date inputs in blocks follow the admin theme. */
+    .ce-block :is(input, select, textarea) {
+      color-scheme: ${({ theme }) => theme.colorScheme};
     }
 
     .image-tool__image {
@@ -2085,6 +2135,17 @@ export const editorStyles = css`
     .mex-link__card > .mex-csp-blocked {
       flex: 1 1 100%;
       order: 1;
+    }
+
+    /* 2.7.8: the same for a blocked person photo (the notice was squeezed into the 72 px circle). */
+    .mex-person > .mex-csp-blocked {
+      flex: 1 1 100%;
+      order: 1;
+    }
+
+    /* 2.7.8: the blocked person photo is hidden; the circle shows its placeholder colour. */
+    .mex-person__photo img.mex-csp-hidden {
+      display: none;
     }
 
     .mex-link__title {

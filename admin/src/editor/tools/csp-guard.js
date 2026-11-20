@@ -92,6 +92,14 @@ export const createCspGuard = (holder, options) => {
   };
 
   const mark = (element, kind) => {
+    // 2.7.8: a blocked person photo sits in a 72 px circle; the notice takes its own row in the card.
+    const row = element.closest('.mex-person');
+    if (row) {
+      element.classList.add('mex-csp-hidden');
+      if (row.querySelector(':scope > .mex-csp-blocked')) return;
+      row.appendChild(placeholder(kind, element.getAttribute('src') || ''));
+      return;
+    }
     const previous = element.previousElementSibling;
     if (previous && previous.classList.contains('mex-csp-blocked')) return;
     if (!element.parentNode) return;
