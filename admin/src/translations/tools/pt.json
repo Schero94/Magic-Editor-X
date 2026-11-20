@@ -217,6 +217,7 @@
   "tools.csp.hostBlocked": "O painel de administração não permite conteúdo de {host}. O bloco é guardado sem alterações e continua a aparecer no seu site.",
   "tools.csp.blockedGeneric": "O painel de administração não permite este conteúdo. O bloco é guardado sem alterações e continua a aparecer no seu site.",
   "tools.csp.howTo": "Como permitir",
+  "tools.embed.unknown": "Esta incorporação ({service}) não está disponível neste editor. O bloco é salvo sem alterações.",
   "tools.csp.askAdmin": "Peça a um administrador que o permita na Content Security Policy.",
   "tools.image.altRequired": "Texto alternativo (obrigatório)",
   "tools.image.alt": "Texto alternativo",

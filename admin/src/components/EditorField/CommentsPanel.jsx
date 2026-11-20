@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { usePanelAutoFocus } from './usePanelFocus';
 import {
   Box,
   Button,
@@ -82,6 +83,7 @@ const shorten = (text) =>
  * @returns {JSX.Element} Panel.
  */
 export const CommentsPanel = ({
+  autoFocus = false,
   t,
   comments,
   blocks,
@@ -105,6 +107,7 @@ export const CommentsPanel = ({
   const [posting, setPosting] = useState(false);
   const [announcement, setAnnouncement] = useState('');
   const headingRef = useRef(null);
+  usePanelAutoFocus(autoFocus, headingRef);
   const newButtonRef = useRef(null);
   const threadRefs = useRef(new Map());
   const pendingFocusRef = useRef(null);

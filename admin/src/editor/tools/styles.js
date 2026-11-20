@@ -366,9 +366,19 @@ export const editorStyles = css`
       display: inline-flex;
       align-items: center;
       gap: ${s(2)};
+      /* The whole label toggles the box: it is the target and at least 24 px high (WCAG 2.5.8). */
+      min-height: ${s(6)};
       font-size: ${f(1)};
       color: ${c('neutral800')};
       cursor: pointer;
+
+      input[type='checkbox'] {
+        flex: none;
+        width: ${s(5)};
+        height: ${s(5)};
+        margin: 0;
+        accent-color: ${c('primary600')};
+      }
     }
 
     .mex-tool__muted {
@@ -1100,6 +1110,15 @@ export const editorStyles = css`
       white-space: nowrap;
     }
 
+    /* @editorjs/attaches colours its texts with its own variables (fixed light colours); our
+       rules tie in specificity and the package style loads later, so the variables are set. */
+    .cdx-attaches {
+      --color-line: ${c('neutral200')};
+      --color-bg: ${c('neutral0')};
+      --color-bg-secondary: ${c('neutral150')};
+      --color-text-secondary: ${c('neutral600')};
+    }
+
     .cdx-attaches {
       background: ${c('neutral0')};
       border: 1px solid ${c('neutral200')};
@@ -1130,6 +1149,29 @@ export const editorStyles = css`
     }
 
     .image-tool__caption,
+    .mex-embed-unknown {
+      border: 1px dashed ${c('neutral300')};
+      border-radius: ${radius};
+      background: ${c('neutral100')};
+      color: ${c('neutral800')};
+      padding: ${s(3)} ${s(4)};
+      font-size: ${f(2)};
+      overflow-wrap: anywhere;
+
+      p {
+        margin: 0;
+      }
+
+      p + p {
+        margin-top: ${s(1)};
+      }
+    }
+
+    .mex-embed-unknown__source {
+      color: ${c('neutral600')};
+      font-size: ${f(1)};
+    }
+
     .embed-tool__caption {
       color: ${c('neutral600')};
     }
@@ -1452,6 +1494,7 @@ export const editorStyles = css`
       .mex-code__filename {
         flex: 1 1 16rem;
         min-width: 0;
+        min-height: ${s(8)};
         width: auto;
         padding-block: ${s(1)};
         padding-inline: ${s(2)};
@@ -1472,6 +1515,7 @@ export const editorStyles = css`
       .mex-tool__select {
         width: auto;
         max-width: 100%;
+        min-height: ${s(8)};
         padding-block: ${s(1)};
         padding-inline-start: ${s(2)};
         font-size: ${f(1)};
@@ -1593,7 +1637,8 @@ export const editorStyles = css`
     .mex-code__code .token.boolean,
     .mex-code__code .token.constant,
     .mex-code__code .token.symbol {
-      color: ${c('warning700')};
+      /* warning700 is 4.09:1 on the light code background; danger600 is AA in light and dark. */
+      color: ${c('danger600')};
     }
 
     .mex-code__code .token.function,
@@ -1918,7 +1963,11 @@ export const editorStyles = css`
       position: absolute;
       inset-inline-end: 0;
       inset-block-end: 0;
-      min-height: 28px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: ${s(8)};
+      min-height: ${s(8)};
       padding: ${s(1)};
       border-radius: 50%;
     }
@@ -2218,6 +2267,9 @@ export const editorStyles = css`
 
     .mex-csp-blocked__link {
       align-self: flex-start;
+      display: inline-flex;
+      align-items: center;
+      min-height: ${s(6)};
       color: ${c('primary700')};
       font-weight: 600;
       text-decoration: underline;

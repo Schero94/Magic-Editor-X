@@ -98,18 +98,31 @@ export const isApplePlatform = (nav = typeof navigator !== 'undefined' ? navigat
 export const modKeyName = (apple = isApplePlatform()) => (apple ? 'Cmd' : 'Ctrl');
 
 /**
- * Shows a ShortcutsDialog-style combination (`CMD+SHIFT+F`) as text: `Ctrl+Shift+F` / `Cmd+Shift+F`.
+ * Display name of one key of a combination (2.7.4, c1). Same notation as the Editor.js 2.31
+ * block menu and inline toolbar hints (`beautifyShortcut`), so every shortcut in the field reads the
+ * same: on Apple platforms ⌘ ⇧ ⌥, elsewhere Ctrl ⇧ Alt.
+ * @param {string} key - Key as written in a combination (`CMD`, `SHIFT`, `ALT`, `F`, ...).
+ * @param {boolean} [apple] - Apple platform (defaults to detection).
+ * @returns {string} Display name.
+ */
+export const shortcutKeyName = (key, apple = isApplePlatform()) => {
+  const names = apple ? { CMD: '⌘', SHIFT: '⇧', ALT: '⌥' } : { CMD: 'Ctrl', SHIFT: '⇧', ALT: 'Alt' };
+  return names[String(key).toUpperCase()] || key;
+};
+
+/**
+ * Shows a ShortcutsDialog-style combination (`CMD+SHIFT+F`) as text in the Editor.js notation:
+ * `⌘ + ⇧ + F` on Apple platforms, `Ctrl + ⇧ + F` elsewhere.
  * @param {string} combo - Combination with `+` between keys.
  * @param {boolean} [apple] - Apple platform (defaults to detection).
  * @returns {string} Display text, empty without a combination.
  */
 export const formatShortcut = (combo, apple = isApplePlatform()) => {
   if (typeof combo !== 'string' || !combo) return '';
-  const names = { CMD: modKeyName(apple), SHIFT: 'Shift', ALT: 'Alt' };
   return combo
     .split('+')
-    .map((key) => names[key] || key)
-    .join('+');
+    .map((key) => shortcutKeyName(key, apple))
+    .join(' + ');
 };
 
 /**

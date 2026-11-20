@@ -122,3 +122,28 @@ test('settings page Templates: the template editor (deep link) starts one Editor
     'opening the editor sends no mutation'
   );
 });
+
+test('settings page Configuration without access: no settings request, one main landmark (m9, m10)', async () => {
+  pluginRoutes();
+  const result = await checkStrictEntry(<ConfigurationPage />, {
+    path: '/settings/magic-editor-x/configuration',
+    permissions: [],
+  });
+  assert.equal(
+    result.calls.filter((call) => call.pathname === '/magic-editor-x/settings').length,
+    0,
+    'no request before the permission check allows it'
+  );
+  assert.equal((result.html.match(/<main\b/g) || []).length, 1, 'one main landmark');
+});
+
+test('settings page Configuration load error: one main landmark (m9)', async () => {
+  pluginRoutes();
+  const { network } = await import('./harness/network.mjs');
+  network.on('GET', '/magic-editor-x/settings', () => ({ status: 500, body: { error: { message: 'x' } } }));
+  const result = await checkStrictEntry(<ConfigurationPage />, {
+    path: '/settings/magic-editor-x/configuration',
+    permissions: ALL,
+  });
+  assert.equal((result.html.match(/<main\b/g) || []).length, 1, 'one main landmark');
+});

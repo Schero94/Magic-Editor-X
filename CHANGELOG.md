@@ -1,5 +1,16 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- **Sub- and superscript kept.** Fields without the script buttons dropped stored `<sub>` (and plain `<sup>` without footnotes) on every save and on HTML paste, because Editor.js keeps only tags of the inline tools a block offers. Fields whose preset allows every inline tag now keep them without showing extra buttons. This also removes the phantom "Send 1 suggestion" in Suggest changes for such content.
+- **Focus.** Quality checks, Comments and Suggestions opened from More tools move focus into the panel (and back to More tools when closed). The keyboard shortcuts dialog returns focus to the caret (Ctrl/Cmd+/) or to More tools. A new highlighted code block starts in the code, not the file name. A new component block starts in its first field.
+- **Target sizes and contrast.** Checkbox labels in block forms, the code block's file name and language controls, the person block's photo button and the "How to allow it" link are at least 24 px; the audit trail shows page size and page links in two rows below 768 px so nothing runs off the screen. Numbers in highlighted code and the attachment file size now meet 4.5:1 in light and dark mode.
+- **Settings pages.** Load errors, loading and missing permissions render one `main` landmark. The Configuration page no longer requests the settings before the permission check (no 403 in the console for reviewers).
+- **Unknown embed services.** A stored embed whose service the editor does not configure shows a short note with its URL and is saved unchanged, instead of an Editor.js console error and a missing block.
+- **Shortcut labels.** More tools and the shortcuts dialog use the notation of the Editor.js block menu (⌘ ⇧ ⌥ on a Mac, Ctrl ⇧ Alt elsewhere).
+
 ## [2.7.3](https://github.com/Schero94/Magic-Editor-X/compare/v2.7.2...v2.7.3) (2026-11-20)
 
 

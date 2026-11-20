@@ -79,31 +79,31 @@ const ConfigurationPage = () => {
   const t = useT();
   const { toggleNotification } = useNotification();
   const { allowedActions, isLoading: rbacLoading } = useRBAC(RBAC);
-  const form = useConfigurationForm();
+  const form = useConfigurationForm({ enabled: !rbacLoading && Boolean(allowedActions.canRead) });
   const title = t('settings.configuration.title', 'Configuration');
   // Latest link schedule status reported by the "Run now" section, so the read-only environment row
   // shows the same last run instead of the one from page load.
   const [liveSchedule, setLiveSchedule] = useState(null);
 
-  if (rbacLoading || form.status === 'loading') {
+  if (rbacLoading || (allowedActions.canRead && form.status === 'loading')) {
     return (
-      <Page.Main>
+      <>
         <Page.Title>{title}</Page.Title>
         <Page.Loading />
-      </Page.Main>
+      </>
     );
   }
   if (!allowedActions.canRead) {
     return (
-      <Page.Main>
+      <>
         <Page.Title>{title}</Page.Title>
         <Page.NoPermissions />
-      </Page.Main>
+      </>
     );
   }
   if (form.status === 'error') {
     return (
-      <Page.Main>
+      <>
         <Page.Title>{title}</Page.Title>
         <Page.Error
           content={t(
@@ -116,7 +116,7 @@ const ConfigurationPage = () => {
             </Button>
           }
         />
-      </Page.Main>
+      </>
     );
   }
 
