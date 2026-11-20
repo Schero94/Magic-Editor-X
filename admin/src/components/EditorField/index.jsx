@@ -162,6 +162,7 @@ import {
   skippedControl,
 } from '../../editor/block-tab-stops.mjs';
 import {
+  decorateDivButtons,
   decorateToolbar,
   inlineToolbarItems,
   labelInlineToolbar,
@@ -2304,6 +2305,7 @@ const EditorFieldBody = ({
     const holder = holderRef.current;
     if (!ready || !holder) return undefined;
     const stopLabels = labelInlineToolbar(holder, (name) => toolTitlesRef.current[name]);
+    const stopDivButtons = decorateDivButtons(holder);
     let insertedAt = 0;
     const onToolbox = (event) => {
       if (event.target && event.target.closest && event.target.closest('.ce-toolbox, .ce-popover'))
@@ -2326,6 +2328,7 @@ const EditorFieldBody = ({
     holder.addEventListener('keydown', onToolbox, true);
     return () => {
       stopLabels();
+      stopDivButtons();
       observer.disconnect();
       holder.removeEventListener('click', onToolbox, true);
       holder.removeEventListener('keydown', onToolbox, true);

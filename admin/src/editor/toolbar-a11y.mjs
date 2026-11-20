@@ -112,3 +112,38 @@ export const inlineToolbarItems = (holder) => {
     (element) => !element.hasAttribute('disabled') && element.getClientRects().length > 0
   );
 };
+
+/** Package controls that are clickable `div`s (2.7.8): @editorjs/attaches' "Select a file". */
+const DIV_BUTTONS = '.cdx-attaches__button';
+
+/**
+ * Makes clickable `div`s of package tools keyboard buttons (role, tab stop, Enter/Space), now and
+ * for blocks added later. Their visible text names them.
+ * @param {Element|null} holder - Editor holder.
+ * @returns {() => void} Cleanup.
+ */
+export const decorateDivButtons = (holder) => {
+  if (!holder) return () => {};
+  const decorate = () => {
+    for (const node of holder.querySelectorAll(`${DIV_BUTTONS}:not([role])`)) {
+      node.setAttribute('role', 'button');
+      node.setAttribute('tabindex', '0');
+    }
+  };
+  const onKeyDown = (event) => {
+    const node = event.target && event.target.closest ? event.target.closest(DIV_BUTTONS) : null;
+    if (!node || (event.key !== 'Enter' && event.key !== ' ')) return;
+    event.preventDefault();
+    event.stopPropagation();
+    node.click();
+  };
+  decorate();
+  const View = holder.ownerDocument.defaultView;
+  const observer = new View.MutationObserver(decorate);
+  observer.observe(holder, { childList: true, subtree: true });
+  holder.addEventListener('keydown', onKeyDown);
+  return () => {
+    observer.disconnect();
+    holder.removeEventListener('keydown', onKeyDown);
+  };
+};

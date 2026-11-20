@@ -64,3 +64,25 @@ test('insertedBlockControl: a video block gets its Choose button, a paragraph no
   assert.equal(insertedBlockControl(wrap.querySelector('#p'), visible), null);
   assert.equal(insertedBlockControl(document.createTextNode('x'), visible), null);
 });
+
+test('attachment "Select a file" (a div in @editorjs/attaches) becomes a keyboard button', async () => {
+  const { decorateDivButtons } = await import('../../admin/src/editor/toolbar-a11y.mjs');
+  const holder = document.createElement('div');
+  document.body.append(holder);
+  const stop = decorateDivButtons(holder);
+  holder.innerHTML = '<div class="ce-block"><div class="cdx-attaches__button">Select a file</div></div>';
+  await settle();
+  const button = holder.querySelector('.cdx-attaches__button');
+  assert.equal(button.getAttribute('role'), 'button');
+  assert.equal(button.getAttribute('tabindex'), '0');
+  let clicks = 0;
+  button.addEventListener('click', () => (clicks += 1));
+  button.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+  assert.equal(clicks, 1);
+  assert.equal(
+    insertedBlockControl(holder.querySelector('.ce-block'), () => true),
+    button
+  );
+  stop();
+  holder.remove();
+});
