@@ -1,6 +1,12 @@
 # Changelog
 
-## [Unreleased]
+## [2.7.4](https://github.com/Schero94/Magic-Editor-X/compare/v2.7.3...v2.7.4) (2026-11-20)
+
+
+### Bug Fixes
+
+* **admin:** toggle freeze, unsaved room text, CSP link card, save race ([#29](https://github.com/Schero94/Magic-Editor-X/issues/29)) ([4d660c4](https://github.com/Schero94/Magic-Editor-X/commit/4d660c4f772e14108c922013dd3a42c7dc9d6b24))
+
 
 ### Fixed
 
