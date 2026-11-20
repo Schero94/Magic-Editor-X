@@ -49,10 +49,22 @@ test('README and AGENTS.md list every RBAC action', () => {
   }
 });
 
+/** Start and end markers of the competitor comparison in the README and on the site. */
+const COMPARISON = /<!-- comparison:start -->([\s\S]*?)<!-- comparison:end -->/;
+
+/**
+ * Text without the competitor comparison. The comparison names other vendors'
+ * plans and links their price pages; the rest of the docs must never talk
+ * about plans, tiers or upgrades of Magic Editor X itself.
+ * @param {string} text - Document text.
+ * @returns {string} Text without the marked section.
+ */
+const withoutComparison = (text) => text.replace(COMPARISON, '');
+
 test('no license, tier or upsell wording in the user-facing docs', () => {
   for (const [name, text] of [
-    ['README.md', readme],
-    ['docs/site/index.html', site],
+    ['README.md', withoutComparison(readme)],
+    ['docs/site/index.html', withoutComparison(site)],
     ['docs/site/llms.txt', llms],
   ]) {
     assert.doesNotMatch(
@@ -61,6 +73,34 @@ test('no license, tier or upsell wording in the user-facing docs', () => {
       name
     );
   }
+});
+
+test('the comparison is marked once, dated and links a source for every competitor row', () => {
+  for (const [name, text] of [
+    ['README.md', readme],
+    ['docs/site/index.html', site],
+  ]) {
+    assert.equal(text.split('<!-- comparison:start -->').length, 2, `${name}: one comparison`);
+    const section = text.match(COMPARISON);
+    assert.ok(section, `${name}: comparison start and end markers`);
+    assert.match(section[1], /How Magic Editor X compares/, name);
+    assert.match(section[1], /as of\s+2026-11/, `${name}: date of the competitor facts`);
+    assert.match(section[1], /weaker/i, `${name}: names the plugin's own limits`);
+    // Magic Editor X itself has no plans or tiers, also inside the comparison.
+    assert.doesNotMatch(section[1], /magicdx|license key|upgrade to/i, name);
+    const rows =
+      name === 'README.md'
+        ? section[1]
+            .split('\n')
+            .filter((line) => /^\| [A-Z]/.test(line) && !/^\| (Feature|Product) /.test(line))
+        : section[1].split('<tr>').slice(2);
+    assert.ok(rows.length >= 8, `${name}: ${rows.length} rows`);
+    // Every row makes at least one competitor claim, so every row links its source.
+    for (const row of rows)
+      assert.match(row, /https:\/\//, `${name}: row without a source link: ${row.slice(0, 80)}`);
+  }
+  assert.match(site, /<a href="#compare">/, 'side navigation links the comparison');
+  assert.match(site, /"name": "How does Magic Editor X compare with/, 'FAQ structured data');
 });
 
 test('the Pages site has the required structure and references only existing local files', () => {
