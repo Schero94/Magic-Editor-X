@@ -733,6 +733,8 @@
   "editor.drafts.conflict": "Le contenu enregistré a changé depuis. La restauration le remplace dans l’éditeur ({count, plural, one {# bloc diffère} other {# blocs diffèrent}}).",
   "editor.drafts.conflictPlain": "Le contenu enregistré a changé depuis. La restauration le remplace dans l’éditeur.",
   "editor.drafts.discard": "Ignorer",
+  "editor.room.unsaved": "Ce champ affiche des modifications d'une session d'édition en direct qui ne sont pas encore enregistrées. Enregistrez l'entrée pour les conserver.",
+  "editor.room.discard": "Ignorer les modifications",
   "editor.drafts.restore": "Restaurer",
   "editor.drafts.restored": "Modifications restaurées. Enregistrez l’entrée pour les conserver.",
   "editor.component.badge": "Composant",
