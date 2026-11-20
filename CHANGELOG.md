@@ -16,6 +16,19 @@ Settings pages (Configuration, Custom blocks, Templates, Audit trail), from an i
 - **Custom block import report.** A skipped entry without a name showed a literal "?"; it now reads "An entry without a name: the definition is not valid." The list of skipped entries is no longer nested inside the alert's paragraph (invalid HTML).
 - **Smaller things.** The colour swatches of the palette section had native browser tooltips; the text next to them now names the light and dark theme values. "Save name" for a synced block version is disabled while the name is longer than 120 characters. New texts are translated into German, French, Spanish and Portuguese.
 
+# [2.8.0](https://github.com/Schero94/Magic-Editor-X/compare/v2.7.7...v2.8.0) (2026-11-20)
+
+
+### Features
+
+* generate TypeScript types per field preset and custom block ([#37](https://github.com/Schero94/Magic-Editor-X/issues/37)) ([8bff3c9](https://github.com/Schero94/Magic-Editor-X/commit/8bff3c9b921a6da449e0f1a7feb1d02d56533e13))
+
+
+### Added
+
+- **`npx magic-editor-x types`: TypeScript types per field.** Run from the Strapi project root, it writes a TypeScript module with one discriminated block union per Magic Editor X field: only the block types the field's preset allows (resolved with the same code as the server, heading levels narrowed, component blocks only for the components the field lists), typed `data` for Settings custom blocks (from their field definitions) and for blocks registered with the block SDK (from their schema), and `MagicEditorXFieldValues` from uid and field name to the value type. Options `--out`, `--uid` (repeatable, includes the components a type uses) and `--import-from`. The command loads the project like `migrate`, only reads and makes no network requests (`fetch()` refuses every request while it runs, telemetry is off, scheduled jobs are stopped). Also available as `strapi.plugin('magic-editor-x').service('types').generate({ uids })`. See "TypeScript types per field" in the README.
+- **"How Magic Editor X compares" in the README and on the site.** A table sets Magic Editor X against the paid plans of CKEditor 5 and TinyMCE, Strapi's Blocks field and the Growth and Enterprise features of Strapi, with short notes on Payload (Lexical) and Sanity. Every competitor claim links its vendor source and is dated 2026-11. The section also lists where Magic Editor X is weaker: block-level suggestions only, inline text only in table cells, no crop inside the editor, a fixed list of AI actions and no .docx file import. The site adds a matching FAQ entry (also in the FAQ structured data), and `llms.txt` and `llms-full.txt` point to the comparison.
+
 ## [2.7.7](https://github.com/Schero94/Magic-Editor-X/compare/v2.7.6...v2.7.7) (2026-11-20)
 
 

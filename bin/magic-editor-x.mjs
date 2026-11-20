@@ -4,18 +4,20 @@
  *
  *   npx magic-editor-x migrate --uid api::article.article --from body --to content [--apply]
  *   npx magic-editor-x media-file-ids [--apply]   (2.5)
+ *   npx magic-editor-x types [--out file] [--uid uid ...]
  *
  * Run it from the root of the Strapi project. It loads the project with
  * Strapi's programmatic API (compileStrapi, createStrapi().load(), destroy()),
  * without starting the HTTP server, runs the plugin's `migrate` service and
  * prints the report. Without `--apply` nothing is written (dry run).
  * `media-file-ids` runs the plugin's `media` service `migrateFileIds`
- * (the 2.5 migration, re-runnable).
+ * (the 2.5 migration, re-runnable). `types` writes TypeScript types for the
+ * project's Magic Editor X fields (plugin `types` service); it only reads.
  */
 
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
-import { realpathSync, writeFileSync } from 'node:fs';
+import { readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 
@@ -46,7 +48,24 @@ Usage: magic-editor-x media-file-ids [--apply] [--json] [--batch <n>]
 Links the Media Library files of every Magic Editor X field (image, gallery,
 video, audio, poster, track and attachment files) to their Media Library
 entry by URL, and removes stored signatures of a private upload provider.
-Safe to run again; without --apply nothing is written (dry run).`;
+Safe to run again; without --apply nothing is written (dry run).
+
+Usage: magic-editor-x types [--out <file>] [--uid <uid> ...] [--import-from <module>]
+
+Writes TypeScript types for every Magic Editor X field of the project: per
+field, a union of the block types its preset allows, typed data of Settings
+custom blocks and block SDK blocks, and a map from uid and field name to the
+value type. Loads the project like migrate does, reads the schemas and the
+custom block definitions and writes only the output file. The command makes
+no network requests, and Strapi's telemetry and cron jobs are off while it
+runs (bootstrap code of other plugins in the project still runs).
+
+Options:
+  --out <file>          Write the types to this file (default: print them)
+  --uid <uid>           Only this content type or component and the
+                        components it uses; repeat for more
+  --import-from <name>  Module of the built-in block types
+                        (default magic-editor-x/types)`;
 
 /**
  * Parses and validates the command line.
@@ -60,7 +79,7 @@ export const parseCommand = (argv) => {
     allowPositionals: true,
     strict: true,
     options: {
-      uid: { type: 'string' },
+      uid: { type: 'string', multiple: true },
       from: { type: 'string' },
       to: { type: 'string' },
       format: { type: 'string' },
@@ -71,6 +90,7 @@ export const parseCommand = (argv) => {
       limit: { type: 'string' },
       json: { type: 'boolean' },
       out: { type: 'string' },
+      'import-from': { type: 'string' },
       help: { type: 'boolean', short: 'h' },
     },
   });
@@ -80,6 +100,29 @@ export const parseCommand = (argv) => {
     if (!/^\d{1,7}$/.test(values[name])) throw new Error(`--${name} must be a positive integer`);
     return Number(values[name]);
   };
+  if (positionals.length === 1 && positionals[0] === 'types') {
+    for (const name of ['from', 'to', 'format', 'locale', 'apply', 'overwrite', 'batch', 'limit', 'json'])
+      if (values[name] !== undefined) throw new Error(`--${name} is not an option of types`);
+    const uids = values.uid || [];
+    for (const uid of uids)
+      if (
+        !/^(?:[a-z]+::[A-Za-z0-9_-]{1,100}\.[A-Za-z0-9_-]{1,100}|[A-Za-z0-9_-]{1,100}\.[A-Za-z0-9_-]{1,100})$/.test(
+          uid
+        )
+      )
+        throw new Error(`--uid ${JSON.stringify(uid).slice(0, 120)} is not a content type or component uid`);
+    if (values.out !== undefined && !values.out.trim()) throw new Error('--out needs a file name');
+    const importFrom = values['import-from'];
+    if (importFrom !== undefined && !/^[@A-Za-z0-9._/-]{1,200}$/.test(importFrom))
+      throw new Error('--import-from must be a module name or path');
+    return {
+      help: false,
+      command: 'types',
+      out: values.out,
+      options: { uids, ...(importFrom ? { importFrom } : {}) },
+    };
+  }
+  if (values['import-from'] !== undefined) throw new Error('--import-from is an option of types only');
   if (positionals.length === 1 && positionals[0] === 'media-file-ids') {
     for (const name of ['uid', 'from', 'to', 'format', 'locale', 'overwrite', 'limit', 'out'])
       if (values[name] !== undefined) throw new Error(`--${name} is not an option of media-file-ids`);
@@ -92,10 +135,11 @@ export const parseCommand = (argv) => {
     };
   }
   if (positionals.length !== 1 || positionals[0] !== 'migrate')
-    throw new Error('Unknown command (expected "migrate" or "media-file-ids")');
+    throw new Error('Unknown command (expected "migrate", "media-file-ids" or "types")');
   for (const name of ['uid', 'from', 'to']) if (!values[name]) throw new Error(`--${name} is required`);
+  if (values.uid.length > 1) throw new Error('--uid can be given only once for migrate');
   const options = {
-    uid: values.uid,
+    uid: values.uid[0],
     from: values.from,
     to: values.to,
     format: values.format || 'auto',
@@ -154,6 +198,33 @@ export const formatReport = (report) => {
 };
 
 /**
+ * Makes fetch() refuse every request (used by `types`, which must not reach
+ * the network).
+ * @returns {() => void} Restores the previous fetch.
+ */
+export const blockFetch = () => {
+  const original = globalThis.fetch;
+  globalThis.fetch = async () => {
+    throw new Error('magic-editor-x types makes no network requests');
+  };
+  return () => {
+    globalThis.fetch = original;
+  };
+};
+
+/**
+ * Version of this package (written into the header of generated types).
+ * @returns {string|undefined} Version.
+ */
+const ownVersion = () => {
+  try {
+    return JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
+  } catch {
+    return undefined;
+  }
+};
+
+/**
  * Runs the command.
  * @param {string[]} argv - Arguments.
  * @returns {Promise<number>} Exit code.
@@ -185,8 +256,23 @@ export const main = async (argv) => {
   const stdoutWrite = process.stdout.write.bind(process.stdout);
   process.stdout.write = process.stderr.write.bind(process.stderr);
   const print = (text) => stdoutWrite(text);
-  const appContext = await core.compileStrapi();
-  const app = await core.createStrapi(appContext).load();
+  // `types` only reads and works offline. Strapi itself would make requests
+  // while it loads: the update check (`createStrapi`, npm registry) and the
+  // telemetry ping. Both use fetch(), which refuses every request until the
+  // command ends; telemetry is off and scheduled jobs are stopped. The
+  // database connection from the project's config is not affected.
+  const restoreFetch = command.command === 'types' ? blockFetch() : () => {};
+  if (command.command === 'types') process.env.STRAPI_TELEMETRY_DISABLED = 'true';
+  let app;
+  try {
+    const appContext = await core.compileStrapi();
+    app = await core.createStrapi(appContext).load();
+  } catch (error) {
+    restoreFetch();
+    process.stdout.write = stdoutWrite;
+    throw error;
+  }
+  if (command.command === 'types' && app.cron && typeof app.cron.stop === 'function') app.cron.stop();
   let code;
   try {
     const plugin = app.plugin('magic-editor-x');
@@ -194,7 +280,18 @@ export const main = async (argv) => {
       throw Object.assign(new Error('Magic Editor X is not installed in this project'), {
         code: 'NO_PLUGIN',
       });
-    if (command.command === 'media-file-ids') {
+    if (command.command === 'types') {
+      const service = plugin.service('types');
+      if (!service)
+        throw new Error('This Magic Editor X version has no types service; update the plugin in the project');
+      const result = await service.generate({ ...command.options, version: ownVersion() });
+      if (command.out) writeFileSync(command.out, result.code);
+      else print(result.code);
+      process.stderr.write(
+        `Types for ${result.fields} field(s), ${result.customBlocks} custom block(s) and ${result.codeBlocks} code block(s)${command.out ? ` written to ${command.out}` : ''}\n`
+      );
+      code = 0;
+    } else if (command.command === 'media-file-ids') {
       const report = await plugin.service('media').migrateFileIds(command.options);
       print(`${command.json ? JSON.stringify(report, null, 2) : formatMediaReport(report)}\n`);
       code = report.failed > 0 ? 1 : 0;
@@ -209,6 +306,7 @@ export const main = async (argv) => {
     code = 1;
   } finally {
     await app.destroy();
+    restoreFetch();
     process.stdout.write = stdoutWrite;
   }
   return code;

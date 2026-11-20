@@ -22,6 +22,7 @@ Live docs: <https://schero94.github.io/Magic-Editor-X/>
 - [Screenshots](#screenshots)
 - [Core concepts](#core-concepts)
 - [Screens](#screens)
+- [How Magic Editor X compares](#how-magic-editor-x-compares)
 - [Compatibility](#compatibility)
 - [Install](#install)
 - [Configuration](#configuration)
@@ -41,6 +42,7 @@ Live docs: <https://schero94.github.io/Magic-Editor-X/>
 - [Working together and reusing content (2.5)](#working-together-and-reusing-content-25)
 - [Component blocks, columns and Live Preview (2.6)](#component-blocks-columns-and-live-preview-26)
 - [Data format](#data-format)
+- [TypeScript types per field](#typescript-types-per-field)
 - [Rendering content](#rendering-content)
 - [Content API and GraphQL output](#content-api-and-graphql-output)
 - [Custom blocks in code (SDK)](#custom-blocks-in-code-sdk)
@@ -90,7 +92,7 @@ Every feature is available in every installation. There is nothing to activate, 
 - **Paste and import:** Word, Google Docs, LibreOffice, web pages and Markdown become real blocks (tables keep merged cells, header cells and alignment; videos and audio from the web are copied into the Media Library); a CLI migrates Strapi Blocks, Markdown and HTML fields. See [Paste, import and migration](#paste-import-and-migration).
 - **Media:** alternative text and "decorative image" on image blocks and gallery images, a focal point that frontends keep visible when they crop; images keep their Media Library id and responsive formats.
 - **Quality checks:** accessibility lint (alternative texts, heading order, link texts, table headers, contrast of custom colours, videos without captions, empty tables of contents), a link check and an optional scheduled check of every external link, with an optional publishing guard. See [Quality checks](#quality-checks).
-- **Renderers, schema and types:** `magic-editor-x/render` (HTML, plain text, Markdown; framework-free and XSS-safe), React and Vue components (`magic-editor-x/react`, `magic-editor-x/vue`), guides for React, Vue/Nuxt and Astro, `magic-editor-x/schema` (JSON Schema) and `magic-editor-x/types` (TypeScript). See [Rendering content](#rendering-content).
+- **Renderers, schema and types:** `magic-editor-x/render` (HTML, plain text, Markdown; framework-free and XSS-safe), React and Vue components (`magic-editor-x/react`, `magic-editor-x/vue`), guides for React, Vue/Nuxt and Astro, `magic-editor-x/schema` (JSON Schema) and `magic-editor-x/types` (TypeScript), plus `npx magic-editor-x types` for types of the blocks each of your fields allows. See [Rendering content](#rendering-content) and [TypeScript types per field](#typescript-types-per-field).
 - **Content API and GraphQL output:** `?mex=html|text|markdown|json` on Content API requests and `<field>Rendered` / `<field>Resolved` in GraphQL, with internal links, mentions, embedded entries, media and synced blocks resolved with the caller's permissions. See [Content API and GraphQL output](#content-api-and-graphql-output).
 - **Custom blocks:** define your own blocks in Settings: simple blocks with fields (text, textarea, URL, number, select, checkbox, image, colour) and an optional HTML template, or embedded-entry blocks that link an entry of another content type. Import and export as JSON. Blocks that need code (own editor UI, strict data rules, own output) are defined once with the block SDK; see [Custom blocks in code (SDK)](#custom-blocks-in-code-sdk).
 - **Version history:** named versions, a word-level comparison with the current content (tune changes shown as "Alignment: left → center"), restore of the whole field or a single block; automatic versions during live sessions. Fields inside repeatable components and dynamic zones have their own history (2.4). Synced block sources keep versions too.
@@ -163,6 +165,44 @@ All screenshots use synthetic data (captured on Strapi 5.61.1 and 5.62.0; accept
 | Custom blocks                  | Settings > Magic Editor X > Custom blocks                                                                                   | `custom-blocks.manage`.                                                                                                                                          |
 | Templates                      | Settings > Magic Editor X > Templates (templates, patterns and synced blocks, with versions of synced blocks)               | `templates.manage`.                                                                                                                                              |
 | Audit trail                    | Settings > Magic Editor X > Audit trail                                                                                     | `audit.read` and `settings.read`.                                                                                                                                |
+
+<!-- comparison:start -->
+
+## How Magic Editor X compares
+
+Magic Editor X is free under the MIT license, and every feature below works in every installation. CKEditor 5 and TinyMCE sell collaboration, history and AI as paid plans or add-ons, and Strapi's own Blocks field has fewer block types. The table compares what each product documents. Competitor facts were checked against the linked vendor pages **as of 2026-11**; plans and prices change, so follow the links before you decide. "Not documented" means the vendor pages we checked say nothing either way. TinyMCE's page lists some features as included on its plan cards and as add-ons in its comparison table; this table follows the comparison table.
+
+| Feature                             | Magic Editor X (MIT, free)                                                                                                                            | CKEditor 5 (paid plans)                                                                                                                                                                          | TinyMCE (paid plans)                                                                                                                                                     | Strapi Blocks field and Strapi plans                                                                                                                                                                                      |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| License and cost                    | MIT. No plans, add-ons or usage limits.                                                                                                               | GPL 2+ for self-hosted open-source projects, or paid plans: Essential $144/month and Professional $289/month billed annually, with editor-load limits ([pricing](https://ckeditor.com/pricing/)) | GPL 2+ open source, or paid plans: Essential $79/month and Professional $145/month billed annually, with editor-load limits ([pricing](https://www.tiny.cloud/pricing/)) | The Blocks field is part of every Strapi edition. Content History and Strapi AI need the Growth or Enterprise plan (see below).                                                                                           |
+| Real-time co-editing                | Yes, character-level, across several Node processes without sticky sessions                                                                           | Add-on to Professional ($249/month billed annually) or included in Custom ([pricing](https://ckeditor.com/pricing/))                                                                             | The real-time collaboration plugin was retired on 31 December 2023 ([notice](https://www.tiny.cloud/docs/tinymce/6/rtc-introduction/))                                   | Not documented                                                                                                                                                                                                            |
+| Comments on selected text           | Yes, with replies, @mentions and optional e-mails                                                                                                     | Add-on to Professional, or Custom ([pricing](https://ckeditor.com/pricing/))                                                                                                                     | Professional and Enterprise ([pricing](https://www.tiny.cloud/pricing/))                                                                                                 | Not documented ([Content Manager](https://docs.strapi.io/cms/features/content-manager))                                                                                                                                   |
+| Suggestions and track changes       | **Block-level only:** a suggestion replaces, inserts or deletes a whole block and is accepted or rejected per block                                   | Track changes, add-on to Professional, or Custom ([pricing](https://ckeditor.com/pricing/))                                                                                                      | Suggested Edits, add-on to Professional ($79/month) or Enterprise ([pricing](https://www.tiny.cloud/pricing/))                                                           | Not documented                                                                                                                                                                                                            |
+| Version history                     | Named and automatic versions, word-level comparison, restore the field or one block                                                                   | Revision history, add-on to Professional, or Custom ([pricing](https://ckeditor.com/pricing/))                                                                                                   | Revision History, add-on to Professional or Enterprise ([pricing](https://www.tiny.cloud/pricing/))                                                                      | Content History on Growth (14 days) and Enterprise (30 to 90 days). The docs describe viewing and restoring a version, not a comparison ([Content History](https://docs.strapi.io/cms/features/content-history))          |
+| AI writing help                     | With your own key: Anthropic, OpenAI or an OpenAI-compatible server such as a local model. A fixed list of actions; no free-form prompt               | CKEditor AI, add-on from Essential ($133/month billed annually) ([pricing](https://ckeditor.com/pricing/))                                                                                       | TinyMCE AI, add-on from Essential ($133/month) ([pricing](https://www.tiny.cloud/pricing/))                                                                              | Strapi AI (translations, alt text and captions in the Media Library, a Content-Type Builder assistant), included in Growth, a paid add-on on Enterprise ([Strapi AI](https://docs.strapi.io/cms/ai/for-content-managers)) |
+| Tables                              | Header row and column, alignment, merged cells, caption. **Cells hold inline text only** (no lists or images, because Editor.js has no nested blocks) | Yes ([features](https://ckeditor.com/docs/ckeditor5/latest/features/index.html))                                                                                                                 | Yes ([plugins](https://www.tiny.cloud/docs/tinymce/latest/plugins/))                                                                                                     | No. The Blocks validator accepts paragraph, heading, quote, list, image and code ([source](https://github.com/strapi/strapi/blob/develop/packages/core/core/src/services/entity-validator/blocks-validator.ts))           |
+| Word and Google Docs content        | Paste from Word, Google Docs, LibreOffice and web pages into blocks. **No .docx file import and no Word or PDF export**                               | Enhanced paste from Office from Essential; Import from Word from Professional; Export to Word and PDF on every plan with monthly quotas ([pricing](https://ckeditor.com/pricing/))               | PowerPaste from Professional; Import from Word and Export to Word or PDF as usage add-ons ([pricing](https://www.tiny.cloud/pricing/))                                   | Not documented                                                                                                                                                                                                            |
+| Image crop                          | **No crop inside the editor.** Images keep a per-block focal point; crop in Strapi's Media Library                                                    | Not documented                                                                                                                                                                                   | Image Editing from Essential ([pricing](https://www.tiny.cloud/pricing/))                                                                                                | The Media Library's Crop & Focus area editor crops, rotates and sets a focus area, free since Strapi 5.54 ([Media Library](https://docs.strapi.io/cms/features/media-library))                                            |
+| Accessibility checks of the content | 15 rules (alternative text, heading order, link text, table headers, contrast and more) with an optional publishing guard                             | Not documented                                                                                                                                                                                   | Accessibility Checker from Professional ([pricing](https://www.tiny.cloud/pricing/))                                                                                     | Not documented                                                                                                                                                                                                            |
+
+Two headless CMS editors outside Strapi, for orientation:
+
+| Product                  | Facts as of 2026-11                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Payload (Lexical editor) | Multiplayer editing is announced under Payload for Enterprise but not available yet ([page](https://payloadcms.com/enterprise/multi-player-editing)). The table feature is `EXPERIMENTAL_TableFeature` and is not on by default ([features](https://payloadcms.com/docs/rich-text/official-features)). Upload collections have a crop tool and a focal point selector in the admin ([uploads](https://payloadcms.com/docs/upload/overview)). |
+| Sanity (Portable Text)   | Studio has real-time multiplayer editing with character-level sync ([Studio](https://www.sanity.io/studio)). Comments, including comments on words and sentences in Portable Text, are a Growth plan feature ([Comments](https://www.sanity.io/docs/studio/comments)). Images can have crop and hotspot tools (`hotspot: true`) ([image type](https://www.sanity.io/docs/studio/image-type)).                                                |
+
+**Where Magic Editor X is weaker.** These limits come from the engine, or the feature is not built yet:
+
+- Suggestions work on whole blocks. A reviewer cannot suggest a change to a few words inside a block, because Editor.js 2.x keeps no change marks in saved data and every block tool owns its own markup ([engine decision](https://github.com/Schero94/Magic-Editor-X/blob/main/docs/engine-decision.md)).
+- Table cells and columns hold inline text and simple items only. Editor.js has no nested blocks.
+- There is no crop or rotate inside the editor. Crop the asset in Strapi's Media Library; the block's focal point stays with the block.
+- The AI assistant has a fixed list of actions. There is no free-form prompt and no owner-defined actions yet.
+- There is no .docx file import and no Word or PDF export. Word content comes in by paste.
+- There are no readability or SEO rules in the quality checks.
+- Behaviour on touch devices and with thousands of blocks in the browser has not been measured.
+
+<!-- comparison:end -->
 
 ## Compatibility
 
@@ -745,6 +785,50 @@ Tunes are stored per block in `tunes`: `alignmentTune: { alignment }`, `textVari
 
 The Content API returns the object as stored. Entries saved with 1.x may still contain a JSON string until they are saved again; with `api.autoParseJSON` (default) the plugin parses such strings in Content API GET responses. Only Magic Editor X fields are parsed (also inside components, dynamic zones and populated relations); other fields are returned as stored.
 
+## TypeScript types per field
+
+`magic-editor-x/types` describes every block a field could hold. For a frontend that should know exactly what one field can contain, generate types from your project:
+
+```bash
+npx magic-editor-x types --out src/types/magic-editor-x.ts                           # every field
+npx magic-editor-x types --uid api::article.article --out src/types/article-body.ts  # one content type and its components
+```
+
+Run it from the Strapi project root, like `migrate`. It loads the project the same way (`compileStrapi`, `createStrapi().load()`, no HTTP server) and reads:
+
+- every content type and component with a Magic Editor X field, and each field's preset options (`preset`, `allowedBlocks`, `headingLevels`, `allowedComponents`), resolved with the same code the server uses on save;
+- the custom blocks from Settings > Magic Editor X > Custom blocks, enabled and disabled (stored content can hold both);
+- the blocks registered in code with the [block SDK](#custom-blocks-in-code-sdk).
+
+The generated module has, per field, a discriminated union of the block types the preset allows (heading levels narrowed, component blocks only for the listed components), typed `data` for Settings custom blocks (from their field definitions) and SDK blocks (from their schema), and a map from uid and field name to the value type:
+
+```ts
+import type { ArticleBodyBlock, MagicEditorXFieldValues } from './types/magic-editor-x';
+
+type Body = MagicEditorXFieldValues['api::article.article']['body']; // { time, blocks: ArticleBodyBlock[], version } | null
+
+const text = (block: ArticleBodyBlock) => {
+  switch (block.type) {
+    case 'paragraph':
+      return block.data.text;
+    case 'header':
+      return `H${block.data.level}`; // level is 2 | 3 with the "basic" preset
+    default:
+      return '';
+  }
+};
+```
+
+Options: `--out <file>` (default: print to stdout; Strapi's log lines go to stderr), `--uid <uid>` (repeatable; a content type or component and every component it uses), `--import-from <module>` (where the built-in block types come from, default `magic-editor-x/types`). Run it again after you change a content type, a field preset or a custom block; the output is deterministic, so a CI job can compare it with the committed file.
+
+What the types promise and what they do not:
+
+- Settings custom block fields are optional (`?`), because blocks saved before a field was added do not have it. An empty number field is stored as `''`. Text fields are inline HTML (`InlineHtml`).
+- A name in `allowedBlocks` without a definition (for example a deleted custom block) is typed with `Record<string, unknown>` data and named in a comment.
+- The block limits (`maxBlocks`, `maxCharacters`), link targets and required alternative texts are listed in each field's comment; TypeScript cannot check them. The server still enforces every rule on save.
+
+The command only reads. It writes nothing but the output file and makes no network requests: while it runs, `fetch()` refuses every request (Strapi's own update check and telemetry use it), telemetry is off and scheduled jobs are stopped. The database connection from the project's configuration is used as usual. Bootstrap code of other plugins in your project still runs, as with `migrate`. The same generator is available in code: `await strapi.plugin('magic-editor-x').service('types').generate({ uids })` returns `{ code, fields, customBlocks, codeBlocks }`.
+
 ## Rendering content
 
 `npm i magic-editor-x` also gives you a framework-free renderer (ESM and CommonJS, no dependencies, no Node built-ins, so it runs in Node, browsers and edge runtimes), a JSON Schema and TypeScript types:
@@ -764,7 +848,7 @@ const markdown = renderMarkdown(entry.body); // feeds, LLM context, export
 - **Safe by default:** stored inline HTML is re-parsed and only the editor's own tags and attributes survive (entities are decoded before URL checks, `javascript:`/`data:` links are dropped, `target="_blank"` gets `rel="noopener noreferrer"`), so the output is safe even for content that did not pass the server sanitiser. Raw HTML blocks are left out unless you pass `rawHtml: 'allow'` together with your own `sanitizeRaw` function. Embeds become iframes (`sandbox`, `loading="lazy"`, `referrerpolicy`) only for `embedHosts` (default: YouTube, youtube-nocookie, Vimeo player, CodePen, Twitch, Figma, Miro); other embeds become links.
 - **Output:** HTML elements with stable `mex-` classes (tunes as `mex-align-*`, `mex-variant-*`, `mex-indent-N`), images with `srcset` from the Media Library `formats`, width, height and lazy loading (`imageSizes`, default `100vw`), decorative images with `alt=""`, toggles as `<details>`. Custom blocks render as `<div class="mex-block mex-<name>" data-mex-block>` with escaped values unless you pass an override. Markdown is CommonMark plus GFM tables and task lists: adjacent or nested marks of one kind are written as one run, a line break at the end of a block, item or cell is dropped, and two lists in a row get different markers (`-`/`*`, `1.`/`1)`) so they stay two lists. Emphasis that ends in punctuation right before a letter (`<b>"a"</b>b`) cannot be expressed in CommonMark and stays literal there. Plain text uses blank lines between blocks.
 - **Deterministic:** the same value always gives the same string.
-- **Schema:** `magic-editor-x/schema` is a JSON Schema (draft 2020-12) of the stored value with one data schema per block type; validate content in CI. **Types:** `import type { MagicEditorXData, MagicEditorXBlock } from 'magic-editor-x/types'`.
+- **Schema:** `magic-editor-x/schema` is a JSON Schema (draft 2020-12) of the stored value with one data schema per block type; validate content in CI. **Types:** `import type { MagicEditorXData, MagicEditorXBlock } from 'magic-editor-x/types'`, or types per field with [`npx magic-editor-x types`](#typescript-types-per-field).
 
 ### Options added in 2.3
 

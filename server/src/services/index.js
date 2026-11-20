@@ -30,4 +30,6 @@ module.exports = {
   media: require('./media'),
   // 2.7: Core Blocks bridge (custom blocks in Strapi's core Blocks field)
   'core-blocks': require('./core-blocks'),
+  // 2.8: TypeScript types per field (`magic-editor-x types`)
+  types: require('./types'),
 };
