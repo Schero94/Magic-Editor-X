@@ -548,6 +548,35 @@ module.exports = ({ strapi }) => {
   };
 
   /**
+   * Output-side defence in depth: runs a stored value through the save
+   * sanitiser again (`cleanEditorValue` with the field's inline policy and the
+   * configured raw HTML mode) before any format, `json` included, is built.
+   * Values written past the save middleware (older versions, direct database
+   * writes, imports) therefore never reach the API unclean. A clean value is
+   * returned unchanged; a value the sanitiser refuses (not editor content,
+   * over the limits) is output as `null`, never as stored.
+   * @param {{ value: unknown, options?: object }} item - Output item.
+   * @returns {object} The item with its cleaned value.
+   */
+  const cleanForOutput = (item) => {
+    if (item.value === null || item.value === undefined) return item;
+    let value;
+    try {
+      const preset = resolveFieldPreset(item.options);
+      value = cleanEditorValue(item.value, {
+        rawHtml: strapi.config.get('plugin::magic-editor-x.rawHtml') || 'sanitize',
+        inline: inlinePolicy(preset, { palette: paletteOf(strapi) }),
+      });
+    } catch (error) {
+      logger.debug('output: a stored value that is not valid editor content was left out', {
+        code: error && error.code,
+      });
+      value = null;
+    }
+    return { ...item, value };
+  };
+
+  /**
    * Transforms values for output: expands synced blocks, resolves references
    * once for all values, then renders each.
    * @param {Array<{ value: unknown, locale?: string|null, format?: 'html'|'text'|'markdown'|'json', options?: object, render?: { blockIds?: object } }>} items - Values (an item's `format` wins over `options.format`; `options` are the field options, for the preset of synced content; `render.blockIds` (2.6) is passed to the HTML renderer).
@@ -555,7 +584,7 @@ module.exports = ({ strapi }) => {
    * @returns {Promise<Array<object|string|null>>} Output per item.
    */
   const transform = async (items, { format = 'json', auth, status, limits } = {}) => {
-    const expanded = await expandAll(items);
+    const expanded = await expandAll(items.map(cleanForOutput));
     const { prepared, refs } = collect(
       expanded.map((entry, index) => ({ value: componentOutput(entry.value), locale: items[index].locale }))
     );
