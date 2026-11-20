@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- **"How Magic Editor X compares" in the README and on the site.** A table sets Magic Editor X against the paid plans of CKEditor 5 and TinyMCE, Strapi's Blocks field and the Growth and Enterprise features of Strapi, with short notes on Payload (Lexical) and Sanity. Every competitor claim links its vendor source and is dated 2026-11. The section also lists where Magic Editor X is weaker: block-level suggestions only, inline text only in table cells, no crop inside the editor, a fixed list of AI actions and no .docx file import. The site adds a matching FAQ entry (also in the FAQ structured data), and `llms.txt` and `llms-full.txt` point to the comparison.
+
 ## [2.7.7](https://github.com/Schero94/Magic-Editor-X/compare/v2.7.6...v2.7.7) (2026-11-20)
 
 
