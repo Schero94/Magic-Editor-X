@@ -35,6 +35,10 @@ Key facts for code generation:
 - Comments (2.4): `POST /magic-editor-x/comments` accepts `anchor` (`{ path, start, end, quote: { exact, prefix, suffix } }` for selected text) and `mentions` (ids from `GET /comments/mentionable`). Suggestions: `suggestions.create` to propose block changes, `suggestions.review` (+ update) to accept or reject. Audit trail: `GET /magic-editor-x/audit` with `audit.read`, ids and counts only, never content.
 - Editor.js stays at 2.31.7 (2.32.0 is a release candidate); see docs/engine-decision.md.
 
+## Used by
+
+No companies are listed yet. Using Magic Editor X in production? Add your company: https://github.com/Schero94/Magic-Editor-X/issues/new?template=showcase.yml
+
 ## Docs
 
 - [Documentation site](https://schero94.github.io/Magic-Editor-X/): overview, screenshots, install, configuration, collaboration, AI, Content API output, permissions, security, FAQ
