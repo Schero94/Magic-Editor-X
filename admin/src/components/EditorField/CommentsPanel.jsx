@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { usePanelAutoFocus } from './usePanelFocus';
+import { escapeBelongsInside, usePanelAutoFocus } from './usePanelFocus';
 import {
   Box,
   Button,
@@ -263,7 +263,7 @@ export const CommentsPanel = ({
   };
 
   const onKeyDown = (event) => {
-    if (event.key !== 'Escape' || event.defaultPrevented) return;
+    if (event.key !== 'Escape' || escapeBelongsInside(event)) return;
     const tag = event.target && event.target.tagName;
     if (tag === 'TEXTAREA' || tag === 'INPUT') return;
     if (

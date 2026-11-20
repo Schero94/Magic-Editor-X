@@ -784,5 +784,20 @@
   "editor.room.discardedRemote": "Someone in this live session brought this field back to the saved content. Your unsaved text in this field was removed.",
   "editor.room.undoDiscard": "Undo",
   "editor.room.restoreText": "Restore my text",
-  "editor.room.dismiss": "Dismiss"
+  "editor.room.dismiss": "Dismiss",
+  "editor.ai.error.unreachable": "The AI provider could not be reached. Try again later.",
+  "editor.ai.error.badResponse": "The AI answer had an unexpected format. Nothing changed.",
+  "editor.ai.error.tooLarge": "The AI answer is too large. Try a shorter text.",
+  "editor.ai.error.empty": "The AI provider answered with no text. Try again.",
+  "editor.ai.error.provider": "The AI provider answered with an error. Try again later.",
+  "editor.comments.editNamed": "Edit comment by {name}: {excerpt}",
+  "editor.comments.deleteNamed": "Delete comment by {name}: {excerpt}",
+  "editor.comments.replyNamed": "Reply to {name}: {excerpt}",
+  "editor.comments.resolveNamed": "Resolve comment by {name}: {excerpt}",
+  "editor.comments.reopenNamed": "Reopen comment by {name}: {excerpt}",
+  "editor.quality.links.noneChecked": "No links were checked.",
+  "editor.suggestions.acceptNamed": "Accept suggestion by {name}: {op}, {excerpt}",
+  "editor.suggestions.rejectNamed": "Reject suggestion by {name}: {op}, {excerpt}",
+  "editor.suggestions.withdrawNamed": "Withdraw suggestion: {op}, {excerpt}",
+  "editor.suggestions.showNamed": "Show block of the suggestion by {name}: {op}, {excerpt}"
 }

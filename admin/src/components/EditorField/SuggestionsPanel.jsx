@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useClaimLostFocus, usePanelAutoFocus } from './usePanelFocus';
+import { escapeBelongsInside, useClaimLostFocus, usePanelAutoFocus } from './usePanelFocus';
 import { nameExcerpt } from './CommentThread';
 import { useIntl } from 'react-intl';
 import {
@@ -376,9 +376,7 @@ export const SuggestionsPanel = ({
     });
 
   const onKeyDown = (event) => {
-    if (event.key !== 'Escape' || event.defaultPrevented) return;
-    if (event.target && event.target.closest && event.target.closest('[role="dialog"],[role="alertdialog"]'))
-      return;
+    if (event.key !== 'Escape' || escapeBelongsInside(event)) return;
     event.stopPropagation();
     onClose();
   };

@@ -334,5 +334,10 @@
   "tools.columns.valignMenu": "Alinhamento vertical",
   "tools.columns.valign.top": "Topo",
   "tools.columns.valign.center": "Meio",
-  "tools.columns.valign.bottom": "Base"
+  "tools.columns.valign.bottom": "Base",
+  "tools.code.plainText": "Texto simples",
+  "tools.code.markup": "HTML e XML",
+  "tools.common.captionPlaceholder": "Digite uma legenda",
+  "tools.attaches.titlePlaceholder": "Título do arquivo",
+  "tools.tunes.indent": "Recuo"
 }

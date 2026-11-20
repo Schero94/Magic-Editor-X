@@ -86,6 +86,7 @@ const initials = (name) =>
 
 /**
  * @param {object} props - Props.
+ * @param {string[]|null} [props.onlyTools] - 2.7.8: ids of the More tools entries to keep (suggest mode).
  * @returns {JSX.Element} Toolbar.
  */
 export const EditorToolbar = ({
@@ -103,8 +104,11 @@ export const EditorToolbar = ({
   stats,
   limits = {},
   tools = [],
+  onlyTools = null,
   moreButtonRef,
 }) => {
+  // 2.7.8: suggest mode keeps only the tools that work there (the others act on the hidden field).
+  const menuTools = onlyTools ? tools.filter((tool) => onlyTools.includes(tool.id)) : tools;
   const status = STATUS[collaboration.status];
   const peers = collaboration.peers || [];
   const upgrade = collaboration.status === 'error' && collaboration.error === 'UPGRADE_REQUIRED';
@@ -144,7 +148,7 @@ export const EditorToolbar = ({
             </IconButton>
           </>
         )}
-        <FieldToolsMenu ref={moreButtonRef} t={t} tools={tools} disabled={!ready} />
+        <FieldToolsMenu ref={moreButtonRef} t={t} tools={menuTools} disabled={!ready} />
         <IconButton
           label={
             fullscreen

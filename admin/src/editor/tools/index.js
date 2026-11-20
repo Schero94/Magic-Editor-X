@@ -656,6 +656,9 @@ export function editorI18n(t) {
       },
       tools: {
         link: { 'Add a link': tr('tools.hyperlink.placeholder', 'Paste a link and press Enter') },
+        // 2.7.8: placeholders of @editorjs/embed and @editorjs/attaches were English in every locale.
+        embed: { 'Enter a caption': tr('tools.common.captionPlaceholder', 'Enter a caption') },
+        attaches: { 'File title': tr('tools.attaches.titlePlaceholder', 'File title') },
         stub: {
           'The block can not be displayed correctly.': tr(
             'tools.ui.stub',
@@ -694,6 +697,8 @@ export function editorI18n(t) {
         },
         moveUp: { 'Move up': tr('tools.tunes.moveUp', 'Move up') },
         moveDown: { 'Move down': tr('tools.tunes.moveDown', 'Move down') },
+        // 2.7.8: editorjs-indent-tune asks for "Indent" in its own namespace.
+        indentTune: { Indent: tr('tools.tunes.indent', 'Indent') },
       },
     },
   };

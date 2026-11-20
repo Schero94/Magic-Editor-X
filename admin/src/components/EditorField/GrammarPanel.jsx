@@ -11,7 +11,7 @@ import {
 } from '@strapi/design-system';
 import { Cross } from '@strapi/icons';
 import styled from 'styled-components';
-import { closeOnEscape, usePanelAutoFocus } from './usePanelFocus';
+import { closeOnEscape, refocusIfLost, usePanelAutoFocus } from './usePanelFocus';
 import { API, readApiError } from '../../utils/api';
 import {
   collectSegments,
@@ -164,6 +164,8 @@ export const GrammarPanel = ({
   const [notice, setNotice] = useState('');
   const abortRef = useRef(null);
   const headingRef = useRef(null);
+  const checkRef = useRef(null);
+  const listRef = useRef(null);
   usePanelAutoFocus(autoFocus, headingRef);
 
   useEffect(
@@ -230,6 +232,9 @@ export const GrammarPanel = ({
             ? ['editor.grammar.error.tooLong', 'This field is too long to check at once.']
             : ['editor.grammar.error.generic', 'The grammar check is not available right now.']);
       setState((previous) => ({ ...previous, status: 'error', error: t(key, text) }));
+    } finally {
+      // 2.7.8: the button is disabled while the check runs; focus comes back to it, not the page.
+      if (!controller.signal.aborted) refocusIfLost(checkRef);
     }
   }, [fetchClient, getData, onSelect, t, target.field, target.locale, target.uid]);
 
@@ -280,6 +285,8 @@ export const GrammarPanel = ({
       ),
     }));
     setAnnouncement(t('editor.grammar.applied', 'Replaced with "{text}"', { text: replacement }));
+    // 2.7.8: the fixed issue's buttons are gone: focus moves to the next issue, else the heading.
+    refocusIfLost(() => (listRef.current && listRef.current.querySelector('button')) || headingRef.current);
   };
 
   const contextOf = (match) => {
@@ -327,7 +334,13 @@ export const GrammarPanel = ({
           </IconButton>
         </Flex>
         <Flex gap={2} wrap="wrap" alignItems="center">
-          <Button variant="secondary" size="S" onClick={run} loading={state.status === 'loading'}>
+          <Button
+            ref={checkRef}
+            variant="secondary"
+            size="S"
+            onClick={run}
+            loading={state.status === 'loading'}
+          >
             {state.status === 'idle'
               ? t('editor.grammar.run', 'Check grammar')
               : t('editor.grammar.rerun', 'Check again')}
@@ -363,7 +376,7 @@ export const GrammarPanel = ({
           </Typography>
         ) : null}
         {state.status === 'done' && state.matches.length ? (
-          <List aria-label={t('editor.grammar.results', 'Grammar issues')}>
+          <List ref={listRef} aria-label={t('editor.grammar.results', 'Grammar issues')}>
             {state.matches.map((match) => {
               const context = contextOf(match);
               const key = `${match.blockId}-${match.path}-${match.offset}-${match.length}`;

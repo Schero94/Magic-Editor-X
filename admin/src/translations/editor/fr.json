@@ -784,5 +784,20 @@
   "editor.room.discardedRemote": "Une personne de cette session en direct a rétabli le contenu enregistré de ce champ. Votre texte non enregistré dans ce champ a été supprimé.",
   "editor.room.undoDiscard": "Annuler",
   "editor.room.restoreText": "Restaurer mon texte",
-  "editor.room.dismiss": "Masquer"
+  "editor.room.dismiss": "Masquer",
+  "editor.ai.error.unreachable": "Le fournisseur d'IA est injoignable. Réessayez plus tard.",
+  "editor.ai.error.badResponse": "La réponse de l'IA avait un format inattendu. Rien n'a été modifié.",
+  "editor.ai.error.tooLarge": "La réponse de l'IA est trop volumineuse. Essayez avec un texte plus court.",
+  "editor.ai.error.empty": "Le fournisseur d'IA a répondu sans texte. Réessayez.",
+  "editor.ai.error.provider": "Le fournisseur d'IA a répondu par une erreur. Réessayez plus tard.",
+  "editor.comments.editNamed": "Modifier le commentaire de {name} : {excerpt}",
+  "editor.comments.deleteNamed": "Supprimer le commentaire de {name} : {excerpt}",
+  "editor.comments.replyNamed": "Répondre à {name} : {excerpt}",
+  "editor.comments.resolveNamed": "Résoudre le commentaire de {name} : {excerpt}",
+  "editor.comments.reopenNamed": "Rouvrir le commentaire de {name} : {excerpt}",
+  "editor.quality.links.noneChecked": "Aucun lien n'a été vérifié.",
+  "editor.suggestions.acceptNamed": "Accepter la suggestion de {name} : {op}, {excerpt}",
+  "editor.suggestions.rejectNamed": "Refuser la suggestion de {name} : {op}, {excerpt}",
+  "editor.suggestions.withdrawNamed": "Retirer la suggestion : {op}, {excerpt}",
+  "editor.suggestions.showNamed": "Afficher le bloc de la suggestion de {name} : {op}, {excerpt}"
 }

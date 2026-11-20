@@ -85,6 +85,8 @@ const AttributeInput = ({ field, value, onChange, readOnly, t, inputName }) => {
     return (
       <Switch
         {...common}
+        // 2.7.8: the Radix switch is a button, which Field.Label does not name; the attribute name does.
+        aria-label={field.name}
         checked={value === true}
         onCheckedChange={(checked) => onChange(checked === true)}
         onLabel={t('editor.component.on', 'On')}

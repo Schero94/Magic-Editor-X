@@ -334,5 +334,10 @@
   "tools.columns.valignMenu": "Vertical alignment",
   "tools.columns.valign.top": "Top",
   "tools.columns.valign.center": "Middle",
-  "tools.columns.valign.bottom": "Bottom"
+  "tools.columns.valign.bottom": "Bottom",
+  "tools.code.plainText": "Plain text",
+  "tools.code.markup": "HTML and XML",
+  "tools.common.captionPlaceholder": "Enter a caption",
+  "tools.attaches.titlePlaceholder": "File title",
+  "tools.tunes.indent": "Indent"
 }

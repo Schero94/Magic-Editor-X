@@ -784,5 +784,20 @@
   "editor.room.discardedRemote": "Alguém nesta sessão ao vivo voltou este campo ao conteúdo salvo. O seu texto não salvo neste campo foi removido.",
   "editor.room.undoDiscard": "Desfazer",
   "editor.room.restoreText": "Restaurar meu texto",
-  "editor.room.dismiss": "Dispensar"
+  "editor.room.dismiss": "Dispensar",
+  "editor.ai.error.unreachable": "Não foi possível contactar o fornecedor de IA. Tente novamente mais tarde.",
+  "editor.ai.error.badResponse": "A resposta da IA tinha um formato inesperado. Nada foi alterado.",
+  "editor.ai.error.tooLarge": "A resposta da IA é demasiado grande. Experimente um texto mais curto.",
+  "editor.ai.error.empty": "O fornecedor de IA respondeu sem texto. Tente novamente.",
+  "editor.ai.error.provider": "O fornecedor de IA respondeu com um erro. Tente novamente mais tarde.",
+  "editor.comments.editNamed": "Editar o comentário de {name}: {excerpt}",
+  "editor.comments.deleteNamed": "Excluir o comentário de {name}: {excerpt}",
+  "editor.comments.replyNamed": "Responder a {name}: {excerpt}",
+  "editor.comments.resolveNamed": "Resolver o comentário de {name}: {excerpt}",
+  "editor.comments.reopenNamed": "Reabrir o comentário de {name}: {excerpt}",
+  "editor.quality.links.noneChecked": "Nenhum link foi verificado.",
+  "editor.suggestions.acceptNamed": "Aceitar a sugestão de {name}: {op}, {excerpt}",
+  "editor.suggestions.rejectNamed": "Rejeitar a sugestão de {name}: {op}, {excerpt}",
+  "editor.suggestions.withdrawNamed": "Retirar a sugestão: {op}, {excerpt}",
+  "editor.suggestions.showNamed": "Mostrar o bloco da sugestão de {name}: {op}, {excerpt}"
 }

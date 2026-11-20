@@ -31,17 +31,25 @@ export const usePanelAutoFocus = (enabled, targetRef) => {
  * @returns {void}
  */
 export const closeOnEscape = (event, onClose) => {
-  if (event.key !== 'Escape' || event.defaultPrevented || typeof onClose !== 'function') return;
-  const target = event.target;
-  if (
-    target &&
-    typeof target.closest === 'function' &&
-    target.closest('[role="dialog"], [role="alertdialog"], [role="listbox"], [role="menu"]')
-  )
-    return;
+  if (event.key !== 'Escape' || typeof onClose !== 'function' || escapeBelongsInside(event)) return;
   event.preventDefault();
   event.stopPropagation();
   onClose();
+};
+
+/**
+ * True when Escape belongs to something inside the panel: a dialog, menu or listbox, or an
+ * expanded select or combobox. `defaultPrevented` is not used: the DS IconButton's Radix tooltip
+ * prevents the default of every Escape while it shows, so a focused Close button never closed
+ * the panel (2.7.8).
+ * @param {KeyboardEvent|import('react').KeyboardEvent} event - Key event.
+ * @returns {boolean} Result.
+ */
+export const escapeBelongsInside = (event) => {
+  const target = event.target;
+  if (!target || typeof target.closest !== 'function') return false;
+  if (target.closest('[role="dialog"], [role="alertdialog"], [role="listbox"], [role="menu"]')) return true;
+  return target.getAttribute('aria-expanded') === 'true';
 };
 
 /**

@@ -334,5 +334,10 @@
   "tools.columns.valignMenu": "Alignement vertical",
   "tools.columns.valign.top": "En haut",
   "tools.columns.valign.center": "Au milieu",
-  "tools.columns.valign.bottom": "En bas"
+  "tools.columns.valign.bottom": "En bas",
+  "tools.code.plainText": "Texte brut",
+  "tools.code.markup": "HTML et XML",
+  "tools.common.captionPlaceholder": "Saisir une légende",
+  "tools.attaches.titlePlaceholder": "Titre du fichier",
+  "tools.tunes.indent": "Retrait"
 }
