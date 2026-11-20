@@ -1,6 +1,12 @@
 # Changelog
 
-## [Unreleased]
+## [2.7.3](https://github.com/Schero94/Magic-Editor-X/compare/v2.7.2...v2.7.3) (2026-11-20)
+
+
+### Bug Fixes
+
+* round-trip Markdown quote captions and keep Strapi Blocks code newlines ([#28](https://github.com/Schero94/Magic-Editor-X/issues/28)) ([54b525f](https://github.com/Schero94/Magic-Editor-X/commit/54b525fe72d9f4d65663fb23fa6c1d6dffb936e1))
+
 
 Patch release: conversion fixes from the 2.7 API audit. No breaking changes, no migration.
 
