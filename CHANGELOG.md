@@ -13,6 +13,13 @@ Patch release: conversion fixes from the 2.7 API audit. No breaking changes, no 
 
 - Core Blocks bridge and migration: custom Blocks node types (for example a type registered for the bridge) are not converted to Editor.js blocks; they are left out and reported as `unsupported-node` with their type. The README says so and how to handle them.
 
+## [2.7.2](https://github.com/Schero94/Magic-Editor-X/compare/v2.7.1...v2.7.2) (2026-11-20)
+
+
+### Bug Fixes
+
+* parse 1.x JSON strings only in Magic Editor X fields ([#27](https://github.com/Schero94/Magic-Editor-X/issues/27)) ([cfebf1d](https://github.com/Schero94/Magic-Editor-X/commit/cfebf1db7ba8b69b765d4c5e6b1cc38683225862))
+
 ## [2.7.1](https://github.com/Schero94/Magic-Editor-X/compare/v2.7.0...v2.7.1) (2026-11-20)
 
 
