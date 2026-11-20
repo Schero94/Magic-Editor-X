@@ -17,6 +17,7 @@ import { ArrowDown, ArrowUp, Duplicate, Pencil, Trash } from '@strapi/icons';
 import { ConfirmAction, useBreakpoint, useT } from '../../components/ui';
 import { blockTypeLabel } from './messages';
 import { IconPreview } from './Preview';
+import { keepButtonKeys } from '../tableKeys.mjs';
 
 /**
  * Row actions shared by the table and the card list.
@@ -37,7 +38,8 @@ const RowActions = ({
   const t = useT();
   const label = block.label || block.name;
   return (
-    <Flex gap={1} wrap="wrap">
+    // Enter and Space press the focused button (the DS table cell would swallow them).
+    <Flex gap={1} wrap="wrap" onKeyDown={keepButtonKeys}>
       <IconButton
         label={t('settings.blocks.action.edit', 'Edit {label}', { label })}
         variant="ghost"
@@ -94,7 +96,8 @@ const RowActions = ({
 };
 
 /**
- * Enable/disable switch with an accessible name.
+ * Enable/disable switch with an accessible name. It stays enabled while its request runs (2.7.8):
+ * disabling it dropped keyboard focus to <body>; the page ignores repeats until the answer.
  * @param {{ block: object, busy: boolean, onToggle: Function }} props - Props.
  * @returns {JSX.Element} Switch.
  */
@@ -103,7 +106,7 @@ const EnabledSwitch = ({ block, busy, onToggle }) => {
   return (
     <Switch
       checked={block.enabled}
-      disabled={busy}
+      aria-busy={busy || undefined}
       onCheckedChange={(checked) => onToggle(block, checked === true)}
       aria-label={t('settings.blocks.action.toggle', 'Show {label} in the editor toolbox', {
         label: block.label || block.name,

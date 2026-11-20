@@ -6,12 +6,33 @@ import { Page, useNotification, useRBAC } from '@strapi/strapi/admin';
 import { useFetchClient } from '../../utils/fetch-client';
 import { PERMISSIONS } from '../../permissions';
 import { API, readApiError } from '../../utils/api';
-import { PageShell, SectionCard, refocusIfLost, useT } from '../../components/ui';
+import { PageShell, SectionCard, useT } from '../../components/ui';
+import { PAGE_HEADING } from '../focusTargets.mjs';
+import { activeElement, useFocusRestore } from '../useFocusRestore';
 import { mapServerErrors, moveId, toPayload, withEnabled } from './blockForm.mjs';
 import { useCustomBlocks } from './useCustomBlocks';
 import { BlockList } from './BlockList';
 import { BlockFormModal } from './BlockFormModal';
 import { CodeBlocksSection } from './CodeBlocksSection';
+
+/**
+ * One line of the import report. An entry without a name is described as such (2.7.8: no
+ * literal "?" in place of the name).
+ * @param {Function} t - Translate.
+ * @param {{ name?: string, reason: string }} entry - Skipped entry from POST /custom-blocks/import.
+ * @returns {string} Text.
+ */
+const importSkippedText = (t, entry) => {
+  if (!entry.name)
+    return t('settings.blocks.importSkippedUnnamed', 'An entry without a name: the definition is not valid.');
+  return entry.reason === 'exists'
+    ? t('settings.blocks.importSkippedExists', '{name}: a block with this name already exists.', {
+        name: entry.name,
+      })
+    : t('settings.blocks.importSkippedInvalid', '{name}: the definition is not valid.', {
+        name: entry.name,
+      });
+};
 
 /**
  * Settings -> Magic Editor X -> Custom blocks.
@@ -22,7 +43,8 @@ const CustomBlocksPage = () => {
   const { post, put, del, get } = useFetchClient();
   const { toggleNotification } = useNotification();
   const { allowedActions, isLoading: rbacLoading } = useRBAC(PERMISSIONS.customBlocksManage);
-  const data = useCustomBlocks();
+  // 2.7.8: nothing is requested before the permission check allows it.
+  const data = useCustomBlocks({ enabled: !rbacLoading && Boolean(allowedActions.canManage) });
   const [modal, setModal] = useState({ open: false, block: null, key: 0 });
   const [busyId, setBusyId] = useState(null);
   const [exporting, setExporting] = useState(false);
@@ -30,6 +52,10 @@ const CustomBlocksPage = () => {
   const [importReport, setImportReport] = useState(null);
   const createRef = useRef(null);
   const fileRef = useRef(null);
+  const importRef = useRef(null);
+  // 2.7.8: the control that opened the block dialog gets focus back when it closes.
+  const modalOpenerRef = useRef(null);
+  const requestFocus = useFocusRestore();
   const title = t('settings.blocks.title', 'Custom blocks');
 
   const otherNames = useMemo(
@@ -38,7 +64,20 @@ const CustomBlocksPage = () => {
     [data.blocks, modal.block]
   );
 
-  if (rbacLoading || data.status === 'loading') {
+  const openModal = (block) => {
+    modalOpenerRef.current = activeElement();
+    setModal((current) => ({ open: true, block, key: current.key + 1 }));
+  };
+  const closeModal = () => {
+    setModal((current) => ({ ...current, open: false, block: null }));
+    requestFocus([modalOpenerRef.current, createRef, PAGE_HEADING]);
+  };
+  const retry = async () => {
+    await data.reload();
+    requestFocus([PAGE_HEADING]);
+  };
+
+  if (rbacLoading || (allowedActions.canManage && data.status === 'loading')) {
     return (
       <>
         <Page.Title>{title}</Page.Title>
@@ -61,7 +100,7 @@ const CustomBlocksPage = () => {
         <Page.Error
           content={t('settings.blocks.loadError', 'The custom blocks could not be loaded.')}
           action={
-            <Button variant="secondary" onClick={data.reload}>
+            <Button variant="secondary" onClick={retry}>
               {t('settings.retry', 'Try again')}
             </Button>
           }
@@ -89,7 +128,7 @@ const CustomBlocksPage = () => {
           ? t('settings.blocks.saved', 'Block {label} saved.', { label: payload.label })
           : t('settings.blocks.created', 'Block {label} created.', { label: payload.label }),
       });
-      setModal((current) => ({ ...current, open: false, block: null }));
+      closeModal();
       await data.reload();
       return { ok: true };
     } catch (error) {
@@ -113,6 +152,9 @@ const CustomBlocksPage = () => {
   };
 
   const onToggle = async (block, enabled) => {
+    // The switch stays enabled (and keeps focus) while the request runs; repeats wait for it.
+    if (busyId) return;
+    const opener = activeElement();
     setBusyId(block.id);
     try {
       const { data: response } = await put(API.customBlock(block.id), withEnabled(block, enabled));
@@ -139,10 +181,12 @@ const CustomBlocksPage = () => {
       } else failed(error, t('settings.blocks.toggleError', 'The block could not be updated.'));
     } finally {
       setBusyId(null);
+      requestFocus([opener, createRef]);
     }
   };
 
   const onDuplicate = async (block) => {
+    const opener = activeElement();
     setBusyId(block.id);
     try {
       const { data: response } = await post(API.customBlockDuplicate(block.id), {});
@@ -155,6 +199,7 @@ const CustomBlocksPage = () => {
       failed(error, t('settings.blocks.duplicateError', 'The block could not be duplicated.'));
     } finally {
       setBusyId(null);
+      requestFocus([opener, createRef]);
     }
   };
 
@@ -165,7 +210,7 @@ const CustomBlocksPage = () => {
       direction
     );
     if (!ids) return;
-    const opener = typeof document !== 'undefined' ? document.activeElement : null;
+    const opener = activeElement();
     setBusyId(block.id);
     try {
       const { data: response } = await put(API.customBlocksOrder, { ids });
@@ -174,7 +219,7 @@ const CustomBlocksPage = () => {
       failed(error, t('settings.blocks.moveError', 'The order could not be saved.'));
     } finally {
       setBusyId(null);
-      requestAnimationFrame(() => refocusIfLost(opener, createRef.current));
+      requestFocus([opener, createRef]);
     }
   };
 
@@ -193,6 +238,7 @@ const CustomBlocksPage = () => {
   };
 
   const onExport = async () => {
+    const opener = activeElement();
     setExporting(true);
     try {
       const { data: response } = await get(API.customBlocksExport);
@@ -215,6 +261,7 @@ const CustomBlocksPage = () => {
       failed(error, t('settings.blocks.exportError', 'The export could not be created.'));
     } finally {
       setExporting(false);
+      requestFocus([opener, createRef]);
     }
   };
 
@@ -257,15 +304,13 @@ const CustomBlocksPage = () => {
       });
     } finally {
       setImporting(false);
+      // The Import button is disabled while the file is read and sent: focus goes back to it.
+      requestFocus([importRef, createRef]);
     }
   };
 
   const createButton = (
-    <Button
-      ref={createRef}
-      startIcon={<Plus />}
-      onClick={() => setModal((current) => ({ open: true, block: null, key: current.key + 1 }))}
-    >
+    <Button ref={createRef} startIcon={<Plus />} onClick={() => openModal(null)}>
       {t('settings.blocks.create', 'Create block')}
     </Button>
   );
@@ -281,6 +326,7 @@ const CustomBlocksPage = () => {
       secondaryAction={
         <Flex gap={2} wrap="wrap">
           <Button
+            ref={importRef}
             variant="tertiary"
             startIcon={<Upload />}
             loading={importing}
@@ -314,7 +360,14 @@ const CustomBlocksPage = () => {
           variant="danger"
           closeLabel={t('settings.close', 'Close')}
           action={
-            <Button variant="tertiary" size="S" onClick={data.reload}>
+            <Button
+              variant="tertiary"
+              size="S"
+              onClick={async () => {
+                await data.reload();
+                requestFocus([createRef, PAGE_HEADING]);
+              }}
+            >
               {t('settings.retry', 'Try again')}
             </Button>
           }
@@ -326,28 +379,28 @@ const CustomBlocksPage = () => {
         </Alert>
       ) : null}
       {importReport && importReport.skipped.length ? (
-        <Alert
-          variant="warning"
-          closeLabel={t('settings.close', 'Close')}
-          onClose={() => setImportReport(null)}
-          title={t('settings.blocks.importSkippedTitle', 'Some blocks were not imported')}
-        >
-          <Box tag="ul" paddingTop={1}>
+        // The Alert renders its children inside a paragraph: the list follows it (2.7.8: no <ul> in <p>).
+        <Flex direction="column" alignItems="stretch" gap={2}>
+          <Alert
+            variant="warning"
+            closeLabel={t('settings.close', 'Close')}
+            onClose={() => setImportReport(null)}
+            title={t('settings.blocks.importSkippedTitle', 'Some blocks were not imported')}
+          >
+            {t(
+              'settings.blocks.importSkippedSummary',
+              '{count, plural, one {# entry was skipped:} other {# entries were skipped:}}',
+              { count: importReport.skipped.length }
+            )}
+          </Alert>
+          <Box tag="ul" paddingLeft={4} margin={0}>
             {importReport.skipped.map((entry, index) => (
-              <Typography key={`${entry.name}-${index}`} tag="li" variant="pi" textColor="neutral800">
-                {entry.reason === 'exists'
-                  ? t(
-                      'settings.blocks.importSkippedExists',
-                      '{name}: a block with this name already exists.',
-                      { name: entry.name || '?' }
-                    )
-                  : t('settings.blocks.importSkippedInvalid', '{name}: the definition is not valid.', {
-                      name: entry.name || '?',
-                    })}
+              <Typography key={`${entry.name}-${index}`} tag="li" variant="omega" textColor="neutral800">
+                {importSkippedText(t, entry)}
               </Typography>
             ))}
           </Box>
-        </Alert>
+        </Flex>
       ) : null}
       {data.blocks.length === 0 ? (
         <SectionCard>
@@ -358,11 +411,7 @@ const CustomBlocksPage = () => {
               'No custom blocks yet. Blocks you create here appear in the editor toolbox of every Magic Editor X field.'
             )}
             action={
-              <Button
-                variant="secondary"
-                startIcon={<Plus />}
-                onClick={() => setModal((current) => ({ open: true, block: null, key: current.key + 1 }))}
-              >
+              <Button variant="secondary" startIcon={<Plus />} onClick={() => openModal(null)}>
                 {t('settings.blocks.create', 'Create block')}
               </Button>
             }
@@ -372,7 +421,7 @@ const CustomBlocksPage = () => {
         <BlockList
           blocks={data.blocks}
           busyId={busyId}
-          onEdit={(block) => setModal((current) => ({ open: true, block, key: current.key + 1 }))}
+          onEdit={(block) => openModal(block)}
           onDuplicate={onDuplicate}
           onMove={onMove}
           onDelete={onDelete}
@@ -389,7 +438,7 @@ const CustomBlocksPage = () => {
         contentTypes={data.contentTypes}
         onRetryContentTypes={data.reloadContentTypes}
         onSubmit={onSubmit}
-        onClose={() => setModal((current) => ({ ...current, open: false, block: null }))}
+        onClose={closeModal}
       />
     </PageShell>
   );

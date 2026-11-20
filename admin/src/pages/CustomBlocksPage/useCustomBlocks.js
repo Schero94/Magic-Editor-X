@@ -4,9 +4,11 @@ import { API } from '../../utils/api';
 
 /**
  * Loads custom blocks (all, including disabled) and readable content types.
+ * @param {{ enabled?: boolean }} [options] - `enabled` false (permissions still loading or
+ *   missing) sends no request (2.7.8, as the Configuration page since 2.7.4).
  * @returns {object} State and actions.
  */
-export const useCustomBlocks = () => {
+export const useCustomBlocks = ({ enabled = true } = {}) => {
   const { get } = useFetchClient();
   const [status, setStatus] = useState('loading');
   const [blocks, setBlocks] = useState([]);
@@ -56,9 +58,10 @@ export const useCustomBlocks = () => {
   );
 
   useEffect(() => {
+    if (!enabled) return;
     fetchBlocks();
     fetchContentTypes();
-  }, [fetchBlocks, fetchContentTypes]);
+  }, [enabled, fetchBlocks, fetchContentTypes]);
 
   const load = useCallback(() => {
     if (!loaded.current) setStatus('loading');

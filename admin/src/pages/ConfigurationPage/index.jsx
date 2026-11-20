@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Alert, Button } from '@strapi/design-system';
 import { Blocker, Form, Page, useNotification, useRBAC } from '@strapi/strapi/admin';
 import { Check } from '@strapi/icons';
@@ -12,6 +12,8 @@ import { PaletteSection } from './PaletteSection';
 import { LanguageToolSection } from './LanguageToolSection';
 import { LinkScheduleSection } from './LinkScheduleSection';
 import { CoreBlocksSection } from './CoreBlocksSection';
+import { PAGE_HEADING, firstInvalidField } from '../focusTargets.mjs';
+import { activeElement, useFocusRestore } from '../useFocusRestore';
 
 const RBAC = [...PERMISSIONS.settingsRead, ...PERMISSIONS.settingsUpdate];
 
@@ -84,6 +86,14 @@ const ConfigurationPage = () => {
   // Latest link schedule status reported by the "Run now" section, so the read-only environment row
   // shows the same last run instead of the one from page load.
   const [liveSchedule, setLiveSchedule] = useState(null);
+  // 2.7.8: Save, Discard, the connection tests and "Try again" disable or replace the control that
+  // had focus; focus goes back to it, or to the page title, never to <body>.
+  const requestFocus = useFocusRestore();
+  const saveRef = useRef(null);
+  const retry = async () => {
+    await form.reload();
+    requestFocus([PAGE_HEADING]);
+  };
 
   if (rbacLoading || (allowedActions.canRead && form.status === 'loading')) {
     return (
@@ -111,7 +121,7 @@ const ConfigurationPage = () => {
             'The settings could not be loaded. Nothing can be saved until they load.'
           )}
           action={
-            <Button variant="secondary" onClick={form.reload}>
+            <Button variant="secondary" onClick={retry}>
               {t('settings.retry', 'Try again')}
             </Button>
           }
@@ -124,6 +134,10 @@ const ConfigurationPage = () => {
 
   const onSave = async () => {
     const result = await form.save();
+    // Saved: the Save button is disabled again (nothing to save), so the page title takes focus.
+    // Invalid: the first highlighted field. Failed: Save is enabled again and keeps it.
+    if (result.invalid) requestFocus([firstInvalidField, saveRef], { force: true });
+    else requestFocus([saveRef, PAGE_HEADING]);
     if (result.ok) {
       toggleNotification({
         type: 'success',
@@ -150,7 +164,10 @@ const ConfigurationPage = () => {
   };
 
   const onTest = async () => {
+    const opener = activeElement();
     const result = await form.test();
+    if (result.invalid) requestFocus([firstInvalidField, opener], { force: true });
+    else requestFocus([opener, PAGE_HEADING]);
     if (result.ok) {
       toggleNotification({
         type: 'success',
@@ -167,7 +184,10 @@ const ConfigurationPage = () => {
   };
 
   const onTestLanguageTool = async () => {
+    const opener = activeElement();
     const result = await form.testLanguageTool();
+    if (result.invalid) requestFocus([firstInvalidField, opener], { force: true });
+    else requestFocus([opener, PAGE_HEADING]);
     if (result.ok) {
       toggleNotification({
         type: 'success',
@@ -200,6 +220,7 @@ const ConfigurationPage = () => {
       primaryAction={
         readOnly ? null : (
           <Button
+            ref={saveRef}
             startIcon={<Check />}
             onClick={onSave}
             loading={form.saving}
@@ -225,7 +246,11 @@ const ConfigurationPage = () => {
             )}
             confirmLabel={t('settings.discard.confirm', 'Discard changes')}
             variant="danger-light"
-            onConfirm={() => form.discard()}
+            onConfirm={() => {
+              form.discard();
+              // Discard leaves nothing to save or discard: both buttons are disabled again.
+              requestFocus([PAGE_HEADING]);
+            }}
           />
         )
       }

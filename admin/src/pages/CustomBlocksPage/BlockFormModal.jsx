@@ -1,9 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Box,
   Button,
   Checkbox,
+  Dialog,
   Divider,
   Field,
   Flex,
@@ -18,11 +19,13 @@ import {
   Textarea,
   Typography,
 } from '@strapi/design-system';
+import { ConfirmDialog } from '@strapi/strapi/admin';
 import { useT } from '../../components/ui';
 import { deriveName, emptyValues, fromDto, TUNES, validateBlock } from './blockForm.mjs';
 import { blockErrorText, blockTypeLabel } from './messages';
 import { FieldsEditor } from './FieldsEditor';
 import { IconPreview, TemplatePreview } from './Preview';
+import { restoreFocus } from '../focusTargets.mjs';
 
 /**
  * Section heading inside the modal (h3 under the modal title).
@@ -51,7 +54,8 @@ const SubHeading = ({ title, subtitle }) => (
  * @param {{ status: string, items: Array<object> }} props.contentTypes - Readable content types.
  * @param {() => void} props.onRetryContentTypes - Reloads content types.
  * @param {(values: object) => Promise<{ ok: boolean, errors?: object }>} props.onSubmit - Saves; resolves with server errors on 400.
- * @param {() => void} props.onClose - Closes (also used after success).
+ * @param {() => void} props.onClose - Closes (also used after success). Closing a form with
+ *   unsaved changes (Escape, outside click, Close, Cancel) first asks to discard them (2.7.8).
  * @returns {JSX.Element} Modal.
  */
 export const BlockFormModal = ({
@@ -65,7 +69,16 @@ export const BlockFormModal = ({
 }) => {
   const t = useT();
   // The parent remounts this component (key) every time it opens, so state starts fresh.
-  const [values, setValues] = useState(() => (block ? fromDto(block) : emptyValues()));
+  const [initial] = useState(() => {
+    const start = block ? fromDto(block) : emptyValues();
+    return { values: start, key: JSON.stringify(start) };
+  });
+  const [values, setValues] = useState(initial.values);
+  const dirty = useMemo(() => JSON.stringify(values) !== initial.key, [values, initial]);
+  // 2.7.8: "Discard your changes?" before an unsaved form closes; focus returns to where it was.
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
+  const focusBeforeConfirm = useRef(null);
+  const discarding = useRef(false);
   const [serverErrors, setServerErrors] = useState({});
   const [showErrors, setShowErrors] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -117,11 +130,37 @@ export const BlockFormModal = ({
     ? t('settings.blocks.modal.editTitle', 'Edit block {label}', { label: block.label })
     : t('settings.blocks.modal.createTitle', 'Create a custom block');
 
+  /** Escape, outside click, Close and Cancel: close at once when clean, else ask first. */
+  const requestClose = () => {
+    if (saving) return;
+    if (!dirty) {
+      onClose();
+      return;
+    }
+    focusBeforeConfirm.current = typeof document !== 'undefined' ? document.activeElement : null;
+    setConfirmDiscard(true);
+  };
+
+  /** "Cancel" in the confirmation: back to the form, focus where it was. */
+  const keepEditing = (open) => {
+    if (open) return;
+    setConfirmDiscard(false);
+    // After "Discard changes" the parent closes the dialog and returns focus to its trigger.
+    if (discarding.current) return;
+    const before = focusBeforeConfirm.current;
+    // Forced: closing the question moves focus to the dialog frame, not to <body>.
+    window.requestAnimationFrame(() =>
+      restoreFocus([before, (doc) => doc.querySelector('[role="dialog"] input, [role="dialog"] textarea')], {
+        force: true,
+      })
+    );
+  };
+
   return (
     <Modal.Root
       open={open}
       onOpenChange={(next) => {
-        if (!next && !saving) onClose();
+        if (!next) requestClose();
       }}
     >
       <Modal.Content aria-describedby={undefined}>
@@ -539,6 +578,38 @@ export const BlockFormModal = ({
               : t('settings.blocks.modal.create', 'Create block')}
           </Button>
         </Modal.Footer>
+        <Dialog.Root open={confirmDiscard} onOpenChange={keepEditing}>
+          {confirmDiscard ? (
+            <ConfirmDialog
+              title={t('settings.blocks.modal.discardTitle', 'Discard your changes?')}
+              endAction={
+                <Dialog.Action>
+                  <Button
+                    fullWidth
+                    variant="danger-light"
+                    onClick={() => {
+                      discarding.current = true;
+                      onClose();
+                    }}
+                  >
+                    {t('settings.blocks.modal.discardConfirm', 'Discard changes')}
+                  </Button>
+                </Dialog.Action>
+              }
+            >
+              {block
+                ? t(
+                    'settings.blocks.modal.discardBodyEdit',
+                    'The dialog closes and your changes to the block {label} are lost. The saved block stays as it is.',
+                    { label: block.label }
+                  )
+                : t(
+                    'settings.blocks.modal.discardBody',
+                    'The dialog closes and the block you started is not created. What you entered is lost.'
+                  )}
+            </ConfirmDialog>
+          ) : null}
+        </Dialog.Root>
       </Modal.Content>
     </Modal.Root>
   );

@@ -181,7 +181,7 @@ const KeyStatus = ({ ai, draft, envKey, t }) => {
  */
 export const AiSection = ({ form, readOnly, onTest }) => {
   const t = useT();
-  const { draft, dto, errors, setField, replaceDraft, testing } = form;
+  const { draft, dto, errors, setField, replaceDraft, testing, touch } = form;
   const ai = dto.ai;
   const defaults = dto.environment.defaults || { models: {}, baseUrls: {} };
   // The ai.apiKey key from config/plugins.js only counts for the base URL it is configured for.
@@ -282,6 +282,7 @@ export const AiSection = ({ form, readOnly, onTest }) => {
         <Grid.Item col={6} xs={12} s={12} m={12} direction="column" alignItems="stretch" minWidth={0}>
           <Field.Root
             name="model"
+            onBlur={() => touch('model')}
             error={errorText(t, errors.model, 'model')}
             hint={
               defaults.models[draft.provider]
@@ -303,6 +304,7 @@ export const AiSection = ({ form, readOnly, onTest }) => {
         <Grid.Item col={12} direction="column" alignItems="stretch" minWidth={0}>
           <Field.Root
             name="baseUrl"
+            onBlur={() => touch('baseUrl')}
             error={errorText(t, errors.baseUrl, 'baseUrl')}
             hint={
               defaults.baseUrls[draft.provider]
@@ -379,6 +381,7 @@ export const AiSection = ({ form, readOnly, onTest }) => {
         <Grid.Item col={6} xs={12} s={12} m={6} direction="column" alignItems="stretch" minWidth={0}>
           <Field.Root
             name="maxInputChars"
+            onBlur={() => touch('maxInputChars')}
             error={errorText(t, errors.maxInputChars, 'maxInputChars')}
             hint={t(
               'settings.ai.maxInput.hint',
@@ -400,6 +403,7 @@ export const AiSection = ({ form, readOnly, onTest }) => {
         <Grid.Item col={6} xs={12} s={12} m={6} direction="column" alignItems="stretch" minWidth={0}>
           <Field.Root
             name="maxOutputTokens"
+            onBlur={() => touch('maxOutputTokens')}
             error={errorText(t, errors.maxOutputTokens, 'maxOutputTokens')}
             hint={t(
               'settings.ai.maxOutput.hint',

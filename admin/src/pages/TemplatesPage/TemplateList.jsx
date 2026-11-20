@@ -20,6 +20,7 @@ import { useFetchClient } from '../../utils/fetch-client';
 import { ConfirmAction, useBreakpoint, useT } from '../../components/ui';
 import { normalizeScope } from '../../../../shared/templates.mjs';
 import { API } from '../../utils/api';
+import { keepButtonKeys } from '../tableKeys.mjs';
 
 /**
  * Template list of the settings page: table from the large breakpoint up,
@@ -132,7 +133,8 @@ const RowActions = ({
   const t = useT();
   const name = template.name;
   return (
-    <Flex gap={1} wrap="wrap">
+    // Enter and Space press the focused button (the DS table cell would swallow them).
+    <Flex gap={1} wrap="wrap" onKeyDown={keepButtonKeys}>
       <IconButton
         label={t('settings.templates.action.preview', 'Preview {name}', { name })}
         variant="ghost"
@@ -209,7 +211,8 @@ const RowActions = ({
 };
 
 /**
- * Availability switch with an accessible name.
+ * Availability switch with an accessible name. It stays enabled while its request runs (2.7.8):
+ * disabling it dropped keyboard focus to <body>; the page ignores repeats until the answer.
  * @param {{ template: object, busy: boolean, onToggle: Function }} props - Props.
  * @returns {JSX.Element} Switch.
  */
@@ -218,7 +221,7 @@ const EnabledSwitch = ({ template, busy, onToggle }) => {
   return (
     <Switch
       checked={template.enabled}
-      disabled={busy}
+      aria-busy={busy || undefined}
       onCheckedChange={(checked) => onToggle(template, checked === true)}
       aria-label={t('settings.templates.action.toggle', 'Offer {name} in the editor', {
         name: template.name,

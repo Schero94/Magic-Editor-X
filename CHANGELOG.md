@@ -1,5 +1,21 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+Settings pages (Configuration, Custom blocks, Templates, Audit trail), from an independent UI re-audit of 2.7.6:
+
+- **The custom block dialog no longer throws away typed work.** Escape, a click outside, Close or Cancel closed "Create a custom block" and "Edit block" without asking, and focus went to the page body. A form with unsaved changes now asks "Discard your changes?" (Strapi's confirmation dialog): Cancel keeps the form and puts focus back where it was, "Discard changes" closes it. A clean form closes at once, and focus returns to the button that opened the dialog.
+- **Focus after actions.** Focus no longer drops to the page body after Save, Discard changes, Test connection, Test LanguageTool and Try again on the Configuration page; after the "In toolbox" and "Offer in the editor" switches of the Custom blocks and Templates lists (they stay enabled while their change is saved, so a second Space works); after Duplicate, Move, Import and Export; after Refresh, Apply filters, Reset filters and Try again on the Audit trail; after Cancel or Escape in the "Restore version" dialog of a synced block; after Create template and Edit (focus goes to the new view); and after Try again on any load error. Focus stays on the control, or moves to the page title, the first highlighted field or the first filter when the control is gone or disabled.
+- **Row actions in the desktop tables work from the keyboard.** In the Custom blocks and Templates tables, Enter and Space on Edit, Preview, Duplicate, Move and Delete did nothing: the Design System table cell treats a cell of buttons as one grid cell and cancels every key. The actions group now keeps Enter and Space for the focused button; arrow keys still move between the buttons.
+- **"Test LanguageTool" without a base URL** said "Fix the highlighted fields" but highlighted nothing. The base URL field is now marked with "This field is required." and gets focus; the mark goes away as soon as you type a URL. Saving with an empty URL while the grammar check is off still works.
+- **Out-of-range numbers are flagged when you leave the field.** "Maximum text length", "Maximum answer length", the model and the base URLs showed their errors only after Save. They now show when you leave the field and update as you type.
+- **No 403 requests for people without access.** The Templates page (and Custom blocks) loaded its lists before the permission check, so reviewers saw two 403 errors in the console before "You don't have the permissions". Nothing is requested until the permission check allows it, as on the Configuration page since 2.7.4.
+- **Audit trail date filters** use the Design System date picker in the admin language's date format instead of the browser's native date field. A filter without results offers "Reset filters", and events of templates and synced blocks show "Template or synced block" instead of the internal uid `plugin::magic-editor-x.template`.
+- **Custom block import report.** A skipped entry without a name showed a literal "?"; it now reads "An entry without a name: the definition is not valid." The list of skipped entries is no longer nested inside the alert's paragraph (invalid HTML).
+- **Smaller things.** The colour swatches of the palette section had native browser tooltips; the text next to them now names the light and dark theme values. "Save name" for a synced block version is disabled while the name is longer than 120 characters. New texts are translated into German, French, Spanish and Portuguese.
+
 # [2.8.0](https://github.com/Schero94/Magic-Editor-X/compare/v2.7.7...v2.8.0) (2026-11-20)
 
 

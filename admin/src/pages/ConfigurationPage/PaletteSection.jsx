@@ -59,14 +59,19 @@ const TokenList = styled.ul`
 const TokenItem = ({ token, locale, t }) => (
   <Box tag="li" minWidth={0}>
     <Flex gap={2} alignItems="center" minWidth={0}>
-      <Swatch $color={token.light} title={t('settings.palette.light', 'Light theme')} aria-hidden="true" />
-      <Swatch $color={token.dark} title={t('settings.palette.dark', 'Dark theme')} aria-hidden="true" />
+      {/* Decorative samples: the text next to them names both values (2.7.8: no native tooltip). */}
+      <Swatch $color={token.light} aria-hidden="true" />
+      <Swatch $color={token.dark} aria-hidden="true" />
       <Flex direction="column" alignItems="flex-start" minWidth={0}>
         <Typography variant="omega" fontWeight="semiBold" textColor="neutral800">
           {tokenLabel(token, locale)}
         </Typography>
         <Typography variant="pi" textColor="neutral600" style={{ overflowWrap: 'anywhere' }}>
-          {token.name} · {token.light} / {token.dark}
+          {t('settings.palette.values', '{name} · light theme {light}, dark theme {dark}', {
+            name: token.name,
+            light: token.light,
+            dark: token.dark,
+          })}
         </Typography>
       </Flex>
     </Flex>

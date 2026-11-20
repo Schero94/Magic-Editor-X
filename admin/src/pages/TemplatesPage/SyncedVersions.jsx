@@ -20,6 +20,7 @@ import { API, readApiError } from '../../utils/api';
 import { SectionCard, useT } from '../../components/ui';
 import { VersionDiff } from '../../components/EditorField/VersionDiff';
 import { previewLines } from '../../components/EditorField/HistoryModal';
+import { activeElement, useFocusRestore } from '../useFocusRestore';
 
 const MAX_LABEL_LENGTH = 120;
 
@@ -50,6 +51,11 @@ export const SyncedVersions = ({ template, current, dirty, onRestored }) => {
   const [confirm, setConfirm] = useState(null);
   const [restoring, setRestoring] = useState(false);
   const renameButtons = useRef(new Map());
+  // 2.7.8: the restore dialog opens from state (no Dialog.Trigger), so its opener is kept here
+  // and gets focus back on Cancel or Escape.
+  const confirmOpener = useRef(null);
+  const listRef = useRef(null);
+  const requestFocus = useFocusRestore();
 
   const fetchList = useCallback(
     () =>
@@ -67,6 +73,23 @@ export const SyncedVersions = ({ template, current, dirty, onRestored }) => {
   const reload = () => {
     setState((value) => ({ ...value, loading: true, error: false }));
     return fetchList();
+  };
+
+  /** "Try again" is replaced by the list: focus goes to the first version's preview button. */
+  const retry = async () => {
+    await reload();
+    requestFocus([() => listRef.current && listRef.current.querySelector('button')]);
+  };
+
+  const openConfirm = (item) => {
+    confirmOpener.current = activeElement();
+    setConfirm(item);
+  };
+
+  const closeConfirm = (open) => {
+    if (open || restoring) return;
+    setConfirm(null);
+    requestFocus([confirmOpener.current, () => listRef.current && listRef.current.querySelector('button')]);
   };
 
   const showPreview = async (item) => {
@@ -172,7 +195,7 @@ export const SyncedVersions = ({ template, current, dirty, onRestored }) => {
           <Typography textColor="danger600">
             {t('settings.syncedVersions.error', 'Versions could not be loaded.')}
           </Typography>
-          <Button variant="secondary" startIcon={<ArrowClockwise />} onClick={reload}>
+          <Button variant="secondary" startIcon={<ArrowClockwise />} onClick={retry}>
             {t('settings.retry', 'Try again')}
           </Button>
         </Flex>
@@ -184,6 +207,7 @@ export const SyncedVersions = ({ template, current, dirty, onRestored }) => {
       ) : null}
       {!state.error && state.items.length > 0 ? (
         <Flex
+          ref={listRef}
           tag="ul"
           direction="column"
           alignItems="stretch"
@@ -266,7 +290,7 @@ export const SyncedVersions = ({ template, current, dirty, onRestored }) => {
                       <Pencil />
                     </IconButton>
                     {index > 0 ? (
-                      <Button variant="secondary" onClick={() => setConfirm(item)}>
+                      <Button variant="secondary" onClick={() => openConfirm(item)}>
                         {t('settings.syncedVersions.restore', 'Restore')}
                       </Button>
                     ) : null}
@@ -301,7 +325,12 @@ export const SyncedVersions = ({ template, current, dirty, onRestored }) => {
                         <Field.Error />
                       </Field.Root>
                       <Flex gap={2} wrap="wrap">
-                        <Button type="submit" size="S" loading={renameBusy}>
+                        <Button
+                          type="submit"
+                          size="S"
+                          loading={renameBusy}
+                          disabled={renaming.value.trim().length > MAX_LABEL_LENGTH}
+                        >
                           {t('settings.syncedVersions.renameSave', 'Save name')}
                         </Button>
                         <Button type="button" size="S" variant="tertiary" onClick={() => endRename(item.id)}>
@@ -368,7 +397,7 @@ export const SyncedVersions = ({ template, current, dirty, onRestored }) => {
           })}
         </Flex>
       ) : null}
-      <Dialog.Root open={Boolean(confirm)} onOpenChange={(open) => !open && !restoring && setConfirm(null)}>
+      <Dialog.Root open={Boolean(confirm)} onOpenChange={closeConfirm}>
         {confirm ? (
           <ConfirmDialog
             title={t('settings.syncedVersions.confirmTitle', 'Restore version {version}?', {
