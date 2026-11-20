@@ -1,5 +1,14 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- **Focus after the AI assistant.** Replace selection, Escape or Close in the inline AI dialog put focus on the page body. Focus now returns to the text (after Replace, behind the new text), or to More tools.
+- **Focus after resolving a comment.** A resolved thread is hidden, so its Resolve button disappeared and focus fell to the page body. Focus now moves to the Comments heading.
+- **Reduced motion.** With "reduce motion" turned on in the operating system, new blocks, the block menu, the toolbox and the toolbar buttons appear without the Editor.js animations.
+- **Leftover drop line.** After dropping a file on the editor, Editor.js' drop mark (a dotted line with an arrow under a block) stayed visible until the next drag. It is now removed with the drop.
+
 ## [2.7.3](https://github.com/Schero94/Magic-Editor-X/compare/v2.7.2...v2.7.3) (2026-11-20)
 
 

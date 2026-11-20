@@ -2173,6 +2173,26 @@ export const editorStyles = css`
     }
 
     /* Placeholder for embeds and images the admin CSP blocks (csp-guard.js). */
+    /* 2.7.4: Editor.js animates new blocks, popovers and toolbar buttons (fade-in, panelShowing,
+       bounceIn); with reduced motion they appear without animation. Selectors match the package
+       rules' specificity plus the wrapper. Loading spinners keep turning (they show progress). */
+    @media (prefers-reduced-motion: reduce) {
+      .ce-block,
+      .ce-popover--opened > .ce-popover__container,
+      .ce-toolbar__plus--active,
+      .ce-toolbar__settings-btn--active,
+      .cdx-settings-button--focused-animated,
+      .wobble {
+        animation: none;
+      }
+
+      .ce-block__content,
+      .ce-toolbar,
+      .ce-inline-toolbar {
+        transition: none;
+      }
+    }
+
     .mex-csp-blocked {
       display: flex;
       align-items: flex-start;

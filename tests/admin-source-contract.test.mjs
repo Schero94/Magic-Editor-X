@@ -144,3 +144,13 @@ test('every plugin Modal opts out of the Radix description (no console warning o
       if (!match[0].includes('aria-describedby')) missing.push(file);
   assert.deepEqual(missing, []);
 });
+
+test('reduced motion stops the Editor.js block, popover and toolbar animations (2.7.4)', () => {
+  const styles = sources.find(([name]) => name === 'editor/tools/styles.js')[1];
+  const media = styles.split('@media (prefers-reduced-motion: reduce) {\n      .ce-block,')[1];
+  assert.ok(media, 'editor-wide reduced motion rule');
+  const rule = media.split('}')[0];
+  for (const selector of ['.ce-popover--opened > .ce-popover__container', '.ce-toolbar__plus--active'])
+    assert.ok(rule.includes(selector), selector);
+  assert.match(rule, /animation: none/);
+});
