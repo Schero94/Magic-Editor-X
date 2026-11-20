@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- **`npx magic-editor-x types`: TypeScript types per field.** Run from the Strapi project root, it writes a TypeScript module with one discriminated block union per Magic Editor X field: only the block types the field's preset allows (resolved with the same code as the server, heading levels narrowed, component blocks only for the components the field lists), typed `data` for Settings custom blocks (from their field definitions) and for blocks registered with the block SDK (from their schema), and `MagicEditorXFieldValues` from uid and field name to the value type. Options `--out`, `--uid` (repeatable, includes the components a type uses) and `--import-from`. The command loads the project like `migrate`, only reads and makes no network requests (`fetch()` refuses every request while it runs, telemetry is off, scheduled jobs are stopped). Also available as `strapi.plugin('magic-editor-x').service('types').generate({ uids })`. See "TypeScript types per field" in the README.
+
 ## [2.7.7](https://github.com/Schero94/Magic-Editor-X/compare/v2.7.6...v2.7.7) (2026-11-20)
 
 
