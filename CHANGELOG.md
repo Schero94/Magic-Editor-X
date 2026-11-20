@@ -1,6 +1,12 @@
 # Changelog
 
-## [Unreleased]
+## [2.7.1](https://github.com/Schero94/Magic-Editor-X/compare/v2.7.0...v2.7.1) (2026-11-20)
+
+
+### Bug Fixes
+
+* **security:** sanitise duplicated entries, clean mex=json output, safe upload names ([#26](https://github.com/Schero94/Magic-Editor-X/issues/26)) ([1e8634a](https://github.com/Schero94/Magic-Editor-X/commit/1e8634af541ab1604dd250f065d603787320d390))
+
 
 Patch release: security fixes from the 2.7 API audit. No breaking changes, no migration.
 
