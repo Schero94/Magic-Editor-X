@@ -1,6 +1,12 @@
 # Changelog
 
-## [Unreleased]
+## [2.8.1](https://github.com/Schero94/Magic-Editor-X/compare/v2.8.0...v2.8.1) (2026-11-20)
+
+
+### Bug Fixes
+
+* settings pages keep unsaved work and focus, DatePicker, keyboard row actions ([#34](https://github.com/Schero94/Magic-Editor-X/issues/34)) ([338a293](https://github.com/Schero94/Magic-Editor-X/commit/338a293c2eb95d96f275671288fc24ec1ca5bc91))
+
 
 ### Fixed
 
