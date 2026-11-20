@@ -66,7 +66,7 @@ test('remote collaboration content is sanitised before the editor renders it (ME
   const field = readFileSync(join(root, 'components/EditorField/index.jsx'), 'utf8');
   const handler = field.slice(
     field.indexOf('onRemoteData: async'),
-    field.indexOf('onRemoteData: async') + 1200
+    field.indexOf('onRemoteData: async') + 1600
   );
   assert.match(handler, /client\.snapshot\(\)/);
   assert.match(handler, /prepareRemoteData\(data,/);
@@ -143,6 +143,33 @@ test('every plugin Modal opts out of the Radix description (no console warning o
     for (const match of source.matchAll(/<Modal\.Content\b[^>]*>/g))
       if (!match[0].includes('aria-describedby')) missing.push(file);
   assert.deepEqual(missing, []);
+});
+
+test('a CSP notice in a link preview card takes its own row and never squeezes the text (M2)', () => {
+  const styles = sources.find(([name]) => name === 'editor/tools/styles.js')[1];
+  const block = (selector) => styles.split(`${selector} {`)[1].split('\n    }')[0];
+  const card = block('.mex-link__card');
+  assert.match(card, /flex-wrap: wrap/);
+  assert.ok(styles.includes('.mex-link__card > .mex-csp-blocked {'), 'card-scoped notice rule');
+  assert.match(block('.mex-link__card > .mex-csp-blocked'), /flex: 1 1 100%/);
+  assert.match(block('.mex-link__text'), /min-width: 0/);
+});
+
+test('2.7.4 contrast and target sizes in editor blocks (m7, m8)', () => {
+  const styles = sources.find(([name]) => name === 'editor/tools/styles.js')[1];
+  const block = (selector) => styles.split(`${selector} {`)[1].split('\n    }')[0];
+  // Prism numbers: warning700 is 4.09:1 on the light code background.
+  assert.doesNotMatch(block('    .mex-code__code .token.symbol'), /warning700/);
+  // @editorjs/attaches texts use its variables (the package rule wins a specificity tie).
+  assert.match(
+    styles,
+    /\.cdx-attaches \{\s*--color-line[\s\S]{0,200}--color-text-secondary: \$\{c\('neutral600'\)\}/
+  );
+  // Checkbox labels, code header controls, the photo button and the CSP link are at least 24 px.
+  assert.match(block('    .mex-tool__check,\n    .mex-inline-check'), /min-height: \$\{s\(6\)\}/);
+  assert.match(block('      .mex-code__filename'), /min-height: \$\{s\(8\)\}/);
+  assert.match(block('.mex-person__photo-button'), /min-height: \$\{s\(8\)\}/);
+  assert.match(block('.mex-csp-blocked__link'), /min-height: \$\{s\(6\)\}/);
 });
 
 test('reduced motion stops the Editor.js block, popover and toolbar animations (2.7.4)', () => {

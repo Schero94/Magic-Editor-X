@@ -4,7 +4,7 @@ import List from '@editorjs/list';
 import Quote from '@editorjs/quote';
 import Warning from '@editorjs/warning';
 import Code from '@editorjs/code';
-import Embed from '@editorjs/embed';
+import { SafeEmbed } from './embed-safe';
 import { EMBED_SERVICES } from './embed-services.mjs';
 import Raw from '@editorjs/raw';
 import Attaches from '@editorjs/attaches';
@@ -44,7 +44,13 @@ import { createComponentTool } from './component';
 import { InlineMathTool } from './inline-math';
 import { FootnoteTool } from './footnote';
 import { CommentInlineTool } from './comment';
-import { ColorTool, SuperscriptTool, SubscriptTool, createAnnotationTool } from './inline-format';
+import {
+  ColorTool,
+  ScriptKeepTool,
+  SuperscriptTool,
+  SubscriptTool,
+  createAnnotationTool,
+} from './inline-format';
 import { allowAnnotationKeys } from './sanitize-config';
 import { hasPalette } from '../../../../shared/inline-format.mjs';
 import { MARKED_BLOCKS } from '../../../../shared/sanitize-policy.mjs';
@@ -100,6 +106,8 @@ const COMMENT_TOOL = 'comment$mex';
 const COLOR_TOOL = 'color$mex';
 const SUPERSCRIPT_TOOL = 'superscript$mex';
 const SUBSCRIPT_TOOL = 'subscript$mex';
+/** 2.7.4: keeps stored `<sub>`/`<sup>` in fields without the script buttons (no button of its own). */
+const SCRIPT_KEEP_TOOL = 'scriptKeep$mex';
 const ANNOTATION_TOOL_PREFIX = 'annotation$';
 
 /** Keys of the 2.4 inline tools when a custom block (Settings or code) owns their name. */
@@ -181,8 +189,11 @@ export function buildTools(ctx) {
   const colorsOn = Boolean(extras.colors && hasPalette(ctx.palette));
   const scriptOn = Boolean(extras.script);
   const annotations = Array.isArray(ctx.annotations) ? ctx.annotations : [];
+  // Fields whose preset allows every inline tag keep stored sub/superscript without the buttons.
+  const keepScript = !scriptOn && !(preset && preset.inline);
   const extraInline = [
     ...(scriptOn ? [SUPERSCRIPT_TOOL, SUBSCRIPT_TOOL] : []),
+    ...(keepScript ? [SCRIPT_KEEP_TOOL] : []),
     ...(colorsOn ? [COLOR_TOOL] : []),
     ...annotations.map((definition) => `${ANNOTATION_TOOL_PREFIX}${definition.name}`),
   ];
@@ -297,9 +308,11 @@ export function buildTools(ctx) {
       config: { rows: 2, cols: 3, withHeadings: true, t },
     },
     embed: {
-      class: Embed,
+      // 2.7.4: a stored block of an unknown service shows a note instead of an Editor.js error.
+      class: SafeEmbed,
       inlineToolbar: true,
       config: {
+        t,
         services: {
           // 2.5: YouTube (with Shorts) and Figma are defined by the plugin (embed-services.mjs).
           youtube: EMBED_SERVICES.youtube,
@@ -432,6 +445,7 @@ export function buildTools(ctx) {
     tools[SUPERSCRIPT_TOOL] = { class: SuperscriptTool, shortcut: 'CMD+.' };
     tools[SUBSCRIPT_TOOL] = { class: SubscriptTool, shortcut: 'CMD+SHIFT+.' };
   }
+  if (keepScript) tools[SCRIPT_KEEP_TOOL] = { class: ScriptKeepTool };
   if (colorsOn) {
     tools[COLOR_TOOL] = {
       class: ColorTool,
@@ -517,6 +531,7 @@ const NOT_BLOCKS = new Set([
   COLOR_TOOL,
   SUPERSCRIPT_TOOL,
   SUBSCRIPT_TOOL,
+  SCRIPT_KEEP_TOOL,
 ]);
 
 /**

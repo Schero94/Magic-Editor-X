@@ -199,6 +199,25 @@ export const ComponentBlockView = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- report the defaults of a new block once
   }, []);
 
+  // 2.7.4 (m6): a block just inserted from the toolbox takes the caret into its first field
+  // (Editor.js leaves it in the paragraph after the block). Only while this editor has focus.
+  useEffect(() => {
+    if (!usable || !fresh || readOnly || focus) return undefined;
+    const frame = window.requestAnimationFrame(() => {
+      const root = rootRef.current;
+      const editor = root && root.closest('.codex-editor');
+      const active = document.activeElement;
+      if (!root || !editor || (active && active !== document.body && !editor.contains(active))) return;
+      const first = root.querySelector(
+        'input:not([type="hidden"]):not([disabled]), textarea:not([disabled]), select:not([disabled]), button:not([disabled])'
+      );
+      if (first) first.focus();
+    });
+    return () => window.cancelAnimationFrame(frame);
+    // Only on mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- focus the first field of a new block once
+  }, []);
+
   // A collaborator's change of this block arrives here (the form keeps its DOM, focus and caret).
   useEffect(() => {
     if (typeof subscribe !== 'function') return undefined;

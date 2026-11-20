@@ -16,6 +16,7 @@ import styled from 'styled-components';
 import { extractLinks } from '../../../../shared/quality.mjs';
 import { API, readApiError } from '../../utils/api';
 import { useQualityIssues } from './useQualityIssues';
+import { usePanelAutoFocus } from './usePanelFocus';
 
 /**
  * Quality panel of one editor field: accessibility issues of the current
@@ -207,6 +208,7 @@ const useScheduledReport = (fetchClient, target) => {
  * @returns {JSX.Element} Panel.
  */
 export const QualityPanel = ({
+  autoFocus = false,
   t,
   data,
   options,
@@ -226,6 +228,8 @@ export const QualityPanel = ({
   const [check, setCheck] = useState({ state: 'idle', result: null, message: '' });
   const [announcement, setAnnouncement] = useState('');
   const requestRef = useRef(0);
+  const headingRef = useRef(null);
+  usePanelAutoFocus(autoFocus, headingRef);
   const links = useMemo(() => extractLinks(data), [data]);
   const linkCount = links.internal.length + links.external.length + links.media.length;
   const errors = issues.filter((issue) => issue.severity === 'error');
@@ -489,7 +493,7 @@ export const QualityPanel = ({
       <Flex direction="column" alignItems="stretch" gap={4}>
         <Flex justifyContent="space-between" alignItems="flex-start" gap={2}>
           <Flex direction="column" alignItems="flex-start" gap={1} minWidth={0}>
-            <Typography variant="delta" tag="h3">
+            <Typography variant="delta" tag="h3" ref={headingRef} tabIndex={-1}>
               {t('editor.quality.title', 'Quality checks')}
             </Typography>
             <Typography variant="pi" textColor="neutral600">

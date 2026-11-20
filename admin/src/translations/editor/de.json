@@ -733,6 +733,8 @@
   "editor.drafts.conflict": "Der gespeicherte Inhalt wurde seitdem geändert. Beim Wiederherstellen wird er im Editor ersetzt ({count, plural, one {# Block unterscheidet sich} other {# Blöcke unterscheiden sich}}).",
   "editor.drafts.conflictPlain": "Der gespeicherte Inhalt wurde seitdem geändert. Beim Wiederherstellen wird er im Editor ersetzt.",
   "editor.drafts.discard": "Verwerfen",
+  "editor.room.unsaved": "Dieses Feld zeigt Änderungen aus einer Live-Bearbeitung, die noch nicht gespeichert sind. Speichern Sie den Eintrag, um sie zu behalten.",
+  "editor.room.discard": "Änderungen verwerfen",
   "editor.drafts.restore": "Wiederherstellen",
   "editor.drafts.restored": "Änderungen wiederhergestellt. Speichern Sie den Eintrag, um sie zu behalten.",
   "editor.component.badge": "Komponente",

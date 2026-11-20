@@ -9,6 +9,38 @@
 - **Reduced motion.** With "reduce motion" turned on in the operating system, new blocks, the block menu, the toolbox and the toolbar buttons appear without the Editor.js animations, and the embed, image and editor loaders no longer spin without end.
 - **Leftover drop line.** After dropping a file on the editor, Editor.js' drop mark (a dotted line with an arrow under a block) stayed visible until the next drag. It is now removed with the drop.
 
+## [2.7.5](https://github.com/Schero94/Magic-Editor-X/compare/v2.7.4...v2.7.5) (2026-11-20)
+
+
+### Bug Fixes
+
+* **admin:** sub/sup, panel focus, target sizes, contrast, settings landmarks, unknown embeds, shortcut labels ([#30](https://github.com/Schero94/Magic-Editor-X/issues/30)) ([67c04ef](https://github.com/Schero94/Magic-Editor-X/commit/67c04efa72d04541c802fab4e07f2ff7c4cd99de))
+
+
+### Fixed
+
+- **Sub- and superscript kept.** Fields without the script buttons dropped stored `<sub>` (and plain `<sup>` without footnotes) on every save and on HTML paste, because Editor.js keeps only tags of the inline tools a block offers. Fields whose preset allows every inline tag now keep them without showing extra buttons. This also removes the phantom "Send 1 suggestion" in Suggest changes for such content.
+- **Focus.** Quality checks, Comments and Suggestions opened from More tools move focus into the panel (and back to More tools when closed). The keyboard shortcuts dialog returns focus to the caret (Ctrl/Cmd+/) or to More tools. A new highlighted code block starts in the code, not the file name. A new component block starts in its first field.
+- **Target sizes and contrast.** Checkbox labels in block forms, the code block's file name and language controls, the person block's photo button and the "How to allow it" link are at least 24 px; the audit trail shows page size and page links in two rows below 768 px so nothing runs off the screen. Numbers in highlighted code and the attachment file size now meet 4.5:1 in light and dark mode.
+- **Settings pages.** Load errors, loading and missing permissions render one `main` landmark. The Configuration page no longer requests the settings before the permission check (no 403 in the console for reviewers).
+- **Unknown embed services.** A stored embed whose service the editor does not configure shows a short note with its URL and is saved unchanged, instead of an Editor.js console error and a missing block.
+- **Shortcut labels.** More tools and the shortcuts dialog use the notation of the Editor.js block menu (⌘ ⇧ ⌥ on a Mac, Ctrl ⇧ Alt elsewhere).
+
+## [2.7.4](https://github.com/Schero94/Magic-Editor-X/compare/v2.7.3...v2.7.4) (2026-11-20)
+
+
+### Bug Fixes
+
+* **admin:** toggle freeze, unsaved room text, CSP link card, save race ([#29](https://github.com/Schero94/Magic-Editor-X/issues/29)) ([4d660c4](https://github.com/Schero94/Magic-Editor-X/commit/4d660c4f772e14108c922013dd3a42c7dc9d6b24))
+
+
+### Fixed
+
+- **Tab froze with a closed toggle.** editorjs-indent-tune 1.4.4 re-queued its layout step as a microtask for as long as a block measured 0 px wide. Children of a closed toggle are hidden, so a window resize or More tools > Suggest changes froze the browser tab. The indent tune wrapper now waits for such a block with a ResizeObserver and applies the indent when the toggle opens.
+- **Link preview with a blocked image.** The Content Security Policy notice took the place of the preview image inside the card row and squeezed the title and description to one character per line. The notice now takes its own row under the text.
+- **Unsaved live-session text looked saved.** A collaboration room keeps unsaved text for `roomTtlMinutes`. When an editor opened the entry within that time, the field showed the text with Save disabled, and saving other fields stored the old value. The field now marks the form as changed and shows a notice ("not saved yet") with Discard changes, which brings the stored value back for everyone in the room.
+- **Last keystrokes before saving.** Text typed less than 40 ms before Ctrl/Cmd+Enter, Ctrl/Cmd+S or a Save click could be missing from the saved entry. The field now finishes handing its content to the form before the save runs.
+
 ## [2.7.3](https://github.com/Schero94/Magic-Editor-X/compare/v2.7.2...v2.7.3) (2026-11-20)
 
 

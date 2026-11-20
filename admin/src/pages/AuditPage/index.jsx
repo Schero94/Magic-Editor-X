@@ -209,7 +209,7 @@ const AuditPage = () => {
   const t = useT();
   const { formatDate } = useIntl();
   const { get } = useFetchClient();
-  const { isBelowLarge } = useBreakpoint();
+  const { isBelowLarge, isBelowMedium } = useBreakpoint();
   const audit = useRBAC(PERMISSIONS.auditRead);
   const settings = useRBAC(PERMISSIONS.settingsRead);
   const [{ query }, setQuery] = useQueryParams();
@@ -287,18 +287,18 @@ const AuditPage = () => {
 
   if (audit.isLoading || settings.isLoading) {
     return (
-      <Page.Main>
+      <>
         <Page.Title>{title}</Page.Title>
         <Page.Loading />
-      </Page.Main>
+      </>
     );
   }
   if (!allowed) {
     return (
-      <Page.Main>
+      <>
         <Page.Title>{title}</Page.Title>
         <Page.NoPermissions />
-      </Page.Main>
+      </>
     );
   }
 
@@ -498,7 +498,7 @@ const AuditPage = () => {
         <Box aria-busy={state.status === 'loading'} data-mex-audit-results minWidth={0}>
           {results}
         </Box>
-        {state.pagination && state.pagination.total > 0 ? (
+        {state.pagination && state.pagination.total > 0 && !isBelowMedium ? (
           <Pagination.Root
             pageCount={state.pagination.pageCount}
             total={state.pagination.total}
@@ -507,6 +507,26 @@ const AuditPage = () => {
             <Pagination.PageSize options={['10', '25', '50', '100']} />
             <Pagination.Links />
           </Pagination.Root>
+        ) : null}
+        {/* 2.7.4 (m7): below 768 px page size and page links take one row each and the links show
+            fewer pages, so nothing runs off the screen (both read and write the URL query). */}
+        {state.pagination && state.pagination.total > 0 && isBelowMedium ? (
+          <>
+            <Pagination.Root
+              pageCount={state.pagination.pageCount}
+              total={state.pagination.total}
+              defaultPageSize={25}
+            >
+              <Pagination.PageSize options={['10', '25', '50', '100']} />
+            </Pagination.Root>
+            <Pagination.Root
+              pageCount={state.pagination.pageCount}
+              total={state.pagination.total}
+              defaultPageSize={25}
+            >
+              <Pagination.Links boundaryCount={1} siblingCount={0} />
+            </Pagination.Root>
+          </>
         ) : null}
       </SectionCard>
     </PageShell>
