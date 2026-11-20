@@ -193,6 +193,31 @@ const quoteText = (tokens, state, depth) =>
     .filter((part) => part && !isBlankInline(part))
     .join('<br>');
 
+/** Attribution line of a quote, as the Markdown renderer writes the caption (`— Name`). */
+const QUOTE_CAPTION = /^\u2014[ \t]+\S/;
+
+/**
+ * Splits the caption off a blockquote: a last paragraph that starts with an
+ * em dash and a space (`> — Name`, the form `renderMarkdown` writes for the
+ * quote caption) becomes the caption, so quotes round-trip. Any other quote
+ * keeps all of its paragraphs as text.
+ * @param {Array<object>} tokens - Tokens inside the quote.
+ * @param {{ images: Array<object> }} state - Collected images.
+ * @returns {{ body: Array<object>, caption: string }} Tokens of the text and the caption (inline HTML, '' when none).
+ */
+const splitQuoteCaption = (tokens, state) => {
+  const list = tokens || [];
+  let index = list.length - 1;
+  while (index >= 0 && list[index].type === 'space') index -= 1;
+  const last = list[index];
+  if (!last || last.type !== 'paragraph' || !QUOTE_CAPTION.test(String(last.text || '')))
+    return { body: list, caption: '' };
+  const caption = tidyInline(inlineOf(last.tokens || [], state))
+    .replace(/^\u2014[ \t]+/, '')
+    .trim();
+  return caption ? { body: list.slice(0, index), caption } : { body: list, caption: '' };
+};
+
 /**
  * Walks block tokens.
  * @param {object} ctx - Context.
@@ -234,8 +259,9 @@ const walk = (ctx, tokens, depth) => {
         break;
       }
       case 'blockquote': {
-        const text = quoteText(token.tokens, state, depth);
-        if (text) push(ctx, { type: 'quote', data: { text, caption: '', alignment: 'left' } });
+        const { body, caption } = splitQuoteCaption(token.tokens, state);
+        const text = quoteText(body, state, depth);
+        if (text || caption) push(ctx, { type: 'quote', data: { text, caption, alignment: 'left' } });
         break;
       }
       case 'code': {

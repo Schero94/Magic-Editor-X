@@ -144,10 +144,15 @@ export const CODE_LANGUAGE = /^[a-z0-9+#-]{1,32}$/i;
  * Builds a code block; a known language name gives a highlighted code block.
  * @param {string} code - Code text.
  * @param {string} [language] - Language name.
+ * @param {string} [filename] - File name label (2.4).
+ * @param {{ keepTrailingNewline?: boolean }} [options] - `keepTrailingNewline` keeps a final line
+ *   break (sources that store the exact code, such as Strapi Blocks); by default one final line
+ *   break is dropped (HTML `<pre>` and Markdown fences end with formatting newlines).
  * @returns {{ type: string, data: object }} Block.
  */
-export const codeBlock = (code, language, filename) => {
-  const text = String(code).replace(/\r\n?/g, '\n').replace(/\n$/, '');
+export const codeBlock = (code, language, filename, options = {}) => {
+  const normalized = String(code).replace(/\r\n?/g, '\n');
+  const text = options.keepTrailingNewline ? normalized : normalized.replace(/\n$/, '');
   const lang = typeof language === 'string' ? language.trim().toLowerCase() : '';
   const name = cleanCodeFilename(filename);
   const valid = lang && CODE_LANGUAGE.test(lang);

@@ -141,7 +141,13 @@ export const strapiBlocksToEditor = (value) => {
       }
       case 'code': {
         const code = textOf(node);
-        if (code.trim()) blocks.push(codeBlock(code, typeof node.language === 'string' ? node.language : ''));
+        // Strapi Blocks store the exact code: a trailing line break is content and is kept.
+        if (code.trim())
+          blocks.push(
+            codeBlock(code, typeof node.language === 'string' ? node.language : '', undefined, {
+              keepTrailingNewline: true,
+            })
+          );
         break;
       }
       case 'image': {
@@ -168,6 +174,8 @@ export const strapiBlocksToEditor = (value) => {
         break;
       }
       default:
+        // Custom node types (Core Blocks bridge types such as `callout`, other plugins' nodes) have no
+        // Editor.js equivalent: they are left out and reported with their type, never guessed.
         skip('unsupported-node', typeof node.type === 'string' ? node.type.slice(0, 40) : 'unknown');
     }
   }
