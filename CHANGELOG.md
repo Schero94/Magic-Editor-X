@@ -1,5 +1,17 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed (editor field: native Strapi look)
+
+- **Strapi Design System icons in the editor.** Block types, block menus and tool buttons use @strapi/icons where an equivalent exists (code, image, gallery, video, audio, link, Media Library, person, table, component, copy, delete, add, upload, check, colour, AI, underline, strikethrough, arrows, warning, table of contents); the editor-specific shapes (alignment, columns, borders, merge and split, sub- and superscript) keep their own icons.
+- **Undo and redo** use one DS arrow, mirrored for undo (the two-arrow icon read as "refresh"). @strapi/icons has no undo or redo icon.
+- **Version history** uses the DS underlined tabs (`variant="simple"`, as the Content Manager's Draft and Published tabs).
+- **Comment and suggestion markers** show a DS tooltip instead of the browser's `title`.
+- **Annotation Apply** uses the DS primary button colours in both themes.
+- **Full screen** keeps Tab inside the editor (it is a modal dialog), like the DS focus trap.
+- **Code font.** The Design System theme has no font tokens; the shortcut help and the preview read a plugin constant instead of the undefined `theme.fonts.code`.
+
 ## [2.8.3](https://github.com/Schero94/Magic-Editor-X/compare/v2.8.2...v2.8.3) (2026-11-20)
 
 

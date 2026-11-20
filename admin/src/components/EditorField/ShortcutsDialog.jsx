@@ -1,6 +1,7 @@
 import { Box, Button, Flex, Modal, Typography } from '@strapi/design-system';
 import styled from 'styled-components';
 import { shortcutKeyName } from '../../editor/field-tools.mjs';
+import { CODE_FONT } from '../../editor/code-font.mjs';
 
 /**
  * Keyboard shortcut help (Ctrl/Cmd + Alt + /; 2.7.8: Ctrl/Cmd + / opens the Editor.js block menu). Lists the editor's own shortcuts,
@@ -9,7 +10,7 @@ import { shortcutKeyName } from '../../editor/field-tools.mjs';
 
 const Keys = styled.kbd`
   display: inline-block;
-  font-family: ${({ theme }) => theme.fonts?.code || 'monospace'};
+  font-family: ${CODE_FONT};
   font-size: ${({ theme }) => theme.fontSizes[1]};
   color: ${({ theme }) => theme.colors.neutral800};
   background: ${({ theme }) => theme.colors.neutral100};

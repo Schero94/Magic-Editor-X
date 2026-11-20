@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import { Discuss } from '@strapi/icons';
+import { Tooltip } from '@strapi/design-system';
 import styled from 'styled-components';
 
 /**
@@ -114,26 +115,29 @@ export const CommentMarkers = ({ containerRef, holderRef, counts, blockIds, vers
   return (
     <Layer data-testid="mex-comment-markers">
       {positions.map(({ blockId, count, top, index }) => (
-        <Marker
+        <Tooltip
           key={blockId}
-          type="button"
-          style={{ top }}
-          data-block-id={blockId}
-          aria-label={t(
+          label={t(
             'editor.comments.marker',
             'Block {index}: {count, plural, one {# open comment thread} other {# open comment threads}}',
             { index: index + 1, count }
           )}
-          title={t(
-            'editor.comments.marker',
-            'Block {index}: {count, plural, one {# open comment thread} other {# open comment threads}}',
-            { index: index + 1, count }
-          )}
-          onClick={() => onOpen(blockId)}
         >
-          <Discuss aria-hidden="true" focusable="false" />
-          <span aria-hidden="true">{count > 99 ? '99+' : count}</span>
-        </Marker>
+          <Marker
+            type="button"
+            style={{ top }}
+            data-block-id={blockId}
+            aria-label={t(
+              'editor.comments.marker',
+              'Block {index}: {count, plural, one {# open comment thread} other {# open comment threads}}',
+              { index: index + 1, count }
+            )}
+            onClick={() => onOpen(blockId)}
+          >
+            <Discuss aria-hidden="true" focusable="false" />
+            <span aria-hidden="true">{count > 99 ? '99+' : count}</span>
+          </Marker>
+        </Tooltip>
       ))}
     </Layer>
   );

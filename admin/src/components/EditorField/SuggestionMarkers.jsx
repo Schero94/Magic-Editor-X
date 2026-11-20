@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import { Lightbulb } from '@strapi/icons';
+import { Tooltip } from '@strapi/design-system';
 import styled from 'styled-components';
 
 /**
@@ -132,27 +133,30 @@ export const SuggestionMarkers = ({
   return (
     <Layer data-testid="mex-suggestion-markers">
       {positions.map(({ blockId, count, top, index, besideComment }) => (
-        <Marker
+        <Tooltip
           key={blockId}
-          $beside={besideComment}
-          type="button"
-          style={{ top }}
-          data-block-id={blockId}
-          aria-label={t(
+          label={t(
             'editor.suggestions.marker',
             'Block {index}: {count, plural, one {# open suggestion} other {# open suggestions}}',
             { index: index + 1, count }
           )}
-          title={t(
-            'editor.suggestions.marker',
-            'Block {index}: {count, plural, one {# open suggestion} other {# open suggestions}}',
-            { index: index + 1, count }
-          )}
-          onClick={() => onOpen(blockId)}
         >
-          <Lightbulb aria-hidden="true" focusable="false" />
-          <span aria-hidden="true">{count > 99 ? '99+' : count}</span>
-        </Marker>
+          <Marker
+            $beside={besideComment}
+            type="button"
+            style={{ top }}
+            data-block-id={blockId}
+            aria-label={t(
+              'editor.suggestions.marker',
+              'Block {index}: {count, plural, one {# open suggestion} other {# open suggestions}}',
+              { index: index + 1, count }
+            )}
+            onClick={() => onOpen(blockId)}
+          >
+            <Lightbulb aria-hidden="true" focusable="false" />
+            <span aria-hidden="true">{count > 99 ? '99+' : count}</span>
+          </Marker>
+        </Tooltip>
       ))}
     </Layer>
   );

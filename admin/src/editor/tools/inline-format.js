@@ -11,6 +11,7 @@ import {
   ANNOTATION_VALUE_PREFIX,
   cleanAnnotationAttributes,
 } from '../../../../shared/blocks/annotations.mjs';
+import { DS_ICONS } from './ds-icons';
 
 /**
  * Inline formatting of 2.5, all off unless the field turns it on:
@@ -30,9 +31,7 @@ const SVG = (body) =>
   `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">${body}</svg>`;
 
 export const FORMAT_ICONS = Object.freeze({
-  color: SVG(
-    '<path d="m6 16 6-12 6 12M8.5 11h7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 20h16" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>'
-  ),
+  color: DS_ICONS.color,
   superscript: SVG(
     '<path d="m4 8 8 10m0-10L4 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M15 6.5a2 2 0 1 1 3.5 1.3L15 11h4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>'
   ),

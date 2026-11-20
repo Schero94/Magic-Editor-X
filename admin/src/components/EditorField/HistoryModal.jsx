@@ -429,6 +429,8 @@ export const HistoryModal = ({
           <Box marginTop={3} padding={3} background="neutral100" hasRadius minWidth={0}>
             {preview.content ? (
               <Tabs.Root
+                // 2.7.8: the underlined DS variant, as the Content Manager's Draft/Published tabs.
+                variant="simple"
                 value={tab}
                 onValueChange={(value) => (value === 'changes' ? showChanges() : setTab('preview'))}
               >
