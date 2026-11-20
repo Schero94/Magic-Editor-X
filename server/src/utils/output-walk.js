@@ -55,7 +55,9 @@ const walkOutput = (strapi, schema, node, visit, state = {}) => {
     documentId: typeof holder.documentId === 'string' ? holder.documentId : null,
     model: typeof schema.uid === 'string' ? schema.uid : null,
     kind: typeof schema.kind === 'string' ? schema.kind : null,
-    locale,
+    // The entry's own locale only: a type without i18n has none (Strapi returns `locale` only for
+    // localized types), so a related entry does not inherit the parent's locale in source maps.
+    locale: typeof holder.locale === 'string' ? holder.locale : null,
   };
   const prefix = state.entry && state.path ? `${state.path}.` : '';
   const inEntry = (path) => ({ cache, locale, depth: depth + 1, path, entry });

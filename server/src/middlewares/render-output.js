@@ -17,8 +17,12 @@ const { createLogger } = require('../utils/logger');
  * permissions (see services/references.js). Admin routes are never touched.
  *
  * `mex` is registered with `strapi.contentAPI.addQueryParams` (register.js),
- * so it is also accepted when `api.rest.strictParams` is on. An invalid value
- * answers 400 before the controller runs.
+ * so it is also accepted when `api.rest.strictParams` is on (Strapi then
+ * validates it before the controller). An invalid value answers 400 on
+ * Content API routes of `api::` content types. This global middleware runs
+ * before the router, so the route is only known after `next()`: the check
+ * runs there, and routes of other plugins (`/api/upload/files?mex=x`) and
+ * admin routes are never changed, also with an invalid value.
  */
 
 const PARAM = 'mex';
@@ -52,6 +56,12 @@ const middleware = (_config, { strapi }) => {
     const prefix = restPrefix(strapi);
     const path = ctx.path || '';
     if (path !== prefix && !path.startsWith(`${prefix}/`)) return next();
+    await next();
+
+    // Only Content API routes of `api::` content types; other plugins' routes stay untouched.
+    const uid = routeContentType(ctx.state && ctx.state.route);
+    const schema = uid ? strapi.contentType(uid) : null;
+    if (!schema) return;
     const format = query[PARAM];
     if (typeof format !== 'string' || !OUTPUT_FORMATS.includes(format)) {
       throw new errors.ValidationError('Invalid query param mex', {
@@ -72,12 +82,7 @@ const middleware = (_config, { strapi }) => {
     }
     const withIds = ids === 'true' && format === 'html';
     const withSource = withIds && Boolean(ctx.headers) && ctx.headers['strapi-encode-source-maps'] === 'true';
-    await next();
-
     if (ctx.status !== 200 || !ctx.body || typeof ctx.body !== 'object' || !('data' in ctx.body)) return;
-    const uid = routeContentType(ctx.state && ctx.state.route);
-    const schema = uid ? strapi.contentType(uid) : null;
-    if (!schema) return;
     const service = strapi.plugin('magic-editor-x').service('references');
 
     const targets = [];

@@ -18,6 +18,7 @@ import {
   escapeText,
   imageBlock,
   isBlankInline,
+  checklistBlock,
   listBlock,
   tidyInline,
   withIds,
@@ -25,11 +26,85 @@ import {
   wrapMark,
 } from './common.mjs';
 import { htmlToBlocks } from './html.mjs';
+import { MATH_BLOCK_START } from '../render/math-notes.mjs';
 
 /** Longest Markdown input the converter reads (characters). */
 export const MAX_MARKDOWN_LENGTH = 5 * 1024 * 1024;
 
 const MAX_DEPTH = 64;
+
+/**
+ * Deepest list or quote nesting the converter hands to marked. marked lexes
+ * every nested list item and quote again, so thousands of levels take
+ * minutes (a list indented two more spaces per line) or overflow the stack
+ * (`> > > …`). Lists nest at most 12 levels in blocks anyway.
+ */
+const MAX_NESTING = 32;
+/** Indentation (columns) of a list item line that counts as too deep: 32 levels of 4 spaces. */
+const MAX_LIST_INDENT = MAX_NESTING * 4;
+
+/**
+ * True when the Markdown nests lists or quotes deeper than marked can handle
+ * in time. Lines inside fenced code are not counted.
+ * @param {string} source - Markdown (\n line ends).
+ * @returns {boolean} Result.
+ */
+export const isTooDeep = (source) => {
+  let fence = null;
+  let start = 0;
+  while (start <= source.length) {
+    let end = source.indexOf('\n', start);
+    if (end === -1) end = source.length;
+    const line = source.slice(start, end);
+    start = end + 1;
+    const fenceMatch = /^ {0,3}(`{3,}|~{3,})/.exec(line);
+    if (fence) {
+      if (fenceMatch && fenceMatch[1][0] === fence[0] && fenceMatch[1].length >= fence.length) fence = null;
+      continue;
+    }
+    if (fenceMatch) {
+      fence = fenceMatch[1];
+      continue;
+    }
+    // Quote markers at the start of a line (`> > >`, spaces between them allowed).
+    let quotes = 0;
+    let index = 0;
+    while (index < line.length && quotes <= MAX_NESTING) {
+      const char = line[index];
+      if (char === '>') quotes += 1;
+      else if (char !== ' ' && char !== '\t') break;
+      index += 1;
+    }
+    if (quotes > MAX_NESTING) return true;
+    // A list marker after deep indentation (tabs count as 4 columns).
+    const indent = /^[ \t]*/.exec(line)[0].replace(/\t/g, '    ').length;
+    if (indent > MAX_LIST_INDENT && /^[ \t]*(?:[-*+]|\d{1,9}[.)])(?:[ \t]|$)/.test(line)) return true;
+  }
+  return false;
+};
+
+/**
+ * Display math as the Markdown renderer writes it: a fence of two or more `$`
+ * on its own line, the TeX, and the same fence (`$$\ne=mc^2\n$$`).
+ * @param {string} text - Paragraph source.
+ * @returns {string|null} TeX, or null when the paragraph is not display math.
+ */
+const displayMathOf = (text) => {
+  const match = /^(\${2,})\n([\s\S]*?)\n\1$/.exec(String(text || '').trim());
+  if (!match) return null;
+  // The renderer indents lines that would start another block by four spaces (MATH_BLOCK_START).
+  const tex = match[2]
+    .split('\n')
+    .map((line, index) =>
+      index > 0 && /^ {4}/.test(line) && MATH_BLOCK_START.test(line.slice(4)) ? line.slice(4) : line
+    )
+    .join('\n')
+    .trim();
+  // The fence is longer than any run of `$` in the TeX (see renderMarkdown).
+  const runs = tex.match(/\$+/g) || [];
+  if (!tex || runs.some((run) => run.length >= match[1].length)) return null;
+  return tex;
+};
 
 /**
  * Renders inline tokens. Images are collected in `state.images`.
@@ -238,6 +313,11 @@ const walk = (ctx, tokens, depth) => {
       }
       case 'paragraph':
       case 'text': {
+        const tex = token.type === 'paragraph' ? displayMathOf(token.text) : null;
+        if (tex !== null) {
+          push(ctx, { type: 'math', data: { tex, display: true } });
+          break;
+        }
         const text = tidyInline(inlineOf(token.tokens || [token], state));
         if (!isBlankInline(text)) push(ctx, { type: 'paragraph', data: { text } });
         break;
@@ -246,10 +326,7 @@ const walk = (ctx, tokens, depth) => {
         const items = listItemsOf(token, state);
         const flat = flattenItems(items);
         if (flat.length && flat.every((item) => item.task)) {
-          push(ctx, {
-            type: 'checklist',
-            data: { items: flat.map((item) => ({ text: item.content, checked: item.checked })) },
-          });
+          push(ctx, checklistBlock(items, flat));
         } else if (items.length) {
           push(
             ctx,
@@ -319,6 +396,7 @@ export const markdownToBlocks = (markdown, options = {}) => {
   const ctx = createContext(options);
   const source = typeof markdown === 'string' ? markdown.replace(/\r\n?/g, '\n') : '';
   if (source.length > MAX_MARKDOWN_LENGTH) skip(ctx, 'too-large');
+  else if (isTooDeep(source)) skip(ctx, 'too-deep');
   else if (source.trim()) walk(ctx, lexer(source, { gfm: true }), 0);
   return {
     blocks: withIds(ctx.blocks),

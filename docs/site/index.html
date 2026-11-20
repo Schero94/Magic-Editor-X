@@ -1207,6 +1207,7 @@
                 <tr><td><code>qualityChecks.externalLinks.schedule.enabled</code></td><td><code>false</code></td><td>Scheduled check of every external link (rule <code>'0 3 * * *'</code>, in <code>schedule.tz</code> or server time); needs the link check on.</td></tr>
                 <tr><td><code>languageTool.allowPrivateBaseUrl</code></td><td><code>false</code></td><td>Allow a LanguageTool server on a private network.</td></tr>
                 <tr><td><code>ai.allowPrivateBaseUrl</code></td><td><code>false</code></td><td>Allow AI servers on private networks (local models).</td></tr>
+                <tr><td><code>ai.apiKeyBaseUrl</code></td><td>unset</td><td>Base URL the <code>ai.apiKey</code> key is sent to (unset: the official Anthropic and OpenAI APIs). Other base URLs get a key only when an admin enters one.</td></tr>
                 <tr><td><code>ai.altText.allowPrivateOrigins</code></td><td><code>[]</code></td><td>Exact origins of private image storage for alt text suggestions.</td></tr>
                 <tr><td><code>coreBlocks.enabled</code></td><td><code>false</code></td><td>Core Blocks bridge: registered custom blocks in Strapi's own Blocks field pass Strapi's validation; the Settings switch wins once saved; off by itself when Strapi supports custom blocks.</td></tr>
                 <tr><td><code>MAGIC_EDITOR_X_ENCRYPTION_KEY</code></td><td>unset</td><td>Environment variable that encrypts a stored AI key (32+ characters).</td></tr>

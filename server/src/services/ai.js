@@ -316,10 +316,13 @@ module.exports = ({ strapi }, dependencies = {}) => {
         acceptStatus: (status) => status >= 200 && status < 600,
       });
     } catch (error) {
-      throw providerError(
-        error && error.statusCode === 504 ? 'TIMEOUT' : 'UNREACHABLE',
-        error && error.statusCode === 504 ? 504 : 502
-      );
+      const status = error && error.statusCode;
+      if (status === 504) throw providerError('TIMEOUT', 504);
+      // Over MAX_RESPONSE_BYTES (1 MiB): the provider answered, but too much.
+      if (status === 413) throw providerError('RESPONSE_TOO_LARGE', 502);
+      // Not JSON (for example an HTML error page of a proxy).
+      if (status === 415) throw providerError('BAD_RESPONSE', 502);
+      throw providerError('UNREACHABLE', 502);
     }
     if (response.statusCode === 401 || response.statusCode === 403) throw providerError('AUTH_FAILED', 502);
     if (response.statusCode === 429) throw providerError('PROVIDER_RATE_LIMIT', 503);
@@ -518,18 +521,12 @@ module.exports = ({ strapi }, dependencies = {}) => {
      * @throws {Error} Provider error with a code.
      */
     async test(aiInput) {
+      // runtimeAi never sends the stored or the environment key to another endpoint than the
+      // one it is configured for; a key entered for the test is used as typed.
       const runtime = await settings().runtimeAi({
         ...aiInput,
         maxOutputTokens: Math.min(aiInput.maxOutputTokens, 256),
       });
-      const current = await settings().runtimeAi();
-      if (
-        !aiInput.apiKey &&
-        (aiInput.provider !== current.ai.provider || aiInput.baseUrl !== current.ai.baseUrl)
-      ) {
-        // A stored key is never sent to a different endpoint.
-        runtime.apiKey = strapi.config.get('plugin::magic-editor-x.ai.apiKey') || null;
-      }
       try {
         await callProvider(runtime, 'Reply with the single word OK.', 'OK');
         return { ok: true };

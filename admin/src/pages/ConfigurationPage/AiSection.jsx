@@ -14,7 +14,7 @@ import {
   Typography,
 } from '@strapi/design-system';
 import { useT, SectionCard } from '../../components/ui';
-import { LIMITS, applyProvider } from './configForm.mjs';
+import { LIMITS, applyProvider, environmentKeyApplies } from './configForm.mjs';
 
 /**
  * Translates a field error code (or a server message) for display.
@@ -116,14 +116,16 @@ export const SwitchRow = ({ id, label, hint, checked, disabled, onChange, t }) =
 
 /**
  * Status of the stored provider key.
- * @param {{ ai: object, draft: object, t: Function }} props - Props.
+ * @param {{ ai: object, draft: object, envKey: boolean, t: Function }} props - Props; `envKey`: the
+ *   ai.apiKey key from config/plugins.js is sent with the draft's provider and base URL.
  * @returns {JSX.Element} Badge and explanation.
  */
-const KeyStatus = ({ ai, draft, t }) => {
+const KeyStatus = ({ ai, draft, envKey, t }) => {
   let tone = { backgroundColor: 'neutral150', textColor: 'neutral700' };
   let label = t('settings.ai.key.status.none', 'No key stored');
   let text = '';
-  if (ai.apiKeyFromEnvironment) {
+  const envUrls = Array.isArray(ai.apiKeyEnvironmentBaseUrls) ? ai.apiKeyEnvironmentBaseUrls : [];
+  if (envKey) {
     tone = { backgroundColor: 'success100', textColor: 'success700' };
     label = t('settings.ai.key.status.environment', 'From the environment');
     text = t(
@@ -140,9 +142,22 @@ const KeyStatus = ({ ai, draft, t }) => {
       'settings.ai.key.unreadableHint',
       'A key is stored but cannot be decrypted, usually because MAGIC_EDITOR_X_ENCRYPTION_KEY changed. Enter the key again.'
     );
-  } else if (ai.hasApiKey) {
+  } else if (ai.hasStoredApiKey ?? ai.hasApiKey) {
     tone = { backgroundColor: 'success100', textColor: 'success700' };
     label = t('settings.ai.key.status.stored', 'Stored, encrypted');
+  }
+  if (!envKey && envUrls.length) {
+    // The ai.apiKey key exists but is never sent to this endpoint.
+    text = [
+      text,
+      t(
+        'settings.ai.key.environmentOtherHint',
+        'The ai.apiKey key from config/plugins.js is only sent to {baseUrls}. Enter a key for this base URL.',
+        { baseUrls: envUrls.join(', ') }
+      ),
+    ]
+      .filter(Boolean)
+      .join(' ');
   }
   return (
     <Flex direction="column" alignItems="flex-start" gap={1}>
@@ -169,7 +184,9 @@ export const AiSection = ({ form, readOnly, onTest }) => {
   const { draft, dto, errors, setField, replaceDraft, testing } = form;
   const ai = dto.ai;
   const defaults = dto.environment.defaults || { models: {}, baseUrls: {} };
-  const keyDisabled = readOnly || ai.apiKeyFromEnvironment || !ai.canStoreApiKey;
+  // The ai.apiKey key from config/plugins.js only counts for the base URL it is configured for.
+  const envKey = environmentKeyApplies(draft, ai, defaults);
+  const keyDisabled = readOnly || envKey || !ai.canStoreApiKey;
 
   return (
     <SectionCard
@@ -316,7 +333,7 @@ export const AiSection = ({ form, readOnly, onTest }) => {
             name="apiKey"
             error={errorText(t, errors.apiKey, 'apiKey')}
             hint={
-              !ai.canStoreApiKey && !ai.apiKeyFromEnvironment
+              !ai.canStoreApiKey && !envKey
                 ? t(
                     'settings.ai.key.cannotStoreHint',
                     'Set MAGIC_EDITOR_X_ENCRYPTION_KEY (at least 32 characters) on the server to store a key here, or pass ai.apiKey in config/plugins.js.'
@@ -329,7 +346,7 @@ export const AiSection = ({ form, readOnly, onTest }) => {
           >
             <Field.Label>{t('settings.ai.key.label', 'API key')}</Field.Label>
             <Flex direction="column" alignItems="stretch" gap={2}>
-              <KeyStatus ai={ai} draft={draft} t={t} />
+              <KeyStatus ai={ai} draft={draft} envKey={envKey} t={t} />
               <TextInput
                 type="password"
                 autoComplete="new-password"
@@ -345,7 +362,7 @@ export const AiSection = ({ form, readOnly, onTest }) => {
             <Field.Hint />
             <Field.Error />
           </Field.Root>
-          {!readOnly && ai.hasApiKey && !ai.apiKeyFromEnvironment ? (
+          {!readOnly && (ai.hasStoredApiKey ?? ai.hasApiKey) && !envKey ? (
             <Box paddingTop={2}>
               {draft.apiKeyMode === 'remove' ? (
                 <TextButton onClick={() => replaceDraft({ ...draft, apiKeyMode: 'keep', apiKey: '' })}>

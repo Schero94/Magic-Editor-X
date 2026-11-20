@@ -595,7 +595,8 @@ test('2.6: the response walk reports the field path and the entry that holds it'
     ['body', art1],
     ['sections.1.body', art1],
     ['zone.0.body', art1],
-    ['body', { documentId: 'cat1', model: CATEGORY, kind: null, locale: 'de' }],
+    // A related entry without its own locale (no i18n) does not inherit the article's (2.7 re-audit).
+    ['body', { documentId: 'cat1', model: CATEGORY, kind: null, locale: null }],
     ['body', { documentId: 'art2', model: ARTICLE, kind: 'collectionType', locale: null }],
   ]);
 });

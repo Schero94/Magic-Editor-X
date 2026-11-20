@@ -204,6 +204,33 @@ export const listBlock = (ordered, items, start) => {
 };
 
 /**
+ * Builds a task list block. A flat list stays a `checklist` block (1.x data,
+ * `{ items: [{ text, checked }] }`); nested task items become a `list` block
+ * with the `checklist` style (Editor.js list 2 data), the only block that
+ * keeps the nesting.
+ * @param {Array<{content: string, checked?: boolean, items: Array}>} items - Nested items.
+ * @param {Array<{content: string, checked?: boolean}>} flat - The same items in document order.
+ * @returns {{ type: 'checklist'|'list', data: object }} Block.
+ */
+export const checklistBlock = (items, flat) => {
+  if (!items.some((item) => Array.isArray(item.items) && item.items.length)) {
+    return {
+      type: 'checklist',
+      data: {
+        items: flat.map((item) => ({ text: tidyInline(item.content), checked: Boolean(item.checked) })),
+      },
+    };
+  }
+  const clean = (list) =>
+    list.map((item) => ({
+      content: tidyInline(item.content),
+      meta: { checked: Boolean(item.checked) },
+      items: clean(item.items || []),
+    }));
+  return { type: 'list', data: { style: 'checklist', meta: {}, items: clean(items) } };
+};
+
+/**
  * Builds an image block.
  * @param {string} url - Image URL (already validated).
  * @param {{ alt?: string, caption?: string, width?: number, height?: number, id?: number|string, documentId?: string, formats?: object, mime?: string }} [extra] - Media data.
