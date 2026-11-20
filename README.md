@@ -856,7 +856,7 @@ Authorization: Bearer <API token>
 - Raw HTML blocks are left out of `html`, `text` and `markdown`. Heading ids are written in `html` when the value has a table of contents.
 - Bounds: 500 distinct references and 5 seconds per response; at most 100 distinct synced sources per response. References over the limit stay unresolved.
 
-**GraphQL** (when `@strapi/plugin-graphql` is installed): for every Magic Editor X attribute `body` of an `api::` content type or component in the schema, the plugin adds `bodyRendered(format: MagicEditorXFormat = HTML): String` (`HTML`, `TEXT`, `MARKDOWN`) and `bodyResolved: JSON`, with the same resolution and permissions. Fields that are private, disabled through `shadowCRUD`, or that would clash with an existing attribute name are skipped.
+**GraphQL** (when `@strapi/plugin-graphql` is installed): for every Magic Editor X attribute `body` of an `api::` content type or component in the schema, the plugin adds `bodyRendered(format: MagicEditorXFormat = HTML): String` (`HTML`, `TEXT`, `MARKDOWN`) and `bodyResolved: JSON`, with the same resolution and permissions. Fields inside components and dynamic zones (also nested ones) resolve with the locale and publication status of the entry that holds them, like `?mex=` (internal links, mentions and footnote ids of a `locale: "de"`, `status: DRAFT` query point to the German drafts); a populated relation uses its own entry. Fields that are private, disabled through `shadowCRUD`, or that would clash with an existing attribute name are skipped.
 
 ```graphql
 query {
