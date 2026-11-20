@@ -276,7 +276,9 @@ export const replaceInSegment = (html, { offset, length, expected, replacement }
     }
   };
   walk(nodes);
-  return done ? { html: nodesToHtml(nodes), reason: null } : { html: null, reason: 'CROSSES_FORMATTING' };
+  return done
+    ? { html: nodesToHtml(nodes, { storage: true }), reason: null }
+    : { html: null, reason: 'CROSSES_FORMATTING' };
 };
 
 /**

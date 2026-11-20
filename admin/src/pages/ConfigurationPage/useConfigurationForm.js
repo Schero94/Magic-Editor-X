@@ -12,6 +12,24 @@ import {
   validateDraft,
   validateLanguageTool,
 } from './configForm.mjs';
+import {
+  sameContentChecks,
+  splitContentCheckErrors,
+  toContentChecksDraft,
+  toContentChecksPayload,
+  validateContentChecks,
+} from './contentChecksForm.mjs';
+
+/**
+ * Form draft from GET/PUT /settings data; 2.9 adds the readability and SEO hints when the server has them.
+ * @param {object} data - `data` of the response.
+ * @returns {object} Draft.
+ */
+const buildDraft = (data) => {
+  const draft = toDraft(data.ai, data.languageTool, data.coreBlocks);
+  const contentChecks = toContentChecksDraft(data.contentChecks);
+  return contentChecks ? { ...draft, contentChecks } : draft;
+};
 
 /**
  * Loads, edits, validates and saves the plugin settings.
@@ -52,7 +70,7 @@ export const useConfigurationForm = ({ enabled = true } = {}) => {
       get(API.settings).then(
         ({ data }) => {
           if (!mounted.current) return;
-          const next = toDraft(data.data.ai, data.data.languageTool, data.data.coreBlocks);
+          const next = buildDraft(data.data);
           setDto(data.data);
           setSaved(next);
           setDraft(next);
@@ -87,6 +105,7 @@ export const useConfigurationForm = ({ enabled = true } = {}) => {
         dto: dto.languageTool,
         environment: dto.environment,
       }),
+      ...validateContentChecks(draft.contentChecks),
     };
   }, [draft, dto, saved]);
 
@@ -144,7 +163,28 @@ export const useConfigurationForm = ({ enabled = true } = {}) => {
     });
   }, []);
 
-  const dirty = Boolean(draft && saved && !sameDraft(draft, saved));
+  /**
+   * Updates the readability and SEO hint draft (2.9) with a function of the current one.
+   * @param {(current: object) => object} update - New draft from the current one.
+   * @param {string} [errorKey] - `contentChecks.<field>` whose server error the change clears.
+   */
+  const setContentChecks = useCallback((update, errorKey) => {
+    setDraft((current) => ({ ...current, contentChecks: update(current.contentChecks) }));
+    setServerErrors((current) => {
+      if ((!errorKey || !current[errorKey]) && !current._form && !current.contentChecks) return current;
+      const next = { ...current };
+      if (errorKey) delete next[errorKey];
+      delete next.contentChecks;
+      delete next._form;
+      return next;
+    });
+  }, []);
+
+  const dirty = Boolean(
+    draft &&
+    saved &&
+    (!sameDraft(draft, saved) || !sameContentChecks(draft.contentChecks, saved.contentChecks))
+  );
   const hasErrors = Object.keys(errors).length > 0;
 
   /**
@@ -156,8 +196,10 @@ export const useConfigurationForm = ({ enabled = true } = {}) => {
     if (hasErrors) return { ok: false, invalid: true };
     setSaving(true);
     try {
-      const { data } = await put(API.settings, toPayload(draft, saved));
-      const stored = toDraft(data.data.ai, data.data.languageTool, data.data.coreBlocks);
+      const payload = toPayload(draft, saved);
+      if (draft.contentChecks) payload.contentChecks = toContentChecksPayload(draft.contentChecks);
+      const { data } = await put(API.settings, payload);
+      const stored = buildDraft(data.data);
       const adjusted = adjustedFields(draft, stored);
       setDto(data.data);
       setSaved(stored);
@@ -169,7 +211,8 @@ export const useConfigurationForm = ({ enabled = true } = {}) => {
       return { ok: true, adjusted };
     } catch (error) {
       const info = readApiError(error);
-      setServerErrors(mapServerErrors(info.details));
+      const split = splitContentCheckErrors(info.details);
+      setServerErrors({ ...mapServerErrors(split.rest), ...split.errors });
       return { ok: false, message: info.status === 400 ? null : info.message };
     } finally {
       if (mounted.current) setSaving(false);
@@ -259,6 +302,7 @@ export const useConfigurationForm = ({ enabled = true } = {}) => {
     testingLanguageTool,
     setLanguageToolField,
     setCoreBlocksEnabled,
+    setContentChecks,
     testLanguageTool,
     touch,
     reload: load,

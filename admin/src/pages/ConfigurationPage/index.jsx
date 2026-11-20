@@ -12,6 +12,7 @@ import { PaletteSection } from './PaletteSection';
 import { LanguageToolSection } from './LanguageToolSection';
 import { LinkScheduleSection } from './LinkScheduleSection';
 import { CoreBlocksSection } from './CoreBlocksSection';
+import { ContentChecksSection } from './ContentChecksSection';
 import { PAGE_HEADING, firstInvalidField } from '../focusTargets.mjs';
 import { activeElement, useFocusRestore } from '../useFocusRestore';
 
@@ -268,6 +269,7 @@ const ConfigurationPage = () => {
       <AiSection form={form} readOnly={readOnly} onTest={onTest} />
       <LanguageToolSection form={form} readOnly={readOnly} onTest={onTestLanguageTool} />
       <CoreBlocksSection form={form} readOnly={readOnly} />
+      <ContentChecksSection form={form} readOnly={readOnly} />
       <EnvironmentSection
         environment={
           liveSchedule && form.dto.environment

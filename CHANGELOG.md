@@ -1,5 +1,17 @@
 # Changelog
 
+## [Unreleased]
+
+### Added (readability and SEO hints, one-click Fix)
+
+- **Readability and SEO structure in the Quality panel.** The panel groups its findings in three collapsed sections with a count each: Accessibility, Readability and SEO structure. Readability: long sentences, long paragraphs, passive voice (English and German, as a hint), complex words, repeated sentence starts, spacing, and a reading score for English (Flesch), German (Amstad) and Spanish (Szigriszt-Pazos). SEO structure: H1 in the content (or none, when the content provides the page heading), long sections without a subheading, internal links, length and an optional focus keyphrase (first paragraph, subheadings, density), entered in the SEO section and kept in the browser. All hints run in the browser, deterministically, in idle-time slices; thresholds and their sources are in the README.
+- **One-click Fix** on safe findings: heading levels that skip a level, a second H1 or an H1 under a title field, spacing, "click here" links (type a new link text in the finding's row) and images without alternative text (focuses the field). The grammar check offers "Fix" when LanguageTool has one suggestion. Every fix is one undo step and works in live collaboration rooms.
+- **Settings > Configuration > Readability and SEO hints:** turn the hints on or off, choose where the page heading comes from, set the thresholds and, per rule, show it or let it block publishing in fields with `publishGuard`. Field option `disableContentChecks` turns the hints off for one field.
+
+### Notes
+
+- Hints never block saving or publishing unless an administrator opts a rule into the publish guard; heuristic rules (passive voice, complex words, reading score) and the keyphrase cannot be opted in. No migration: stored content does not change.
+
 # [2.9.0](https://github.com/Schero94/Magic-Editor-X/compare/v2.8.4...v2.9.0) (2026-11-24)
 
 

@@ -19,7 +19,7 @@ import { createHistoryStack, historyKey } from './logic.mjs';
  *
  * @param {object} editor - Editor.js instance (ready).
  * @param {{ holder?: HTMLElement, maxSteps?: number, debounceMs?: number, onChange?: (state: { canUndo: boolean, canRedo: boolean }) => void }} [options] - Options.
- * @returns {{ record: Function, undo: Function, redo: Function, canUndo: Function, canRedo: Function, pause: Function, resume: Function, reset: Function, destroy: Function }} Manager.
+ * @returns {{ record: Function, checkpoint: Function, undo: Function, redo: Function, canUndo: Function, canRedo: Function, pause: Function, resume: Function, reset: Function, destroy: Function }} Manager.
  */
 export const createUndoManager = (editor, options = {}) => {
   const stack = createHistoryStack({ maxSteps: options.maxSteps || 50 });
@@ -103,6 +103,16 @@ export const createUndoManager = (editor, options = {}) => {
       if (destroyed || paused > 0 || applying || delegate) return;
       window.clearTimeout(timer);
       timer = window.setTimeout(snapshot, debounceMs);
+    },
+    /**
+     * 2.9: records the current state at once (no debounce). The Quality panel's one-click fixes call
+     * it before and after their change, so a fix is its own undo step, separate from typing.
+     * @returns {Promise<void>} Resolves when the state is recorded.
+     */
+    async checkpoint() {
+      if (destroyed || paused > 0 || applying || delegate) return;
+      window.clearTimeout(timer);
+      await snapshot();
     },
     /** Steps back. @returns {Promise<boolean>} True when something changed. */
     async undo() {

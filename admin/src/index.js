@@ -384,9 +384,24 @@ export default {
                 },
                 description: {
                   id: getTranslation('field.options.publishGuard.description'),
-                  defaultMessage: 'Errors are missing alternative texts (when required) and empty links',
+                  defaultMessage:
+                    'Errors are missing alternative texts (when required) and empty links, plus readability and SEO hints your administrator chose to block publishing',
                 },
                 name: 'options.publishGuard',
+                type: 'checkbox',
+              },
+              // 2.9: readability and SEO hints in the Quality panel (on by default).
+              {
+                intlLabel: {
+                  id: getTranslation('field.options.disableContentChecks.label'),
+                  defaultMessage: 'Turn off readability and SEO hints for this field',
+                },
+                description: {
+                  id: getTranslation('field.options.disableContentChecks.description'),
+                  defaultMessage:
+                    'For short fields such as a teaser, where word counts and subheadings do not apply',
+                },
+                name: 'options.disableContentChecks',
                 type: 'checkbox',
               },
             ],
