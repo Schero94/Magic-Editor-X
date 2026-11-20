@@ -830,12 +830,12 @@ import { MagicEditorXContent } from 'magic-editor-x/react';
 
 Without extra parameters the Content API returns the stored value, as in 2.2. Add `?mex=` to a GET request to get the field rendered or resolved instead:
 
-| `mex`      | Each Magic Editor X field becomes                                                   |
-| ---------- | ----------------------------------------------------------------------------------- |
-| `html`     | The rendered HTML string (`''` when empty)                                          |
-| `text`     | Plain text                                                                          |
-| `markdown` | Markdown                                                                            |
-| `json`     | The stored document with resolved references (internal links, media, synced blocks) |
+| `mex`      | Each Magic Editor X field becomes                                                                                              |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `html`     | The rendered HTML string (`''` when empty)                                                                                     |
+| `text`     | Plain text                                                                                                                     |
+| `markdown` | Markdown                                                                                                                       |
+| `json`     | The stored document, cleaned with the field's sanitiser again, with resolved references (internal links, media, synced blocks) |
 
 ```http
 GET /api/articles/k9d2w4xq8m1n0p3r5t7v9b1c?mex=text
@@ -1147,7 +1147,7 @@ Content-Type: application/json
 
   Link previews, images and media by URL and the link checks only fetch public http(s) addresses: the host is resolved once, every address must be public, the connection is pinned to that address, redirects are re-checked (at most 3), and size, type and time are limited. AI and LanguageTool base URLs must be public https URLs unless `ai.allowPrivateBaseUrl` or `languageTool.allowPrivateBaseUrl` is on; origins on private networks need `qualityChecks.externalLinks.allowPrivateOrigins` (link checks), `uploads.allowPrivateOrigins` (images and media by URL) or `ai.altText.allowPrivateOrigins` (alt text images); redirects from them are never followed.
 
-- **Uploads** are checked by their first bytes (not by the file name or the browser's MIME type) and stored through the Media Library with the admin as creator.
+- **Uploads** are checked by their first bytes (not by the file name or the browser's MIME type) and stored through the Media Library with the admin as creator. The stored file extension follows the detected type (a PNG named `photo.html` is stored as `photo.png`); image routes accept raster images only (no SVG or HTML), and the Media Library's `plugin::upload.security` `allowedTypes`/`deniedTypes` apply (a refused type answers 415).
 - **Collaboration:** tokens are signed, bound to admin, document, locale and field, expire after `collaboration.tokenTtlSeconds` and work once on any process; the socket accepts the admin and server origins and `collaboration.allowedOrigins` and only clients of the current protocol; every update is checked (allowed structures only, no prototype keys, dependencies present, touched blocks valid) before it is stored or relayed, and a socket that keeps sending invalid updates is closed; names and colours of other people come from the server, never from a client; remote content is sanitised before the editor renders it; updates, sessions, sockets and rooms per admin are rate limited; viewers cannot write. See [docs/security-audit-2.1.md](https://github.com/Schero94/Magic-Editor-X/blob/main/docs/security-audit-2.1.md).
 - **Field presets** are enforced on the server (save middleware and realtime guard), not only in the editor; see [Field presets](#field-presets).
 - **Paste, import and rendering:** pasted and imported HTML/Markdown is parsed into an inert document and rebuilt from the editor's own tags only, then sanitised again on save; `magic-editor-x/render` re-parses stored inline HTML and never trusts it. The link check fetches external URLs only when the owner turns it on, through the SSRF-protected fetcher, rate limited, without logging URLs. See [docs/security-audit-2.2.md](https://github.com/Schero94/Magic-Editor-X/blob/main/docs/security-audit-2.2.md).

@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { isUtf8 } = require('node:buffer');
+const zlib = require('node:zlib');
 const ogs = require('open-graph-scraper');
 const { fetchBounded, validateHttpUrl } = require('../utils/url-security');
 
@@ -224,6 +225,73 @@ function safeFilename(filename, fallback) {
 }
 
 /**
+ * Gives a stored file name the extension of its checked content type. The
+ * client's (or the remote URL's) extension is dropped, so a PNG sent as
+ * `poly.html` is stored as `poly.png` and the Media Library and its provider
+ * serve it with an image type, never as HTML, SVG or XHTML.
+ * @param {string} name - Safe base name (`safeFilename`).
+ * @param {string} extension - Extension of the detected type, with dot (`.png`).
+ * @returns {string} Name ending in `extension`.
+ */
+function withExtension(name, extension) {
+  let base = path.basename(name, path.extname(name));
+  // `photo.png.html` becomes `photo.png`, not `photo.png.png`.
+  if (path.extname(base).toLowerCase() === extension) base = path.basename(base, path.extname(base));
+  base = base.replace(/^\.+/, '').trim();
+  return `${(base || 'file').slice(0, 180 - extension.length)}${extension}`;
+}
+
+/**
+ * Checks the chunk structure of a PNG file: signature, `IHDR` first, `IEND`
+ * last, chunk lengths inside the file and every chunk's CRC-32. A damaged
+ * file (for example a broken `IDAT` checksum) is refused with a clear 400
+ * instead of failing later in the Media Library's image processing.
+ * @param {Buffer} buffer - Whole file.
+ * @returns {boolean} True when the structure is intact.
+ */
+function isIntactPng(buffer) {
+  if (!Buffer.isBuffer(buffer) || buffer.length < 8 + 25 + 12) return false;
+  let offset = 8;
+  let first = true;
+  while (offset + 12 <= buffer.length) {
+    const length = buffer.readUInt32BE(offset);
+    const end = offset + 12 + length;
+    if (length > 0x7fffffff || end > buffer.length) return false;
+    const type = buffer.toString('latin1', offset + 4, offset + 8);
+    if (first && type !== 'IHDR') return false;
+    first = false;
+    const crc = zlib.crc32(buffer.subarray(offset + 4, offset + 8 + length));
+    if (crc !== buffer.readUInt32BE(offset + 8 + length)) return false;
+    if (type === 'IEND') return true;
+    offset = end;
+  }
+  return false;
+}
+
+/**
+ * True when a MIME type matches one of the Media Library's security patterns
+ * (`plugin::upload.security.allowedTypes`/`deniedTypes`: exact types or `*`
+ * wildcards such as `image/*`, compared case-insensitively like Strapi does).
+ * @param {string} mime - Content type.
+ * @param {unknown} patterns - Configured list.
+ * @returns {boolean} Result.
+ */
+function matchesTypePattern(mime, patterns) {
+  if (!Array.isArray(patterns)) return false;
+  const type = String(mime).toLowerCase();
+  return patterns.some((pattern) => {
+    if (typeof pattern !== 'string') return false;
+    const normalized = pattern.toLowerCase();
+    if (!normalized.includes('*')) return normalized === type;
+    const source = normalized
+      .split('*')
+      .map((part) => part.replace(/[.+?^${}()|[\]\\/]/g, '\\$&'))
+      .join('.*');
+    return new RegExp(`^${source}$`).test(type);
+  });
+}
+
+/**
  * Creates an error with an HTTP status.
  * @param {string} message - Fixed message.
  * @param {number} statusCode - Status.
@@ -310,11 +378,47 @@ module.exports = ({ strapi }, dependencies = {}) => {
     }
   };
 
+  /**
+   * Applies the host's Media Library upload security settings
+   * (`plugin::upload.security`, Strapi 5.24+) to the checked content type.
+   * The Media Library applies them in its own upload controllers; this plugin
+   * calls the upload service directly, so it checks them here: a denied type,
+   * or a type outside a configured allow list, is refused with 415.
+   * @param {string} mime - Detected content type of the file.
+   * @throws {Error} 415 when the settings do not allow the type.
+   */
+  const assertUploadAllowed = (mime) => {
+    const security = strapi.config.get('plugin::upload.security') || {};
+    const { allowedTypes, deniedTypes } = security;
+    const denied = matchesTypePattern(mime, deniedTypes);
+    const notAllowed = Array.isArray(allowedTypes) && !matchesTypePattern(mime, allowedTypes);
+    if (denied || notAllowed)
+      throw httpError('This file type is not allowed by the Media Library settings', 415);
+  };
+
+  /**
+   * Stores a checked file through the Media Library upload service.
+   * @param {object} fileData - File (path, name with the checked extension, detected type, size).
+   * @param {object} user - Admin user (creator).
+   * @returns {Promise<object>} Stored file (signed URL for private providers).
+   * @throws {Error} 415 for types the upload settings refuse; 400 when the Media Library
+   *   refuses the content (`ApplicationError`/`ValidationError`, for example a damaged
+   *   image); other errors propagate (500 with a fixed message).
+   */
   const toMediaLibrary = async (fileData, user) => {
-    const uploaded = await strapi
-      .plugin('upload')
-      .service('upload')
-      .upload({ data: {}, files: fileData }, { user });
+    assertUploadAllowed(fileData.mimetype);
+    let uploaded;
+    try {
+      uploaded = await strapi
+        .plugin('upload')
+        .service('upload')
+        .upload({ data: {}, files: fileData }, { user });
+    } catch (error) {
+      // Strapi's own refusals (a faulty image, an invalid name) are client errors with fixed messages.
+      if (error && (error.name === 'ApplicationError' || error.name === 'ValidationError'))
+        throw httpError('The file is damaged or not a valid file of its type', 400);
+      throw error;
+    }
     const file = Array.isArray(uploaded) ? uploaded[0] : uploaded;
     if (!file) throw new Error('Media upload did not return a file');
     // 2.5: a private provider's file is shown through a signed URL (the editor stores the
@@ -383,17 +487,27 @@ module.exports = ({ strapi }, dependencies = {}) => {
     },
 
     /**
-     * Uploads an image file into the Media Library.
+     * Uploads an image file into the Media Library. Only raster images
+     * detected by their magic bytes (JPEG, PNG, GIF, WebP, AVIF) are accepted;
+     * SVG and HTML are never stored through this route. The stored name gets
+     * the extension of the detected type.
      * @param {object} files - ctx.request.files.
      * @param {object} user - Admin user.
      * @returns {Promise<object>} Editor.js image tool response.
+     * @throws {Error} 400 no/unsupported/damaged image, 413 too large, 415 type refused by the upload settings.
      */
     async uploadImageFile(files, user) {
       const file = getSingleFile(files, ['image', 'files.image', 'file']);
       const { filepath, size } = await fileStats(file, limit('uploads.maxImageBytes', 10 * 1024 * 1024));
       const mime = detectImageMime(await readHead(filepath, 16));
       if (!mime) throw httpError('The file is not a supported image', 400);
-      const name = safeFilename(file.originalFilename || file.name, `image${IMAGE_EXTENSIONS[mime]}`);
+      if (mime === 'image/png' && !isIntactPng(await fileSystem.promises.readFile(filepath)))
+        throw httpError('The image file is damaged', 400);
+      // The stored extension follows the detected type, never the client's file name.
+      const name = withExtension(
+        safeFilename(file.originalFilename || file.name, 'image'),
+        IMAGE_EXTENSIONS[mime]
+      );
       const uploaded = await toMediaLibrary(
         { filepath, originalFilename: name, mimetype: mime, detectedMimeType: mime, size },
         user
@@ -402,10 +516,13 @@ module.exports = ({ strapi }, dependencies = {}) => {
     },
 
     /**
-     * Downloads a public image URL and stores it in the Media Library.
+     * Downloads a public image URL and stores it in the Media Library. The
+     * same raster-only check as `uploadImageFile` applies; the stored name
+     * gets the extension of the detected type, not the URL's.
      * @param {string} input - Image URL.
      * @param {object} user - Admin user.
      * @returns {Promise<object>} Editor.js image tool response.
+     * @throws {Error} 400 rejected URL or unsupported/damaged image, 415 type refused by the upload settings, 502/504 remote errors.
      */
     async uploadImageUrl(input, user) {
       const target = parseTarget(input);
@@ -416,11 +533,13 @@ module.exports = ({ strapi }, dependencies = {}) => {
       });
       const mime = detectImageMime(downloaded.body.subarray(0, 16));
       if (!mime) throw httpError('The URL does not point to a supported image', 400);
-      const requested = safeFilename(
-        path.basename(downloaded.url.pathname),
-        `image${IMAGE_EXTENSIONS[mime]}`
+      if (mime === 'image/png' && !isIntactPng(downloaded.body))
+        throw httpError('The image file is damaged', 400);
+      // The stored extension follows the detected type, never the remote path.
+      const name = withExtension(
+        safeFilename(path.basename(downloaded.url.pathname), 'image'),
+        IMAGE_EXTENSIONS[mime]
       );
-      const name = path.extname(requested) ? requested : `${requested}${IMAGE_EXTENSIONS[mime]}`;
       const directory = await fileSystem.promises.mkdtemp(path.join(tempRoot, 'magic-editor-x-'));
       const filepath = path.join(directory, 'upload');
       try {
@@ -478,8 +597,8 @@ module.exports = ({ strapi }, dependencies = {}) => {
             // AAC is also delivered in an MP4 container.
             (mime === 'audio/aac' && detectMediaContainer(downloaded.body.subarray(0, 16)) === 'mp4');
       if (!valid) throw httpError('The file content does not match its type', 415);
-      const requested = safeFilename(path.basename(downloaded.url.pathname), `${kind}${extension}`);
-      const name = path.extname(requested) ? requested : `${requested}${extension}`;
+      // The stored extension follows the checked type, never the remote path.
+      const name = withExtension(safeFilename(path.basename(downloaded.url.pathname), kind), extension);
       const directory = await fileSystem.promises.mkdtemp(path.join(tempRoot, 'magic-editor-x-'));
       const filepath = path.join(directory, 'upload');
       try {
@@ -560,6 +679,9 @@ module.exports = ({ strapi }, dependencies = {}) => {
 module.exports.detectImageMime = detectImageMime;
 module.exports.matchesAttachmentSignature = matchesAttachmentSignature;
 module.exports.safeFilename = safeFilename;
+module.exports.withExtension = withExtension;
+module.exports.isIntactPng = isIntactPng;
+module.exports.matchesTypePattern = matchesTypePattern;
 module.exports.detectMediaContainer = detectMediaContainer;
 module.exports.isWebVtt = isWebVtt;
 module.exports.MEDIA_TYPES = MEDIA_TYPES;
