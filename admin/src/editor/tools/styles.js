@@ -2174,15 +2174,19 @@ export const editorStyles = css`
 
     /* Placeholder for embeds and images the admin CSP blocks (csp-guard.js). */
     /* 2.7.4: Editor.js animates new blocks, popovers and toolbar buttons (fade-in, panelShowing,
-       bounceIn); with reduced motion they appear without animation. Selectors match the package
-       rules' specificity plus the wrapper. Loading spinners keep turning (they show progress). */
+       bounceIn) and the embed, image and core loaders spin without end; with reduced motion all of
+       them stand still (a loader stays visible as a ring). Selectors match the package rules'
+       specificity plus the wrapper. */
     @media (prefers-reduced-motion: reduce) {
       .ce-block,
       .ce-popover--opened > .ce-popover__container,
       .ce-toolbar__plus--active,
       .ce-toolbar__settings-btn--active,
       .cdx-settings-button--focused-animated,
-      .wobble {
+      .wobble,
+      .cdx-loader::before,
+      .embed-tool__preloader::before,
+      .image-tool__image-preloader::after {
         animation: none;
       }
 

@@ -150,7 +150,11 @@ test('reduced motion stops the Editor.js block, popover and toolbar animations (
   const media = styles.split('@media (prefers-reduced-motion: reduce) {\n      .ce-block,')[1];
   assert.ok(media, 'editor-wide reduced motion rule');
   const rule = media.split('}')[0];
-  for (const selector of ['.ce-popover--opened > .ce-popover__container', '.ce-toolbar__plus--active'])
+  for (const selector of [
+    '.ce-popover--opened > .ce-popover__container',
+    '.ce-toolbar__plus--active',
+    '.embed-tool__preloader::before',
+  ])
     assert.ok(rule.includes(selector), selector);
   assert.match(rule, /animation: none/);
 });
