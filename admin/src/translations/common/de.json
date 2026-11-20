@@ -55,5 +55,7 @@
   "field.options.allowedComponents.reason.private": "{name} (privat)",
   "field.options.allowedComponents.reason.name": "{name} (Name)",
   "field.options.allowedComponents.reason.enum": "{name} (keine Optionen)",
-  "field.options.allowedComponents.reason.tooMany": "mehr als 50 Felder"
+  "field.options.allowedComponents.reason.tooMany": "mehr als 50 Felder",
+  "field.options.aiActions.label": "KI-Aktionen in diesem Feld",
+  "field.options.aiActions.description": "Aktionsschlüssel durch Kommas getrennt, zum Beispiel: improve, shorten, ask, proofread, clarity, style-guide oder der Schlüssel Ihrer eigenen Aktion. Leer bietet alle Aktionen an. Der Server prüft es erneut."
 }

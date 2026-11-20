@@ -15,6 +15,17 @@ const {
   environmentKeyBaseUrls,
   environmentKeyCovers,
 } = require('../../../shared/ai-endpoint.mjs');
+const {
+  ACTION_KEY_PATTERN,
+  ACTION_OUTPUTS,
+  ACTION_SCOPES,
+  MAX_ACTION_INSTRUCTION_CHARS,
+  MAX_ACTION_NAME_CHARS,
+  MAX_CUSTOM_ACTIONS,
+  MAX_STYLE_GUIDE_CHARS,
+  RESERVED_ACTION_KEYS,
+  cleanActionName,
+} = require('../../../shared/ai-actions.mjs');
 
 /**
  * Admin-editable settings, stored in the plugin store under `settings`.
@@ -47,6 +58,11 @@ const DEFAULT_AI = {
   allowImages: false,
   /** 2.3: translate or summarize a whole field (owner opt-in). */
   allowFieldActions: false,
+  /** 2.9: owner-defined actions `{ key, name, instruction, scope, output }`. */
+  actions: [],
+  /** 2.9: style guide sent with the "Style guide" review (and every text action with `styleGuideForAll`). */
+  styleGuide: '',
+  styleGuideForAll: false,
 };
 
 /** 2.3: optional LanguageTool grammar check (self-hosted or the public API). */
@@ -58,6 +74,34 @@ const DEFAULT_LANGUAGE_TOOL = {
   apiKeyEncrypted: null,
 };
 const LANGUAGE_TOOL_SECRET = 'magic-editor-x:languagetool-credentials';
+
+// eslint-disable-next-line no-control-regex -- control characters other than tab and newline are rejected
+const NO_CONTROL = /^[^\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]*$/;
+
+/** 2.9: one owner-defined AI action. The instruction stays on the server (never sent to editors). */
+const customActionSchema = z.strictObject({
+  key: z
+    .string()
+    .regex(ACTION_KEY_PATTERN)
+    .refine((key) => !RESERVED_ACTION_KEYS.has(key), { message: 'This key is used by a built-in action' }),
+  name: z.string().trim().min(1).max(MAX_ACTION_NAME_CHARS).regex(NO_CONTROL),
+  instruction: z.string().trim().min(1).max(MAX_ACTION_INSTRUCTION_CHARS).regex(NO_CONTROL),
+  scope: z.enum(ACTION_SCOPES),
+  output: z.enum(ACTION_OUTPUTS),
+});
+
+/** Action list with unique keys (the key is how field presets and requests name an action). */
+const customActionsSchema = z
+  .array(customActionSchema)
+  .max(MAX_CUSTOM_ACTIONS)
+  .superRefine((list, ctx) => {
+    const seen = new Set();
+    list.forEach((action, index) => {
+      if (seen.has(action.key))
+        ctx.addIssue({ code: 'custom', path: [index, 'key'], message: 'Each action needs its own key' });
+      seen.add(action.key);
+    });
+  });
 
 const aiInputSchema = z.strictObject({
   enabled: z.boolean(),
@@ -76,6 +120,10 @@ const aiInputSchema = z.strictObject({
   /** 2.3 switches; omitted keeps the stored value (2.2 clients). */
   allowImages: z.boolean().optional(),
   allowFieldActions: z.boolean().optional(),
+  /** 2.9; omitted keeps the stored value. */
+  actions: customActionsSchema.optional(),
+  styleGuide: z.string().max(MAX_STYLE_GUIDE_CHARS).regex(NO_CONTROL).optional(),
+  styleGuideForAll: z.boolean().optional(),
 });
 
 const languageToolInputSchema = z.strictObject({
@@ -111,6 +159,24 @@ const fieldError = (field, message) =>
 
 const store = (strapi) => strapi.store({ type: 'plugin', name: 'magic-editor-x' });
 
+/**
+ * Stored owner-defined actions, re-validated (a hand-edited store value never reaches a prompt unchecked).
+ * @param {object} ai - Stored AI settings.
+ * @returns {Array<{ key: string, name: string, instruction: string, scope: string, output: string }>} Actions.
+ */
+const storedActions = (ai) => {
+  const parsed = customActionsSchema.safeParse(ai && Array.isArray(ai.actions) ? ai.actions : []);
+  return parsed.success ? parsed.data : [];
+};
+
+/**
+ * Stored style guide (string, bounded).
+ * @param {object} ai - Stored AI settings.
+ * @returns {string} Style guide or ''.
+ */
+const storedStyleGuide = (ai) =>
+  ai && typeof ai.styleGuide === 'string' ? ai.styleGuide.slice(0, MAX_STYLE_GUIDE_CHARS) : '';
+
 module.exports = ({ strapi }) => {
   const config = (key, fallback) => {
     const value = strapi.config.get(`plugin::magic-editor-x.${key}`);
@@ -132,9 +198,15 @@ module.exports = ({ strapi }) => {
 
   const readRaw = async () => {
     const stored = (await store(strapi).get({ key: 'settings' })) || {};
+    const ai = { ...DEFAULT_AI, ...(stored.ai || {}) };
     return {
       ...stored,
-      ai: { ...DEFAULT_AI, ...(stored.ai || {}) },
+      ai: {
+        ...ai,
+        actions: storedActions(ai),
+        styleGuide: storedStyleGuide(ai),
+        styleGuideForAll: ai.styleGuideForAll === true,
+      },
       languageTool: { ...DEFAULT_LANGUAGE_TOOL, ...(stored.languageTool || {}) },
     };
   };
@@ -493,6 +565,12 @@ module.exports = ({ strapi }) => {
         apiKeyEncrypted,
         allowImages: next.allowImages ?? current.allowImages === true,
         allowFieldActions: next.allowFieldActions ?? current.allowFieldActions === true,
+        // 2.9: omitted keeps the stored actions and style guide (older admin clients).
+        actions: next.actions
+          ? next.actions.map((action) => ({ ...action, name: cleanActionName(action.name) }))
+          : storedActions(current),
+        styleGuide: next.styleGuide !== undefined ? next.styleGuide.trim() : storedStyleGuide(current),
+        styleGuideForAll: next.styleGuideForAll ?? current.styleGuideForAll === true,
       };
       const languageTool = parsed.data.languageTool
         ? nextLanguageTool(parsed.data.languageTool, raw.languageTool)

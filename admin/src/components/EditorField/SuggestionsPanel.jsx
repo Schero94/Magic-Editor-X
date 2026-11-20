@@ -72,6 +72,24 @@ const Deleted = styled.del`
 
 const MAX_VALUE_CHARS = 200;
 
+/** 2.9: review kinds of AI suggestions (owner-defined actions show "AI" only). */
+const AI_ACTIONS = {
+  proofread: ['editor.suggestions.ai.proofread', 'AI proofreading'],
+  clarity: ['editor.suggestions.ai.clarity', 'AI clarity review'],
+  'style-guide': ['editor.suggestions.ai.styleGuide', 'AI style guide review'],
+};
+
+/**
+ * Badge text of an AI suggestion.
+ * @param {Function} t - Translator.
+ * @param {{ action?: string }} ai - `suggestion.ai`.
+ * @returns {string} Text.
+ */
+const aiBadgeText = (t, ai) => {
+  const pair = ai && AI_ACTIONS[ai.action];
+  return pair ? t(pair[0], pair[1]) : t('editor.suggestions.ai.custom', 'AI');
+};
+
 /**
  * Plain text of a block for accessible names (2.7.8).
  * @param {object|null} block - Block.
@@ -381,12 +399,17 @@ export const SuggestionsPanel = ({
     onClose();
   };
 
-  const authorName = (suggestion) =>
+  const personName = (suggestion) =>
     suggestion.author.deleted
       ? t('editor.comments.deletedUser', 'Deleted user')
       : suggestion.author.own
         ? t('editor.comments.you', '{name} (you)', { name: suggestion.author.name || '' })
         : suggestion.author.name || t('editor.comments.deletedUser', 'Deleted user');
+  // 2.9: a suggestion an AI review made shows "AI" with the person who asked for it.
+  const authorName = (suggestion) =>
+    suggestion.ai
+      ? t('editor.suggestions.aiAuthor', 'AI, requested by {name}', { name: personName(suggestion) })
+      : personName(suggestion);
 
   let content;
   if (!loaded && error) {
@@ -458,6 +481,15 @@ export const SuggestionsPanel = ({
                         textColor="neutral800"
                       >
                         {t(extra.key, extra.text)}
+                      </Badge>
+                    ) : null}
+                    {suggestion.ai ? (
+                      <Badge
+                        backgroundColor="alternative100"
+                        textColor="alternative700"
+                        data-testid="mex-suggestion-ai"
+                      >
+                        {aiBadgeText(t, suggestion.ai)}
                       </Badge>
                     ) : null}
                     <Typography variant="pi" textColor="neutral600">

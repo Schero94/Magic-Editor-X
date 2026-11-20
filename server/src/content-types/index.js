@@ -208,6 +208,8 @@ module.exports = {
         decidedAt: { type: 'datetime' },
         decidedById: { type: 'integer' },
         decidedByName: { type: 'string', maxLength: 200 },
+        /** 2.9: `ai:<action key>` when an AI review made it for the author; null when the author wrote it. */
+        origin: { type: 'string', maxLength: 64 },
       },
     },
   },

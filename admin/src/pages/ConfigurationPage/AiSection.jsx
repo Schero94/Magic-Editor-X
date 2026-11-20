@@ -2,6 +2,7 @@ import {
   Badge,
   Box,
   Button,
+  Divider,
   Field,
   Flex,
   Grid,
@@ -15,57 +16,11 @@ import {
 } from '@strapi/design-system';
 import { useT, SectionCard } from '../../components/ui';
 import { LIMITS, applyProvider, environmentKeyApplies } from './configForm.mjs';
+import { SwitchRow, errorText } from './formParts';
+import { AiActionsEditor } from './AiActionsEditor';
+import { StyleGuideEditor } from './StyleGuideEditor';
 
-/**
- * Translates a field error code (or a server message) for display.
- * @param {Function} t - Translate function.
- * @param {string|{ server: string }|undefined} error - Error code.
- * @param {string} field - Field name (for ranges).
- * @returns {string|undefined} Message.
- */
-export const errorText = (t, error, field) => {
-  if (!error) return undefined;
-  if (typeof error === 'object') return error.server;
-  switch (error) {
-    case 'required':
-      return t('settings.validation.required', 'This field is required.');
-    case 'modelPattern':
-      return t(
-        'settings.validation.model',
-        'Use letters, digits and the characters . _ : / @ - (up to 120 characters).'
-      );
-    case 'url':
-      return t('settings.validation.url', 'Enter a valid http or https URL without user name or password.');
-    case 'https':
-      return t(
-        'settings.validation.https',
-        'Use an https URL. Private or http hosts need ai.allowPrivateBaseUrl in config/plugins.js.'
-      );
-    case 'range':
-      return t('settings.validation.range', 'Enter a whole number from {min} to {max}.', LIMITS[field] || {});
-    case 'reenter':
-      return t(
-        'settings.validation.reenterKey',
-        'Enter the API key again when you change the provider or base URL.'
-      );
-    case 'cannotStore':
-      return t('settings.validation.cannotStore', 'Set MAGIC_EDITOR_X_ENCRYPTION_KEY to store an API key.');
-    case 'tooLong':
-      return t('settings.validation.keyTooLong', 'The API key is too long.');
-    case 'httpsLanguageTool':
-      return t(
-        'settings.languageTool.validation.https',
-        'Use an https URL. Private or http hosts need languageTool.allowPrivateBaseUrl in config/plugins.js.'
-      );
-    case 'reenterLanguageTool':
-      return t(
-        'settings.languageTool.validation.reenterKey',
-        'Enter the API key again when you change the base URL or user name.'
-      );
-    default:
-      return t('settings.validation.invalid', 'Check this value.');
-  }
-};
+export { SwitchRow, errorText };
 
 /**
  * Display name of a provider for the privacy disclosure.
@@ -85,34 +40,6 @@ const providerName = (t, draft) => {
   })();
   return host || t('settings.ai.provider.compatible.name', 'the server at the base URL');
 };
-
-/**
- * One labelled switch with its disclosure text (2.3 owner switches).
- * @param {{ id: string, label: string, hint: string, checked: boolean, disabled: boolean, onChange: (checked: boolean) => void, t: Function }} props - Props.
- * @returns {JSX.Element} Row.
- */
-export const SwitchRow = ({ id, label, hint, checked, disabled, onChange, t }) => (
-  <Flex gap={4} alignItems="flex-start" justifyContent="space-between" minWidth={0}>
-    <Flex direction="column" alignItems="flex-start" gap={1} minWidth={0} flex="1 1 auto">
-      <Typography variant="omega" fontWeight="bold" textColor="neutral800" id={`${id}-label`}>
-        {label}
-      </Typography>
-      <Typography variant="pi" textColor="neutral600" id={`${id}-hint`}>
-        {hint}
-      </Typography>
-    </Flex>
-    <Switch
-      checked={checked}
-      onCheckedChange={(next) => onChange(next === true)}
-      disabled={disabled}
-      aria-labelledby={`${id}-label`}
-      aria-describedby={`${id}-hint`}
-      onLabel={t('settings.switch.on', 'On')}
-      offLabel={t('settings.switch.off', 'Off')}
-      visibleLabels
-    />
-  </Flex>
-);
 
 /**
  * Status of the stored provider key.
@@ -430,6 +357,23 @@ export const AiSection = ({ form, readOnly, onTest }) => {
           { count: dto.environment.requestsPerMinute }
         )}
       </Typography>
+      {Array.isArray(draft.actions) ? (
+        <>
+          <Divider />
+          <AiActionsEditor
+            actions={draft.actions}
+            onChange={(next) => setField('actions', next)}
+            readOnly={readOnly}
+            error={errors.actions}
+          />
+        </>
+      ) : null}
+      {typeof draft.styleGuide === 'string' ? (
+        <>
+          <Divider />
+          <StyleGuideEditor form={form} readOnly={readOnly} providerName={providerName(t, draft)} />
+        </>
+      ) : null}
     </SectionCard>
   );
 };

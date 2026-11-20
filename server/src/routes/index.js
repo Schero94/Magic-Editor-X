@@ -123,6 +123,8 @@ const adminRoutes = [
   ['POST', '/ai/image/alt-text', 'ai.altText', [ACTIONS.access, ACTIONS.ai]],
   ['POST', '/ai/field/:action', 'ai.field', [ACTIONS.access, ACTIONS.ai]],
   ['POST', '/ai/blocks/:action', 'ai.blocks', [ACTIONS.access, ACTIONS.ai]],
+  // 2.9 AI review: the answer becomes block suggestions (CM read checked in the handler).
+  ['POST', '/ai/review/:kind', 'ai.review', [ACTIONS.access, ACTIONS.ai, ACTIONS.suggestionsCreate]],
   ['POST', '/grammar/check', 'grammar.check', [ACTIONS.access, ACTIONS.grammar]],
 
   // Global listing needs settings.read too; a field-scoped one needs CM read on the document (handler).
