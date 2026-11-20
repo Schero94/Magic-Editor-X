@@ -1,6 +1,12 @@
 # Changelog
 
-## [Unreleased]
+## [2.8.2](https://github.com/Schero94/Magic-Editor-X/compare/v2.8.1...v2.8.2) (2026-11-20)
+
+
+### Bug Fixes
+
+* **admin:** keyboard block menu and block controls, fast typing in long documents, Word bold, safe room discard ([#36](https://github.com/Schero94/Magic-Editor-X/issues/36)) ([e8be99e](https://github.com/Schero94/Magic-Editor-X/commit/e8be99e252ecbc8ee4015626dde90867b2bd3a66))
+
 
 ### Fixed (editor field: keyboard, typing speed, paste, live session)
 
