@@ -1,6 +1,12 @@
 # Changelog
 
-## [Unreleased]
+# [2.11.0](https://github.com/Schero94/Magic-Editor-X/compare/v2.10.0...v2.11.0) (2026-11-24)
+
+
+### Features
+
+* import .docx and Markdown files and export as Word, PDF, Markdown or HTML ([#43](https://github.com/Schero94/Magic-Editor-X/issues/43)) ([acbfdef](https://github.com/Schero94/Magic-Editor-X/commit/acbfdef5cf029a8b1ac14ea24e667987bc65b76e))
+
 
 ### Added (import and export files)
 
