@@ -107,6 +107,9 @@ import { SyncedBlockView } from './SyncedBlockView';
 import { createPasteHandler } from '../../editor/paste';
 import { writeBlocksToClipboard } from '../../editor/block-clipboard';
 import { ReuseDialog } from './ReuseDialog';
+import { Download, Upload } from '@strapi/icons';
+import { ImportDialog } from './ImportDialog';
+import { ExportDialog } from './ExportDialog';
 import { planReuseInsertion, spliceReuse } from '../../../../shared/reuse.mjs';
 import { createMarkdownShortcuts } from '../../editor/markdown-shortcuts';
 import { MentionTool, createMentionKeys } from '../../editor/tools/mention';
@@ -643,6 +646,10 @@ const EditorFieldBody = ({
   const lastBlockIdRef = useRef(null);
   // 2.5 "Use existing content": insert dialog, block clipboard (paste and the "Copy block" tune).
   const [reuseOpen, setReuseOpen] = useState(false);
+  // 2.11 "Import file…" and "Export…" (More tools).
+  const [importOpen, setImportOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
+  const [importHasContent, setImportHasContent] = useState(false);
   const toolNamesRef = useRef(new Set());
   // 2.7.8: translated tool names for the inline toolbar buttons.
   const toolTitlesRef = useRef({});
@@ -3185,12 +3192,13 @@ const EditorFieldBody = ({
    */
   const insertReused = useCallback(
     async (sourceBlocks, context = {}) => {
-      const { syncedAvailable, position = null, title = '' } = context;
+      const { syncedAvailable, position = null, title = '', replace = false } = context;
       const editor = editorRef.current;
       if (!editor || readOnly) return false;
       const saved = (await editor.save().catch(() => null)) || { blocks: [] };
       const clean = prepareEditorValue({ blocks: sourceBlocks }).data;
-      const empty = isEmptyDocument(saved);
+      // 2.11 import "Replace content": planned and applied like an insert into an empty field.
+      const empty = replace || isEmptyDocument(saved);
       const plan = planReuseInsertion(clean ? clean.blocks : [], {
         preset: preset.restricted ? preset : null,
         hasTool: hasBlockTool,
@@ -3285,22 +3293,28 @@ const EditorFieldBody = ({
         reuseFocusRef.current = plan.blocks[0].id;
         toggleNotification({
           type: 'success',
-          message: title
+          message: replace
             ? t(
-                'editor.reuse.inserted',
-                '{count, plural, one {# block} other {# blocks}} from {name} inserted.',
-                {
-                  count: plan.blocks.length,
-                  name: title,
-                }
+                'editor.import.replaced',
+                'The content was replaced with {count, plural, one {# block} other {# blocks}} from {name}. Undo brings the previous content back.',
+                { count: plan.blocks.length, name: title }
               )
-            : t(
-                'editor.reuse.insertedPlain',
-                '{count, plural, one {# block inserted} other {# blocks inserted}}.',
-                {
-                  count: plan.blocks.length,
-                }
-              ),
+            : title
+              ? t(
+                  'editor.reuse.inserted',
+                  '{count, plural, one {# block} other {# blocks}} from {name} inserted.',
+                  {
+                    count: plan.blocks.length,
+                    name: title,
+                  }
+                )
+              : t(
+                  'editor.reuse.insertedPlain',
+                  '{count, plural, one {# block inserted} other {# blocks inserted}}.',
+                  {
+                    count: plan.blocks.length,
+                  }
+                ),
         });
       }
       if (notes.length) toggleNotification({ type: 'warning', message: notes.join(' ') });
@@ -3368,6 +3382,47 @@ const EditorFieldBody = ({
       window.requestAnimationFrame(() => (inserted ? selectBlock(inserted) : focusToolsMenu()))
     );
   }, [focusToolsMenu, selectBlock]);
+
+  /** 2.11: closes the import dialog; the caret goes to the first imported block (else the More tools trigger). */
+  const closeImport = useCallback(() => {
+    setImportOpen(false);
+    const inserted = reuseFocusRef.current;
+    reuseFocusRef.current = null;
+    window.requestAnimationFrame(() =>
+      window.requestAnimationFrame(() => (inserted ? selectBlock(inserted) : focusToolsMenu()))
+    );
+  }, [focusToolsMenu, selectBlock]);
+
+  /** 2.11 "Import file…": opens the dialog (it offers "Insert at cursor" only when the field has content). */
+  const openImport = useCallback(async () => {
+    const editor = editorRef.current;
+    const saved = editor ? await editor.save().catch(() => null) : null;
+    setImportHasContent(Boolean(saved) && !isEmptyDocument(saved));
+    setImportOpen(true);
+  }, []);
+
+  /** 2.11 "Export…": the content as shown (unsaved changes included) and the sources of its synced blocks. */
+  const readExportContent = useCallback(async () => {
+    const editor = editorRef.current;
+    const saved = editor ? await editor.save().catch(() => null) : null;
+    const value = saved ? prepareEditorValue(saved).data : null;
+    const synced = new Map();
+    for (const ref of syncedRefsOf(value).slice(0, 100)) {
+      const entry = await loadSynced(get, ref);
+      if (entry.template)
+        synced.set(
+          ref,
+          filterSyncedForField(sourceBlocksOf(entry.template.blocks), preset.restricted ? preset : null)
+            .blocks
+        );
+    }
+    return { value, synced };
+  }, [get, preset]);
+
+  const closeExport = useCallback(() => {
+    setExportOpen(false);
+    window.requestAnimationFrame(() => window.requestAnimationFrame(() => focusToolsMenu()));
+  }, [focusToolsMenu]);
 
   /** "Save as pattern" from the block selection bar (template managers). */
   const saveSelection = useCallback(async (ids) => {
@@ -3619,6 +3674,26 @@ const EditorFieldBody = ({
       visible: Boolean(config && config.reuse && config.reuse.enabled) && !readOnly,
       disabled: previewOpen || !ready,
       onSelect: () => setReuseOpen(true),
+    },
+    // 2.11 import and export.
+    {
+      id: 'import',
+      group: 'write',
+      label: t('editor.toolbar.import', 'Import file…'),
+      icon: <Upload />,
+      movesFocus: true,
+      visible: !readOnly,
+      disabled: previewOpen || !ready,
+      onSelect: () => openImport(),
+    },
+    {
+      id: 'export',
+      group: 'view',
+      label: t('editor.toolbar.export', 'Export…'),
+      icon: <Download />,
+      movesFocus: true,
+      disabled: !ready,
+      onSelect: () => setExportOpen(true),
     },
   ];
 
@@ -4201,6 +4276,28 @@ const EditorFieldBody = ({
           allowRaw={allowRawPreview}
           lang={target.locale || undefined}
           dir={direction}
+        />
+      ) : null}
+      {importOpen ? (
+        <ImportDialog
+          t={t}
+          hasContent={importHasContent}
+          onImport={(blocks, { replace, title }) => insertReused(blocks, { replace, title })}
+          onClose={closeImport}
+          allowRaw={allowRawPreview}
+          lang={target.locale || undefined}
+          dir={direction}
+        />
+      ) : null}
+      {exportOpen ? (
+        <ExportDialog
+          t={t}
+          readContent={readExportContent}
+          field={name}
+          lang={target.locale || undefined}
+          dir={direction}
+          onExported={(message) => toggleNotification({ type: 'success', message })}
+          onClose={closeExport}
         />
       ) : null}
       {footnoteEdit ? (

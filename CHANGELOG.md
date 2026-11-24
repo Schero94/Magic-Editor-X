@@ -1,5 +1,26 @@
 # Changelog
 
+## [Unreleased]
+
+### Added (import and export files)
+
+- **Import file…** in More tools (Write): a Word document (.docx, up to 10 MB) or a Markdown file (.md, up to 5 MB) becomes blocks. A dialog previews the blocks and counts them by type, then **Replace content** or **Insert at cursor** (one **Insert** for an empty field). The blocks go through the field's normal change path: preset check, fresh ids, one undo step, live rooms. Word import keeps headings (styles and outline levels), text marks, links (also HYPERLINK fields), nested bulleted and numbered lists with start numbers, tables with header rows and merged cells, quote and code styles; tracked deletions are left out. Images become visible placeholders, and the dialog counts them.
+- **Export…** in More tools (View): Word (.docx), PDF (print view and the browser's "Save as PDF"; optional page break before each H1/H2, link addresses printed), Markdown and HTML of the content as shown in the editor. Same-origin images are embedded in Word, other images and embeds become links, components become labels, raw HTML is not exported. File names: entry title, field and date.
+- Translations in English, German, French, Spanish and Portuguese.
+
+### Security
+
+- The .docx reader (own code; no mammoth) checks the ZIP central directory before inflating: 10 MB file, 1000 entries, 50 MB total uncompressed, at most 100:1 per entry, no encryption, ZIP64 or duplicate names. Each part is at most 20 MB, and the streaming inflate (fflate, 4 KB slices) stops when an entry is larger than it declared. XML with a DOCTYPE is refused. The conversion runs in the browser on the main thread with pauses between steps: DOMParser is not available in Web Workers.
+- The print view is a sandboxed same-origin frame without scripts (`allow-same-origin allow-modals`), and it works under the default `strapi::security` CSP.
+
+### Dependencies
+
+- Added `fflate` ^0.8.3 (MIT; also a dependency of `docx`) and `docx` ^9.16.0 (MIT). `docx` is loaded with `import()` only when you export to Word; in the host's admin build it is its own chunk (about 200 KB).
+
+### Notes
+
+- No migration: stored content and the API do not change.
+
 # [2.10.0](https://github.com/Schero94/Magic-Editor-X/compare/v2.9.0...v2.10.0) (2026-11-24)
 
 
