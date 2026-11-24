@@ -297,7 +297,7 @@ export class GalleryTool extends MediaBaseTool {
     });
     const status = el('p', {
       className: 'mex-tool__muted',
-      attrs: { 'aria-live': 'polite' },
+      attrs: { role: 'status' },
       text: count
         ? this.t('tools.gallery.count', '{count, plural, one {# image} other {# images}} (at most {max})', {
             count,
@@ -763,7 +763,7 @@ class PlayerTool extends MediaBaseTool {
       const add = button(this.t('tools.media.trackAdd', 'Add a WebVTT file'), { icon: ICONS.plus });
       add.dataset.mexAction = 'track';
       add.disabled = !this.canPick() || this.data.tracks.length >= MAX_MEDIA_TRACKS;
-      const error = el('p', { className: 'mex-tool__error', attrs: { 'aria-live': 'polite' } });
+      const error = el('p', { className: 'mex-tool__error', attrs: { role: 'status' } });
       add.addEventListener('click', () =>
         this.pick({ multiple: false, allowedTypes: ['files'], accept: () => true }, add, (assets) => {
           const locale = typeof this.config.getLocale === 'function' ? this.config.getLocale() : '';

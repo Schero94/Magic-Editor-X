@@ -2,6 +2,7 @@ import { Box, Button, Flex, Modal, Typography } from '@strapi/design-system';
 import styled from 'styled-components';
 import { shortcutKeyName } from '../../editor/field-tools.mjs';
 import { CODE_FONT } from '../../editor/code-font.mjs';
+import { TouchModalContent } from '../ui/touch';
 
 /**
  * Keyboard shortcut help (Ctrl/Cmd + Alt + /; 2.7.8: Ctrl/Cmd + / opens the Editor.js block menu). Lists the editor's own shortcuts,
@@ -131,7 +132,7 @@ export const ShortcutsDialog = ({
 
   return (
     <Modal.Root open onOpenChange={(open) => !open && onClose()}>
-      <Modal.Content
+      <TouchModalContent
         aria-describedby={undefined}
         onCloseAutoFocus={(event) => {
           // 2.7.4 (m4): back to the caret or More tools, never to the page body.
@@ -163,7 +164,7 @@ export const ShortcutsDialog = ({
             <Button variant="tertiary">{t('editor.shortcuts.close', 'Close')}</Button>
           </Modal.Close>
         </Modal.Footer>
-      </Modal.Content>
+      </TouchModalContent>
     </Modal.Root>
   );
 };

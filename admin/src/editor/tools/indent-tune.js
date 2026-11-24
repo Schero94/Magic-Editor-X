@@ -23,6 +23,16 @@ import IndentTune from 'editorjs-indent-tune';
  * window resize or when a second editor (Suggest changes) started. The
  * subclass measures first: a block without a width is styled once it gets
  * one (ResizeObserver), and the original method only runs when it cannot loop.
+ *
+ * 2.10.1: the original measures the block (or the redactor) with
+ * `getBoundingClientRect()` every time it styles a wrapper, also while a new
+ * block is composed. Each call forces a layout of the whole page when the DOM
+ * has just changed, so styling many blocks in a row (a remote update, a paste,
+ * undo) cost one full layout per block: 5 s for 10 changed blocks in a
+ * 5,000-block document. Every block is as wide as its redactor, so the
+ * subclass reads the redactor's width from a ResizeObserver (measured once,
+ * then updated after each layout) and hands that width to the original
+ * method instead of a fresh measurement.
  * @returns {{ ToolClass: Function, dispose: () => void }} Tune class and cleanup.
  */
 export const createIndentTune = () => {
@@ -41,9 +51,45 @@ export const createIndentTune = () => {
     waiting.delete(wrapper);
   };
 
+  /** Redactor -> border-box width, kept current by one ResizeObserver per tool set. */
+  const widths = new Map();
+  const widthObserver =
+    typeof ResizeObserver === 'function'
+      ? new ResizeObserver((entries) => {
+          for (const entry of entries) {
+            const box = entry.borderBoxSize && entry.borderBoxSize[0];
+            widths.set(entry.target, box ? box.inlineSize : entry.target.getBoundingClientRect().width);
+          }
+        })
+      : null;
+  /**
+   * Width of the redactor that holds `element` (or of `element` itself), without forcing a
+   * layout after the first measurement.
+   * @param {HTMLElement} element - Block or redactor.
+   * @param {string} redactorClass - Editor.js redactor class.
+   * @returns {number} Width in CSS px.
+   */
+  const widthOf = (element, redactorClass) => {
+    const redactor = element.closest(`.${redactorClass}`) || element;
+    let width = widths.get(redactor);
+    if (width === undefined) {
+      width = redactor.getBoundingClientRect().width;
+      if (widthObserver) {
+        widths.set(redactor, width);
+        widthObserver.observe(redactor);
+      }
+    }
+    // A redactor without a width (a hidden editor) is rare: the element itself is measured then,
+    // so the wait below starts and ends exactly as before.
+    if (!width && element !== redactor) width = element.getBoundingClientRect().width;
+    return width;
+  };
+
   const dispose = () => {
     for (const entry of [...listeners]) remove(entry);
     for (const wrapper of [...waiting.keys()]) stopWaiting(wrapper);
+    if (widthObserver) widthObserver.disconnect();
+    widths.clear();
   };
 
   class ManagedIndentTune extends IndentTune {
@@ -58,7 +104,8 @@ export const createIndentTune = () => {
       const measured =
         (wrapper && this.getBlockForWrapper(wrapper)) ||
         document.querySelector(`.${this.EditorCSS.redactor}`);
-      if (wrapper && measured && measured.getBoundingClientRect().width === 0) {
+      const width = wrapper && measured ? widthOf(measured, this.EditorCSS.redactor) : 0;
+      if (wrapper && measured && width === 0) {
         const pending = waiting.get(wrapper);
         if (pending) {
           if (level !== undefined) pending.level = level;
@@ -77,7 +124,24 @@ export const createIndentTune = () => {
         return;
       }
       stopWaiting(wrapper);
-      super.applyStylesToWrapper(wrapper, level);
+      // The original reads `getBlockForWrapper(wrapper).getBoundingClientRect().width`; during this
+      // call it gets the known width instead (see above).
+      this.knownWidth = measured ? { getBoundingClientRect: () => ({ width }) } : null;
+      try {
+        super.applyStylesToWrapper(wrapper, level);
+      } finally {
+        this.knownWidth = null;
+      }
+    }
+
+    /**
+     * The block of a wrapper; while `applyStylesToWrapper` runs, an object that reports the
+     * known redactor width (the original only reads its width there).
+     * @param {HTMLElement} wrapper Tune wrapper of a block.
+     * @returns {HTMLElement|{ getBoundingClientRect: () => { width: number } }|null} Block.
+     */
+    getBlockForWrapper(wrapper) {
+      return this.knownWidth || super.getBlockForWrapper(wrapper);
     }
 
     constructor(options) {

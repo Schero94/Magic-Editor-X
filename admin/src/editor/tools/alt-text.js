@@ -53,7 +53,7 @@ export const createAltControl = ({
   text.classList.add('mex-alt__input');
   const box = el('input', { attrs: { type: 'checkbox', disabled: readOnly } });
   box.checked = decorative;
-  const error = el('p', { className: 'mex-tool__error', attrs: { 'aria-live': 'polite' } });
+  const error = el('p', { className: 'mex-tool__error', attrs: { role: 'status' } });
   error.id = `mex-alt-error-${Math.random().toString(36).slice(2, 10)}`;
   const check = el('label', {
     className: 'mex-tool__check',

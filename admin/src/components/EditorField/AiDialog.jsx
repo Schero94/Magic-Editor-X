@@ -20,6 +20,7 @@ import { aiMenuEntries, entryRequest } from '../../editor/ai-menu.mjs';
 import { entryLabel } from './aiLabels';
 import { AskInstruction } from './AskInstruction';
 import { reviewErrorEntry } from './useAiReview';
+import { TouchModalContent } from '../ui/touch';
 
 /**
  * AI assistant dialog: the admin picks an action for the selected text, the
@@ -185,7 +186,7 @@ export const AiDialog = ({
 
   return (
     <Modal.Root open onOpenChange={(open) => !open && onClose()}>
-      <Modal.Content
+      <TouchModalContent
         aria-describedby={undefined}
         onCloseAutoFocus={(event) => {
           if (!returnFocus) return;
@@ -331,7 +332,7 @@ export const AiDialog = ({
             )}
           </Flex>
         </Modal.Footer>
-      </Modal.Content>
+      </TouchModalContent>
     </Modal.Root>
   );
 };

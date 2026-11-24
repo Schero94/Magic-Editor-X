@@ -3,6 +3,7 @@ import { Button, Field, Flex, Modal, Radio, TextInput, Textarea, Typography } fr
 import { useFetchClient } from '../../utils/fetch-client';
 import { API, readApiError } from '../../utils/api';
 import { scopeFieldOf, TEMPLATE_LIMITS } from '../../../../shared/templates.mjs';
+import { TouchModalContent } from '../ui/touch';
 
 /**
  * "Save as template" (2.3, managers only): stores the field's content or the
@@ -74,7 +75,7 @@ export const SaveTemplateDialog = ({ t, request, target, fieldLabel, onSaved, on
         if (!next && !saving) onClose();
       }}
     >
-      <Modal.Content aria-describedby={undefined}>
+      <TouchModalContent aria-describedby={undefined}>
         <Modal.Header closeLabel={t('editor.templates.close', 'Close')}>
           <Modal.Title>{t('editor.saveTemplate.title', 'Save as template or pattern')}</Modal.Title>
         </Modal.Header>
@@ -157,7 +158,7 @@ export const SaveTemplateDialog = ({ t, request, target, fieldLabel, onSaved, on
             {t('editor.saveTemplate.save', 'Save')}
           </Button>
         </Modal.Footer>
-      </Modal.Content>
+      </TouchModalContent>
     </Modal.Root>
   );
 };

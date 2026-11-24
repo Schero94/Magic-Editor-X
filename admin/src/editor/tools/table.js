@@ -246,7 +246,7 @@ export class TableTool {
     this.wrapper.appendChild(this.captionInput);
     this.status = el('div', {
       className: 'mex-table-tool__status',
-      attrs: { role: 'status', 'aria-live': 'polite' },
+      attrs: { role: 'status' },
     });
     this.wrapper.appendChild(this.status);
     this.renderTable();

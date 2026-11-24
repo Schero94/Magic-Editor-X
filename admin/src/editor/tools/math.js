@@ -65,7 +65,7 @@ export class MathTool {
     });
     this.nodes.error = el('p', {
       className: 'mex-math-tool__error',
-      attrs: { id: `${this.id}-error`, role: 'status', 'aria-live': 'polite' },
+      attrs: { id: `${this.id}-error`, role: 'status' },
     });
     this.nodes.error.hidden = true;
     if (this.readOnly) {

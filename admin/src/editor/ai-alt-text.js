@@ -96,7 +96,7 @@ export const mediaFileId = (file) => {
 export const createAltSuggestion = ({ t, getFileId, suggest, onUse, readOnly = false }) => {
   const trigger = button(t('tools.image.aiAlt.suggest', 'Suggest alternative text'));
   trigger.classList.add('mex-alt-ai__trigger');
-  const status = el('p', { className: 'mex-alt-ai__status', attrs: { 'aria-live': 'polite' } });
+  const status = el('p', { className: 'mex-alt-ai__status', attrs: { role: 'status' } });
   const text = el('p', { className: 'mex-alt-ai__text' });
   const use = button(t('tools.image.aiAlt.use', 'Use suggestion'), { variant: 'primary' });
   const dismiss = button(t('tools.image.aiAlt.dismiss', 'Dismiss'));

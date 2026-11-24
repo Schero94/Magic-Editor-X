@@ -6,6 +6,7 @@ import { sanitizeInline, sanitizeUrl } from '../../editor/sanitize';
 import { cleanNoteHtml } from '../../editor/tools/footnote-logic.mjs';
 import { MAX_FOOTNOTE_NOTE } from '../../../../shared/sanitize-policy.mjs';
 import { useTooltipSafeEscape } from '../../hooks/useTooltipSafeEscape';
+import { TouchModalContent } from '../ui/touch';
 
 /**
  * Note editor of one footnote (2.4). The note is inline HTML with the
@@ -294,7 +295,7 @@ export const FootnoteDialog = ({
         if (!next) onClose();
       }}
     >
-      <Modal.Content
+      <TouchModalContent
         aria-describedby={undefined}
         {...escapeProps}
         onOpenAutoFocus={focusNote}
@@ -416,7 +417,7 @@ export const FootnoteDialog = ({
             </Button>
           )}
         </Modal.Footer>
-      </Modal.Content>
+      </TouchModalContent>
     </Modal.Root>
   );
 };

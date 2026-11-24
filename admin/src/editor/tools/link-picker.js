@@ -68,7 +68,7 @@ export const createLinkPicker = ({ t, fetchClient, getLocale, onPick, onClose, l
   let requestId = 0;
   let typeSelect = null;
   let search = null;
-  const status = el('p', { className: 'mex-tool__muted', attrs: { role: 'status', 'aria-live': 'polite' } });
+  const status = el('p', { className: 'mex-tool__muted', attrs: { role: 'status' } });
   const list = el('ul', {
     className: 'mex-link-picker__results',
     attrs: {
