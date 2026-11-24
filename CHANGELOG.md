@@ -1,6 +1,12 @@
 # Changelog
 
-## [Unreleased]
+# [2.9.0](https://github.com/Schero94/Magic-Editor-X/compare/v2.8.4...v2.9.0) (2026-11-24)
+
+
+### Features
+
+* **ai:** Ask AI, AI review as suggestions, admin-defined actions and style guide ([#41](https://github.com/Schero94/Magic-Editor-X/issues/41)) ([cc1f422](https://github.com/Schero94/Magic-Editor-X/commit/cc1f4222d9b3664a9af942c71d8e1e3d46b4af90))
+
 
 ### Added (AI: Ask AI, AI review as suggestions, your own actions and a style guide)
 
