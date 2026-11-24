@@ -3,6 +3,7 @@ import {
   Badge,
   Box,
   Button,
+  Dialog,
   Flex,
   IconButton,
   Table,
@@ -15,7 +16,8 @@ import {
   VisuallyHidden,
 } from '@strapi/design-system';
 import { Pencil, Plus, Trash } from '@strapi/icons';
-import { ConfirmAction, useBreakpoint, useT } from '../../components/ui';
+import { ConfirmDialog } from '@strapi/strapi/admin';
+import { useBreakpoint, useT } from '../../components/ui';
 import { keepButtonKeys } from '../tableKeys.mjs';
 import { MAX_CUSTOM_ACTIONS } from './configForm.mjs';
 import { errorText } from './formParts';
@@ -26,6 +28,8 @@ import { ActionModal, scopeLabel } from './AiActionModal';
  * from the large breakpoint up, cards below), a Modal to add or edit one
  * action and a ConfirmDialog to delete one. Changes go into the page draft;
  * the page's Save stores them (and the unsaved-changes guard covers them).
+ * The Modal and the ConfirmDialog live at the list level, so switching
+ * between table and cards (resizing across the large breakpoint) keeps them open.
  */
 
 /**
@@ -41,10 +45,10 @@ const outputLabel = (t, output) =>
 
 /**
  * Edit and delete buttons of one action (table row or card).
- * @param {object} props - Props.
+ * @param {{ action: object, onEdit: () => void, onDelete: () => void }} props - Action and handlers.
  * @returns {JSX.Element} Buttons.
  */
-const RowActions = ({ action, onEdit, onDelete, fallbackFocusRef }) => {
+const RowActions = ({ action, onEdit, onDelete }) => {
   const t = useT();
   return (
     <Flex gap={1} wrap="wrap" onKeyDown={keepButtonKeys}>
@@ -55,25 +59,13 @@ const RowActions = ({ action, onEdit, onDelete, fallbackFocusRef }) => {
       >
         <Pencil />
       </IconButton>
-      <ConfirmAction
-        fallbackFocusRef={fallbackFocusRef}
-        trigger={
-          <IconButton
-            label={t('settings.ai.actions.deleteNamed', 'Delete {name}', { name: action.name })}
-            variant="ghost"
-          >
-            <Trash />
-          </IconButton>
-        }
-        title={t('settings.ai.actions.delete.title', 'Delete the AI action {name}?', { name: action.name })}
-        body={t(
-          'settings.ai.actions.delete.body',
-          'Editors no longer see it after you save the settings. Field settings that list the key {key} offer nothing in its place. Suggestions it already made stay in the Suggestions panel.',
-          { key: action.key }
-        )}
-        confirmLabel={t('settings.ai.actions.delete.confirm', 'Delete action')}
-        onConfirm={onDelete}
-      />
+      <IconButton
+        label={t('settings.ai.actions.deleteNamed', 'Delete {name}', { name: action.name })}
+        variant="ghost"
+        onClick={onDelete}
+      >
+        <Trash />
+      </IconButton>
     </Flex>
   );
 };
@@ -90,8 +82,10 @@ export const AiActionsEditor = ({ actions, onChange, readOnly, error }) => {
   const t = useT();
   const { isBelowLarge } = useBreakpoint();
   const [editing, setEditing] = useState(null);
+  const [deleting, setDeleting] = useState(null);
   const addRef = useRef(null);
   const headingRef = useRef(null);
+  const rootRef = useRef(null);
   const full = actions.length >= MAX_CUSTOM_ACTIONS;
 
   const openNew = () =>
@@ -106,7 +100,35 @@ export const AiActionsEditor = ({ actions, onChange, readOnly, error }) => {
     onChange(next);
     setEditing(null);
   };
-  const remove = (index) => onChange(actions.filter((_, other) => other !== index));
+  /**
+   * Focus after the confirmation closes: the delete button of the same action (it may have been
+   * rendered anew in the other layout), else "Add action", else the heading. Never <body>.
+   * @param {string|null} label - Accessible name of the delete button, or null after a delete.
+   */
+  const restoreFocus = (label) =>
+    window.requestAnimationFrame(() => {
+      const active = document.activeElement;
+      if (active && active !== document.body) return;
+      const buttons = rootRef.current ? [...rootRef.current.querySelectorAll('button[aria-label]')] : [];
+      const trigger = label ? buttons.find((button) => button.getAttribute('aria-label') === label) : null;
+      const target =
+        trigger || (addRef.current && !addRef.current.disabled ? addRef.current : headingRef.current);
+      if (target) target.focus();
+    });
+  const deleteLabel = (action) =>
+    t('settings.ai.actions.deleteNamed', 'Delete {name}', { name: action.name });
+  const closeDelete = (open) => {
+    if (open) return;
+    const label = deleting ? deleteLabel(deleting.action) : null;
+    setDeleting(null);
+    restoreFocus(label);
+  };
+  const confirmDelete = () => {
+    const { index } = deleting;
+    onChange(actions.filter((_, other) => other !== index));
+    setDeleting(null);
+    restoreFocus(null);
+  };
   const errorMessage = error ? errorText(t, error, 'actions') : null;
 
   const rows = actions.map((action, index) => ({
@@ -116,8 +138,7 @@ export const AiActionsEditor = ({ actions, onChange, readOnly, error }) => {
       <RowActions
         action={action}
         onEdit={() => setEditing({ index, action })}
-        onDelete={() => remove(index)}
-        fallbackFocusRef={full ? headingRef : addRef}
+        onDelete={() => setDeleting({ index, action })}
       />
     ),
   }));
@@ -207,7 +228,7 @@ export const AiActionsEditor = ({ actions, onChange, readOnly, error }) => {
   }
 
   return (
-    <Flex direction="column" alignItems="stretch" gap={3} data-testid="mex-ai-actions">
+    <Flex direction="column" alignItems="stretch" gap={3} data-testid="mex-ai-actions" ref={rootRef}>
       <Flex justifyContent="space-between" alignItems="flex-start" gap={3} wrap="wrap">
         <Flex direction="column" alignItems="flex-start" gap={1} minWidth={0} flex="1 1 20rem">
           <Typography variant="delta" tag="h3" id="mex-ai-actions-title" ref={headingRef} tabIndex={-1}>
@@ -247,6 +268,27 @@ export const AiActionsEditor = ({ actions, onChange, readOnly, error }) => {
           {errorMessage}
         </Typography>
       ) : null}
+      <Dialog.Root open={Boolean(deleting)} onOpenChange={closeDelete}>
+        {deleting ? (
+          <ConfirmDialog
+            title={t('settings.ai.actions.delete.title', 'Delete the AI action {name}?', {
+              name: deleting.action.name,
+            })}
+            variant="danger"
+            endAction={
+              <Button fullWidth variant="danger" onClick={confirmDelete}>
+                {t('settings.ai.actions.delete.confirm', 'Delete action')}
+              </Button>
+            }
+          >
+            {t(
+              'settings.ai.actions.delete.body',
+              'Editors no longer see it after you save the settings. Field settings that list the key {key} offer nothing in its place. Suggestions it already made stay in the Suggestions panel.',
+              { key: deleting.action.key }
+            )}
+          </ConfirmDialog>
+        ) : null}
+      </Dialog.Root>
       {editing ? (
         <ActionModal
           initial={editing.action}
