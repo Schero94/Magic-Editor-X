@@ -1,6 +1,12 @@
 # Changelog
 
-## [Unreleased]
+# [2.10.0](https://github.com/Schero94/Magic-Editor-X/compare/v2.9.0...v2.10.0) (2026-11-24)
+
+
+### Features
+
+* readability and SEO-structure hints with one-click fixes in the Quality panel ([#42](https://github.com/Schero94/Magic-Editor-X/issues/42)) ([36ae425](https://github.com/Schero94/Magic-Editor-X/commit/36ae4250ba9593ffd571dd03a8da62bc1c027116))
+
 
 ### Added (readability and SEO hints, one-click Fix)
 
