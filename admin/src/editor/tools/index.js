@@ -347,6 +347,8 @@ export function buildTools(ctx) {
         requireAlt: Boolean(preset && preset.requireAlt),
         // 2.3: AI alternative text suggestion (only when the owner and the field allow it).
         suggestAltText: ctx.suggestAltText,
+        // 2.11: "Edit in Media Library" (crop and focus there); only where it can work.
+        mountMediaEdit: ctx.mountMediaEdit,
       },
     },
     simpleImage: {

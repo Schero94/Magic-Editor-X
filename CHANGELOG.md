@@ -1,5 +1,21 @@
 # Changelog
 
+## [Unreleased]
+
+### Added (changes since last publish)
+
+- **More tools > Changes since last publish** (Draft & Publish types): the editor marks blocks against the published version of the same entry and locale. Added blocks get a green bar, changed blocks an orange bar and a button that opens a read-only word-level diff (the version history comparison), and removed blocks collapse into an "n removed blocks" marker you can open read-only. A line under the toolbar has the switch, the counts, the date of the published version and a legend in words. The marks update after a short pause in typing (2,000 blocks under 50 ms per update), are off by default, are remembered per admin user in the browser and never enter the saved value, undo or a live collaboration room. Types without Draft & Publish show nothing; an entry that was never published explains that there is nothing to compare.
+- Admin route `GET /magic-editor-x/published-version` (access action and Content Manager read, like version history; 404 without read access): the field in the published version, read with the Document Service (`status: 'published'`) through the caller's permission query.
+
+### Added (Edit in Media Library: crop and focus)
+
+- **Edit in Media Library** on image blocks with a Media Library file (Strapi 5.54+ with the new Media Library): a popover says that cropping replaces the file everywhere it is used and opens the file's details in a new tab (`/admin/plugins/upload?assetId=<id>`), where Crop opens Strapi's Crop & Focus editor. Your unsaved changes stay in the entry's tab. Back in the tab, the block reads the file again and takes the new URL, size and formats; a block without a focal point takes the Media Library's focus point (0-100 converted to 0-1).
+- `GET /config` returns `mediaLibrary.assetEditor` (Strapi 5.54+) and `permissions.mediaLibraryUpdate` (`plugin::upload.assets.update`). The button is hidden on older Strapi versions, with `useLegacyMediaLibrary`, without Media Library update rights, in read-only fields and with private upload providers (their signed URLs are never stored).
+
+### Notes
+
+- No migration: stored content and its shape do not change. The marks and the button are admin-only.
+
 # [2.10.0](https://github.com/Schero94/Magic-Editor-X/compare/v2.9.0...v2.10.0) (2026-11-24)
 
 

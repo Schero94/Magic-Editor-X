@@ -15,6 +15,8 @@ const labelSchema = z
 
 const createSchema = fieldTargetSchema.extend({ content: z.unknown(), label: labelSchema.optional() });
 const renameSchema = z.strictObject({ label: labelSchema });
+/** `content=false` asks whether a published version exists, without the field value (2.11). */
+const contentFlagSchema = z.enum(['true', 'false']).optional();
 
 /**
  * Version history. Every handler checks Content Manager access to the
@@ -23,6 +25,7 @@ const renameSchema = z.strictObject({ label: labelSchema });
 module.exports = ({ strapi }) => {
   const access = () => service(strapi, 'access');
   const history = () => service(strapi, 'history');
+  const published = () => service(strapi, 'published');
 
   return {
     /**
@@ -107,6 +110,43 @@ module.exports = ({ strapi }) => {
       ctx.status = outcome.created ? 201 : 200;
       ctx.body = { data: outcome.snapshot, meta: { created: outcome.created } };
       return undefined;
+    },
+
+    /**
+     * The published version of one field (2.11, "Changes since last publish"): the editor marks
+     * blocks added, changed or removed since then. Read with the Document Service
+     * (`status: 'published'`) through the caller's Content Manager read permission query.
+     * @route GET /magic-editor-x/published-version?uid&documentId&locale&field&fieldKey?&content?
+     * @auth admin; plugin::magic-editor-x.access; CM read on the document, locale and field
+     * @access 404 when the type, field or document does not exist or cannot be read (same as GET /history).
+     * @returns {{ data: { draftAndPublish: boolean, published: boolean, publishedAt: string|null, content: object|null } }}
+     *   `published: false` for types without Draft & Publish, entries never published (or not readable
+     *   in their published version); `content` is null with `content=false`, for an empty field or an
+     *   entry of a repeatable component or dynamic zone that did not exist when it was published.
+     */
+    async published(ctx) {
+      const { content: contentFlag, ...query } = ctx.query || {};
+      const withContent = parseOrThrow(contentFlagSchema, contentFlag) !== 'false';
+      const target = parseOrThrow(fieldTargetSchema, { ...query, locale: query.locale || null });
+      const result = await access().checkField({ userAbility: ctx.state.userAbility, ...target });
+      if (!published().hasDraftAndPublish(target.uid)) {
+        ctx.body = { data: { draftAndPublish: false, published: false, publishedAt: null, content: null } };
+        return;
+      }
+      const version = await published().read(
+        {
+          userAbility: ctx.state.userAbility,
+          uid: target.uid,
+          documentId: target.documentId,
+          locale: result.locale,
+          field: target.field,
+          fieldKey: result.fieldKey,
+          positional: result.positional,
+          basePath: result.basePath,
+        },
+        { content: withContent }
+      );
+      ctx.body = { data: { draftAndPublish: true, ...version } };
     },
 
     /**

@@ -75,6 +75,8 @@ const adminRoutes = [
   ['GET', '/history/:id', 'history.findOne', [ACTIONS.access]],
   ['POST', '/history', 'history.create', [ACTIONS.access]],
   ['PUT', '/history/:id', 'history.rename', [ACTIONS.access]],
+  // 2.11: "Changes since last publish" (published version of one field; CM read checked in the handler).
+  ['GET', '/published-version', 'history.published', [ACTIONS.access]],
 
   ['GET', '/comments', 'comments.list', [ACTIONS.access, ACTIONS.commentsRead]],
   // 2.4: @mention picker (registered before `/comments/:id` routes; only GET /comments shares the prefix).

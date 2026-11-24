@@ -107,7 +107,7 @@ test('the field toolbar stays short: secondary tools come from the registry, not
   );
   // Undo, redo and full screen are the only icon buttons of the bar.
   assert.equal((toolbar.match(/<IconButton\b/g) || []).length, 3);
-  assert.match(toolbar, /<FieldToolsMenu ref=\{moreButtonRef\}/);
+  assert.match(toolbar, /<FieldToolsMenu\s+ref=\{moreButtonRef\}/);
   // Read-only fields have nothing to undo: no disabled undo/redo pair.
   assert.match(toolbar, /\{readOnly \? null : \(/);
   const field = fs.readFileSync(

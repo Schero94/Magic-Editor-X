@@ -26,13 +26,13 @@ const OPS = {
   moved: { key: 'editor.history.diff.op.moved', text: 'Moved', border: 'neutral500' },
 };
 
-const Inserted = styled.ins`
+export const Inserted = styled.ins`
   background: ${({ theme }) => theme.colors.success100};
   color: ${({ theme }) => theme.colors.success700};
   text-decoration: underline;
 `;
 
-const Deleted = styled.del`
+export const Deleted = styled.del`
   background: ${({ theme }) => theme.colors.danger100};
   color: ${({ theme }) => theme.colors.danger700};
   text-decoration: line-through;
@@ -43,7 +43,7 @@ const Entry = styled(Box)`
   border-inline-start: 4px solid ${({ theme, $tone }) => theme.colors[$tone]};
 `;
 
-const Text = styled(Typography)`
+export const DiffText = styled(Typography)`
   display: block;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -129,7 +129,7 @@ export const neighboursOf = (entries, index) => {
  * @returns {JSX.Element} Inline diff.
  */
 export const TextOps = ({ ops, t }) => (
-  <Text tag="p" variant="pi" textColor="neutral800">
+  <DiffText tag="p" variant="pi" textColor="neutral800">
     {ops.map((op, index) => {
       if (op.op === 'insert')
         return (
@@ -147,7 +147,54 @@ export const TextOps = ({ ops, t }) => (
         );
       return <span key={index}>{op.text}</span>;
     })}
-  </Text>
+  </DiffText>
+);
+
+/**
+ * Changed fields of one diff entry: word diff for text, before/after for values, tune changes
+ * (2.11: also the "Changes since last publish" popover). Text only, never HTML.
+ * @param {{ entry: object, t: Function, empty: string }} props - Diff entry, translator, text for missing values.
+ * @returns {JSX.Element} Fields.
+ */
+export const EntryFields = ({ entry, t, empty }) => (
+  <>
+    {(entry.fields || []).map((field) => (
+      <Box key={field.path} minWidth={0}>
+        {field.kind !== 'tunes' && (entry.fields.length > 1 || field.kind === 'value') ? (
+          <Typography variant="sigma" textColor="neutral600">
+            {field.path}
+          </Typography>
+        ) : null}
+        {field.kind === 'tunes' ? (
+          <Flex tag="ul" direction="column" alignItems="stretch" gap={1}>
+            {field.changes.map((change) => (
+              <DiffText key={change.tune} tag="li" variant="pi" textColor="neutral800">
+                {t('editor.history.diff.tune.change', '{tune}: {before} → {after}', {
+                  tune: tuneLabel(change.tune, t),
+                  before: tuneValueText(change, change.before, t, empty),
+                  after: tuneValueText(change, change.after, t, empty),
+                })}
+              </DiffText>
+            ))}
+          </Flex>
+        ) : field.kind === 'text' ? (
+          <TextOps ops={field.ops} t={t} />
+        ) : (
+          <DiffText tag="p" variant="pi" textColor="neutral800">
+            <Deleted>
+              <VisuallyHidden>{t('editor.history.diff.deleted', 'Removed text:')} </VisuallyHidden>
+              {valueText(field.before, empty)}
+            </Deleted>
+            {' → '}
+            <Inserted>
+              <VisuallyHidden>{t('editor.history.diff.inserted', 'Added text:')} </VisuallyHidden>
+              {valueText(field.after, empty)}
+            </Inserted>
+          </DiffText>
+        )}
+      </Box>
+    ))}
+  </>
 );
 
 /**
@@ -244,7 +291,7 @@ export const VersionDiff = ({ t, version, current, versionNumber, canRestore, on
                   </Typography>
                 </Flex>
                 {synced ? (
-                  <Text tag="p" variant="pi" textColor="neutral800" data-testid="mex-diff-synced">
+                  <DiffText tag="p" variant="pi" textColor="neutral800" data-testid="mex-diff-synced">
                     {synced.before && synced.before !== synced.after ? (
                       <Deleted>
                         <VisuallyHidden>{t('editor.history.diff.deleted', 'Removed text:')} </VisuallyHidden>
@@ -259,56 +306,19 @@ export const VersionDiff = ({ t, version, current, versionNumber, canRestore, on
                       </Inserted>
                     ) : null}
                     {synced.before === synced.after ? syncedText(synced.after) : null}
-                  </Text>
+                  </DiffText>
                 ) : null}
                 {!synced && entry.op === 'added' ? (
-                  <Text tag="p" variant="pi" textColor="neutral800">
+                  <DiffText tag="p" variant="pi" textColor="neutral800">
                     <Inserted>{blockText(entry.after) || empty}</Inserted>
-                  </Text>
+                  </DiffText>
                 ) : null}
                 {!synced && entry.op === 'removed' ? (
-                  <Text tag="p" variant="pi" textColor="neutral800">
+                  <DiffText tag="p" variant="pi" textColor="neutral800">
                     <Deleted>{blockText(entry.before) || empty}</Deleted>
-                  </Text>
+                  </DiffText>
                 ) : null}
-                {(synced ? [] : entry.fields || []).map((field) => (
-                  <Box key={field.path} minWidth={0}>
-                    {field.kind !== 'tunes' && (entry.fields.length > 1 || field.kind === 'value') ? (
-                      <Typography variant="sigma" textColor="neutral600">
-                        {field.path}
-                      </Typography>
-                    ) : null}
-                    {field.kind === 'tunes' ? (
-                      <Flex tag="ul" direction="column" alignItems="stretch" gap={1}>
-                        {field.changes.map((change) => (
-                          <Text key={change.tune} tag="li" variant="pi" textColor="neutral800">
-                            {t('editor.history.diff.tune.change', '{tune}: {before} → {after}', {
-                              tune: tuneLabel(change.tune, t),
-                              before: tuneValueText(change, change.before, t, empty),
-                              after: tuneValueText(change, change.after, t, empty),
-                            })}
-                          </Text>
-                        ))}
-                      </Flex>
-                    ) : field.kind === 'text' ? (
-                      <TextOps ops={field.ops} t={t} />
-                    ) : (
-                      <Text tag="p" variant="pi" textColor="neutral800">
-                        <Deleted>
-                          <VisuallyHidden>
-                            {t('editor.history.diff.deleted', 'Removed text:')}{' '}
-                          </VisuallyHidden>
-                          {valueText(field.before, empty)}
-                        </Deleted>
-                        {' → '}
-                        <Inserted>
-                          <VisuallyHidden>{t('editor.history.diff.inserted', 'Added text:')} </VisuallyHidden>
-                          {valueText(field.after, empty)}
-                        </Inserted>
-                      </Text>
-                    )}
-                  </Box>
-                ))}
+                {synced ? null : <EntryFields entry={entry} t={t} empty={empty} />}
                 {restorable ? (
                   <Flex>
                     <Button

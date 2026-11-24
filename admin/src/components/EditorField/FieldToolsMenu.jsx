@@ -34,6 +34,24 @@ const Shortcut = styled(Typography)`
 `;
 
 /**
+ * Label of an item, with the optional second line (2.11 `description`, for example why the entry
+ * cannot be used yet). Both lines are text of the item, so they are part of its accessible name.
+ * @param {{ entry: object }} props - Props.
+ * @returns {JSX.Element|string} Label.
+ */
+const ItemLabel = ({ entry }) =>
+  entry.description ? (
+    <Flex direction="column" alignItems="flex-start" gap={0}>
+      <span>{entry.label}</span>
+      <Typography variant="pi" textColor="neutral600" data-testid={`mex-tool-${entry.id}-description`}>
+        {entry.description}
+      </Typography>
+    </Flex>
+  ) : (
+    entry.label
+  );
+
+/**
  * End slot of an item: count badge, on-state check and keyboard shortcut (all decorative; the
  * accessible name, `aria-checked` and `aria-keyshortcuts` carry the same information).
  * @param {{ entry: object }} props - Props.
@@ -101,10 +119,11 @@ const itemAria = (entry, toggle, count) => {
  * @param {Function} props.t - Translator.
  * @param {Array<object>} props.tools - Field tool registry entries.
  * @param {boolean} [props.disabled] - Disables the trigger (editor not ready).
+ * @param {(open: boolean) => void} [props.onOpenChange] - Called when the menu opens or closes (2.11: lazy status checks).
  * @param {import('react').Ref<HTMLButtonElement>} ref - Trigger ref (focus returns here when a panel closes).
  * @returns {JSX.Element|null} Menu, or nothing without visible tools.
  */
-export const FieldToolsMenu = forwardRef(({ t, tools, disabled = false }, ref) => {
+export const FieldToolsMenu = forwardRef(({ t, tools, disabled = false, onOpenChange }, ref) => {
   const sections = groupFieldTools(tools);
   // The chosen tool runs after the menu has closed and released focus (Radix traps focus inside an
   // open menu, so a panel that focuses its input while the menu is still open loses focus to <body>).
@@ -114,6 +133,7 @@ export const FieldToolsMenu = forwardRef(({ t, tools, disabled = false }, ref) =
     <Menu.Root
       onOpenChange={(open) => {
         if (open) pendingRef.current = null;
+        if (typeof onOpenChange === 'function') onOpenChange(open);
       }}
     >
       <Menu.Trigger ref={ref} size="S" variant="ghost" disabled={disabled} data-testid="mex-tools-menu">
@@ -152,7 +172,7 @@ export const FieldToolsMenu = forwardRef(({ t, tools, disabled = false }, ref) =
                   data-testid={`mex-tool-${entry.id}`}
                   {...itemAria(entry, toggle, count)}
                 >
-                  {entry.label}
+                  <ItemLabel entry={entry} />
                 </Menu.Item>
               );
             })}

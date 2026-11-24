@@ -2,6 +2,7 @@ import ImageTool from '@editorjs/image';
 import { el, field, input } from './dom';
 import { createFocalControl } from './focal-point';
 import { createAltSuggestion, mediaFileId } from '../ai-alt-text';
+import { focalFromMediaLibrary, mergeMediaLibraryFile } from '../../../../shared/media-library.mjs';
 
 /**
  * Alternative text for image blocks: a labelled input plus a "decorative
@@ -155,6 +156,14 @@ export class MexImageTool extends ImageTool {
           options.block.dispatchChange();
       },
     });
+    // 2.11: "Edit in Media Library" (crop and focus there), rendered by the field through a portal.
+    this.mexBlock = (options && options.block) || null;
+    this.mexMountMedia =
+      typeof config.mountMediaEdit === 'function' && !(options && options.readOnly)
+        ? config.mountMediaEdit
+        : null;
+    this.mexMediaListeners = new Set();
+    this.mexUnmountMedia = null;
     // A new upload or Media Library file brings its own alternative text.
     const ui = this.ui;
     if (ui && typeof ui.fillImage === 'function') {
@@ -165,8 +174,32 @@ export class MexImageTool extends ImageTool {
         if (file && typeof file.alt === 'string') this.mexAlt.setAlt(file.alt);
         this.mexFocal.setUrl(typeof url === 'string' ? url : '');
         this.mexAlt.refresh();
+        for (const listener of [...this.mexMediaListeners]) listener();
       };
     }
+  }
+
+  /**
+   * 2.11: takes the file back from the Media Library after it was edited there (crop, replace).
+   * URL, size and formats follow the Media Library; the block keeps its alternative text. The
+   * Media Library's focal point (0-100) becomes the block's focal point (0-1) only when the block
+   * has none.
+   * @param {object} fresh - File from `GET /upload/files/:id`.
+   * @returns {boolean} Whether the block changed (then Editor.js is told, so the form saves it).
+   */
+  mexApplyMediaFile(fresh) {
+    const stored = this.data && this.data.file;
+    const next = mergeMediaLibraryFile(stored, fresh);
+    let changed = false;
+    if (next) {
+      this.image = next;
+      changed = true;
+    }
+    const focal = focalFromMediaLibrary(fresh && fresh.focalPoint);
+    if (focal && this.mexFocal.setDefault(focal)) changed = true;
+    if (changed && this.mexBlock && typeof this.mexBlock.dispatchChange === 'function')
+      this.mexBlock.dispatchChange();
+    return changed;
   }
 
   /**
@@ -178,11 +211,46 @@ export class MexImageTool extends ImageTool {
     // The caption is absolutely positioned at the bottom of the wrapper; the
     // alternative text goes before it, in normal flow below the image.
     const caption = this.ui && this.ui.nodes && this.ui.nodes.caption;
+    const parts = [this.mexAlt.element, this.mexFocal.element];
+    if (this.mexMountMedia) {
+      // Marked mutation-free: the React view's own updates are not edits of the block.
+      const mount = el('div', { className: 'mex-media-edit', attrs: { 'data-mutation-free': 'true' } });
+      mount.addEventListener('keydown', (event) => {
+        const target = event.target;
+        if (target && target !== mount && target.closest && target.closest('button, a, [tabindex]'))
+          event.stopPropagation();
+      });
+      parts.push(mount);
+      if (typeof this.mexUnmountMedia === 'function') this.mexUnmountMedia();
+      this.mexUnmountMedia = this.mexMountMedia(mount, {
+        blockId: this.mexBlock && this.mexBlock.id,
+        getFile: () => (this.data && this.data.file) || null,
+        subscribe: (listener) => {
+          this.mexMediaListeners.add(listener);
+          return () => this.mexMediaListeners.delete(listener);
+        },
+        applyFile: (fresh) => this.mexApplyMediaFile(fresh),
+      });
+    }
     if (caption && caption.parentNode === wrapper) {
-      wrapper.insertBefore(this.mexAlt.element, caption);
-      wrapper.insertBefore(this.mexFocal.element, caption);
-    } else wrapper.append(this.mexAlt.element, this.mexFocal.element);
+      for (const part of parts) wrapper.insertBefore(part, caption);
+    } else wrapper.append(...parts);
     return wrapper;
+  }
+
+  /** 2.11: removes the "Edit in Media Library" view (block removed or editor destroyed). */
+  destroy() {
+    const unmount = this.mexUnmountMedia;
+    this.mexUnmountMedia = null;
+    this.mexMediaListeners.clear();
+    if (typeof unmount === 'function') unmount();
+    if (typeof super.destroy === 'function') super.destroy();
+  }
+
+  /** Editor.js calls `removed` when the block is deleted. */
+  removed() {
+    this.destroy();
+    if (typeof super.removed === 'function') super.removed();
   }
 
   /**

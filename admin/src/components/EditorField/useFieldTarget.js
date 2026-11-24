@@ -14,7 +14,9 @@ const NO_KEYS = new Set();
  * attribute in the loaded document (the form's initial values): a value's key
  * is usable for history, comments and the live room only once it is saved.
  * @param {string} name - Field name/path from the Content Manager.
- * @returns {{ uid: string|null, documentId: string|null, locale: string|null, field: string, savedFieldKeys: Set<string> }} Target.
+ * 2.11: `hasDraftAndPublish` (the type uses Draft & Publish) and `baseline` (the form's initial
+ * values: a new object after the Content Manager reloads the entry on save, publish or unpublish).
+ * @returns {{ uid: string|null, documentId: string|null, locale: string|null, field: string, savedFieldKeys: Set<string>, hasDraftAndPublish: boolean, baseline: unknown }} Target.
  */
 export const useFieldTarget = (name) => {
   const context = useContentManagerContext();
@@ -32,5 +34,7 @@ export const useFieldTarget = (name) => {
       isPositionalFieldPath(name) && context && context.form
         ? fieldKeysAt(context.form.initialValues, name)
         : NO_KEYS,
+    hasDraftAndPublish: Boolean(context && context.hasDraftAndPublish),
+    baseline: context && context.form ? context.form.initialValues : null,
   };
 };
