@@ -1,6 +1,12 @@
 # Changelog
 
-## [Unreleased]
+# [2.12.0](https://github.com/Schero94/Magic-Editor-X/compare/v2.11.0...v2.12.0) (2026-11-24)
+
+
+### Features
+
+* changes since last publish and edit in Media Library (crop and focal point) ([#44](https://github.com/Schero94/Magic-Editor-X/issues/44)) ([cf8b518](https://github.com/Schero94/Magic-Editor-X/commit/cf8b518e20804c1252026c2807b49dd2e6a23fc8))
+
 
 ### Added (changes since last publish)
 
