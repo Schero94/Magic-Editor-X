@@ -17,6 +17,8 @@ export const AI_ERROR_MESSAGES = Object.freeze({
   RESPONSE_TOO_LARGE: ['editor.ai.error.tooLarge', 'The AI answer is too large. Try a shorter text.'],
   EMPTY: ['editor.ai.error.empty', 'The AI provider answered with no text. Try again.'],
   PROVIDER_ERROR: ['editor.ai.error.provider', 'The AI provider answered with an error. Try again later.'],
+  // 2.9: the "Style guide" review without a style guide in Settings > Configuration.
+  NO_STYLE_GUIDE: ['editor.ai.error.noStyleGuide', 'No style guide is set. Ask an administrator.'],
 });
 
 /**

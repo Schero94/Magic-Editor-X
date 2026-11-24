@@ -55,5 +55,7 @@
   "field.options.allowedComponents.reason.private": "{name} (privé)",
   "field.options.allowedComponents.reason.name": "{name} (nom)",
   "field.options.allowedComponents.reason.enum": "{name} (aucune option)",
-  "field.options.allowedComponents.reason.tooMany": "plus de 50 champs"
+  "field.options.allowedComponents.reason.tooMany": "plus de 50 champs",
+  "field.options.aiActions.label": "Actions IA de ce champ",
+  "field.options.aiActions.description": "Clés d’action séparées par des virgules, par exemple : improve, shorten, ask, proofread, clarity, style-guide ou la clé de votre propre action. Vide propose toutes les actions. Vérifié à nouveau sur le serveur."
 }

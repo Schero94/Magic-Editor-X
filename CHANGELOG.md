@@ -1,5 +1,22 @@
 # Changelog
 
+## [Unreleased]
+
+### Added (AI: Ask AI, AI review as suggestions, your own actions and a style guide)
+
+- **Ask AI…** in the AI dialogs of selected text and of chosen blocks: type your own instruction (up to 500 characters) and get the usual preview and word diff before anything changes. Your last five instructions come back as quick picks (kept in this browser only, per admin user).
+- **AI review as suggestions.** "Proofread", "Improve clarity" and "Check the style guide" for selected text, chosen blocks or the whole field do not edit: each block the AI would change becomes a suggestion in the existing Suggestions panel, marked "AI, requested by …", which you accept or reject as usual. At most 20 per run; running the same review again adds nothing; proposals the field preset refuses are dropped. New route `POST /magic-editor-x/ai/review/:kind` (access, ai.use and suggestions.create, plus Content Manager read).
+- **Your AI actions and a style guide** in Settings > Magic Editor X > Configuration > AI assistant: up to 10 named instructions (works on selected text, chosen blocks or the whole field; result: preview and replace, or suggestions) that appear below the built-in actions, and a style guide sent with the style guide review and, when you switch it on, with every AI action. Instructions stay on the server.
+- **Field setting "AI actions in this field"** (`aiActions`): the action keys a field offers, for example `improve, ask, proofread, seo-intro`. Empty offers every action; the server answers 403 for others.
+
+### Security (AI prompts)
+
+- An editor's instruction, an action's instruction and the style guide are untrusted: control and bidirectional characters are removed, `<` and `>` become `‹` and `›`, and each sits in its own prompt fence that it cannot close. Content can no longer close its fence either (`</text>` in selected text and `</json>` in block texts are escaped). Answers get the same checks and sanitising as before. Instructions and content are never logged or recorded in the audit trail; the settings audit records the number of actions and whether a style guide is set.
+
+### Migration notes
+
+- No action needed. The suggestion table gets a nullable `origin` column (Strapi adds it on start); existing suggestions keep `origin` empty and show as before. Settings saved by an older admin keep the stored actions and style guide. Fields without `aiActions` offer every action.
+
 ## [2.8.4](https://github.com/Schero94/Magic-Editor-X/compare/v2.8.3...v2.8.4) (2026-11-20)
 
 

@@ -55,5 +55,7 @@
   "field.options.allowedComponents.reason.private": "{name} (private)",
   "field.options.allowedComponents.reason.name": "{name} (name)",
   "field.options.allowedComponents.reason.enum": "{name} (no options)",
-  "field.options.allowedComponents.reason.tooMany": "more than 50 fields"
+  "field.options.allowedComponents.reason.tooMany": "more than 50 fields",
+  "field.options.aiActions.label": "AI actions in this field",
+  "field.options.aiActions.description": "Comma-separated action keys, for example: improve, shorten, ask, proofread, clarity, style-guide or the key of your own action. Empty offers every action. Checked again on the server."
 }

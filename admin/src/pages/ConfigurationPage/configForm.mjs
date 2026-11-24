@@ -5,6 +5,16 @@
  */
 
 import { OFFICIAL_BASE_URLS, environmentKeyCovers } from '../../../../shared/ai-endpoint.mjs';
+import {
+  ACTION_KEY_PATTERN,
+  ACTION_OUTPUTS,
+  ACTION_SCOPES,
+  MAX_ACTION_INSTRUCTION_CHARS,
+  MAX_ACTION_NAME_CHARS,
+  MAX_CUSTOM_ACTIONS,
+  MAX_STYLE_GUIDE_CHARS,
+  RESERVED_ACTION_KEYS,
+} from '../../../../shared/ai-actions.mjs';
 
 export const PROVIDERS = Object.freeze(['anthropic', 'openai', 'openai-compatible']);
 export const MODEL_PATTERN = /^[A-Za-z0-9._:/@-]+$/;
@@ -43,6 +53,10 @@ export const toLanguageToolDraft = (languageTool) =>
  */
 export const toDraft = (ai, languageTool, coreBlocks) => ({
   ...Object.fromEntries(SWITCHES.filter((key) => typeof ai[key] === 'boolean').map((key) => [key, ai[key]])),
+  // 2.9: owner-defined actions and the style guide; absent in DTOs of older servers, then never sent.
+  ...(Array.isArray(ai.actions) ? { actions: ai.actions.map(toActionDraft) } : {}),
+  ...(typeof ai.styleGuide === 'string' ? { styleGuide: ai.styleGuide } : {}),
+  ...(typeof ai.styleGuideForAll === 'boolean' ? { styleGuideForAll: ai.styleGuideForAll } : {}),
   ...(languageTool ? { languageTool: toLanguageToolDraft(languageTool) } : {}),
   ...(coreBlocks && typeof coreBlocks.enabled === 'boolean'
     ? { coreBlocks: { enabled: coreBlocks.enabled } }
@@ -56,6 +70,69 @@ export const toDraft = (ai, languageTool, coreBlocks) => ({
   apiKeyMode: 'keep',
   apiKey: '',
 });
+
+/**
+ * 2.9: one owner-defined action as the form edits it.
+ * @param {object} action - Stored action.
+ * @returns {{ key: string, name: string, instruction: string, scope: string, output: string }} Draft.
+ */
+export const toActionDraft = (action) => ({
+  key: String((action && action.key) || ''),
+  name: String((action && action.name) || ''),
+  instruction: String((action && action.instruction) || ''),
+  scope: ACTION_SCOPES.includes(action && action.scope) ? action.scope : 'selection',
+  output: ACTION_OUTPUTS.includes(action && action.output) ? action.output : 'replace',
+});
+
+/**
+ * 2.9: key suggested for a new action from its name (`SEO intro` -> `seo-intro`).
+ * @param {string} name - Name.
+ * @param {string[]} [taken] - Keys in use.
+ * @returns {string} Key ('' when the name has no letters or digits).
+ */
+export const actionKeyFromName = (name, taken = []) => {
+  let base = String(name || '')
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^[^a-z]+/, '')
+    .replace(/-+$/, '')
+    .slice(0, 34)
+    .replace(/-+$/, '');
+  if (base.length === 1) base = `${base}-action`;
+  if (!base) return '';
+  if (RESERVED_ACTION_KEYS.has(base)) base = `${base}-custom`;
+  let key = base;
+  for (let index = 2; taken.includes(key) && index < 100; index += 1) key = `${base}-${index}`;
+  return key;
+};
+
+/**
+ * 2.9: checks one action with the server's rules.
+ * @param {object} action - Action draft.
+ * @param {{ others?: object[] }} [context] - The other actions (unique keys).
+ * @returns {Record<string, string>} Field -> error code (`required`, `actionKey`, `reservedKey`, `takenKey`, `tooLongText`, `invalid`).
+ */
+export const validateAction = (action, { others = [] } = {}) => {
+  const errors = {};
+  const name = String(action.name || '').trim();
+  if (!name) errors.name = 'required';
+  else if (name.length > MAX_ACTION_NAME_CHARS) errors.name = 'tooLongText';
+  const key = String(action.key || '');
+  if (!key) errors.key = 'required';
+  else if (!ACTION_KEY_PATTERN.test(key)) errors.key = 'actionKey';
+  else if (RESERVED_ACTION_KEYS.has(key)) errors.key = 'reservedKey';
+  else if (others.some((other) => other.key === key)) errors.key = 'takenKey';
+  const instruction = String(action.instruction || '').trim();
+  if (!instruction) errors.instruction = 'required';
+  else if (instruction.length > MAX_ACTION_INSTRUCTION_CHARS) errors.instruction = 'tooLongText';
+  if (!ACTION_SCOPES.includes(action.scope)) errors.scope = 'invalid';
+  if (!ACTION_OUTPUTS.includes(action.output)) errors.output = 'invalid';
+  return errors;
+};
+
+export { MAX_CUSTOM_ACTIONS, MAX_STYLE_GUIDE_CHARS, MAX_ACTION_INSTRUCTION_CHARS, MAX_ACTION_NAME_CHARS };
 
 /**
  * Applies a provider change: the model follows the provider's default when it
@@ -153,6 +230,19 @@ export const validateDraft = (draft, { saved, ai, environment }) => {
     // Neither the stored key nor the ai.apiKey key is sent to another endpoint.
     errors.apiKey = 'reenter';
   }
+  if (typeof draft.styleGuide === 'string' && draft.styleGuide.length > MAX_STYLE_GUIDE_CHARS)
+    errors.styleGuide = 'tooLongText';
+  if (Array.isArray(draft.actions)) {
+    if (draft.actions.length > MAX_CUSTOM_ACTIONS) errors.actions = 'tooMany';
+    else if (
+      draft.actions.some(
+        (action, index) =>
+          Object.keys(validateAction(action, { others: draft.actions.filter((_, other) => other !== index) }))
+            .length
+      )
+    )
+      errors.actions = 'invalid';
+  }
   return errors;
 };
 
@@ -174,6 +264,17 @@ export const toPayload = (draft, saved) => {
   if (draft.apiKeyMode === 'remove') ai.apiKey = '';
   if (draft.apiKeyMode === 'replace') ai.apiKey = String(draft.apiKey || '').trim();
   for (const key of SWITCHES) if (typeof draft[key] === 'boolean') ai[key] = draft[key];
+  // 2.9: sent when the server knows them (the draft holds them only then).
+  if (Array.isArray(draft.actions))
+    ai.actions = draft.actions.map((action) => ({
+      key: action.key,
+      name: String(action.name || '').trim(),
+      instruction: String(action.instruction || '').trim(),
+      scope: action.scope,
+      output: action.output,
+    }));
+  if (typeof draft.styleGuide === 'string') ai.styleGuide = draft.styleGuide.trim();
+  if (typeof draft.styleGuideForAll === 'boolean') ai.styleGuideForAll = draft.styleGuideForAll;
   const languageTool = draft.languageTool ? toLanguageToolPayload(draft.languageTool) : null;
   const body = languageTool ? { ai, languageTool } : { ai };
   // 2.7: sent only when the switch changed, so saving other settings never pins the config default.
@@ -304,6 +405,8 @@ export const mapServerErrors = (details) => {
     const message = Array.isArray(messages) ? messages[0] : String(messages || '');
     const field = key.startsWith('ai.') ? key.slice(3) : null;
     if (field && EDITABLE.concat(['apiKey'], SWITCHES).includes(field)) out[field] = message;
+    else if (field && (field === 'styleGuide' || field === 'styleGuideForAll')) out[field] = message;
+    else if (field && /^actions(\.|$)/.test(field)) out.actions = message;
     else if (/^languageTool\.(enabled|baseUrl|username|level|apiKey)$/.test(key)) out[key] = message;
     else if (key === 'coreBlocks.enabled') out[key] = message;
     else out._form = message;
@@ -323,6 +426,9 @@ export const mapServerErrors = (details) => {
 export const sameDraft = (a, b) =>
   EDITABLE.every((key) => a[key] === b[key]) &&
   SWITCHES.every((key) => a[key] === b[key]) &&
+  a.styleGuide === b.styleGuide &&
+  a.styleGuideForAll === b.styleGuideForAll &&
+  JSON.stringify(a.actions || null) === JSON.stringify(b.actions || null) &&
   a.apiKeyMode === b.apiKeyMode &&
   (a.apiKeyMode !== 'replace' || a.apiKey === b.apiKey) &&
   sameLanguageTool(a.languageTool, b.languageTool) &&

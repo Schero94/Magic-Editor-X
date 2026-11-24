@@ -55,5 +55,7 @@
   "field.options.allowedComponents.reason.private": "{name} (privado)",
   "field.options.allowedComponents.reason.name": "{name} (nome)",
   "field.options.allowedComponents.reason.enum": "{name} (sem opções)",
-  "field.options.allowedComponents.reason.tooMany": "mais de 50 campos"
+  "field.options.allowedComponents.reason.tooMany": "mais de 50 campos",
+  "field.options.aiActions.label": "Ações de IA neste campo",
+  "field.options.aiActions.description": "Chaves de ação separadas por vírgulas, por exemplo: improve, shorten, ask, proofread, clarity, style-guide ou a chave da sua própria ação. Vazio oferece todas as ações. O servidor verifica-o de novo."
 }

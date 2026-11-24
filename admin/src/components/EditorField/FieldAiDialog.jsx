@@ -22,6 +22,9 @@ import {
   segmentPlainText,
 } from '../../../../shared/ai-fields.mjs';
 import { aiErrorEntry } from '../../editor/ai-errors.mjs';
+import { aiMenuEntries, entryRequest } from '../../editor/ai-menu.mjs';
+import { entryLabel } from './aiLabels';
+import { reviewErrorEntry } from './useAiReview';
 
 /**
  * Whole-field AI actions (2.3): translate every text of the field or
@@ -31,6 +34,10 @@ import { aiErrorEntry } from '../../editor/ai-errors.mjs';
  * blocks keep their ids, types, tunes and all non-text data because only the
  * inline text strings travel. A summary can be copied or inserted as a
  * paragraph.
+ *
+ * 2.9: AI reviews of the whole field (one suggestion per changed block in the
+ * Suggestions panel, also for reviewers who cannot edit the field) and
+ * owner-defined whole-field actions (preview and replace, or suggestions).
  */
 
 /** Codes this dialog words differently from the shared AI messages (`editor/ai-errors.mjs`). */
@@ -76,6 +83,10 @@ const toText = (html) => segmentPlainText(sanitizeInline(html));
  * @param {() => void} props.onClose - Closes.
  * @param {boolean} [props.readOnly] - Read-only field (summary only, no replace or insert).
  * @param {() => void} [props.returnFocus] - Focuses the opener (the menu item that opened the dialog is gone).
+ * @param {object} [props.preset] - 2.9: field preset (`aiActions` allow-list).
+ * @param {boolean} [props.canSuggest] - 2.9: reviews that add suggestions are offered.
+ * @param {Function} [props.review] - 2.9: `useAiReview()` runner.
+ * @param {(meta: object) => void} [props.onReviewed] - 2.9: after a review stored its suggestions.
  * @returns {JSX.Element} Modal.
  */
 export const FieldAiDialog = ({
@@ -88,10 +99,27 @@ export const FieldAiDialog = ({
   onClose,
   readOnly,
   returnFocus,
+  preset,
+  canSuggest = false,
+  review,
+  onReviewed,
 }) => {
   const { post } = useFetchClient();
   const languages = (config && config.languages) || ['English'];
-  const [action, setAction] = useState(readOnly ? 'summarize' : 'translate');
+  const entries = useMemo(
+    () =>
+      aiMenuEntries('field', {
+        preset,
+        reviews: config && config.reviews,
+        custom: config && config.custom,
+        canSuggest: Boolean(canSuggest && review),
+        canReplace: !readOnly,
+      }),
+    [config, preset, canSuggest, review, readOnly]
+  );
+  const [action, setAction] = useState(entries.length ? entries[0].value : '');
+  const entry = entries.find((item) => item.value === action) || null;
+  const suggests = Boolean(entry && entry.output === 'suggestions');
   const [language, setLanguage] = useState(languages[0]);
   const [segments, setSegments] = useState(null);
   const [state, setState] = useState({ status: 'idle', result: null, error: '' });
@@ -115,22 +143,40 @@ export const FieldAiDialog = ({
   const tooLong = Boolean(config && characters > config.maxInputChars);
 
   const send = async () => {
-    if (!segments || !segments.length) return;
+    if (!segments || !segments.length || !entry) return;
     if (abort.current) abort.current.abort();
     abort.current = new AbortController();
     setState({ status: 'loading', result: null, error: '' });
+    const request = entryRequest(entry);
+    const kind = request.action === 'summarize' ? 'summarize' : 'segments';
     try {
+      if (suggests) {
+        const meta = await review({
+          kind: entry.type === 'custom' ? 'custom' : entry.key,
+          actionKey: request.body.actionKey,
+          scope: 'field',
+          blockIds: null,
+          signal: abort.current.signal,
+        });
+        setState({ status: 'idle', result: null, error: '' });
+        if (onReviewed) onReviewed(meta);
+        onClose();
+        return;
+      }
       const { data } = await post(
-        API.aiField(action),
+        API.aiField(request.action),
         {
           target: { uid: target.uid, field: target.field },
           segments,
-          ...(action === 'translate' ? { language } : {}),
+          ...request.body,
+          ...(request.action === 'translate' ? { language } : {}),
         },
         { signal: abort.current.signal }
       );
       const result = data.data;
-      if (action === 'translate') {
+      // 'translate' renders the segment preview (also for owner-defined whole-field actions).
+      const resultAction = kind === 'summarize' ? 'summarize' : 'translate';
+      if (kind === 'segments') {
         // The answer must name exactly the strings that were sent.
         const sent = new Map(segments.map((segment) => [`${segment.blockId}|${segment.path}`, segment]));
         const received = Array.isArray(result.segments) ? result.segments : [];
@@ -139,14 +185,28 @@ export const FieldAiDialog = ({
           received.every((item) => sent.has(`${item.blockId}|${item.path}`) && typeof item.html === 'string');
         if (!valid) throw Object.assign(new Error('mismatch'), { mismatch: true });
         const translated = received.map((item) => ({ ...item, html: sanitizeInline(item.html) }));
-        setState({ status: 'done', result: { action, segments: translated, sent: segments }, error: '' });
+        setState({
+          status: 'done',
+          result: { action: resultAction, segments: translated, sent: segments },
+          error: '',
+        });
       } else {
-        setState({ status: 'done', result: { action, text: String(result.text || '') }, error: '' });
+        setState({
+          status: 'done',
+          result: { action: resultAction, text: String(result.text || '') },
+          error: '',
+        });
       }
     } catch (error) {
       if (abort.current && abort.current.signal.aborted) return;
-      const info = error && error.mismatch ? { code: 'BAD_RESPONSE' } : readApiError(error);
+      const info =
+        error && error.mismatch
+          ? { code: 'BAD_RESPONSE' }
+          : error && error.tooManyBlocks
+            ? { status: null, code: null }
+            : readApiError(error);
       const [key, text] =
+        (suggests ? reviewErrorEntry(info, error) : null) ||
         aiErrorEntry(info.code, ERROR_MESSAGES) ||
         (info.status === 429
           ? ['editor.ai.error.rateLimit', 'You sent many requests. Try again in a minute.']
@@ -218,17 +278,14 @@ export const FieldAiDialog = ({
                 }}
                 aria-label={t('editor.ai.action', 'What should the assistant do?')}
               >
-                {!readOnly ? (
-                  <Radio.Item value="translate">
-                    {t('editor.aiField.translate', 'Translate the whole field')}
+                {entries.map((item) => (
+                  <Radio.Item key={item.value} value={item.value}>
+                    {entryLabel(t, item, 'field')}
                   </Radio.Item>
-                ) : null}
-                <Radio.Item value="summarize">
-                  {t('editor.aiField.summarize', 'Summarize the field')}
-                </Radio.Item>
+                ))}
               </Radio.Group>
             </Field.Root>
-            {action === 'translate' ? (
+            {entry && entry.type === 'builtin' && entry.key === 'translate' ? (
               <Field.Root name="mex-field-ai-language">
                 <Field.Label>{t('editor.ai.language', 'Target language')}</Field.Label>
                 <SingleSelect
@@ -253,6 +310,12 @@ export const FieldAiDialog = ({
                   'The text of every block in this field ({count, plural, one {# text} other {# texts}}, {characters} characters) is sent to the AI provider your administrator configured, with its inline formatting and links. Images, files and other block data are not sent.',
                   { count: segments ? segments.length : 0, characters }
                 )}
+                {suggests
+                  ? ` ${t(
+                      'editor.ai.review.result',
+                      'Each change appears as a suggestion in the Suggestions panel; the field does not change.'
+                    )}`
+                  : ''}
               </Typography>
             </Box>
             {segments && !segments.length ? (
@@ -332,11 +395,14 @@ export const FieldAiDialog = ({
               variant={result ? 'secondary' : 'default'}
               onClick={send}
               loading={state.status === 'loading'}
-              disabled={!segments || !segments.length || tooLong || state.status === 'loading'}
+              disabled={!entry || !segments || !segments.length || tooLong || state.status === 'loading'}
+              data-testid={suggests ? 'mex-field-ai-review' : undefined}
             >
-              {result
-                ? t('editor.ai.retry', 'Try again')
-                : t('editor.aiField.send', 'Send to the AI provider')}
+              {suggests
+                ? t('editor.ai.review.run', 'Add suggestions')
+                : result
+                  ? t('editor.ai.retry', 'Try again')
+                  : t('editor.aiField.send', 'Send to the AI provider')}
             </Button>
             {result && result.action === 'translate' && !readOnly ? (
               <Button onClick={replace}>{t('editor.aiField.replace', 'Replace field content')}</Button>

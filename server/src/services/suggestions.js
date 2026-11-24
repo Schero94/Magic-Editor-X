@@ -9,6 +9,7 @@ const { displayName } = require('./comments');
 const { resolveFieldPreset, checkPreset } = require('../../../shared/presets.mjs');
 const { fieldInlinePolicy } = require('../utils/inline-policy');
 const { canonicalJson } = require('../../../shared/diff.mjs');
+const { blockContentKey } = require('../../../shared/suggestions.mjs');
 const { parseFieldIdentity } = require('../../../shared/field-identity.mjs');
 const {
   MAX_OPEN_SUGGESTIONS_PER_FIELD,
@@ -41,6 +42,8 @@ const ID_PATTERN = /^[a-z0-9]{1,64}$/;
 const DOCUMENT_RULES = new Set(['TOO_MANY_BLOCKS', 'TOO_MANY_CHARACTERS']);
 
 const notFound = () => new errors.NotFoundError('Not found');
+/** 2.9: `origin` of suggestions made by an AI review (`ai:<action key>`); null = written by a person. */
+const AI_ORIGIN_PATTERN = /^ai:[a-z][a-z0-9-]{0,39}$/;
 
 /**
  * Stored row -> API object. Never exposes admin ids: `own` tells the viewer
@@ -63,6 +66,11 @@ const toDto = (row, viewerId) => ({
     own: viewerId != null && row.authorId != null && Number(row.authorId) === Number(viewerId),
     deleted: row.authorId == null,
   },
+  // 2.9: made by an AI review that the author requested (null: written by the author).
+  ai:
+    typeof row.origin === 'string' && AI_ORIGIN_PATTERN.test(row.origin)
+      ? { action: row.origin.slice(3) }
+      : null,
   decidedAt: row.status === 'open' ? null : row.decidedAt || null,
   decidedBy:
     row.status === 'open' ? null : { name: row.decidedById == null ? null : row.decidedByName || null },
@@ -250,30 +258,46 @@ module.exports = ({ strapi }) => {
      *   identity (`field`) and the field path (`path`, for the attribute and its preset).
      * @param {{ suggestions: Array<{ op: string, blockId: string, afterBlockId?: string|null, proposed?: object|null, baseHash?: string|null }>, note?: string|null }} input - Validated input.
      * @param {{ id: number }} user - Author.
-     * @returns {Promise<{ suggestions: object[], created: number, updated: number }>} Stored suggestions.
+     * @param {{ origin?: string|null, skipIdentical?: boolean, dropInvalid?: boolean }} [options] - 2.9: `origin`
+     *   `ai:<action key>` for AI review suggestions (own suggestions of another origin are not replaced);
+     *   `skipIdentical` leaves out proposals an open suggestion already holds; `dropInvalid` drops proposals the
+     *   field refuses instead of failing.
+     * @returns {Promise<{ suggestions: object[], created: number, updated: number, duplicates: number, invalid: number }>} Stored suggestions.
      * @throws {errors.ValidationError} Invalid block, preset violation or too many open suggestions.
      * @sideeffect Inserts or updates rows.
      */
-    async create(target, input, user) {
+    async create(target, input, user, options = {}) {
       const contentType = strapi.contentType(target.uid);
       const resolved = contentType ? resolveEditorField(strapi, contentType, target.path) : null;
       if (!resolved) throw notFound();
+      const origin =
+        typeof options.origin === 'string' && AI_ORIGIN_PATTERN.test(options.origin) ? options.origin : null;
       const note = normalizeSuggestionNote(input.note);
       const seen = new Set();
-      const prepared = input.suggestions.map((item) => {
-        const key = `${item.op}|${item.blockId}`;
-        if (seen.has(key))
-          throw invalid('A block is suggested twice', 'DUPLICATE_SUGGESTION', { blockIds: [item.blockId] });
-        seen.add(key);
-        if (item.op === 'delete') return { ...item, proposed: null, afterBlockId: null };
-        if (!item.proposed)
-          throw invalid('A proposed block is missing', 'INVALID_BLOCK', { blockIds: [item.blockId] });
-        return {
-          ...item,
-          afterBlockId: item.op === 'insert' ? item.afterBlockId || null : null,
-          proposed: cleanProposed(item.proposed, item.blockId, resolved.attribute),
-        };
-      });
+      let invalidCount = 0;
+      const prepared = input.suggestions
+        .map((item) => {
+          const key = `${item.op}|${item.blockId}`;
+          if (seen.has(key))
+            throw invalid('A block is suggested twice', 'DUPLICATE_SUGGESTION', { blockIds: [item.blockId] });
+          seen.add(key);
+          if (item.op === 'delete') return { ...item, proposed: null, afterBlockId: null };
+          if (!item.proposed)
+            throw invalid('A proposed block is missing', 'INVALID_BLOCK', { blockIds: [item.blockId] });
+          let proposed;
+          try {
+            proposed = cleanProposed(item.proposed, item.blockId, resolved.attribute);
+          } catch (error) {
+            // 2.9: an AI review drops a proposal the field does not accept instead of failing the run.
+            if (options.dropInvalid && error instanceof errors.ValidationError) {
+              invalidCount += 1;
+              return null;
+            }
+            throw error;
+          }
+          return { ...item, afterBlockId: item.op === 'insert' ? item.afterBlockId || null : null, proposed };
+        })
+        .filter(Boolean);
       // 2.5: a private upload provider's signatures are never stored (they expire).
       const unsigned = await unsignStoredAll(
         strapi,
@@ -283,8 +307,33 @@ module.exports = ({ strapi }) => {
         if (value && prepared[index].proposed) prepared[index].proposed = value.blocks[0];
       });
       const where = whereTarget(target);
+      // 2.9: an identical open suggestion (same block version, same proposed content, by anyone) is not
+      // created again, so running the same AI review twice adds nothing.
+      let duplicates = 0;
+      if (options.skipIdentical && prepared.length) {
+        const openRows = await query().findMany({
+          where: { ...where, status: 'open', blockId: { $in: prepared.map((item) => item.blockId) } },
+          select: ['blockId', 'op', 'proposed', 'baseHash'],
+          limit: MAX_OPEN_SUGGESTIONS_PER_FIELD,
+        });
+        const existing = new Set(
+          openRows.map(
+            (row) =>
+              `${row.op}|${row.blockId}|${row.baseHash || ''}|${row.proposed ? blockContentKey(row.proposed) : ''}`
+          )
+        );
+        for (let index = prepared.length - 1; index >= 0; index -= 1) {
+          const item = prepared[index];
+          const key = `${item.op}|${item.blockId}|${item.baseHash || ''}|${item.proposed ? blockContentKey(item.proposed) : ''}`;
+          if (existing.has(key)) {
+            prepared.splice(index, 1);
+            duplicates += 1;
+          }
+        }
+      }
+      // Sending again replaces the caller's own open suggestion of the same kind (written or AI) for a block.
       const own = await query().findMany({
-        where: { ...where, status: 'open', authorId: user.id },
+        where: { ...where, status: 'open', authorId: user.id, origin },
         select: ['id', 'blockId', 'op'],
         limit: MAX_OPEN_SUGGESTIONS_PER_FIELD,
       });
@@ -320,13 +369,20 @@ module.exports = ({ strapi }) => {
                 op: item.op,
                 status: 'open',
                 authorId: user.id,
+                origin,
               },
             })
           );
           created += 1;
         }
       }
-      return { suggestions: stored.map((row) => toDto(row, user.id)), created, updated };
+      return {
+        suggestions: stored.map((row) => toDto(row, user.id)),
+        created,
+        updated,
+        duplicates,
+        invalid: invalidCount,
+      };
     },
 
     /**

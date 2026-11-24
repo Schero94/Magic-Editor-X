@@ -17,8 +17,13 @@ import { API, readApiError } from '../../utils/api';
 import { sanitizeInline } from '../../editor/sanitize';
 import { segmentPlainText } from '../../../../shared/ai-fields.mjs';
 import { applyBlockResult, blockSegments, changeViews } from '../../../../shared/ai-blocks.mjs';
+import { MAX_INSTRUCTION_CHARS } from '../../../../shared/ai-actions.mjs';
 import { TextOps } from './VersionDiff';
 import { aiErrorEntry } from '../../editor/ai-errors.mjs';
+import { aiMenuEntries, entryRequest } from '../../editor/ai-menu.mjs';
+import { entryLabel } from './aiLabels';
+import { AskInstruction } from './AskInstruction';
+import { reviewErrorEntry } from './useAiReview';
 
 /**
  * Block-aware AI actions (2.4): rewrite, shorten, translate or change the
@@ -27,14 +32,12 @@ import { aiErrorEntry } from '../../editor/ai-errors.mjs';
  * tunes and every other value stay in the browser. The answer is shown as a
  * word diff and applied only after "Apply to blocks", as one undo step and
  * only while the blocks still hold the strings that were sent.
+ *
+ * 2.9: "Ask AI…" with the admin's own instruction (same preview), AI reviews
+ * and owner-defined actions with the output "suggestions" (one suggestion
+ * per changed block in the Suggestions panel; nothing changes in the field),
+ * and owner-defined block actions after the built-in ones.
  */
-
-const ACTION_LABELS = {
-  improve: ['editor.aiBlocks.action.improve', 'Rewrite (improve writing)'],
-  shorten: ['editor.aiBlocks.action.shorten', 'Make shorter'],
-  translate: ['editor.aiBlocks.action.translate', 'Translate'],
-  tone: ['editor.aiBlocks.action.tone', 'Change tone'],
-};
 
 const TONE_LABELS = {
   professional: ['editor.ai.tone.professional', 'Professional'],
@@ -83,6 +86,11 @@ const toText = (html) => segmentPlainText(sanitizeInline(html));
  * @param {(data: object, count: number) => Promise<void>} props.onApply - Replaces the content (one undo step).
  * @param {() => void} props.onClose - Closes.
  * @param {() => void} [props.returnFocus] - Focuses the opener again.
+ * @param {boolean} [props.canSuggest] - 2.9: reviews that add suggestions are offered.
+ * @param {Function} [props.review] - 2.9: `useAiReview()` runner.
+ * @param {(meta: object) => void} [props.onReviewed] - 2.9: after a review stored its suggestions.
+ * @param {string[]} [props.recent] - 2.9: recent "Ask AI…" instructions.
+ * @param {(instruction: string) => void} [props.onInstructionUsed] - 2.9: remembers an instruction.
  * @returns {JSX.Element} Modal.
  */
 export const BlockAiDialog = ({
@@ -95,11 +103,32 @@ export const BlockAiDialog = ({
   onApply,
   onClose,
   returnFocus,
+  canSuggest = false,
+  review,
+  onReviewed,
+  recent = [],
+  onInstructionUsed,
 }) => {
   const { post } = useFetchClient();
   const languages = (config && config.languages) || ['English'];
   const tones = (config && config.tones) || ['professional'];
-  const [action, setAction] = useState('improve');
+  const entries = useMemo(
+    () =>
+      aiMenuEntries('blocks', {
+        preset,
+        reviews: config && config.reviews,
+        custom: config && config.custom,
+        canSuggest: Boolean(canSuggest && review),
+      }),
+    [config, preset, canSuggest, review]
+  );
+  const [action, setAction] = useState(entries.length ? entries[0].value : '');
+  const entry = entries.find((item) => item.value === action) || null;
+  const suggests = Boolean(entry && entry.output === 'suggestions');
+  const needsInstruction = Boolean(entry && entry.type === 'ask');
+  const [instruction, setInstruction] = useState('');
+  const [missing, setMissing] = useState('');
+  const maxInstruction = (config && config.maxInstructionChars) || MAX_INSTRUCTION_CHARS;
   const [language, setLanguage] = useState(languages[0]);
   const [tone, setTone] = useState(tones[0]);
   const [segments, setSegments] = useState(null);
@@ -127,21 +156,42 @@ export const BlockAiDialog = ({
   const fail = (message) => setState({ status: 'error', result: null, error: message });
 
   const send = async () => {
-    if (!segments || !segments.length) return;
+    if (!segments || !segments.length || !entry) return;
+    if (needsInstruction && !instruction.trim()) {
+      setMissing(t('editor.ai.ask.required', 'Write an instruction first.'));
+      return;
+    }
     if (abort.current) abort.current.abort();
     abort.current = new AbortController();
     setState({ status: 'loading', result: null, error: '' });
+    const request = entryRequest(entry);
     try {
+      if (suggests) {
+        const meta = await review({
+          kind: entry.type === 'custom' ? 'custom' : entry.key,
+          actionKey: request.body.actionKey,
+          scope: 'blocks',
+          blockIds,
+          signal: abort.current.signal,
+        });
+        reset();
+        if (onReviewed) onReviewed(meta);
+        onClose();
+        return;
+      }
       const { data } = await post(
-        API.aiBlocks(action),
+        API.aiBlocks(request.action),
         {
           target: { uid: target.uid, field: target.field },
           segments,
-          ...(action === 'translate' ? { language } : {}),
-          ...(action === 'tone' ? { tone } : {}),
+          ...request.body,
+          ...(request.action === 'translate' ? { language } : {}),
+          ...(request.action === 'tone' ? { tone } : {}),
+          ...(needsInstruction ? { instruction: instruction.trim() } : {}),
         },
         { signal: abort.current.signal }
       );
+      if (needsInstruction && onInstructionUsed) onInstructionUsed(instruction.trim());
       const received = data && data.data && Array.isArray(data.data.segments) ? data.data.segments : [];
       const sent = new Map(segments.map((segment) => [`${segment.blockId}|${segment.path}`, segment]));
       const valid =
@@ -157,8 +207,14 @@ export const BlockAiDialog = ({
       setState({ status: 'done', result: { segments: rows, sent: segments }, error: '' });
     } catch (error) {
       if (abort.current && abort.current.signal.aborted) return;
-      const info = error && error.mismatch ? { code: 'BAD_RESPONSE' } : readApiError(error);
+      const info =
+        error && error.mismatch
+          ? { code: 'BAD_RESPONSE' }
+          : error && error.tooManyBlocks
+            ? { status: null, code: null }
+            : readApiError(error);
       const [key, text] =
+        (suggests ? reviewErrorEntry(info, error) : null) ||
         aiErrorEntry(info.code, ERROR_MESSAGES) ||
         (info.status === 429
           ? ['editor.ai.error.rateLimit', 'You sent many requests. Try again in a minute.']
@@ -224,14 +280,29 @@ export const BlockAiDialog = ({
                 }}
                 aria-label={t('editor.ai.action', 'What should the assistant do?')}
               >
-                {Object.entries(ACTION_LABELS).map(([value, [key, text]]) => (
-                  <Radio.Item key={value} value={value}>
-                    {t(key, text)}
+                {entries.map((item) => (
+                  <Radio.Item key={item.value} value={item.value}>
+                    {entryLabel(t, item, 'blocks')}
                   </Radio.Item>
                 ))}
               </Radio.Group>
             </Field.Root>
-            {action === 'translate' ? (
+            {needsInstruction ? (
+              <AskInstruction
+                t={t}
+                name="mex-block-ai-instruction"
+                value={instruction}
+                onChange={(next) => {
+                  setInstruction(next);
+                  setMissing('');
+                  reset();
+                }}
+                max={maxInstruction}
+                recent={recent}
+                error={missing || undefined}
+              />
+            ) : null}
+            {entry && entry.type === 'builtin' && entry.key === 'translate' ? (
               <Field.Root name="mex-block-ai-language">
                 <Field.Label>{t('editor.ai.language', 'Target language')}</Field.Label>
                 <SingleSelect
@@ -249,7 +320,7 @@ export const BlockAiDialog = ({
                 </SingleSelect>
               </Field.Root>
             ) : null}
-            {action === 'tone' ? (
+            {entry && entry.type === 'builtin' && entry.key === 'tone' ? (
               <Field.Root name="mex-block-ai-tone">
                 <Field.Label>{t('editor.ai.tone', 'Tone')}</Field.Label>
                 <SingleSelect
@@ -274,6 +345,12 @@ export const BlockAiDialog = ({
                   'The text of the chosen blocks ({blocks, plural, one {# block} other {# blocks}}, {characters} characters) is sent to the AI provider your administrator configured, with its inline formatting and links. Images, files and other block data are not sent.',
                   { blocks: blockCount, characters }
                 )}
+                {suggests
+                  ? ` ${t(
+                      'editor.ai.review.result',
+                      'Each change appears as a suggestion in the Suggestions panel; the field does not change.'
+                    )}`
+                  : ''}
               </Typography>
             </Box>
             {segments && !segments.length ? (
@@ -339,11 +416,14 @@ export const BlockAiDialog = ({
               variant={result ? 'secondary' : 'default'}
               onClick={send}
               loading={state.status === 'loading'}
-              disabled={!segments || !segments.length || tooLong || state.status === 'loading'}
+              disabled={!entry || !segments || !segments.length || tooLong || state.status === 'loading'}
+              data-testid={suggests ? 'mex-block-ai-review' : undefined}
             >
-              {result
-                ? t('editor.ai.retry', 'Try again')
-                : t('editor.aiField.send', 'Send to the AI provider')}
+              {suggests
+                ? t('editor.ai.review.run', 'Add suggestions')
+                : result
+                  ? t('editor.ai.retry', 'Try again')
+                  : t('editor.aiField.send', 'Send to the AI provider')}
             </Button>
             {result ? (
               <Button onClick={apply} data-testid="mex-block-ai-apply">

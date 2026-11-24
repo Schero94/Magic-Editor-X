@@ -20,7 +20,8 @@ module.exports = ({ strapi }) => ({
    * @auth admin; settings.read + settings.update
    * @sideeffect Stores settings; an API key is encrypted at rest. Changing provider or base URL requires the key again.
    *   Records `settings.update` in the audit trail with the submitted top-level keys and, for the Core Blocks
-   *   bridge switch, `coreBlocks: 'on'|'off'`.
+   *   bridge switch, `coreBlocks: 'on'|'off'`; 2.9: `counts.aiActions` (stored owner-defined actions) when the
+   *   actions were sent, `styleGuide: 'set'|'empty'` and `styleGuideForAll: 'on'|'off'` when sent.
    */
   async update(ctx) {
     ctx.set('Cache-Control', 'no-store');
@@ -35,7 +36,19 @@ module.exports = ({ strapi }) => ({
     };
     if (body.coreBlocks && typeof body.coreBlocks.enabled === 'boolean')
       meta.coreBlocks = body.coreBlocks.enabled ? 'on' : 'off';
-    await recordAudit(strapi, { event: 'settings.update', meta });
+    // 2.9: owner-defined AI actions and the style guide: the number of actions and whether a style
+    // guide is set (never names, instructions or the guide's text).
+    const ai = body.ai && typeof body.ai === 'object' ? body.ai : {};
+    const stored = ctx.body.data && ctx.body.data.ai ? ctx.body.data.ai : {};
+    const counts = {};
+    if (Array.isArray(ai.actions)) counts.aiActions = (stored.actions || []).length;
+    if (typeof ai.styleGuide === 'string') meta.styleGuide = stored.styleGuide ? 'set' : 'empty';
+    if (typeof ai.styleGuideForAll === 'boolean') meta.styleGuideForAll = ai.styleGuideForAll ? 'on' : 'off';
+    await recordAudit(strapi, {
+      event: 'settings.update',
+      meta,
+      ...(Object.keys(counts).length ? { counts } : {}),
+    });
   },
 
   /**

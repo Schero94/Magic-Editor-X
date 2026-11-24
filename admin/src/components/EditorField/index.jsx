@@ -35,7 +35,7 @@ import {
   Search,
   Sparkle,
 } from '@strapi/icons';
-import { useNotification, useStrapiApp } from '@strapi/strapi/admin';
+import { useAuth, useNotification, useStrapiApp } from '@strapi/strapi/admin';
 import { useFetchClient } from '../../utils/fetch-client';
 import { Lightbulb, Pencil } from '@strapi/icons';
 import styled, { createGlobalStyle, useTheme } from 'styled-components';
@@ -138,6 +138,10 @@ import { ComponentBlockView } from './ComponentBlockView';
 import { setActiveComponents } from '../../../../shared/components.mjs';
 import { FieldAiDialog } from './FieldAiDialog';
 import { BlockAiDialog } from './BlockAiDialog';
+import { useAiReview } from './useAiReview';
+import { blockIdsOfRange } from '../../editor/ai-menu.mjs';
+import { readRecentInstructions, saveRecentInstruction } from '../../editor/ai-recent';
+import { MAX_AI_REVIEW_SUGGESTIONS } from '../../../../shared/ai-actions.mjs';
 // 2.5: dropped files (Media Library drop zone) and signed URLs of private upload providers.
 import { MediaDropArea } from './MediaDropArea';
 import { droppedBlock, dropPosition, dropTypesFor, imageBlockData } from '../../editor/drop-insert.mjs';
@@ -1287,6 +1291,31 @@ const EditorFieldBody = ({
   });
   const canSuggest = Boolean(suggestionsEnabled && permissions.suggestionsCreate && suggestions.canCreate);
 
+  // 2.9 AI review as suggestions: the content as the field shows it (read-only editors cannot always
+  // save, so the last known content is the fallback), sent to the server, which stores the suggestions.
+  const readForReview = useCallback(async () => {
+    const editor = editorRef.current;
+    const saved =
+      editor && !(editor.readOnly && editor.readOnly.isEnabled)
+        ? await editor.save().catch(() => null)
+        : null;
+    return prepareEditorValue(saved || currentDataRef.current).data;
+  }, []);
+  const aiReview = useAiReview({ target: fieldTarget, readData: readForReview, suggestions });
+  const aiReviewAllowed = Boolean(canSuggest && aiAllowed && !suggestMode);
+
+  // 2.9 "Ask AI…": the admin's recent instructions (this browser only, per admin user).
+  const aiOwner = useAuth('MagicEditorX', (state) => (state.user ? state.user.id : null));
+  const storedInstructions = useMemo(() => readRecentInstructions(aiOwner), [aiOwner]);
+  const [usedInstructions, setUsedInstructions] = useState(null);
+  const recentInstructions =
+    usedInstructions && usedInstructions.owner === aiOwner ? usedInstructions.list : storedInstructions;
+  const rememberInstruction = useCallback(
+    (instruction) =>
+      setUsedInstructions({ owner: aiOwner, list: saveRecentInstruction(aiOwner, instruction) }),
+    [aiOwner]
+  );
+
   // Upload helpers (multipart through the admin fetch client).
   const upload = useCallback(
     async (path, field, file) => {
@@ -1351,7 +1380,10 @@ const EditorFieldBody = ({
     // Close the inline toolbar and its tooltip so nothing floats above the dialog.
     if (editor && editor.inlineToolbar) editor.inlineToolbar.close();
     if (editor && editor.tooltip && typeof editor.tooltip.hide === 'function') editor.tooltip.hide();
-    setAiRequest(request);
+    // 2.9: the blocks the selection is in (an AI review of a selection suggests changes to them).
+    setAiRequest(
+      request ? { ...request, blockIds: blockIdsOfRange(request.range, holderRef.current) } : request
+    );
   }, []);
   const onBlockAiRequest = useCallback((ids) => {
     const editor = editorRef.current;
@@ -2781,6 +2813,40 @@ const EditorFieldBody = ({
     [readOnly, replaceContent, suggestions]
   );
 
+  /**
+   * 2.9: an AI review stored its suggestions: say how many, then open the Suggestions panel.
+   * @param {{ created?: number, updated?: number, duplicates?: number, capped?: number, invalid?: number }} meta - Result.
+   */
+  const onAiReviewed = useCallback(
+    (meta) => {
+      const count = (Number(meta && meta.created) || 0) + (Number(meta && meta.updated) || 0);
+      const duplicates = Number(meta && meta.duplicates) || 0;
+      const capped = Number(meta && meta.capped) || 0;
+      let message;
+      if (count)
+        message = t(
+          'editor.ai.review.added',
+          '{count, plural, one {# suggestion} other {# suggestions}} added to the Suggestions panel.',
+          { count }
+        );
+      else if (duplicates)
+        message = t('editor.ai.review.duplicates', 'These suggestions are already in the Suggestions panel.');
+      else message = t('editor.ai.review.none', 'The AI suggests no changes.');
+      if (capped)
+        message = `${message} ${t(
+          'editor.ai.review.capped',
+          'Only the first {max} are added. Review fewer blocks to see the rest.',
+          { max: MAX_AI_REVIEW_SUGGESTIONS }
+        )}`;
+      toggleNotification({ type: count || duplicates ? 'success' : 'info', message });
+      if (count || duplicates) {
+        setMenuPanel('suggestions');
+        setSuggestionsOpen(true);
+      }
+    },
+    [t, toggleNotification]
+  );
+
   const closeSuggestions = useCallback(() => {
     setSuggestionsOpen(false);
     setMenuPanel(null);
@@ -3913,6 +3979,12 @@ const EditorFieldBody = ({
           request={aiRequest}
           config={config && config.ai}
           target={{ uid: target.uid, field: target.field }}
+          preset={preset}
+          canSuggest={aiReviewAllowed && !readOnly}
+          review={aiReview}
+          onReviewed={onAiReviewed}
+          recent={recentInstructions}
+          onInstructionUsed={rememberInstruction}
           onApply={(html) => {
             applyAi(html, aiRequest);
             setAiRequest(null);
@@ -3942,6 +4014,11 @@ const EditorFieldBody = ({
           }}
           onClose={() => setBlockAiRequest(null)}
           returnFocus={() => selectBlock(blockAiRequest.ids[0])}
+          canSuggest={aiReviewAllowed}
+          review={aiReview}
+          onReviewed={onAiReviewed}
+          recent={recentInstructions}
+          onInstructionUsed={rememberInstruction}
         />
       ) : null}
       {fieldAiOpen && fieldAiAllowed ? (
@@ -3955,6 +4032,10 @@ const EditorFieldBody = ({
           onClose={() => setFieldAiOpen(false)}
           readOnly={readOnly}
           returnFocus={focusToolsMenu}
+          preset={preset}
+          canSuggest={aiReviewAllowed}
+          review={aiReview}
+          onReviewed={onAiReviewed}
         />
       ) : null}
       {shortcutsOpen ? (

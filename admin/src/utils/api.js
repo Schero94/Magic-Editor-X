@@ -28,6 +28,7 @@ export const API = {
   aiAltText: '/magic-editor-x/ai/image/alt-text',
   aiField: (action) => `/magic-editor-x/ai/field/${encodeURIComponent(action)}`,
   aiBlocks: (action) => `/magic-editor-x/ai/blocks/${encodeURIComponent(action)}`,
+  aiReview: (kind) => `/magic-editor-x/ai/review/${encodeURIComponent(kind)}`,
   grammarCheck: '/magic-editor-x/grammar/check',
   comments: '/magic-editor-x/comments',
   comment: (id) => `/magic-editor-x/comments/${encodeURIComponent(id)}`,

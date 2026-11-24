@@ -17,6 +17,8 @@
  *   `inlineAnnotations` (comma-separated annotation names, e.g. `abbreviation`)
  * - `allowedComponents` (2.5): comma-separated component uids editors may insert as
  *   component blocks (none = no component blocks); independent of the block list
+ * - `aiActions` (2.9): comma-separated AI action keys the field offers (built-in names,
+ *   `ask`, `proofread`, `clarity`, `style-guide`, owner-defined keys); empty = all
  */
 
 import { isPlainObject, computeStats } from './editor-data.mjs';
@@ -26,6 +28,7 @@ import { registeredBlockOf, isBuiltInBlock } from './sanitize-policy.mjs';
 import { columnsTextFields } from './columns.mjs';
 import { activeAnnotations, ANNOTATION_NAME } from './blocks/annotations.mjs';
 import { parseComponentList } from './components.mjs';
+import { parseAiActionList } from './ai-actions.mjs';
 
 /** Built-in block types (stored names). `mediaLib` only inserts `image` blocks. */
 export const BUILTIN_BLOCKS = Object.freeze([
@@ -191,6 +194,7 @@ const limitOf = (value) => {
  * @property {boolean} script - 2.5: superscript and subscript (option `inlineScript`).
  * @property {string[]} annotations - 2.5: annotation names listed in `inlineAnnotations`.
  * @property {string[]} components - 2.5: component uids allowed as component blocks (not part of `restricted`).
+ * @property {string[]|null} aiActions - 2.9: AI action keys the field offers, null for all (not part of `restricted`).
  */
 
 /**
@@ -232,6 +236,7 @@ export const resolveFieldPreset = (options) => {
     collaboration: source.disableCollaboration !== true,
     publishGuard: source.publishGuard === true,
     components: parseComponentList(source.allowedComponents),
+    aiActions: parseAiActionList(source.aiActions),
   };
   preset.restricted = Boolean(
     preset.blocks ||

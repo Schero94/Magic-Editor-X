@@ -4,6 +4,7 @@ const { ACTIONS } = require('../permissions');
 const { service } = require('./helpers');
 const { paletteOf } = require('../utils/inline-policy');
 const { createComponentLookup } = require('../utils/component-blocks');
+const { MAX_INSTRUCTION_CHARS, REVIEW_KINDS } = require('../../../shared/ai-actions.mjs');
 
 /**
  * @route GET /magic-editor-x/config
@@ -47,6 +48,18 @@ module.exports = ({ strapi }) => ({
           // 2.3 owner switches (the server checks them again on every request).
           altText: settings.ai.allowImages === true,
           fieldActions: settings.ai.allowFieldActions === true,
+          // 2.9: "Ask AI…", AI review and owner-defined actions (names only; instructions stay on the server).
+          maxInstructionChars: MAX_INSTRUCTION_CHARS,
+          reviews: REVIEW_KINDS.filter(
+            (kind) =>
+              kind !== 'style-guide' || Boolean(settings.ai.styleGuide && settings.ai.styleGuide.trim())
+          ),
+          custom: (settings.ai.actions || []).map(({ key, name, scope, output }) => ({
+            key,
+            name,
+            scope,
+            output,
+          })),
         },
         grammar: { enabled: Boolean(settings.languageTool.enabled && settings.languageTool.baseUrl) },
         uploads: {

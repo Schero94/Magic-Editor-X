@@ -55,5 +55,7 @@
   "field.options.allowedComponents.reason.private": "{name} (privado)",
   "field.options.allowedComponents.reason.name": "{name} (nombre)",
   "field.options.allowedComponents.reason.enum": "{name} (sin opciones)",
-  "field.options.allowedComponents.reason.tooMany": "más de 50 campos"
+  "field.options.allowedComponents.reason.tooMany": "más de 50 campos",
+  "field.options.aiActions.label": "Acciones de IA en este campo",
+  "field.options.aiActions.description": "Claves de acción separadas por comas, por ejemplo: improve, shorten, ask, proofread, clarity, style-guide o la clave de su propia acción. Vacío ofrece todas las acciones. El servidor lo comprueba de nuevo."
 }

@@ -343,6 +343,20 @@ export default {
                 name: 'options.disableAi',
                 type: 'checkbox',
               },
+              // 2.9: which AI actions the field offers (empty: all).
+              {
+                intlLabel: {
+                  id: getTranslation('field.options.aiActions.label'),
+                  defaultMessage: 'AI actions in this field',
+                },
+                description: {
+                  id: getTranslation('field.options.aiActions.description'),
+                  defaultMessage:
+                    'Comma-separated action keys, for example: improve, shorten, ask, proofread, clarity, style-guide or the key of your own action. Empty offers every action. Checked again on the server.',
+                },
+                name: 'options.aiActions',
+                type: 'text',
+              },
               {
                 intlLabel: {
                   id: getTranslation('field.options.disableGrammar.label'),
