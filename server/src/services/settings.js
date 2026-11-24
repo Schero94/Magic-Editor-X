@@ -8,6 +8,12 @@ const { validateHttpUrl } = require('../utils/url-security');
 const { inspectCsp } = require('../../../shared/csp.mjs');
 const { paletteCss } = require('../../../shared/inline-format.mjs');
 const { paletteContrastIssues } = require('../../../shared/quality.mjs');
+const {
+  INSIGHT_SETTINGS,
+  BLOCKABLE_SETTINGS,
+  CONTENT_CHECK_LIMITS,
+  normalizeContentChecks,
+} = require('../../../shared/content-insights.mjs');
 const { paletteOf } = require('../utils/inline-policy');
 const { mcpStatus } = require('../mcp');
 const {
@@ -140,12 +146,28 @@ const languageToolInputSchema = z.strictObject({
   apiKey: z.string().max(500).optional(),
 });
 
+/** 2.9: readability and SEO hints in the editor's Quality panel (shared/content-insights.mjs). */
+const limit = (key) => z.number().int().min(CONTENT_CHECK_LIMITS[key].min).max(CONTENT_CHECK_LIMITS[key].max);
+const contentChecksInputSchema = z.strictObject({
+  enabled: z.boolean(),
+  h1: z.enum(['title', 'content']),
+  disabled: z.array(z.enum([...INSIGHT_SETTINGS])).max(INSIGHT_SETTINGS.length),
+  blockPublish: z.array(z.enum([...BLOCKABLE_SETTINGS])).max(BLOCKABLE_SETTINGS.length),
+  minWords: limit('minWords'),
+  minInternalLinks: limit('minInternalLinks'),
+  sentenceWords: limit('sentenceWords'),
+  paragraphWords: limit('paragraphWords'),
+  sectionWords: limit('sectionWords'),
+});
+
 const settingsInputSchema = z.strictObject({
   ai: aiInputSchema,
   /** 2.3; omitted keeps the stored LanguageTool settings. */
   languageTool: languageToolInputSchema.optional(),
   /** 2.7 Core Blocks bridge switch; omitted keeps the stored value (or the config default). */
   coreBlocks: z.strictObject({ enabled: z.boolean() }).optional(),
+  /** 2.9 readability and SEO hints; omitted keeps the stored value (or the defaults). */
+  contentChecks: contentChecksInputSchema.optional(),
 });
 
 /**
@@ -208,6 +230,7 @@ module.exports = ({ strapi }) => {
         styleGuideForAll: ai.styleGuideForAll === true,
       },
       languageTool: { ...DEFAULT_LANGUAGE_TOOL, ...(stored.languageTool || {}) },
+      contentChecks: normalizeContentChecks(stored.contentChecks),
     };
   };
 
@@ -328,6 +351,8 @@ module.exports = ({ strapi }) => {
     const { apiKeyEncrypted: ltKey, ...languageTool } = raw.languageTool || DEFAULT_LANGUAGE_TOOL;
     return {
       coreBlocks: coreBlocksDto(),
+      // 2.9: readability and SEO hints (no secrets).
+      contentChecks: normalizeContentChecks(raw.contentChecks),
       languageTool: {
         ...languageTool,
         hasApiKey: Boolean(ltKey),
@@ -492,6 +517,14 @@ module.exports = ({ strapi }) => {
     inspectAdminCsp,
 
     /**
+     * 2.9: readability and SEO hint settings (publish guard, editor config).
+     * @returns {Promise<ReturnType<typeof normalizeContentChecks>>} Normalised settings.
+     */
+    async contentChecks() {
+      return (await readRaw()).contentChecks;
+    },
+
+    /**
      * Settings for the settings page (no secrets).
      * @returns {Promise<object>} DTO.
      */
@@ -578,7 +611,10 @@ module.exports = ({ strapi }) => {
       const coreBlocks = parsed.data.coreBlocks
         ? { enabled: parsed.data.coreBlocks.enabled }
         : raw.coreBlocks;
-      const value = { ...raw, ai, languageTool, ...(coreBlocks ? { coreBlocks } : {}) };
+      const contentChecks = parsed.data.contentChecks
+        ? normalizeContentChecks(parsed.data.contentChecks)
+        : raw.contentChecks;
+      const value = { ...raw, ai, languageTool, contentChecks, ...(coreBlocks ? { coreBlocks } : {}) };
       await store(strapi).set({ key: 'settings', value });
       // 2.7: this process follows the switch at once, the others within 30 seconds.
       if (parsed.data.coreBlocks)

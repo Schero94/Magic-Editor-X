@@ -144,7 +144,7 @@ const BACKGROUND_COLOR_KEYS = ['background', 'backgroundColor', 'bg', 'backgroun
  * @param {string} text - Link text.
  * @returns {string} Lower-case text without surrounding punctuation and repeated spaces.
  */
-const normalizeLinkText = (text) =>
+export const normalizeLinkText = (text) =>
   String(text)
     .replace(/\u00a0/g, ' ')
     .toLowerCase()

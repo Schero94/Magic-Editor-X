@@ -1,210 +1,126 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useIntl } from 'react-intl';
 import {
+  Accordion,
   Badge,
   Box,
   Button,
+  Field,
   Flex,
   IconButton,
   Loader,
   Status,
+  TextButton,
+  TextInput,
   Typography,
   VisuallyHidden,
 } from '@strapi/design-system';
 import { Cross } from '@strapi/icons';
 import styled from 'styled-components';
-import { extractLinks } from '../../../../shared/quality.mjs';
-import { API, readApiError } from '../../utils/api';
+import { insightLanguage, normalizeContentChecks } from '../../../../shared/content-insights.mjs';
 import { useQualityIssues } from './useQualityIssues';
-import { closeOnEscape, refocusIfLost, usePanelAutoFocus } from './usePanelFocus';
+import { useContentInsights } from './useContentInsights';
+import { fixActionOf } from './quality-fixes.mjs';
+import { closeOnEscape, refocusLater, usePanelAutoFocus } from './usePanelFocus';
+import { LinkTextFix } from './LinkTextFix';
+import { HINTS, PRESET_RULES, RULES } from './quality-messages';
+import { List, RowButton, Wrap } from './quality-ui';
+import { QualityLinks } from './QualityLinks';
 
 /**
  * Quality panel of one editor field: accessibility issues of the current
- * content (from the shared lint) and an on-demand link check. It never blocks
- * editing; with the field option `publishGuard` it explains that publishing
- * stops while errors remain (the server enforces it).
+ * content (from the shared lint), readability and SEO-structure hints (2.9,
+ * computed only while the panel is open) and an on-demand link check. The
+ * findings are grouped in three collapsed sections; findings with a safe,
+ * deterministic fix carry a "Fix" button. It never blocks editing; with the
+ * field option `publishGuard` it explains that publishing stops while errors
+ * remain (the server enforces it).
  */
 
-const RULES = {
-  'image-alt-missing': { key: 'editor.quality.rule.imageAlt', text: 'Image without alternative text' },
-  'heading-order': { key: 'editor.quality.rule.headingOrder', text: 'Heading level {level} skips a level' },
-  'multiple-h1': { key: 'editor.quality.rule.multipleH1', text: 'More than one level 1 heading' },
-  'empty-heading': { key: 'editor.quality.rule.emptyHeading', text: 'Empty heading' },
-  'empty-link': { key: 'editor.quality.rule.emptyLink', text: 'Link without text or address' },
-  'ambiguous-link-text': {
-    key: 'editor.quality.rule.ambiguousLink',
-    text: 'Link text "{text}" does not say where the link goes',
-  },
-  'video-no-captions': {
-    key: 'editor.quality.rule.videoCaptions',
-    text: 'Video without captions or subtitles',
-  },
-  'table-no-header': {
-    key: 'editor.quality.rule.tableHeader',
-    text: 'Table without a header row or header column',
-  },
-  'table-empty-header': {
-    key: 'editor.quality.rule.tableEmptyHeader',
-    text: '{count, plural, one {# empty header cell} other {# empty header cells}} in a table',
-  },
-  'low-contrast': {
-    key: 'editor.quality.rule.lowContrast',
-    text: 'Text colour contrast {ratio}:1 is below 4.5:1',
-  },
-  'toc-no-headings': {
-    key: 'editor.quality.rule.tocNoHeadings',
-    text: 'Table of contents without headings between level {minLevel} and {maxLevel}',
-  },
-  'math-invalid': {
-    key: 'editor.quality.rule.mathInvalid',
-    text: 'Formula that cannot be rendered (check the TeX)',
-  },
-  'footnote-empty': {
-    key: 'editor.quality.rule.footnoteEmpty',
-    text: 'Footnote without text',
-  },
-  'columns-empty-column': {
-    key: 'editor.quality.rule.columnsEmptyColumn',
-    text: 'Column {column} of a columns block has no text',
-  },
-  'color-contrast': {
-    key: 'editor.quality.rule.colorContrast',
-    text: '{mode, select, dark {Dark theme} other {Light theme}}: text colour / highlight {pair} has contrast {ratio}:1, below 4.5:1',
-  },
-};
-
-const LINK_STATUS = {
-  ok: { key: 'editor.quality.link.ok', text: 'Works', variant: 'success' },
-  missing: { key: 'editor.quality.link.missing', text: 'Not found', variant: 'danger' },
-  draft: { key: 'editor.quality.link.draft', text: 'Not published', variant: 'warning' },
-  unknown: { key: 'editor.quality.link.unknown', text: 'Not checked (no access)', variant: 'neutral' },
-  broken: { key: 'editor.quality.link.broken', text: 'Broken', variant: 'danger' },
-  timeout: { key: 'editor.quality.link.timeout', text: 'No answer in time', variant: 'warning' },
-  blocked: { key: 'editor.quality.link.blocked', text: 'Address not allowed', variant: 'neutral' },
-  error: { key: 'editor.quality.link.error', text: 'Unreachable', variant: 'danger' },
-  skipped: { key: 'editor.quality.link.skipped', text: 'Not checked', variant: 'neutral' },
-};
-
-/** Field preset violations (shared/presets.mjs `checkPreset`). */
-const PRESET_RULES = {
-  BLOCK_NOT_ALLOWED: {
-    key: 'editor.preset.rule.block',
-    text: 'Block type "{type}" is not allowed in this field',
-  },
-  HEADING_LEVEL: {
-    key: 'editor.preset.rule.heading',
-    text: 'Heading level {level} is not allowed in this field',
-  },
-  LINK_NOT_ALLOWED: {
-    key: 'editor.preset.rule.link',
-    text: '{kind, select, internal {Links to entries are} other {Links to web addresses are}} not allowed in this field',
-  },
-  ALT_REQUIRED: {
-    key: 'editor.preset.rule.alt',
-    text: 'Image needs an alternative text or must be marked as decorative',
-  },
-  TOO_MANY_BLOCKS: { key: 'editor.preset.rule.maxBlocks', text: '{count} blocks, at most {max} are allowed' },
-  TOO_MANY_CHARACTERS: {
-    key: 'editor.preset.rule.maxCharacters',
-    text: '{count} characters, at most {max} are allowed',
-  },
-};
 const FIXABLE = new Set(['BLOCK_NOT_ALLOWED', 'HEADING_LEVEL', 'LINK_NOT_ALLOWED']);
 
-const PROBLEMS = new Set(['missing', 'draft', 'broken', 'timeout', 'error']);
+/**
+ * Stable key of a finding (rule, block, path) for the busy state and focus return of its "Fix".
+ * @param {{ rule: string, blockId: string|null, path?: string }} issue - Finding.
+ * @returns {string} Key.
+ */
+const findingKey = (issue) => `${issue.rule}|${issue.blockId || ''}|${issue.path || ''}`;
 
-/** A full-width, left-aligned row button that wraps long text. */
-const RowButton = styled.button`
-  display: block;
-  width: 100%;
-  min-width: 0;
-  text-align: start;
-  background: transparent;
-  border: 0;
-  border-radius: ${({ theme }) => theme.borderRadius};
-  padding: ${({ theme }) => `${theme.spaces[2]} ${theme.spaces[2]}`};
-  color: ${({ theme }) => theme.colors.neutral800};
-  cursor: pointer;
-  overflow-wrap: anywhere;
-  &:hover {
-    background: ${({ theme }) => theme.colors.neutral100};
-  }
-  &:focus-visible {
-    outline: 2px solid ${({ theme }) => theme.colors.primary600};
-    outline-offset: 2px;
-  }
-`;
+/** Findings listed per section before "Show all". */
+const VISIBLE_FINDINGS = 50;
 
-const List = styled.ul`
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  min-width: 0;
-`;
-
-const Wrap = styled(Typography)`
-  overflow-wrap: anywhere;
-  min-width: 0;
+/** The "Fix" button keeps a 32 px touch target (WCAG 2.5.8 and the workbench rule below 768 px). */
+const FixButton = styled(TextButton)`
+  min-height: 3.2rem;
+  padding-inline: ${({ theme }) => theme.spaces[2]};
+  flex-shrink: 0;
 `;
 
 /**
- * Loads the last scheduled link check of the field (GET /quality/link-report).
- * @param {{ get?: Function }} fetchClient - Admin fetch client.
- * @param {{ uid: string|null, documentId: string|null, locale: string|null, field: string, fieldKey?: string }|null} target - Field
- *   (`fieldKey` for fields inside a repeatable component or dynamic zone, 2.4), or null when the schedule is off.
- * @returns {{ state: 'off'|'loading'|'error'|'done', report: object|null }} Result.
+ * Storage key of the focus keyphrase (per entry, locale and field; browser only).
+ * @param {{ uid?: string|null, documentId?: string|null, locale?: string|null, field?: string, fieldKey?: string }|null} target - Field.
+ * @returns {string|null} Key, or null for an unsaved entry.
  */
-const useScheduledReport = (fetchClient, target) => {
-  const get = fetchClient && fetchClient.get;
-  const uid = target && target.uid;
-  const documentId = target && target.documentId;
-  const locale = (target && target.locale) || null;
-  const field = target && target.field;
-  const fieldKey = (target && target.fieldKey) || null;
-  const key =
-    get && uid && documentId && field
-      ? `${uid}|${documentId}|${locale || ''}|${fieldKey ? `#${fieldKey}` : field}`
-      : null;
-  const [result, setResult] = useState({ key: null, state: 'loading', report: null });
-  useEffect(() => {
-    if (!key) return undefined;
-    const controller = new AbortController();
-    get(API.qualityLinkReport, {
-      params: { uid, documentId, locale: locale || undefined, field, ...(fieldKey ? { fieldKey } : {}) },
-      signal: controller.signal,
-    }).then(
-      (response) => {
-        if (controller.signal.aborted) return;
-        const report = response && response.data && response.data.data;
-        setResult(
-          report && report.enabled ? { key, state: 'done', report } : { key, state: 'off', report: null }
-        );
-      },
-      () => {
-        if (!controller.signal.aborted) setResult({ key, state: 'error', report: null });
-      }
-    );
-    return () => controller.abort();
-  }, [key, get, uid, documentId, locale, field, fieldKey]);
-  if (!key) return { state: 'off', report: null };
-  if (result.key !== key) return { state: 'loading', report: null };
-  return result;
+export const keyphraseStorageKey = (target) =>
+  target && target.uid && target.documentId && target.field
+    ? `magic-editor-x:keyphrase:${target.uid}|${target.documentId}|${target.locale || ''}|${target.fieldKey ? `#${target.fieldKey}` : target.field}`
+    : null;
+
+const readKeyphrase = (key) => {
+  if (!key) return '';
+  try {
+    return window.localStorage.getItem(key) || '';
+  } catch {
+    return '';
+  }
+};
+
+const writeKeyphrase = (key, value) => {
+  if (!key) return;
+  try {
+    if (value.trim()) window.localStorage.setItem(key, value);
+    else window.localStorage.removeItem(key);
+  } catch {
+    // Private windows and blocked storage: the keyphrase lasts as long as the panel.
+  }
+};
+
+/**
+ * Count badge of a section (decorative; the trigger carries the count as text for screen readers).
+ * @param {{ count: number, tone: 'danger'|'warning'|'neutral'|'success' }} props - Props.
+ * @returns {JSX.Element} Badge.
+ */
+const CountBadge = ({ count, tone }) => {
+  const colors = {
+    danger: { backgroundColor: 'danger100', textColor: 'danger700' },
+    warning: { backgroundColor: 'warning200', textColor: 'neutral800' },
+    neutral: { backgroundColor: 'neutral150', textColor: 'neutral800' },
+    success: { backgroundColor: 'success100', textColor: 'success700' },
+  }[tone];
+  return (
+    <Badge size="S" {...colors} aria-hidden>
+      {count}
+    </Badge>
+  );
 };
 
 /**
  * @param {object} props - Props.
  * @param {Function} props.t - Translator `(id, defaultMessage, values) => string`.
  * @param {object|null} props.data - Current editor data.
- * @param {object} [props.options] - Field options (`requireAlt`, `publishGuard`).
+ * @param {object} [props.options] - Field options (`requireAlt`, `publishGuard`, 2.9 `disableContentChecks`).
  * @param {{ get?: Function, post: Function }} props.fetchClient - Admin fetch client.
  * @param {boolean} [props.externalEnabled] - External link checks are enabled on the server.
  * @param {boolean} [props.scheduledEnabled] - The scheduled link check is enabled on the server.
- * @param {{ uid: string|null, documentId: string|null, locale: string|null, field: string }} [props.target] - Field target (for the scheduled result).
+ * @param {{ uid: string|null, documentId: string|null, locale: string|null, field: string }} [props.target] - Field target (for the scheduled result and the content language).
  * @param {(blockId: string) => void} props.onSelectBlock - Focuses a block.
  * @param {() => void} [props.onClose] - Closes the panel.
  * @param {Array<{ code: string, blockId: string|null, index: number|null, params?: object }>} [props.violations] - Field preset violations (saving fails while any remain).
  * @param {(() => void)|null} [props.onFixViolations] - Applies the automatic fixes (structure only).
  * @param {object|null} [props.palette] - 2.5: normalised colour palette (enables the colour contrast rule).
+ * @param {object|null} [props.contentChecks] - 2.9: content check settings from the server (`GET /config`), null when off.
+ * @param {number[]} [props.headingLevels] - 2.9: heading levels the field allows (heading fixes stay inside them).
+ * @param {((issue: object, action: object, language: string|null) => Promise<boolean>)|null} [props.onFix] - 2.9: applies a one-click fix; null hides the buttons (read-only).
  * @returns {JSX.Element} Panel.
  */
 export const QualityPanel = ({
@@ -221,81 +137,216 @@ export const QualityPanel = ({
   violations = [],
   onFixViolations = null,
   palette = null,
+  contentChecks = undefined,
+  headingLevels = [],
+  onFix = null,
 }) => {
-  const { formatDate } = useIntl();
-  const scheduled = useScheduledReport(fetchClient, scheduledEnabled ? target : null);
+  const { locale: adminLocale } = useIntl();
   const { issues, stats } = useQualityIssues(data, options, palette);
-  const [check, setCheck] = useState({ state: 'idle', result: null, message: '' });
   const [announcement, setAnnouncement] = useState('');
-  const requestRef = useRef(0);
   const headingRef = useRef(null);
-  const checkButtonRef = useRef(null);
+  const sectionsRef = useRef(null);
+  const pendingFocusRef = useRef(null);
   usePanelAutoFocus(autoFocus, headingRef);
-  const links = useMemo(() => extractLinks(data), [data]);
-  const linkCount = links.internal.length + links.external.length + links.media.length;
   const errors = issues.filter((issue) => issue.severity === 'error');
   const warnings = issues.filter((issue) => issue.severity === 'warning');
 
+  // 2.9: readability and SEO hints. Off when the server turned them off (contentChecks === null)
+  // or the field opted out; an older server without settings uses the defaults.
+  const settings = useMemo(
+    () => (contentChecks === null ? null : normalizeContentChecks(contentChecks)),
+    [contentChecks]
+  );
+  const insightsOn = Boolean(settings && settings.enabled && !(options && options.disableContentChecks));
+  // The content locale decides the language; without i18n the admin language is the best guess.
+  const language = insightLanguage((target && target.locale) || adminLocale);
+  const storageKey = keyphraseStorageKey(target);
+  const [keyphrase, setKeyphrase] = useState(() => readKeyphrase(storageKey));
+  const [keyphraseKey, setKeyphraseKey] = useState(storageKey);
+  if (keyphraseKey !== storageKey) {
+    setKeyphraseKey(storageKey);
+    setKeyphrase(readKeyphrase(storageKey));
+  }
+  const insights = useContentInsights(data, { enabled: insightsOn, language, settings, keyphrase });
+  const hints = useMemo(() => (insights.result && insights.result.issues) || [], [insights.result]);
+  const readabilityHints = hints.filter((hint) => hint.section === 'readability');
+  const seoHints = hints.filter((hint) => hint.section === 'seo');
+  const score = insights.result ? insights.result.score : null;
+
+  const [open, setOpen] = useState(() => (errors.length ? 'accessibility' : ''));
+  const [expanded, setExpanded] = useState({});
+  const [fixing, setFixing] = useState(null);
+  const [linkEdit, setLinkEdit] = useState(null);
+
   const issueText = (issue) => {
-    const rule = RULES[issue.rule] || { key: 'editor.quality.rule.unknown', text: 'Problem' };
+    const rule = RULES[issue.rule] ||
+      HINTS[issue.rule] || { key: 'editor.quality.rule.unknown', text: 'Problem' };
     return t(rule.key, rule.text, { ...(issue.params || {}) });
   };
 
-  const runCheck = useCallback(async () => {
-    const id = requestRef.current + 1;
-    requestRef.current = id;
-    setCheck({ state: 'loading', result: null, message: '' });
-    setAnnouncement(t('editor.quality.links.checking', 'Checking links'));
-    try {
-      const body = {
-        internal: links.internal.slice(0, 100).map(({ uid, documentId, locale }) => ({
-          uid,
-          documentId,
-          ...(locale ? { locale } : {}),
-        })),
-        media: links.media.slice(0, 100).map((item) => item.id),
-        external: externalEnabled ? links.external.slice(0, 20).map((item) => item.url) : [],
-      };
-      const response = await fetchClient.post(API.qualityLinks, body);
-      if (requestRef.current !== id) return;
-      const result = (response && response.data && response.data.data) || {
-        internal: [],
-        media: [],
-        external: [],
-      };
-      if (!externalEnabled) result.external = links.external.map(({ url }) => ({ url, status: 'skipped' }));
-      const all = [...result.internal, ...result.media, ...result.external];
-      const problems = all.filter((item) => PROBLEMS.has(item.status)).length;
-      // 2.7.8: "no problems" only when something was checked (external links may all be skipped).
-      const checked = all.filter((item) => item.status !== 'skipped').length;
-      setCheck({ state: 'done', result, message: '' });
+  /**
+   * Runs a one-click fix. A fixed finding disappears from the list, so focus moves to the next
+   * "Fix" button of the section, else the section's trigger (never the page body).
+   * @param {object} issue - Finding.
+   * @param {object} action - Fix (`fixActionOf`).
+   * @param {string} section - Section id.
+   */
+  const runFix = useCallback(
+    async (issue, action, section) => {
+      if (!onFix) return false;
+      const key = findingKey(issue);
+      // "click here": the row opens a text field first; the link is shown in the editor meanwhile.
+      if (action.kind === 'linkText' && typeof action.text !== 'string') {
+        setLinkEdit(key);
+        onFix(issue, { kind: 'revealLink' }, language);
+        return true;
+      }
+      setFixing(key);
+      const ok = await Promise.resolve()
+        .then(() => onFix(issue, action, language))
+        .catch(() => false);
+      setFixing(null);
+      if (!['heading', 'typography', 'linkText'].includes(action.kind)) return ok;
       setAnnouncement(
-        checked === 0
-          ? t('editor.quality.links.noneChecked', 'No links were checked.')
-          : t(
-              'editor.quality.links.done',
-              'Link check finished: {count, plural, =0 {no problems} one {# problem} other {# problems}}',
-              {
-                count: problems,
-              }
-            )
+        ok
+          ? t('editor.quality.fix.done', 'Fixed. Undo brings the previous text back.')
+          : t('editor.quality.fix.stale', 'Nothing to fix any more. The content changed meanwhile.')
       );
-    } catch (error) {
-      if (requestRef.current !== id) return;
-      const info = readApiError(error);
-      const message =
-        info.status === 429
-          ? t('editor.quality.links.rateLimited', 'Too many link checks. Try again in a minute.')
-          : t('editor.quality.links.failed', 'The links could not be checked.');
-      setCheck({ state: 'error', result: null, message });
-      setAnnouncement(message);
-    } finally {
-      // 2.7.8: the button is disabled while it loads, which dropped focus to the page body.
-      if (requestRef.current === id) refocusIfLost(checkButtonRef);
-    }
-  }, [externalEnabled, fetchClient, links, t]);
+      if (ok) {
+        if (action.kind === 'linkText') setLinkEdit(null);
+        pendingFocusRef.current = { section, key };
+      }
+      return ok;
+    },
+    [language, onFix, setAnnouncement, t]
+  );
 
-  const blockLabel = (issue) => t('editor.quality.block', 'Block {index}', { index: issue.blockIndex + 1 });
+  /**
+   * Closes the link text form without a change; focus goes back to its "Fix".
+   * @param {object} issue - Finding.
+   */
+  const cancelLinkEdit = useCallback(
+    (issue) => {
+      const key = findingKey(issue);
+      setLinkEdit(null);
+      if (onFix) onFix(issue, { kind: 'hideLink' }, language);
+      refocusLater(() => {
+        const root = sectionsRef.current;
+        return root ? root.querySelector(`[data-mex-fix="${CSS.escape(key)}"]`) : null;
+      });
+    },
+    [language, onFix]
+  );
+
+  // 2.9: a fixed finding leaves the list once the content is checked again (a moment later, for
+  // hints after the idle-time run). When its button is gone and focus fell to the page body, the
+  // next "Fix" of the same section takes it, else the section's trigger, else the panel heading.
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      const pending = pendingFocusRef.current;
+      if (!pending) return;
+      const root = sectionsRef.current;
+      const item = root && root.querySelector(`[data-mex-section="${pending.section}"]`);
+      const still = item && item.querySelector(`[data-mex-fix="${CSS.escape(pending.key)}"]`);
+      if (still) return;
+      pendingFocusRef.current = null;
+      const active = document.activeElement;
+      if (active && active !== document.body && active.isConnected) return;
+      const target =
+        (item && item.querySelector('[data-mex-fix]')) ||
+        (item && item.querySelector('button')) ||
+        headingRef.current;
+      if (target && target.isConnected) target.focus();
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [issues, hints, fixing]);
+
+  const blockLabel = (issue) =>
+    issue.blockIndex >= 0 ? t('editor.quality.block', 'Block {index}', { index: issue.blockIndex + 1 }) : '';
+
+  const fixLabel = (issue, action, text) => {
+    switch (action.kind) {
+      case 'heading':
+        return t('editor.quality.fix.heading', 'Fix: change to heading level {level} ({finding})', {
+          level: action.level,
+          finding: text,
+        });
+      case 'typography':
+        return t('editor.quality.fix.typography', 'Fix: remove the extra spaces ({finding})', {
+          finding: text,
+        });
+      case 'linkText':
+        return t('editor.quality.fix.linkText', 'Fix: type a new text for this link ({finding})', {
+          finding: text,
+        });
+      default:
+        return t('editor.quality.fix.alt', 'Fix: go to the alternative text field ({finding})', {
+          finding: text,
+        });
+    }
+  };
+
+  const renderRows = (items, section) => {
+    const all = expanded[section] ? items : items.slice(0, VISIBLE_FINDINGS);
+    return (
+      <>
+        <List>
+          {all.map((issue, index) => {
+            const text = issueText(issue);
+            const action = onFix ? fixActionOf(issue, { headingLevels }) : null;
+            const label = blockLabel(issue);
+            const key = findingKey(issue);
+            return (
+              <li key={`${issue.rule}-${issue.blockId || 'doc'}-${issue.path || ''}-${index}`}>
+                <Flex alignItems="flex-start" gap={1} minWidth={0}>
+                  <Box flex="1 1 auto" minWidth={0}>
+                    {issue.blockId ? (
+                      <RowButton type="button" onClick={() => onSelectBlock && onSelectBlock(issue.blockId)}>
+                        <Typography variant="omega">{text}</Typography>{' '}
+                        <Typography variant="pi" textColor="neutral600">
+                          {label}
+                        </Typography>
+                      </RowButton>
+                    ) : (
+                      <Box paddingTop={2} paddingBottom={2} paddingLeft={2} paddingRight={2}>
+                        <Wrap variant="omega">{text}</Wrap>
+                      </Box>
+                    )}
+                  </Box>
+                  {action ? (
+                    <FixButton
+                      data-mex-fix={key}
+                      onClick={() =>
+                        linkEdit === key ? cancelLinkEdit(issue) : runFix(issue, action, section)
+                      }
+                      loading={fixing === key}
+                      aria-expanded={action.kind === 'linkText' ? linkEdit === key : undefined}
+                      aria-label={fixLabel(issue, action, label ? `${text}, ${label}` : text)}
+                    >
+                      {t('editor.quality.fix', 'Fix')}
+                    </FixButton>
+                  ) : null}
+                </Flex>
+                {action && action.kind === 'linkText' && linkEdit === key ? (
+                  <LinkTextFix
+                    t={t}
+                    id={`mex-link-text-${section}-${index}`}
+                    onApply={(value) => runFix(issue, { kind: 'linkText', text: value }, section)}
+                    onCancel={() => cancelLinkEdit(issue)}
+                  />
+                ) : null}
+              </li>
+            );
+          })}
+        </List>
+        {items.length > all.length ? (
+          <TextButton onClick={() => setExpanded((current) => ({ ...current, [section]: true }))}>
+            {t('editor.quality.showAll', 'Show all {count}', { count: items.length })}
+          </TextButton>
+        ) : null}
+      </>
+    );
+  };
 
   const renderIssues = (items, severity) => (
     <Flex direction="column" alignItems="stretch" gap={1}>
@@ -313,179 +364,55 @@ export const QualityPanel = ({
           {items.length}
         </Badge>
       </Flex>
-      <List>
-        {items.map((issue, index) => (
-          <li key={`${issue.rule}-${issue.blockId}-${issue.path || ''}-${index}`}>
-            <RowButton type="button" onClick={() => onSelectBlock && onSelectBlock(issue.blockId)}>
-              <Typography variant="omega">{issueText(issue)}</Typography>{' '}
-              <Typography variant="pi" textColor="neutral600">
-                {blockLabel(issue)}
-              </Typography>
-            </RowButton>
-          </li>
-        ))}
-      </List>
+      {renderRows(items, 'accessibility')}
     </Flex>
   );
 
-  const linkLabel = (kind, item) => {
-    if (kind === 'internal')
-      return t('editor.quality.link.entry', 'Entry {documentId} ({type})', {
-        documentId: item.documentId,
-        type: item.uid.split('.').pop(),
-      });
-    if (kind === 'media') return t('editor.quality.link.media', 'Media file {id}', { id: String(item.id) });
-    return item.url;
-  };
-
-  const renderResults = (result) => {
-    const rows = [
-      ...result.internal.map((item) => ['internal', item]),
-      ...result.media.map((item) => ['media', item]),
-      ...result.external.map((item) => ['external', item]),
-    ];
-    if (!rows.length)
-      return (
-        <Typography variant="omega" textColor="neutral600">
-          {t('editor.quality.links.none', 'This content has no links to check.')}
-        </Typography>
-      );
-    return (
-      <List aria-label={t('editor.quality.links.results', 'Link check results')}>
-        {rows.map(([kind, item], index) => {
-          const status = LINK_STATUS[item.status] || LINK_STATUS.unknown;
-          return (
-            <Box tag="li" key={`${kind}-${index}`} paddingTop={1} paddingBottom={1}>
-              <Flex gap={2} alignItems="flex-start" wrap="wrap">
-                <Status variant={status.variant} size="S">
-                  <Typography variant="pi" fontWeight="bold" textColor={`${status.variant}700`}>
-                    {t(status.key, status.text)}
-                    {item.code ? ` (${item.code})` : ''}
-                  </Typography>
-                </Status>
-                <Wrap variant="pi" textColor="neutral800">
-                  {linkLabel(kind, item)}
-                </Wrap>
-              </Flex>
-            </Box>
-          );
-        })}
-      </List>
-    );
-  };
-
-  const brokenText = (count) =>
-    t(
-      'editor.quality.schedule.count',
-      '{count, plural, =0 {no broken links} one {# broken link} other {# broken links}}',
-      { count }
-    );
-
-  const renderScheduled = () => {
-    const { report } = scheduled;
-    let body;
-    if (scheduled.state === 'loading')
-      body = <Loader small>{t('editor.quality.schedule.loading', 'Loading the scheduled result')}</Loader>;
-    else if (scheduled.state === 'error')
-      body = (
-        <Typography variant="omega" textColor="danger600">
-          {t('editor.quality.schedule.failed', 'The scheduled result could not be loaded.')}
-        </Typography>
-      );
-    else if (!report.lastRun)
-      body = (
-        <Typography variant="pi" textColor="neutral600">
-          {t('editor.quality.schedule.never', 'No scheduled check has run yet.')}
-        </Typography>
-      );
-    else {
-      const date = formatDate(new Date(report.lastRun.finishedAt), {
-        dateStyle: 'medium',
-        timeStyle: 'short',
-      });
-      const version = report.draft || report.published;
-      if (!version)
-        body = (
-          <Typography variant="pi" textColor="neutral600">
-            {t(
-              'editor.quality.schedule.noLinks',
-              'Last scheduled check {date}: no external links in the saved content.',
-              { date }
-            )}
-          </Typography>
-        );
-      else {
-        const problems = version.links.filter((link) => PROBLEMS.has(link.status));
-        const pending = version.links.filter((link) => link.status === 'skipped').length;
-        body = (
-          <Flex direction="column" alignItems="stretch" gap={2}>
-            <Typography variant="omega" textColor={problems.length ? 'danger700' : 'neutral800'}>
-              {t('editor.quality.schedule.summary', 'Last scheduled check {date}: {result}', {
-                date,
-                result: brokenText(version.problems),
-              })}
-            </Typography>
-            {report.draft && report.published ? (
-              <Typography variant="pi" textColor="neutral600">
-                {t('editor.quality.schedule.published', 'Published version: {result}', {
-                  result: brokenText(report.published.problems),
-                })}
-              </Typography>
-            ) : null}
-            {pending ? (
-              <Typography variant="pi" textColor="neutral600">
-                {t(
-                  'editor.quality.schedule.pending',
-                  '{count, plural, one {# link was} other {# links were}} not checked yet.',
-                  { count: pending }
-                )}
-              </Typography>
-            ) : null}
-            {problems.length ? (
-              <List
-                aria-label={t('editor.quality.schedule.results', 'Broken links found by the scheduled check')}
-              >
-                {problems.map((link, index) => {
-                  const status = LINK_STATUS[link.status] || LINK_STATUS.error;
-                  return (
-                    <Box tag="li" key={`scheduled-${index}`} paddingTop={1} paddingBottom={1}>
-                      <Flex gap={2} alignItems="flex-start" wrap="wrap">
-                        <Status variant={status.variant} size="S">
-                          <Typography variant="pi" fontWeight="bold" textColor={`${status.variant}700`}>
-                            {t(status.key, status.text)}
-                            {link.code ? ` (${link.code})` : ''}
-                          </Typography>
-                        </Status>
-                        {link.blockId && onSelectBlock ? (
-                          <RowButton type="button" onClick={() => onSelectBlock(link.blockId)}>
-                            <Wrap variant="pi" textColor="neutral800">
-                              {link.url}
-                            </Wrap>
-                          </RowButton>
-                        ) : (
-                          <Wrap variant="pi" textColor="neutral800">
-                            {link.url}
-                          </Wrap>
-                        )}
-                      </Flex>
-                    </Box>
-                  );
-                })}
-              </List>
-            ) : null}
+  /**
+   * One collapsible section with its count in the trigger (visible badge plus text for screen readers).
+   * @param {{ id: string, title: string, count: number|null, tone: string, srCount: string, children: import('react').ReactNode }} props - Section.
+   * @returns {JSX.Element} Accordion item.
+   */
+  const renderSection = ({ id, title, count, tone, srCount, children }) => (
+    <Accordion.Item value={id} data-mex-section={id}>
+      <Accordion.Header>
+        <Accordion.Trigger>
+          {title}{' '}
+          {/* The badge renders from the start ("…" while the text is checked): its styles are then
+              injected when the panel opens, not when the result arrives, which restyled a whole
+              2,000-block document in one long task. */}
+          <CountBadge count={count === null ? '…' : count} tone={tone} />
+          <VisuallyHidden>{srCount}</VisuallyHidden>
+        </Accordion.Trigger>
+      </Accordion.Header>
+      <Accordion.Content>
+        <Box padding={3} minWidth={0}>
+          <Flex direction="column" alignItems="stretch" gap={3} minWidth={0}>
+            {children}
           </Flex>
-        );
-      }
-    }
-    return (
-      <Flex direction="column" alignItems="stretch" gap={2}>
-        <Typography variant="sigma" tag="h4" textColor="neutral600">
-          {t('editor.quality.schedule.title', 'Scheduled check')}
-        </Typography>
-        {body}
-      </Flex>
-    );
-  };
+        </Box>
+      </Accordion.Content>
+    </Accordion.Item>
+  );
+
+  const hintNote = (
+    <Typography variant="pi" textColor="neutral600">
+      {t(
+        'editor.quality.hints.note',
+        'Hints, not errors: they never block saving. Your administrator can turn rules off in the plugin configuration.'
+      )}
+    </Typography>
+  );
+  const loadingHints = insights.pending && !insights.result;
+  const hintCount = (list) => (loadingHints ? null : list.length);
+  const hintsLabel = (list) =>
+    loadingHints
+      ? t('editor.quality.hints.loading', 'Checking the text')
+      : t('editor.quality.hints.count', '{count, plural, =0 {no hints} one {# hint} other {# hints}}', {
+          count: list.length,
+        });
+
+  const a11yCount = errors.length + warnings.length;
 
   return (
     <Box
@@ -505,11 +432,17 @@ export const QualityPanel = ({
               {t('editor.quality.title', 'Quality checks')}
             </Typography>
             <Typography variant="pi" textColor="neutral600">
-              {t(
-                'editor.quality.summary',
-                '{errors, plural, one {# error} other {# errors}} · {warnings, plural, one {# warning} other {# warnings}}',
-                { errors: stats.errors, warnings: stats.warnings }
-              )}
+              {insightsOn
+                ? t(
+                    'editor.quality.summaryHints',
+                    '{errors, plural, one {# error} other {# errors}} · {warnings, plural, one {# warning} other {# warnings}} · {hints, plural, one {# hint} other {# hints}}',
+                    { errors: stats.errors, warnings: stats.warnings, hints: hints.length }
+                  )
+                : t(
+                    'editor.quality.summary',
+                    '{errors, plural, one {# error} other {# errors}} · {warnings, plural, one {# warning} other {# warnings}}',
+                    { errors: stats.errors, warnings: stats.warnings }
+                  )}
             </Typography>
           </Flex>
           {onClose ? (
@@ -584,58 +517,131 @@ export const QualityPanel = ({
           </Status>
         ) : null}
 
-        {issues.length === 0 && violations.length === 0 ? (
-          <Typography variant="omega" textColor="neutral600">
-            {t('editor.quality.empty', 'No problems found.')}
-          </Typography>
-        ) : (
-          <Flex direction="column" alignItems="stretch" gap={3}>
-            {errors.length ? renderIssues(errors, 'error') : null}
-            {warnings.length ? renderIssues(warnings, 'warning') : null}
-          </Flex>
-        )}
+        <Box ref={sectionsRef} minWidth={0}>
+          <Accordion.Root value={open} onValueChange={setOpen}>
+            {renderSection({
+              id: 'accessibility',
+              title: t('editor.quality.section.accessibility', 'Accessibility'),
+              count: a11yCount,
+              tone: errors.length ? 'danger' : a11yCount ? 'warning' : 'success',
+              srCount: t(
+                'editor.quality.section.problems',
+                '{count, plural, =0 {no problems} one {# problem} other {# problems}}',
+                { count: a11yCount }
+              ),
+              children:
+                a11yCount === 0 ? (
+                  <Typography variant="omega" textColor="neutral600">
+                    {t('editor.quality.empty', 'No problems found.')}
+                  </Typography>
+                ) : (
+                  <>
+                    {errors.length ? renderIssues(errors, 'error') : null}
+                    {warnings.length ? renderIssues(warnings, 'warning') : null}
+                  </>
+                ),
+            })}
+            {insightsOn
+              ? renderSection({
+                  id: 'readability',
+                  title: t('editor.quality.section.readability', 'Readability'),
+                  count: hintCount(readabilityHints),
+                  tone: 'neutral',
+                  srCount: hintsLabel(readabilityHints),
+                  children: (
+                    <>
+                      {score ? (
+                        <Typography variant="omega" textColor="neutral800" data-testid="mex-reading-score">
+                          {t(
+                            'editor.quality.score',
+                            '{formula, select, flesch {Flesch Reading Ease} amstad {Reading ease (Amstad)} other {Readability (Szigriszt-Pazos)}}: {score}, {band, select, veryEasy {very easy} easy {easy} fairlyEasy {fairly easy} standard {standard} fairlyDifficult {fairly difficult} difficult {difficult} other {very difficult}}',
+                            score && { formula: score.formula, score: score.value, band: score.band }
+                          )}
+                        </Typography>
+                      ) : (
+                        <Typography variant="pi" textColor="neutral600">
+                          {language && ['en', 'de', 'es'].includes(language)
+                            ? t(
+                                'editor.quality.score.short',
+                                'The reading score needs at least 100 words of running text.'
+                              )
+                            : t(
+                                'editor.quality.score.none',
+                                'No reading score for this language. The other hints still apply.'
+                              )}
+                        </Typography>
+                      )}
+                      {loadingHints ? (
+                        <Loader small>{t('editor.quality.hints.loading', 'Checking the text')}</Loader>
+                      ) : readabilityHints.length ? (
+                        renderRows(readabilityHints, 'readability')
+                      ) : (
+                        <Typography variant="omega" textColor="neutral600">
+                          {t('editor.quality.hints.none', 'No hints.')}
+                        </Typography>
+                      )}
+                      {hintNote}
+                    </>
+                  ),
+                })
+              : null}
+            {insightsOn
+              ? renderSection({
+                  id: 'seo',
+                  title: t('editor.quality.section.seo', 'SEO structure'),
+                  count: hintCount(seoHints),
+                  tone: 'neutral',
+                  srCount: hintsLabel(seoHints),
+                  children: (
+                    <>
+                      {settings.disabled.includes('keyphrase') ? null : (
+                        <Field.Root
+                          name="mex-keyphrase"
+                          hint={t(
+                            'editor.quality.keyphrase.hint',
+                            'Optional. Checked in the first paragraph, the subheadings and how often it appears. Kept in this browser only.'
+                          )}
+                        >
+                          <Field.Label>{t('editor.quality.keyphrase.label', 'Focus keyphrase')}</Field.Label>
+                          <TextInput
+                            value={keyphrase}
+                            maxLength={100}
+                            onChange={(event) => {
+                              const value = event.target.value.slice(0, 100);
+                              setKeyphrase(value);
+                              writeKeyphrase(storageKey, value);
+                            }}
+                          />
+                          <Field.Hint />
+                        </Field.Root>
+                      )}
+                      {loadingHints ? (
+                        <Loader small>{t('editor.quality.hints.loading', 'Checking the text')}</Loader>
+                      ) : seoHints.length ? (
+                        renderRows(seoHints, 'seo')
+                      ) : (
+                        <Typography variant="omega" textColor="neutral600">
+                          {t('editor.quality.hints.none', 'No hints.')}
+                        </Typography>
+                      )}
+                      {hintNote}
+                    </>
+                  ),
+                })
+              : null}
+          </Accordion.Root>
+        </Box>
 
-        <Flex direction="column" alignItems="stretch" gap={2}>
-          <Flex justifyContent="space-between" alignItems="center" gap={2} wrap="wrap">
-            <Typography variant="sigma" tag="h4" textColor="neutral600">
-              {t('editor.quality.links.title', 'Links and media')}
-            </Typography>
-            <Button
-              ref={checkButtonRef}
-              variant="secondary"
-              size="S"
-              onClick={runCheck}
-              loading={check.state === 'loading'}
-              disabled={linkCount === 0}
-            >
-              {t('editor.quality.links.check', 'Check links')}
-            </Button>
-          </Flex>
-          {!externalEnabled && links.external.length ? (
-            <Typography variant="pi" textColor="neutral600">
-              {t(
-                'editor.quality.links.externalOff',
-                'External links are not checked. An administrator can turn this on in the plugin configuration.'
-              )}
-            </Typography>
-          ) : null}
-          {check.state === 'loading' ? (
-            <Loader small>{t('editor.quality.links.checking', 'Checking links')}</Loader>
-          ) : null}
-          {check.state === 'error' ? (
-            <Typography variant="omega" textColor="danger600" role="alert">
-              {check.message}
-            </Typography>
-          ) : null}
-          {check.state === 'done' && check.result ? renderResults(check.result) : null}
-          {check.state === 'idle' && linkCount === 0 ? (
-            <Typography variant="pi" textColor="neutral600">
-              {t('editor.quality.links.none', 'This content has no links to check.')}
-            </Typography>
-          ) : null}
-        </Flex>
-
-        {scheduled.state !== 'off' ? renderScheduled() : null}
+        <QualityLinks
+          t={t}
+          data={data}
+          fetchClient={fetchClient}
+          externalEnabled={externalEnabled}
+          scheduledEnabled={scheduledEnabled}
+          target={target}
+          onSelectBlock={onSelectBlock}
+          onAnnounce={setAnnouncement}
+        />
       </Flex>
       <VisuallyHidden aria-live="polite" aria-atomic="true">
         {announcement}

@@ -15,12 +15,24 @@ const { formErrorDetails } = require('./form-errors');
  * when the field requires alt texts) stops the publication with a
  * ValidationError (400). Warnings never block. Neither the error nor the log
  * contains content.
+ *
+ * 2.9: readability and SEO hints never block, unless an administrator opted a
+ * rule into the guard (Settings > Configuration > Readability and SEO hints,
+ * `contentChecks.blockPublish`). Then a hint of that rule blocks like an error
+ * in fields with `publishGuard` (not in fields that turned the hints off). The
+ * focus keyphrase lives in the editor's browser only and never blocks.
  */
 
 const MAX_DEPTH = 8;
 const MAX_REPORTED = 50;
 
 const { lintDocument } = require('../../../shared/quality.mjs');
+const {
+  lintInsights,
+  insightLanguage,
+  normalizeContentChecks,
+} = require('../../../shared/content-insights.mjs');
+const { normalizeEditorDataSafe } = require('../../../shared/editor-data.mjs');
 
 /**
  * True when the attribute is a guarded Magic Editor X field.
@@ -119,18 +131,30 @@ const collectGuarded = (strapi, schema, data, prefix, out, depth = 0, predicate 
  * @param {object} strapi - Strapi instance.
  * @param {object} contentType - Content type schema.
  * @param {object[]} documents - Draft documents (with the guarded fields populated).
- * @returns {Promise<Array<{ field: string, rule: string, blockId: string, locale?: string }>>} Error issues (bounded).
+ * @param {object} [contentChecks] - 2.9: readability and SEO settings; rules in `blockPublish` block too.
+ * @returns {Promise<Array<{ field: string, rule: string, blockId: string|null, locale?: string }>>} Blocking issues (bounded).
  */
-const blockingIssues = async (strapi, contentType, documents) => {
+const blockingIssues = async (strapi, contentType, documents, contentChecks) => {
   const issues = [];
+  const checks = normalizeContentChecks(contentChecks);
+  const hintRules = checks.enabled ? checks.blockPublish : [];
   for (const document of documents) {
     for (const { field, value, options } of collectGuarded(strapi, contentType, document, '', [])) {
+      const entry = (rule, blockId) => {
+        if (issues.length >= MAX_REPORTED) return;
+        const item = { field, rule, blockId };
+        if (typeof document.locale === 'string') item.locale = document.locale;
+        issues.push(item);
+      };
       const result = lintDocument(value, { requireAlt: options.requireAlt === true });
-      for (const issue of result.issues) {
-        if (issue.severity !== 'error' || issues.length >= MAX_REPORTED) continue;
-        const entry = { field, rule: issue.rule, blockId: issue.blockId };
-        if (typeof document.locale === 'string') entry.locale = document.locale;
-        issues.push(entry);
+      for (const issue of result.issues) if (issue.severity === 'error') entry(issue.rule, issue.blockId);
+      if (hintRules.length && options.disableContentChecks !== true) {
+        const hints = lintInsights(normalizeEditorDataSafe(value), {
+          language: insightLanguage(document.locale),
+          settings: checks,
+          rules: hintRules,
+        });
+        for (const hint of hints.issues) entry(hint.rule, hint.blockId);
       }
     }
   }
@@ -173,7 +197,16 @@ const registerPublishGuard = (strapi) => {
       });
       documents.push(...rows);
     }
-    const issues = await blockingIssues(strapi, contentType, documents);
+    // 2.9: hint rules an administrator opted into the guard (a settings read failure blocks nothing extra).
+    const contentChecks = await Promise.resolve()
+      .then(() => strapi.plugin('magic-editor-x').service('settings').contentChecks())
+      .catch(() => null);
+    const issues = await blockingIssues(
+      strapi,
+      contentType,
+      documents,
+      contentChecks || { blockPublish: [] }
+    );
     if (issues.length) {
       logger.info('publication stopped by the quality checks', { count: issues.length });
       throw new errors.ValidationError(

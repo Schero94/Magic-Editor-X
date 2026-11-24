@@ -70,6 +70,8 @@ import { RemoteCarets, offsetOf } from './RemoteCarets';
 import { usePresenceAnnouncements } from './usePresenceAnnouncements';
 import { QualityPanel } from './QualityPanel';
 import { useQualityIssues } from './useQualityIssues';
+import { fixedBlockData } from './quality-fixes.mjs';
+import { normalizeLinkText } from '../../../../shared/quality.mjs';
 import { FindReplacePanel } from './FindReplacePanel';
 import { ShortcutsDialog } from './ShortcutsDialog';
 import { BlockSelectionBar } from './BlockSelectionBar';
@@ -2297,22 +2299,108 @@ const EditorFieldBody = ({
     clearHighlight();
     window.requestAnimationFrame(() => focusToolsMenu());
   }, [focusToolsMenu]);
-  /** Grammar check: writes one corrected string back into its block. */
-  const applyGrammar = useCallback(
-    async (blockId, path, html) => {
+  /**
+   * 2.9: changes one block as an undo step of its own (grammar "Fix"/"Apply" and the Quality
+   * panel's content fixes). Pending typing is saved first, the block is read fresh from the
+   * editor, changed with the Editor.js block API and saved at once. In a live room the shared
+   * document records it as this person's change, so their Undo reverts it and the room gets it
+   * like typing.
+   * @param {string} blockId - Block id.
+   * @param {(block: object) => object|null} transform - New block data, or null for no change.
+   * @returns {Promise<boolean>} True when the block changed.
+   */
+  const updateBlockStep = useCallback(
+    async (blockId, transform) => {
       const editor = editorRef.current;
-      if (!editor || readOnly) return false;
+      if (!editor || readOnly || !blockId) return false;
+      clearTimeout(saveTimerRef.current);
+      if (pendingLocalRef.current) await runSave();
+      else if (savingRef.current) await savingRef.current;
+      if (undoRef.current) await undoRef.current.checkpoint();
+      if (collabRef.current) collabRef.current.stopCapturing();
       const saved = prepareEditorValue(await editor.save().catch(() => null)).data;
       const block = saved && saved.blocks.find((item) => item.id === blockId);
       if (!block || !editor.blocks.getById(blockId)) return false;
-      const { data, changed } = applySegments({ blocks: [block] }, [{ blockId, path, html }]);
-      if (!changed) return false;
+      const next = transform(block);
+      if (!next) return false;
       userTouchedRef.current = true;
-      await editor.blocks.update(blockId, data.blocks[0].data);
-      scheduleSave(0);
+      await editor.blocks.update(blockId, next);
+      await runSave();
+      if (collabRef.current) collabRef.current.stopCapturing();
+      if (undoRef.current) await undoRef.current.checkpoint();
       return true;
     },
-    [readOnly, scheduleSave]
+    [readOnly, runSave]
+  );
+  /** Grammar check: writes one corrected string back into its block. */
+  const applyGrammar = useCallback(
+    (blockId, path, html) =>
+      updateBlockStep(blockId, (block) => {
+        const { data, changed } = applySegments({ blocks: [block] }, [{ blockId, path, html }]);
+        return changed ? data.blocks[0].data : null;
+      }),
+    [updateBlockStep]
+  );
+  /**
+   * 2.9: one-click fix from the Quality panel. Content fixes (heading level, spacing) read the
+   * block fresh from the editor, change it with the Editor.js block API and save at once, so the
+   * fix is one undo step of its own (also in a live room: the shared document records it as this
+   * person's change) and reaches the other people in the room like typing does. A "click here"
+   * link gets the text the editor typed in the panel (`linkText` with `text`; `revealLink` and
+   * `hideLink` show the link meanwhile); an image's alternative text field takes focus.
+   * @param {{ rule: string, blockId: string, path?: string, params?: object }} issue - Finding.
+   * @param {import('./quality-fixes.mjs').FixAction} action - Fix.
+   * @param {string|null} language - Content language.
+   * @returns {Promise<boolean>} True when something changed or got focus.
+   */
+  const applyQualityFix = useCallback(
+    async (issue, action, language) => {
+      if (!editorRef.current || readOnly || !issue || !issue.blockId) return false;
+      const element = holderRef.current
+        ? holderRef.current.querySelector(`.ce-block[data-id="${CSS.escape(issue.blockId)}"]`)
+        : null;
+      // The link of a "click here" finding: shown (scrolled to, highlighted) while the editor
+      // types its new text in the quality panel, hidden again on Apply or Cancel.
+      if (action.kind === 'revealLink' || action.kind === 'hideLink') {
+        clearHighlight('mex-grammar');
+        if (action.kind === 'hideLink') return true;
+        const link =
+          element &&
+          Array.from(element.querySelectorAll('a')).find(
+            (node) =>
+              normalizeLinkText(node.textContent || '').slice(0, 40) === (issue.params && issue.params.text)
+          );
+        if (!link) return false;
+        link.scrollIntoView({ block: 'center' });
+        const same = Array.from(element.querySelectorAll('a')).filter(
+          (node) => node.textContent === link.textContent
+        );
+        highlightMatch(
+          element,
+          { text: link.textContent, occurrence: Math.max(0, same.indexOf(link)) },
+          { matchCase: true, name: 'mex-grammar' }
+        );
+        return true;
+      }
+      if (action.kind === 'linkText') clearHighlight('mex-grammar');
+      if (action.kind === 'alt') {
+        const inputs = element ? Array.from(element.querySelectorAll('.mex-alt__input')) : [];
+        const input = inputs[action.index] || null;
+        if (!input || input.disabled) return false;
+        input.scrollIntoView({ block: 'center' });
+        input.focus();
+        toggleNotification({
+          type: 'info',
+          message: t(
+            'editor.quality.fix.altPrompt',
+            'Describe the image in the alternative text field, or mark it as decorative.'
+          ),
+        });
+        return true;
+      }
+      return updateBlockStep(issue.blockId, (block) => fixedBlockData(block, issue, action, language));
+    },
+    [readOnly, t, toggleNotification, updateBlockStep]
   );
   const showGrammarMatch = useCallback((match, occurrence) => {
     const holder = holderRef.current;
@@ -3709,6 +3797,9 @@ const EditorFieldBody = ({
                 violations={violations}
                 onFixViolations={readOnly ? null : fixViolations}
                 palette={palette}
+                contentChecks={config && config.quality ? config.quality.contentChecks : undefined}
+                headingLevels={preset.headingLevels}
+                onFix={readOnly ? null : applyQualityFix}
               />
             </PanelSlot>
           ) : null}

@@ -73,6 +73,8 @@ module.exports = ({ strapi }) => ({
         quality: {
           externalLinks: conf('qualityChecks.externalLinks.enabled', false) === true,
           scheduledLinks: service(strapi, 'link-schedule').settings().enabled,
+          // 2.9: readability and SEO hints of the Quality panel (rules, thresholds; no content).
+          contentChecks: settings.contentChecks,
         },
         comments: { enabled: conf('comments.enabled', true) !== false },
         suggestions: { enabled: conf('suggestions.enabled', true) !== false },

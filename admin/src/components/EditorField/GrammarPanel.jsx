@@ -6,6 +6,7 @@ import {
   Flex,
   IconButton,
   Loader,
+  TextButton,
   Typography,
   VisuallyHidden,
 } from '@strapi/design-system';
@@ -70,6 +71,12 @@ const List = styled.ul`
   & > li + li {
     border-top: 1px solid ${({ theme }) => theme.colors.neutral150};
   }
+`;
+
+/** 2.9: the one-click "Fix" keeps a 32 px touch target. */
+const FixButton = styled(TextButton)`
+  min-height: 3.2rem;
+  padding-inline: ${({ theme }) => theme.spaces[2]};
 `;
 
 const Flagged = styled.mark`
@@ -401,7 +408,33 @@ export const GrammarPanel = ({
                       </Box>
                     ) : null}
                   </RowButton>
-                  {!readOnly && match.replacements.length ? (
+                  {!readOnly && match.replacements.length === 1 ? (
+                    // 2.9: one suggestion is a one-click "Fix" (one undo step; reaches a live room).
+                    <Flex
+                      gap={2}
+                      wrap="wrap"
+                      alignItems="center"
+                      paddingLeft={2}
+                      paddingRight={2}
+                      paddingBottom={2}
+                    >
+                      <Typography variant="pi" textColor="neutral600">
+                        {t('editor.grammar.suggestion', 'Suggestion: {text}', {
+                          text: match.replacements[0],
+                        })}
+                      </Typography>
+                      <FixButton
+                        onClick={() => apply(match, match.replacements[0])}
+                        aria-label={t('editor.grammar.applyLabel', 'Replace "{from}" with "{to}"', {
+                          from: match.text,
+                          to: match.replacements[0],
+                        })}
+                      >
+                        {t('editor.quality.fix', 'Fix')}
+                      </FixButton>
+                    </Flex>
+                  ) : null}
+                  {!readOnly && match.replacements.length > 1 ? (
                     <Flex gap={2} wrap="wrap" paddingLeft={2} paddingRight={2} paddingBottom={2}>
                       {match.replacements.map((replacement) => (
                         <Button
