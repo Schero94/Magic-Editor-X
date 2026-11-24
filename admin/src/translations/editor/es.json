@@ -834,7 +834,7 @@
   "editor.quality.fix.stale": "Ya no hay nada que corregir. El contenido cambió mientras tanto.",
   "editor.quality.fix.heading": "Corregir: cambiar a encabezado de nivel {level} ({finding})",
   "editor.quality.fix.typography": "Corregir: quitar los espacios de más ({finding})",
-  "editor.quality.fix.linkText": "Corregir: seleccionar el texto del enlace para reescribirlo ({finding})",
+  "editor.quality.fix.linkText": "Corregir: escribir un texto nuevo para este enlace ({finding})",
   "editor.quality.fix.alt": "Corregir: ir al campo del texto alternativo ({finding})",
   "editor.quality.showAll": "Mostrar los {count}",
   "editor.quality.hints.note": "Son sugerencias, no errores: nunca impiden guardar. Su administrador puede desactivar reglas en la configuración del plugin.",
@@ -851,7 +851,6 @@
   "editor.quality.section.seo": "Estructura SEO",
   "editor.quality.keyphrase.hint": "Opcional. Se revisa en el primer párrafo, en los subtítulos y cuántas veces aparece. Solo se guarda en este navegador.",
   "editor.quality.keyphrase.label": "Frase clave principal",
-  "editor.quality.fix.linkTextPrompt": "El texto del enlace está seleccionado. Escriba un texto que diga adónde lleva el enlace, por ejemplo el título de la página.",
   "editor.quality.fix.altPrompt": "Describa la imagen en el campo del texto alternativo o márquela como decorativa.",
   "editor.quality.hint.readingEase": "Legibilidad {score} ({band, select, veryEasy {muy fácil} easy {fácil} fairlyEasy {bastante fácil} standard {normal} fairlyDifficult {algo difícil} difficult {difícil} other {muy difícil}}). Apunte a {target} o más con frases más cortas y palabras más sencillas.",
   "editor.quality.hint.sentenceLong": "{count, plural, one {# frase tiene} other {# frases tienen}} más de {max} palabras (la más larga {longest})",
@@ -866,6 +865,13 @@
   "editor.quality.hint.internalLinks": "{count, plural, =0 {Sin enlaces internos} one {Solo # enlace interno} other {Solo # enlaces internos}}. Enlace al menos {min} {min, plural, one {otra página} other {otras páginas}} de este sitio.",
   "editor.quality.hint.contentShort": "{words} palabras, menos de las {min} recomendadas",
   "editor.quality.hint.keyphraseIntro": "El primer párrafo no menciona «{keyphrase}»",
-  "editor.quality.hint.keyphraseHeadings": "Ninguno de los {count, plural, one {# subtítulo} other {# subtítulos}} (nivel 2 o 3) menciona «{keyphrase}»",
-  "editor.quality.hint.keyphraseDensity": "«{keyphrase}» aparece {count, plural, one {# vez} other {# veces}} ({density} %). Apunte a entre {min} y {max} %."
+  "editor.quality.hint.keyphraseHeadings": "{count, plural, one {El subtítulo (nivel 2 o 3) no menciona «{keyphrase}»} other {Ninguno de los # subtítulos (nivel 2 o 3) menciona «{keyphrase}»}}",
+  "editor.quality.hint.keyphraseDensity": "«{keyphrase}» aparece {count, plural, one {# vez} other {# veces}} ({density} %). Apunte a entre {min} y {max} %.",
+  "editor.quality.linkText.empty": "Escriba un texto para el enlace.",
+  "editor.quality.linkText.ambiguous": "Este texto sigue sin decir adónde lleva el enlace.",
+  "editor.quality.linkText.stale": "El enlace cambió mientras tanto. Revise el contenido de nuevo.",
+  "editor.quality.linkText.hint": "Diga adónde lleva el enlace, por ejemplo con el título de la página.",
+  "editor.quality.linkText.label": "Nuevo texto del enlace",
+  "editor.quality.linkText.apply": "Cambiar el texto del enlace",
+  "editor.quality.linkText.cancel": "Cancelar"
 }

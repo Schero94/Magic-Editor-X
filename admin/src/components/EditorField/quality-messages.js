@@ -108,7 +108,7 @@ export const HINTS = {
   },
   'keyphrase-headings': {
     key: 'editor.quality.hint.keyphraseHeadings',
-    text: 'None of the {count, plural, one {# subheading} other {# subheadings}} (level 2 or 3) mentions "{keyphrase}"',
+    text: '{count, plural, one {The subheading (level 2 or 3) does not mention "{keyphrase}"} other {None of the # subheadings (level 2 or 3) mentions "{keyphrase}"}}',
   },
   'keyphrase-density': {
     key: 'editor.quality.hint.keyphraseDensity',

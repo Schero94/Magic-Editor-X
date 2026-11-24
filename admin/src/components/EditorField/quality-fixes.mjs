@@ -7,15 +7,21 @@
  * - `heading`: change a heading level (a heading that skips levels, a second
  *   H1, an H1 in content whose title field is the H1);
  * - `typography`: remove repeated spaces and spaces before punctuation;
- * - `linkText`: select the text of an ambiguous link ("click here") so the
- *   editor rewrites it (no automatic text);
+ * - `linkText`: the editor types a new text for an ambiguous link ("click
+ *   here") in the finding's row; the link keeps its address (no automatic
+ *   text is ever written);
  * - `alt`: focus the alternative text field of an image.
  */
 
-import { fixTypographyAt, headingFixLevel, setHeadingLevel } from '../../../../shared/content-insights.mjs';
+import {
+  fixTypographyAt,
+  headingFixLevel,
+  rewriteLinkTextAt,
+  setHeadingLevel,
+} from '../../../../shared/content-insights.mjs';
 
 /**
- * @typedef {{ kind: 'heading', level: number } | { kind: 'typography' } | { kind: 'linkText' } | { kind: 'alt', index: number }} FixAction
+ * @typedef {{ kind: 'heading', level: number } | { kind: 'typography' } | { kind: 'linkText', text?: string } | { kind: 'alt', index: number }} FixAction
  */
 
 const ALT_PATH = /^(?:file\.alt|alt|images\.(\d{1,4})\.file\.alt)$/;
@@ -43,7 +49,7 @@ export const fixActionOf = (issue, context = {}) => {
     case 'extra-spaces':
       return issue.path ? { kind: 'typography' } : null;
     case 'ambiguous-link-text':
-      return { kind: 'linkText' };
+      return issue.path && typeof params.text === 'string' ? { kind: 'linkText' } : null;
     case 'image-alt-missing': {
       const match = ALT_PATH.exec(issue.path || '');
       return match ? { kind: 'alt', index: match[1] ? Number(match[1]) : 0 } : null;
@@ -54,7 +60,8 @@ export const fixActionOf = (issue, context = {}) => {
 };
 
 /**
- * New block data for a fix that changes content (`heading`, `typography`).
+ * New block data for a fix that changes content (`heading`, `typography`, and `linkText` with the
+ * new text the editor typed in `action.text`).
  * @param {{ type: string, data: object }} block - Current block (fresh from the editor).
  * @param {{ path?: string }} issue - Finding.
  * @param {FixAction} action - Fix.
@@ -65,5 +72,7 @@ export const fixedBlockData = (block, issue, action, language = null) => {
   if (!block || !action) return null;
   if (action.kind === 'heading') return setHeadingLevel(block, issue.path, action.level);
   if (action.kind === 'typography') return fixTypographyAt(block, issue.path, language);
+  if (action.kind === 'linkText')
+    return rewriteLinkTextAt(block, issue.path, issue.params && issue.params.text, action.text);
   return null;
 };

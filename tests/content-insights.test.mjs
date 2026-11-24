@@ -425,7 +425,11 @@ test('fixes: heading levels stay inside the allowed levels', () => {
   });
   assert.equal(fixActionOf({ rule: 'h1-in-content', blockId: 'h' }, { headingLevels: [1] }), null);
   assert.deepEqual(fixActionOf({ rule: 'extra-spaces', blockId: 'p', path: 'text' }), { kind: 'typography' });
-  assert.deepEqual(fixActionOf({ rule: 'ambiguous-link-text', blockId: 'p' }), { kind: 'linkText' });
+  assert.deepEqual(
+    fixActionOf({ rule: 'ambiguous-link-text', blockId: 'p', path: 'text', params: { text: 'click here' } }),
+    { kind: 'linkText' }
+  );
+  assert.equal(fixActionOf({ rule: 'ambiguous-link-text', blockId: 'p' }), null);
   assert.deepEqual(fixActionOf({ rule: 'image-alt-missing', blockId: 'i', path: 'file.alt' }), {
     kind: 'alt',
     index: 0,
@@ -457,7 +461,33 @@ test('fixes: heading levels stay inside the allowed levels', () => {
     { text: 'a b' }
   );
   // A focus fix changes no data.
+  // "click here": the editor's text replaces the link text, the address and the markup around stay.
+  const linkBlock = {
+    type: 'list',
+    data: {
+      style: 'unordered',
+      items: [
+        {
+          content:
+            'Read <b>more</b> <a href="https://example.test/x" target="_blank" rel="noopener noreferrer">click <i>here</i></a>.',
+          items: [],
+        },
+      ],
+    },
+  };
+  const issue = { path: 'items.0.content', params: { text: 'click here' } };
+  assert.equal(
+    fixedBlockData(linkBlock, issue, { kind: 'linkText', text: '  the  watering guide ' }).items[0].content,
+    'Read <b>more</b> <a href="https://example.test/x" target="_blank" rel="noopener noreferrer">the watering guide</a>.'
+  );
+  assert.equal(fixedBlockData(linkBlock, issue, { kind: 'linkText', text: '   ' }), null);
+  assert.equal(
+    fixedBlockData(linkBlock, { ...issue, params: { text: 'here' } }, { kind: 'linkText', text: 'x' }),
+    null
+  );
+  // Without the typed text (the form is still open) nothing changes; the alt fix only moves focus.
   assert.equal(fixedBlockData({ type: 'paragraph', data: { text: 'x' } }, {}, { kind: 'linkText' }), null);
+  assert.equal(fixedBlockData({ type: 'image', data: {} }, {}, { kind: 'alt', index: 0 }), null);
 });
 
 test('grammar replacement keeps stored markup (no render-only classes)', () => {

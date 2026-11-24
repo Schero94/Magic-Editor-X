@@ -21,7 +21,8 @@ import { insightLanguage, normalizeContentChecks } from '../../../../shared/cont
 import { useQualityIssues } from './useQualityIssues';
 import { useContentInsights } from './useContentInsights';
 import { fixActionOf } from './quality-fixes.mjs';
-import { closeOnEscape, usePanelAutoFocus } from './usePanelFocus';
+import { closeOnEscape, refocusLater, usePanelAutoFocus } from './usePanelFocus';
+import { LinkTextFix } from './LinkTextFix';
 import { HINTS, PRESET_RULES, RULES } from './quality-messages';
 import { List, RowButton, Wrap } from './quality-ui';
 import { QualityLinks } from './QualityLinks';
@@ -175,6 +176,7 @@ export const QualityPanel = ({
   const [open, setOpen] = useState(() => (errors.length ? 'accessibility' : ''));
   const [expanded, setExpanded] = useState({});
   const [fixing, setFixing] = useState(null);
+  const [linkEdit, setLinkEdit] = useState(null);
 
   const issueText = (issue) => {
     const rule = RULES[issue.rule] ||
@@ -191,22 +193,49 @@ export const QualityPanel = ({
    */
   const runFix = useCallback(
     async (issue, action, section) => {
-      if (!onFix) return;
+      if (!onFix) return false;
       const key = findingKey(issue);
+      // "click here": the row opens a text field first; the link is shown in the editor meanwhile.
+      if (action.kind === 'linkText' && typeof action.text !== 'string') {
+        setLinkEdit(key);
+        onFix(issue, { kind: 'revealLink' }, language);
+        return true;
+      }
       setFixing(key);
       const ok = await Promise.resolve()
         .then(() => onFix(issue, action, language))
         .catch(() => false);
       setFixing(null);
-      if (action.kind !== 'heading' && action.kind !== 'typography') return;
+      if (!['heading', 'typography', 'linkText'].includes(action.kind)) return ok;
       setAnnouncement(
         ok
           ? t('editor.quality.fix.done', 'Fixed. Undo brings the previous text back.')
           : t('editor.quality.fix.stale', 'Nothing to fix any more. The content changed meanwhile.')
       );
-      pendingFocusRef.current = { section, key };
+      if (ok) {
+        if (action.kind === 'linkText') setLinkEdit(null);
+        pendingFocusRef.current = { section, key };
+      }
+      return ok;
     },
-    [language, onFix, t]
+    [language, onFix, setAnnouncement, t]
+  );
+
+  /**
+   * Closes the link text form without a change; focus goes back to its "Fix".
+   * @param {object} issue - Finding.
+   */
+  const cancelLinkEdit = useCallback(
+    (issue) => {
+      const key = findingKey(issue);
+      setLinkEdit(null);
+      if (onFix) onFix(issue, { kind: 'hideLink' }, language);
+      refocusLater(() => {
+        const root = sectionsRef.current;
+        return root ? root.querySelector(`[data-mex-fix="${CSS.escape(key)}"]`) : null;
+      });
+    },
+    [language, onFix]
   );
 
   // 2.9: a fixed finding leaves the list once the content is checked again (a moment later, for
@@ -247,7 +276,7 @@ export const QualityPanel = ({
           finding: text,
         });
       case 'linkText':
-        return t('editor.quality.fix.linkText', 'Fix: select the link text to rewrite it ({finding})', {
+        return t('editor.quality.fix.linkText', 'Fix: type a new text for this link ({finding})', {
           finding: text,
         });
       default:
@@ -287,14 +316,25 @@ export const QualityPanel = ({
                   {action ? (
                     <FixButton
                       data-mex-fix={key}
-                      onClick={() => runFix(issue, action, section)}
+                      onClick={() =>
+                        linkEdit === key ? cancelLinkEdit(issue) : runFix(issue, action, section)
+                      }
                       loading={fixing === key}
+                      aria-expanded={action.kind === 'linkText' ? linkEdit === key : undefined}
                       aria-label={fixLabel(issue, action, label ? `${text}, ${label}` : text)}
                     >
                       {t('editor.quality.fix', 'Fix')}
                     </FixButton>
                   ) : null}
                 </Flex>
+                {action && action.kind === 'linkText' && linkEdit === key ? (
+                  <LinkTextFix
+                    t={t}
+                    id={`mex-link-text-${section}-${index}`}
+                    onApply={(value) => runFix(issue, { kind: 'linkText', text: value }, section)}
+                    onCancel={() => cancelLinkEdit(issue)}
+                  />
+                ) : null}
               </li>
             );
           })}
@@ -337,7 +377,11 @@ export const QualityPanel = ({
     <Accordion.Item value={id} data-mex-section={id}>
       <Accordion.Header>
         <Accordion.Trigger>
-          {title} {count === null ? null : <CountBadge count={count} tone={tone} />}
+          {title}{' '}
+          {/* The badge renders from the start ("…" while the text is checked): its styles are then
+              injected when the panel opens, not when the result arrives, which restyled a whole
+              2,000-block document in one long task. */}
+          <CountBadge count={count === null ? '…' : count} tone={tone} />
           <VisuallyHidden>{srCount}</VisuallyHidden>
         </Accordion.Trigger>
       </Accordion.Header>

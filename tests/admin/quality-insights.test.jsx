@@ -95,8 +95,42 @@ test('quality panel: three collapsed sections with counts; Fix hands the right f
           action: { kind: 'heading', level: 3 },
           language: 'en',
         });
+        // "click here": the row opens a text field (focused); the link is shown in the editor.
         await click(a11yFixes[1]);
-        assert.deepEqual(fixes.pop().action, { kind: 'linkText' });
+        assert.deepEqual(fixes.pop().action, { kind: 'revealLink' });
+        assert.equal(a11yFixes[1].getAttribute('aria-expanded'), 'true');
+        const linkInput = document.activeElement;
+        assert.equal(linkInput.tagName, 'INPUT');
+        const typeInto = async (input, value) => {
+          await act(async () => {
+            const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+            setter.call(input, value);
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+          });
+        };
+        const applyButton = () =>
+          Array.from(document.querySelectorAll('button')).find(
+            (node) => node.textContent.trim() === 'Change link text'
+          );
+        // Still ambiguous: refused inline, nothing written.
+        await typeInto(linkInput, 'here');
+        await click(applyButton());
+        assert.match(document.body.textContent, /still does not say where the link goes/);
+        assert.equal(fixes.length, 0);
+        await typeInto(linkInput, 'the synthetic guide');
+        await click(applyButton());
+        assert.deepEqual(fixes.pop().action, { kind: 'linkText', text: 'the synthetic guide' });
+        // Escape in a reopened form cancels it (hides the link) and keeps the panel open.
+        await click(a11yFixes[1]);
+        fixes.pop();
+        await act(async () => {
+          document.activeElement.dispatchEvent(
+            new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })
+          );
+        });
+        await settle();
+        assert.deepEqual(fixes.pop().action, { kind: 'hideLink' });
+        assert.ok(document.querySelector('section[aria-label="Quality checks"]'));
 
         // Readability (one section open at a time): spacing has a "Fix".
         await click(triggerOf('readability'));

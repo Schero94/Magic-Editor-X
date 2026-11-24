@@ -51,6 +51,7 @@ import { isPlainObject, computeStats } from './editor-data.mjs';
 import { parseInline, nodesToHtml, isMathNode, isFootnoteNode } from './render/inline.mjs';
 import { isBuiltInBlock } from './sanitize-policy.mjs';
 import { columnsTextFields } from './columns.mjs';
+import { normalizeLinkText } from './quality.mjs';
 
 /** Languages with language-aware rules. Other locales get the language-independent rules only. */
 export const INSIGHT_LANGUAGES = Object.freeze(['en', 'de', 'fr', 'es', 'pt']);
@@ -770,7 +771,7 @@ export const easeBand = (formula, score) => {
 /**
  * Builds the hints of a document from analysed units.
  * @param {{ units: InsightUnit[], results: Array<ReturnType<typeof analyzeUnit>>, data: object|null }} input - Units, their analyses (same order) and the document.
- * @param {{ language?: string|null, settings?: object, keyphrase?: string, rules?: string[] }} [options] - Language, settings (`normalizeContentChecks`), focus keyphrase, and `rules` to limit the run to some setting names (publish guard).
+ * @param {{ language?: string|null, settings?: object, keyphrase?: string, rules?: string[], words?: number }} [options] - Language, settings (`normalizeContentChecks`), focus keyphrase, `rules` to limit the run to some setting names (publish guard), and `words` when the toolbar word count is already known (the runner counts it in a slice of its own).
  * @returns {{ issues: InsightIssue[], score: { formula: string, value: number, band: string } | null, stats: { words: number, sentences: number, hints: number, readability: number, seo: number }, language: string|null }} Result.
  */
 export const summarizeInsights = ({ units, results, data }, options = {}) => {
@@ -929,7 +930,7 @@ export const summarizeInsights = ({ units, results, data }, options = {}) => {
   }
 
   // SEO: internal links and length (words counted like the toolbar).
-  const totalWords = computeStats(data).words;
+  const totalWords = Number.isInteger(options.words) ? options.words : computeStats(data).words;
   if (on('internal-links') && settings.minInternalLinks > 0 && proseWords > 0) {
     const count = results.reduce((sum, r) => sum + r.internalLinks, 0);
     if (count < settings.minInternalLinks)
@@ -1039,7 +1040,18 @@ export const createInsightsRunner = (options = {}) => {
           if (now() - start >= budget) break;
         }
         if (index < units.length) handle = schedule(step);
-        else done(summarizeInsights({ units, results, data }, runOptions));
+        else handle = schedule(count);
+      };
+      // The word count (like the toolbar) and the summary each get a slice of their own.
+      const count = () => {
+        handle = null;
+        if (mine !== generation) return;
+        const words = computeStats(data).words;
+        handle = schedule(() => {
+          handle = null;
+          if (mine === generation)
+            done(summarizeInsights({ units, results, data }, { ...runOptions, words }));
+        });
       };
       handle = schedule(step);
     },
@@ -1122,4 +1134,52 @@ export const setHeadingLevel = (block, path, level) => {
     );
   }
   return null;
+};
+
+/** Longest link text a rewrite accepts. */
+export const MAX_LINK_TEXT = 200;
+
+/**
+ * Block data with the text of one link rewritten (the "click here" fix): the
+ * first link in the text slot whose text matches `oldText` (normalised like
+ * the accessibility rule) gets `newText` as its only content. The address,
+ * the attributes and everything around the link stay.
+ * @param {{ type: string, data: object }} block - Block.
+ * @param {string} path - Text slot of the finding.
+ * @param {string} oldText - Normalised link text from the finding (`params.text`).
+ * @param {string} newText - New link text (trimmed, at most 200 characters).
+ * @returns {object|null} New block data, or null when nothing matches or the text is empty.
+ */
+export const rewriteLinkTextAt = (block, path, oldText, newText) => {
+  const text = typeof newText === 'string' ? newText.replace(/\s+/g, ' ').trim().slice(0, MAX_LINK_TEXT) : '';
+  if (
+    !text ||
+    !block ||
+    !isPlainObject(block.data) ||
+    typeof path !== 'string' ||
+    typeof oldText !== 'string'
+  )
+    return null;
+  return updateAt(block.data, splitPath(path), (value) => {
+    if (typeof value !== 'string') return null;
+    const nodes = parseInline(value);
+    let done = false;
+    const walk = (list, depth = 0) => {
+      if (depth > 40 || done) return;
+      for (const node of list) {
+        if (done || node.type !== 'element') continue;
+        if (
+          node.tag === 'a' &&
+          normalizeLinkText(readingText(node.children || [])).slice(0, 40) === oldText
+        ) {
+          node.children = [{ type: 'text', value: text }];
+          done = true;
+          return;
+        }
+        walk(node.children || [], depth + 1);
+      }
+    };
+    walk(nodes);
+    return done ? nodesToHtml(nodes, { storage: true }) : null;
+  });
 };

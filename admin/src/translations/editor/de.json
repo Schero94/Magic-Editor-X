@@ -834,7 +834,7 @@
   "editor.quality.fix.stale": "Nichts mehr zu beheben. Der Inhalt hat sich inzwischen geändert.",
   "editor.quality.fix.heading": "Beheben: in Überschrift Ebene {level} ändern ({finding})",
   "editor.quality.fix.typography": "Beheben: überzählige Leerzeichen entfernen ({finding})",
-  "editor.quality.fix.linkText": "Beheben: Linktext markieren, um ihn neu zu schreiben ({finding})",
+  "editor.quality.fix.linkText": "Beheben: neuen Text für diesen Link eingeben ({finding})",
   "editor.quality.fix.alt": "Beheben: zum Feld für den Alternativtext springen ({finding})",
   "editor.quality.showAll": "Alle {count} anzeigen",
   "editor.quality.hints.note": "Hinweise, keine Fehler: Sie blockieren nie das Speichern. Ihr Administrator kann Regeln in der Plugin-Konfiguration ausschalten.",
@@ -851,7 +851,6 @@
   "editor.quality.section.seo": "SEO-Struktur",
   "editor.quality.keyphrase.hint": "Optional. Geprüft werden der erste Absatz, die Zwischenüberschriften und wie oft sie vorkommt. Nur in diesem Browser gespeichert.",
   "editor.quality.keyphrase.label": "Fokus-Keyphrase",
-  "editor.quality.fix.linkTextPrompt": "Der Linktext ist markiert. Tippen Sie einen Text, der sagt, wohin der Link führt, zum Beispiel den Titel der Seite.",
   "editor.quality.fix.altPrompt": "Beschreiben Sie das Bild im Feld für den Alternativtext oder markieren Sie es als dekorativ.",
   "editor.quality.hint.readingEase": "Lesbarkeit {score} ({band, select, veryEasy {sehr leicht} easy {leicht} fairlyEasy {eher leicht} standard {mittel} fairlyDifficult {eher schwer} difficult {schwer} other {sehr schwer}}). Ziel sind {target} oder mehr, mit kürzeren Sätzen und einfacheren Wörtern.",
   "editor.quality.hint.sentenceLong": "{count, plural, one {# Satz ist} other {# Sätze sind}} länger als {max} Wörter (der längste {longest})",
@@ -866,6 +865,13 @@
   "editor.quality.hint.internalLinks": "{count, plural, =0 {Keine internen Links} one {Nur # interner Link} other {Nur # interne Links}}. Verlinken Sie mindestens {min} {min, plural, one {andere Seite} other {andere Seiten}} dieser Website.",
   "editor.quality.hint.contentShort": "{words} Wörter, weniger als die empfohlenen {min}",
   "editor.quality.hint.keyphraseIntro": "Der erste Absatz erwähnt „{keyphrase}“ nicht",
-  "editor.quality.hint.keyphraseHeadings": "Keine der {count, plural, one {# Zwischenüberschrift} other {# Zwischenüberschriften}} (Ebene 2 oder 3) erwähnt „{keyphrase}“",
-  "editor.quality.hint.keyphraseDensity": "„{keyphrase}“ kommt {count, plural, one {# Mal} other {# Mal}} vor ({density} %). Ziel sind {min} bis {max} %."
+  "editor.quality.hint.keyphraseHeadings": "{count, plural, one {Die Zwischenüberschrift (Ebene 2 oder 3) erwähnt „{keyphrase}“ nicht} other {Keine der # Zwischenüberschriften (Ebene 2 oder 3) erwähnt „{keyphrase}“}}",
+  "editor.quality.hint.keyphraseDensity": "„{keyphrase}“ kommt {count, plural, one {# Mal} other {# Mal}} vor ({density} %). Ziel sind {min} bis {max} %.",
+  "editor.quality.linkText.empty": "Geben Sie einen Linktext ein.",
+  "editor.quality.linkText.ambiguous": "Auch dieser Text sagt nicht, wohin der Link führt.",
+  "editor.quality.linkText.stale": "Der Link hat sich inzwischen geändert. Prüfen Sie den Inhalt erneut.",
+  "editor.quality.linkText.hint": "Sagen Sie, wohin der Link führt, zum Beispiel mit dem Titel der Seite.",
+  "editor.quality.linkText.label": "Neuer Linktext",
+  "editor.quality.linkText.apply": "Linktext ändern",
+  "editor.quality.linkText.cancel": "Abbrechen"
 }

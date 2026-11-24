@@ -71,7 +71,7 @@ import { usePresenceAnnouncements } from './usePresenceAnnouncements';
 import { QualityPanel } from './QualityPanel';
 import { useQualityIssues } from './useQualityIssues';
 import { fixedBlockData } from './quality-fixes.mjs';
-import { isAmbiguousLinkText } from '../../../../shared/quality.mjs';
+import { normalizeLinkText } from '../../../../shared/quality.mjs';
 import { FindReplacePanel } from './FindReplacePanel';
 import { ShortcutsDialog } from './ShortcutsDialog';
 import { BlockSelectionBar } from './BlockSelectionBar';
@@ -2345,8 +2345,9 @@ const EditorFieldBody = ({
    * 2.9: one-click fix from the Quality panel. Content fixes (heading level, spacing) read the
    * block fresh from the editor, change it with the Editor.js block API and save at once, so the
    * fix is one undo step of its own (also in a live room: the shared document records it as this
-   * person's change) and reaches the other people in the room like typing does. The "focus"
-   * fixes select an ambiguous link's text or focus an image's alternative text field instead.
+   * person's change) and reaches the other people in the room like typing does. A "click here"
+   * link gets the text the editor typed in the panel (`linkText` with `text`; `revealLink` and
+   * `hideLink` show the link meanwhile); an image's alternative text field takes focus.
    * @param {{ rule: string, blockId: string, path?: string, params?: object }} issue - Finding.
    * @param {import('./quality-fixes.mjs').FixAction} action - Fix.
    * @param {string|null} language - Content language.
@@ -2358,32 +2359,30 @@ const EditorFieldBody = ({
       const element = holderRef.current
         ? holderRef.current.querySelector(`.ce-block[data-id="${CSS.escape(issue.blockId)}"]`)
         : null;
-      if (action.kind === 'linkText') {
+      // The link of a "click here" finding: shown (scrolled to, highlighted) while the editor
+      // types its new text in the quality panel, hidden again on Apply or Cancel.
+      if (action.kind === 'revealLink' || action.kind === 'hideLink') {
+        clearHighlight('mex-grammar');
+        if (action.kind === 'hideLink') return true;
         const link =
           element &&
-          Array.from(element.querySelectorAll('a')).find((node) =>
-            isAmbiguousLinkText(node.textContent || '')
+          Array.from(element.querySelectorAll('a')).find(
+            (node) =>
+              normalizeLinkText(node.textContent || '').slice(0, 40) === (issue.params && issue.params.text)
           );
-        const editable = link && link.closest('[contenteditable="true"]');
-        if (!link || !editable) return false;
+        if (!link) return false;
         link.scrollIntoView({ block: 'center' });
-        editable.focus();
-        const selection = window.getSelection();
-        if (selection) {
-          const range = document.createRange();
-          range.selectNodeContents(link);
-          selection.removeAllRanges();
-          selection.addRange(range);
-        }
-        toggleNotification({
-          type: 'info',
-          message: t(
-            'editor.quality.fix.linkTextPrompt',
-            'The link text is selected. Type a text that says where the link goes, for example the title of the page.'
-          ),
-        });
+        const same = Array.from(element.querySelectorAll('a')).filter(
+          (node) => node.textContent === link.textContent
+        );
+        highlightMatch(
+          element,
+          { text: link.textContent, occurrence: Math.max(0, same.indexOf(link)) },
+          { matchCase: true, name: 'mex-grammar' }
+        );
         return true;
       }
+      if (action.kind === 'linkText') clearHighlight('mex-grammar');
       if (action.kind === 'alt') {
         const inputs = element ? Array.from(element.querySelectorAll('.mex-alt__input')) : [];
         const input = inputs[action.index] || null;

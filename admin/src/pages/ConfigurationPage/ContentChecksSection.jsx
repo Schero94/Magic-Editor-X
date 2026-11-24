@@ -74,7 +74,10 @@ const ruleTexts = (t) => ({
   },
   h1: {
     label: t('settings.contentChecks.rule.h1', 'Page heading (H1)'),
-    hint: t('settings.contentChecks.rule.h1.hint', 'Checked as chosen under "Page heading" above.'),
+    hint: t(
+      'settings.contentChecks.rule.h1.hint',
+      'Checked as chosen under "Page heading (H1) comes from" above.'
+    ),
   },
   'section-long': {
     label: t('settings.contentChecks.rule.sectionLong', 'Long sections without a subheading'),
@@ -205,7 +208,7 @@ export const ContentChecksSection = ({ form, readOnly }) => {
               'Most content types show their title field as the page heading, so the editor content starts at level 2.'
             )}
           >
-            <Field.Label>{t('settings.contentChecks.h1.label', 'Page heading')}</Field.Label>
+            <Field.Label>{t('settings.contentChecks.h1.label', 'Page heading (H1) comes from')}</Field.Label>
             <SingleSelect
               value={checks.h1}
               disabled={readOnly || off}
@@ -214,10 +217,10 @@ export const ContentChecksSection = ({ form, readOnly }) => {
               }
             >
               <SingleSelectOption value="title">
-                {t('settings.contentChecks.h1.title', 'The title field is the H1 (no H1 in the content)')}
+                {t('settings.contentChecks.h1.title', 'Title field')}
               </SingleSelectOption>
               <SingleSelectOption value="content">
-                {t('settings.contentChecks.h1.content', 'The content has its own H1')}
+                {t('settings.contentChecks.h1.content', 'Editor content')}
               </SingleSelectOption>
             </SingleSelect>
             <Field.Hint />
