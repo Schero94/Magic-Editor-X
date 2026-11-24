@@ -152,7 +152,7 @@ export const TextOps = ({ ops, t }) => (
 
 /**
  * Changed fields of one diff entry: word diff for text, before/after for values, tune changes
- * (2.11: also the "Changes since last publish" popover). Text only, never HTML.
+ * (2.12: also the "Changes since last publish" popover). Text only, never HTML.
  * @param {{ entry: object, t: Function, empty: string }} props - Diff entry, translator, text for missing values.
  * @returns {JSX.Element} Fields.
  */

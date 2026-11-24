@@ -34,7 +34,7 @@ const Shortcut = styled(Typography)`
 `;
 
 /**
- * Label of an item, with the optional second line (2.11 `description`, for example why the entry
+ * Label of an item, with the optional second line (2.12 `description`, for example why the entry
  * cannot be used yet). Both lines are text of the item, so they are part of its accessible name.
  * @param {{ entry: object }} props - Props.
  * @returns {JSX.Element|string} Label.
@@ -119,7 +119,7 @@ const itemAria = (entry, toggle, count) => {
  * @param {Function} props.t - Translator.
  * @param {Array<object>} props.tools - Field tool registry entries.
  * @param {boolean} [props.disabled] - Disables the trigger (editor not ready).
- * @param {(open: boolean) => void} [props.onOpenChange] - Called when the menu opens or closes (2.11: lazy status checks).
+ * @param {(open: boolean) => void} [props.onOpenChange] - Called when the menu opens or closes (2.12: lazy status checks).
  * @param {import('react').Ref<HTMLButtonElement>} ref - Trigger ref (focus returns here when a panel closes).
  * @returns {JSX.Element|null} Menu, or nothing without visible tools.
  */

@@ -5,7 +5,7 @@ import styled from 'styled-components';
 
 /**
  * One line under the field toolbar while "Changes since last publish" is on
- * (2.11): the switch that turns the marks off again, what the marks mean and
+ * (2.12): the switch that turns the marks off again, what the marks mean and
  * how many blocks changed. The colours are explained in words next to them,
  * so they never carry the meaning alone.
  */

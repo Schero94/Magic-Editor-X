@@ -1,5 +1,5 @@
 /**
- * 2.11 "Edit in Media Library" (crop and focus there): version gating (Strapi 5.54+, new Media
+ * 2.12 "Edit in Media Library" (crop and focus there): version gating (Strapi 5.54+, new Media
  * Library), the deep-link builder, focal point conversion (0-100 -> 0-1), the file refresh merge
  * and the GET /config capability.
  */

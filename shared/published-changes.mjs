@@ -1,5 +1,5 @@
 /**
- * "Changes since last publish" (2.11): classifies the blocks of the editor
+ * "Changes since last publish" (2.12): classifies the blocks of the editor
  * against the published version of the same document, locale and field.
  *
  * It reuses the version history diff (`diffDocuments`): blocks are matched by

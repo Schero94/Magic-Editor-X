@@ -11,7 +11,7 @@ import { API } from '../../utils/api';
 export const PUBLISHED_CHANGES_DEBOUNCE_MS = 250;
 
 /**
- * "Changes since last publish" (2.11): loads the published version of the
+ * "Changes since last publish" (2.12): loads the published version of the
  * field and classifies the editor blocks against it. Nothing is requested
  * while the marks are off, except one status check when the More tools menu
  * opens (so the menu can explain an entry that was never published). What

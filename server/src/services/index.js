@@ -14,7 +14,7 @@ module.exports = {
   'custom-blocks': require('./custom-blocks'),
   blocks: require('./blocks'),
   history: require('./history'),
-  // 2.11: published version of a field ("Changes since last publish")
+  // 2.12: published version of a field ("Changes since last publish")
   published: require('./published'),
   comments: require('./comments'),
   'comment-notifications': require('./comment-notifications'),

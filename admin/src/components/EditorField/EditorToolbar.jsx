@@ -88,7 +88,7 @@ const initials = (name) =>
 /**
  * @param {object} props - Props.
  * @param {string[]|null} [props.onlyTools] - 2.7.8: ids of the More tools entries to keep (suggest mode).
- * @param {(open: boolean) => void} [props.onToolsOpenChange] - 2.11: the More tools menu opened or closed.
+ * @param {(open: boolean) => void} [props.onToolsOpenChange] - 2.12: the More tools menu opened or closed.
  * @returns {JSX.Element} Toolbar.
  */
 export const EditorToolbar = ({

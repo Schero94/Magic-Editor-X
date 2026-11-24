@@ -1,6 +1,6 @@
 {
   "name": "magic-editor-x",
-  "version": "2.10.0",
+  "version": "2.11.0",
   "description": "Free, open-source block editor for Strapi 5: Editor.js custom field with Media Library uploads, custom blocks, version history, live collaboration across several servers and an optional AI assistant with your own provider.",
   "keywords": [
     "strapi",
@@ -128,8 +128,10 @@
     "@editorjs/quote": "^2.7.6",
     "@editorjs/raw": "^2.5.1",
     "@editorjs/warning": "^1.4.1",
+    "docx": "^9.16.0",
     "dompurify": "^3.4.17",
     "editorjs-indent-tune": "^1.4.4",
+    "fflate": "^0.8.3",
     "htmlparser2": "^12.0.0",
     "ipaddr.js": "^2.5.0",
     "marked": "^18.2.0",

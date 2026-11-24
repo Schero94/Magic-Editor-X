@@ -1,5 +1,5 @@
 /**
- * "Changes since last publish" on or off (2.11), remembered per admin user in
+ * "Changes since last publish" on or off (2.12), remembered per admin user in
  * this browser's localStorage (`magic-editor-x:published-changes:<user id>`).
  * Off by default. Storage that is full, blocked or holds something else reads
  * as off; failures never reach the editor. Nothing is sent anywhere.

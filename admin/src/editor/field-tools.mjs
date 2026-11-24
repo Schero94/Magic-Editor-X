@@ -30,7 +30,7 @@
  *   config, field option, read-only). Never render a tool that cannot work.
  * - `disabled` (boolean, optional): shown but not selectable (editor not
  *   ready yet).
- * - `description` (string, optional, 2.11): a short second line under the
+ * - `description` (string, optional, 2.12): a short second line under the
  *   label, for example why a disabled entry cannot be used yet ("This entry
  *   has not been published yet").
  * - `order` (number, optional): position inside the group; entries without

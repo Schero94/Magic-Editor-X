@@ -7,7 +7,7 @@ import { mediaLibraryAssetHref, mediaLibraryFileId } from '../../../../shared/me
 import { API } from '../../utils/api';
 
 /**
- * "Edit in Media Library" in the image block (2.11).
+ * "Edit in Media Library" in the image block (2.12).
  *
  * Strapi has no API to open its crop dialog from a plugin, but Strapi 5.54+
  * opens the asset details drawer of a file from `/admin/plugins/upload?assetId=<id>`,

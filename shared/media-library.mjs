@@ -1,5 +1,5 @@
 /**
- * "Edit in Media Library" for image blocks (2.11): helpers shared by the server
+ * "Edit in Media Library" for image blocks (2.12): helpers shared by the server
  * (GET /config capability) and the admin (image block button, refresh on return).
  *
  * Strapi has no public API to open its crop dialog from a plugin. From Strapi

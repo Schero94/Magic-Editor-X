@@ -7,7 +7,7 @@ import { blockText } from '../../../../shared/diff.mjs';
 import { Deleted, DiffText, EntryFields } from './VersionDiff';
 
 /**
- * "Changes since last publish" marks (2.11).
+ * "Changes since last publish" marks (2.12).
  *
  * - Added and changed blocks get a bar at the inline start (success and warning colour) from a
  *   scoped style sheet that selects the blocks by `data-id`. Editor.js' own DOM is never touched,

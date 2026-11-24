@@ -15,7 +15,7 @@ const labelSchema = z
 
 const createSchema = fieldTargetSchema.extend({ content: z.unknown(), label: labelSchema.optional() });
 const renameSchema = z.strictObject({ label: labelSchema });
-/** `content=false` asks whether a published version exists, without the field value (2.11). */
+/** `content=false` asks whether a published version exists, without the field value (2.12). */
 const contentFlagSchema = z.enum(['true', 'false']).optional();
 
 /**
@@ -113,7 +113,7 @@ module.exports = ({ strapi }) => {
     },
 
     /**
-     * The published version of one field (2.11, "Changes since last publish"): the editor marks
+     * The published version of one field (2.12, "Changes since last publish"): the editor marks
      * blocks added, changed or removed since then. Read with the Document Service
      * (`status: 'published'`) through the caller's Content Manager read permission query.
      * @route GET /magic-editor-x/published-version?uid&documentId&locale&field&fieldKey?&content?

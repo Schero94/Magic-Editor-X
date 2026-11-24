@@ -1,5 +1,5 @@
 /**
- * 2.11 "Changes since last publish": block classification against the published version
+ * 2.12 "Changes since last publish": block classification against the published version
  * (shared/published-changes.mjs), the scoped mark style sheet, the 2,000-block budget, the
  * published-version service (Document Service, status published, CM read permission query) and
  * the GET /published-version handler and route (RBAC 403, Content Manager 404).

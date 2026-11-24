@@ -160,7 +160,7 @@ export class MexImageTool extends ImageTool {
           options.block.dispatchChange();
       },
     });
-    // 2.11: "Edit in Media Library" (crop and focus there), rendered by the field through a portal.
+    // 2.12: "Edit in Media Library" (crop and focus there), rendered by the field through a portal.
     this.mexBlock = (options && options.block) || null;
     this.mexMountMedia =
       typeof config.mountMediaEdit === 'function' && !(options && options.readOnly)
@@ -184,7 +184,7 @@ export class MexImageTool extends ImageTool {
   }
 
   /**
-   * 2.11: takes the file back from the Media Library after it was edited there (crop, replace).
+   * 2.12: takes the file back from the Media Library after it was edited there (crop, replace).
    * URL, size and formats follow the Media Library; the block keeps its alternative text. The
    * Media Library's focal point (0-100) becomes the block's focal point (0-1) only when the block
    * has none.
@@ -252,7 +252,7 @@ export class MexImageTool extends ImageTool {
     return wrapper;
   }
 
-  /** 2.11: removes the "Edit in Media Library" view (block removed or editor destroyed). */
+  /** 2.12: removes the "Edit in Media Library" view (block removed or editor destroyed). */
   destroy() {
     const unmount = this.mexUnmountMedia;
     this.mexUnmountMedia = null;

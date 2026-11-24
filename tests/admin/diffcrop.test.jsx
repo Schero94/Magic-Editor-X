@@ -1,5 +1,5 @@
 /**
- * 2.11 admin entry points in StrictMode: "Changes since last publish" (hook, bar, marks layer)
+ * 2.12 admin entry points in StrictMode: "Changes since last publish" (hook, bar, marks layer)
  * and "Edit in Media Library" (image block control). Requests go through the fake network; the
  * hook must not request anything while the marks are off.
  */

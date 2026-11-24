@@ -70,7 +70,7 @@ module.exports = ({ strapi }) => ({
           // 2.5: the upload provider serves files through signed URLs only (the editor refreshes them).
           privateFiles: await service(strapi, 'media').isPrivate(),
         },
-        // 2.11: "Edit in Media Library" for image blocks. Strapi 5.54+ opens the asset drawer (with Crop)
+        // 2.12: "Edit in Media Library" for image blocks. Strapi 5.54+ opens the asset drawer (with Crop)
         // from `/admin/plugins/upload?assetId=`; the admin also checks that the legacy Media Library is off.
         mediaLibrary: {
           assetEditor:
@@ -99,7 +99,7 @@ module.exports = ({ strapi }) => ({
           ai: can(ACTIONS.ai),
           upload: can('plugin::upload.assets.create'),
           mediaLibrary: can('plugin::upload.read'),
-          // 2.11: Crop in the Media Library replaces the file (needs update rights there).
+          // 2.12: Crop in the Media Library replaces the file (needs update rights there).
           mediaLibraryUpdate: can('plugin::upload.assets.update'),
           customBlocksManage: can(ACTIONS.customBlocksManage),
           settingsRead: can(ACTIONS.settingsRead),

@@ -4,7 +4,7 @@ const { pathQuery, collectAt, describeEntries } = require('../utils/field-identi
 const { normalizeEditorDataSafe } = require('../../../shared/editor-data.mjs');
 
 /**
- * "Changes since last publish" (2.11): reads one Magic Editor X field of the
+ * "Changes since last publish" (2.12): reads one Magic Editor X field of the
  * published version of a document with the Document Service, so the editor
  * can mark what changed in the draft since the last publish.
  *
