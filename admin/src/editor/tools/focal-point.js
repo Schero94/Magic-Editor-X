@@ -17,7 +17,9 @@ const nextId = (prefix) => {
 /**
  * Creates the focal point control.
  * @param {{ t: Function, url?: string, point?: { x: number, y: number }, readOnly?: boolean, onChange: (point: { x: number, y: number }|undefined) => void }} options - Options.
- * @returns {{ element: HTMLElement, setUrl: (url: string) => void, read: () => ({ x: number, y: number }|undefined) }} Control.
+ * @returns {{ element: HTMLElement, setUrl: (url: string) => void, read: () => ({ x: number, y: number }|undefined), setDefault: (point: { x: number, y: number }) => boolean, addBeside: (node: HTMLElement) => void }} Control.
+ *   `setDefault` (2.12) sets a point only while none is set (the Media Library's own focal point) and does
+ *   not call `onChange`; it returns whether it set one.
  */
 export const createFocalControl = ({ t, url = '', point, readOnly = false, onChange }) => {
   let current = point && Number.isFinite(point.x) && Number.isFinite(point.y) ? point : undefined;
@@ -128,5 +130,21 @@ export const createFocalControl = ({ t, url = '', point, readOnly = false, onCha
   };
   setUrl(url);
   show();
-  return { element: wrapper, setUrl, read: () => current };
+  const setDefault = (point) => {
+    if (current || !point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) return false;
+    current = { x: point.x, y: point.y };
+    show();
+    return true;
+  };
+  // 2.12: a control that belongs to the same row as "Set focal point" (Edit in Media Library).
+  const addBeside = (node) => {
+    let row = toggle.parentNode;
+    if (!row || !row.classList || !row.classList.contains('mex-focal__row')) {
+      row = el('div', { className: 'mex-focal__row' });
+      toggle.replaceWith(row);
+      row.append(toggle);
+    }
+    row.append(node);
+  };
+  return { element: wrapper, setUrl, read: () => current, setDefault, addBeside };
 };

@@ -24,6 +24,10 @@ export const API = {
   collaborationSession: '/magic-editor-x/collaboration/session',
   history: '/magic-editor-x/history',
   historyItem: (id) => `/magic-editor-x/history/${encodeURIComponent(id)}`,
+  // 2.12: "Changes since last publish".
+  publishedVersion: '/magic-editor-x/published-version',
+  // 2.12: Strapi's own admin route (`plugin::upload.read`): refresh an image after a crop.
+  uploadFile: (id) => `/upload/files/${encodeURIComponent(id)}`,
   ai: (action) => `/magic-editor-x/ai/${encodeURIComponent(action)}`,
   aiAltText: '/magic-editor-x/ai/image/alt-text',
   aiField: (action) => `/magic-editor-x/ai/field/${encodeURIComponent(action)}`,

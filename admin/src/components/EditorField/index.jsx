@@ -37,7 +37,7 @@ import {
 } from '@strapi/icons';
 import { useAuth, useNotification, useStrapiApp } from '@strapi/strapi/admin';
 import { useFetchClient } from '../../utils/fetch-client';
-import { Lightbulb, Pencil } from '@strapi/icons';
+import { Lightbulb, ListSearch, Pencil } from '@strapi/icons';
 import styled, { createGlobalStyle, useTheme } from 'styled-components';
 import { buildTools, disposeTools, editorI18n, createUndoManager, createDragDrop } from '../../editor/tools';
 import { editorStyles } from '../../editor/tools/styles';
@@ -140,6 +140,12 @@ import { createAltTextSuggester } from '../../editor/ai-alt-text';
 import { insertSuggestion } from '../../editor/ai-selection';
 import { GrammarPanel } from './GrammarPanel';
 import { ComponentBlockView } from './ComponentBlockView';
+// 2.12: "Changes since last publish" and "Edit in Media Library".
+import { usePublishedChanges } from './usePublishedChanges';
+import { PublishedChangesBar } from './PublishedChangesBar';
+import { PublishedChangeMarks } from './PublishedChangeMarks';
+import { MediaEditControl } from './MediaEditControl';
+import { canEditInMediaLibrary } from '../../../../shared/media-library.mjs';
 import { setActiveComponents } from '../../../../shared/components.mjs';
 import { FieldAiDialog } from './FieldAiDialog';
 import { BlockAiDialog } from './BlockAiDialog';
@@ -365,7 +371,7 @@ const Holder = styled.div`
   /* Room for the block comment and suggestion markers at the inline end (they sit outside the holder). */
   ${({ $gutter, theme }) =>
     $gutter
-      ? `&& { padding-inline-end: ${$gutter === 2 ? `calc(${theme.spaces[8]} + 3.6rem)` : theme.spaces[8]}; }`
+      ? `&& { padding-inline-end: ${$gutter > 1 ? `calc(${theme.spaces[8]} + ${($gutter - 1) * 3.6}rem)` : theme.spaces[8]}; }`
       : ''}
   ${({ $focus, theme }) =>
     $focus
@@ -731,6 +737,22 @@ const EditorFieldBody = ({
     setComponentMounts((current) => new Map(current).set(key, { element, ...info }));
     return () =>
       setComponentMounts((current) => {
+        if (!current.has(key)) return current;
+        const next = new Map(current);
+        next.delete(key);
+        return next;
+      });
+  }, []);
+  // 2.12: "Edit in Media Library" in image blocks (the tool hands its element to the field).
+  const uploadPath = useHref('/plugins/upload');
+  const [mediaMounts, setMediaMounts] = useState(() => new Map());
+  const mediaKeyRef = useRef(0);
+  const mountMediaEdit = useCallback((element, info) => {
+    mediaKeyRef.current += 1;
+    const key = mediaKeyRef.current;
+    setMediaMounts((current) => new Map(current).set(key, { element, ...info }));
+    return () =>
+      setMediaMounts((current) => {
         if (!current.has(key)) return current;
         const next = new Map(current);
         next.delete(key);
@@ -1316,6 +1338,31 @@ const EditorFieldBody = ({
   // 2.9 "Ask AI…": the admin's recent instructions (this browser only, per admin user).
   const aiOwner = useAuth('MagicEditorX', (state) => (state.user ? state.user.id : null));
   const storedInstructions = useMemo(() => readRecentInstructions(aiOwner), [aiOwner]);
+
+  // 2.12 "Changes since last publish": Draft & Publish types, saved entries, known field identity.
+  const publishedAvailable = Boolean(
+    target.hasDraftAndPublish && target.uid && target.documentId && identityReady
+  );
+  const publishedChanges = usePublishedChanges({
+    available: publishedAvailable,
+    target: fieldTarget,
+    baseline: target.baseline,
+    data: currentData,
+    get,
+    owner: aiOwner,
+  });
+  const publishedMarksShown = Boolean(
+    publishedChanges.on &&
+    publishedChanges.status !== 'idle' &&
+    !(publishedChanges.status === 'ready' && !publishedChanges.published)
+  );
+  const publishedScope = useMemo(
+    () =>
+      `mex${String(name)
+        .replace(/[^A-Za-z0-9_-]/g, '-')
+        .slice(0, 48)}`,
+    [name]
+  );
   const [usedInstructions, setUsedInstructions] = useState(null);
   const recentInstructions =
     usedInstructions && usedInstructions.owner === aiOwner ? usedInstructions.list : storedInstructions;
@@ -1508,6 +1555,14 @@ const EditorFieldBody = ({
       mountSynced,
       componentBlocks: allowedComponents,
       mountComponent,
+      // 2.12: only on Strapi 5.54+ with the new Media Library, read and update rights, public files.
+      mountMediaEdit: canEditInMediaLibrary({
+        config,
+        strapiGlobal: typeof window !== 'undefined' ? window.strapi : null,
+        readOnly,
+      })
+        ? mountMediaEdit
+        : undefined,
       onFootnoteEdit: (marker, info) => footnoteEditRef.current && footnoteEditRef.current(marker, info),
       // 2.4: "Comment" in the inline toolbar for admins who may write comments.
       onComment:
@@ -2789,12 +2844,28 @@ const EditorFieldBody = ({
   );
   const suggestionsOpenCount = suggestionsEnabled ? suggestions.counts.open : 0;
   // Marker columns at the inline end: two only while a block has both a comment and a suggestion marker.
-  const markerColumns =
+  const reviewColumns =
     commentsEnabled || suggestionsEnabled
       ? Array.from(suggestionCounts.keys()).some((id) => commentsEnabled && commentCounts.has(id))
         ? 2
         : 1
       : 0;
+  // 2.12: a "changed since publish" marker sits after the comment and suggestion markers of its block.
+  const publishedColumnOf = useCallback(
+    (id) =>
+      (commentsEnabled && commentCounts.has(id) ? 1 : 0) +
+      (suggestionsEnabled && suggestionCounts.has(id) ? 1 : 0),
+    [commentsEnabled, commentCounts, suggestionsEnabled, suggestionCounts]
+  );
+  const publishedColumns = useMemo(() => {
+    const changes = publishedMarksShown ? publishedChanges.changes : null;
+    if (!changes) return 0;
+    let columns = 0;
+    for (const [id, mark] of changes.marks)
+      if (mark.kind === 'changed') columns = Math.max(columns, publishedColumnOf(id) + 1);
+    return columns;
+  }, [publishedMarksShown, publishedChanges.changes, publishedColumnOf]);
+  const markerColumns = Math.max(reviewColumns, publishedColumns);
 
   /** Starts suggest mode on a copy of what the editor shows now. */
   const startSuggest = useCallback(async () => {
@@ -3530,6 +3601,34 @@ const EditorFieldBody = ({
       visible: Boolean(target.uid && target.documentId && identityReady),
       onSelect: () => setHistoryOpen(true),
     },
+    // 2.12: marks blocks added, changed or removed since the published version (off by default).
+    {
+      id: 'publishedChanges',
+      group: 'review',
+      label: t('editor.publishedChanges.title', 'Changes since last publish'),
+      icon: <ListSearch />,
+      pressed: publishedChanges.on,
+      visible: publishedAvailable,
+      disabled:
+        publishedChanges.status === 'loading' ||
+        (publishedChanges.status === 'ready' && !publishedChanges.published),
+      description:
+        publishedChanges.status === 'ready' && !publishedChanges.published
+          ? t(
+              'editor.publishedChanges.neverPublished',
+              'This entry has not been published yet, so there is nothing to compare.'
+            )
+          : publishedChanges.status === 'error'
+            ? t(
+                'editor.publishedChanges.statusError',
+                'Could not check the published version. Select to try again.'
+              )
+            : undefined,
+      onSelect: () => {
+        if (publishedChanges.status === 'error') publishedChanges.retry();
+        publishedChanges.setOn(!publishedChanges.on);
+      },
+    },
     {
       id: 'suggestions',
       group: 'review',
@@ -3781,8 +3880,25 @@ const EditorFieldBody = ({
             tools={fieldTools}
             onlyTools={suggestMode ? SUGGEST_MODE_TOOLS : null}
             moreButtonRef={moreButtonRef}
+            onToolsOpenChange={(open) => {
+              if (open) publishedChanges.ensureStatus();
+            }}
           />
           {target.uid ? <SessionBanner t={t} /> : null}
+          {publishedMarksShown && ready && !suggestMode && !previewOpen ? (
+            <PublishedChangesBar
+              t={t}
+              status={publishedChanges.status}
+              publishedAt={publishedChanges.publishedAt}
+              changes={publishedChanges.changes}
+              onRetry={publishedChanges.retry}
+              onToggle={(next) => {
+                publishedChanges.setOn(next);
+                // The bar goes away with the marks: focus goes back to More tools, never to <body>.
+                if (!next) window.requestAnimationFrame(() => focusToolsMenu());
+              }}
+            />
+          ) : null}
           {roomUnsaved && ready && !suggestMode ? (
             <RoomNotice
               t={t}
@@ -3936,6 +4052,7 @@ const EditorFieldBody = ({
             $concealed={previewOpen || suggestMode}
             aria-hidden={previewOpen || suggestMode ? true : undefined}
             inert={previewOpen || suggestMode ? '' : undefined}
+            data-mex-changes={publishedMarksShown ? publishedScope : undefined}
           >
             <BlockSelectionBar
               t={t}
@@ -4021,6 +4138,18 @@ const EditorFieldBody = ({
                 blockIds={commentBlockIds}
                 version={contentVersion}
                 onOpen={openBlockSuggestions}
+                t={t}
+              />
+            ) : null}
+            {publishedMarksShown && ready && !previewOpen && !suggestMode ? (
+              <PublishedChangeMarks
+                scope={publishedScope}
+                containerRef={areaRef}
+                holderRef={holderRef}
+                changes={publishedChanges.changes}
+                blockIds={commentBlockIds}
+                columnOf={publishedColumnOf}
+                version={contentVersion}
                 t={t}
               />
             ) : null}
@@ -4232,6 +4361,20 @@ const EditorFieldBody = ({
           />,
           mount.element,
           `component-${key}`
+        )
+      )}
+      {[...mediaMounts].map(([key, mount]) =>
+        createPortal(
+          <MediaEditControl
+            t={t}
+            uploadPath={uploadPath}
+            get={get}
+            getFile={mount.getFile}
+            subscribe={mount.subscribe}
+            applyFile={mount.applyFile}
+          />,
+          mount.element,
+          `media-${key}`
         )
       )}
       {[...syncedMounts].map(([key, mount]) =>

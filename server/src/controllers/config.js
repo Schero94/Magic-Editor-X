@@ -5,6 +5,7 @@ const { service } = require('./helpers');
 const { paletteOf } = require('../utils/inline-policy');
 const { createComponentLookup } = require('../utils/component-blocks');
 const { MAX_INSTRUCTION_CHARS, REVIEW_KINDS } = require('../../../shared/ai-actions.mjs');
+const { ASSET_EDITOR_MIN_VERSION, isVersionAtLeast } = require('../../../shared/media-library.mjs');
 
 /**
  * @route GET /magic-editor-x/config
@@ -69,6 +70,13 @@ module.exports = ({ strapi }) => ({
           // 2.5: the upload provider serves files through signed URLs only (the editor refreshes them).
           privateFiles: await service(strapi, 'media').isPrivate(),
         },
+        // 2.12: "Edit in Media Library" for image blocks. Strapi 5.54+ opens the asset drawer (with Crop)
+        // from `/admin/plugins/upload?assetId=`; the admin also checks that the legacy Media Library is off.
+        mediaLibrary: {
+          assetEditor:
+            Boolean(strapi.plugin('upload')) &&
+            isVersionAtLeast(strapi.config.get('info.strapi'), ASSET_EDITOR_MIN_VERSION),
+        },
         linkPreview: conf('linkPreview.enabled', true) !== false,
         quality: {
           externalLinks: conf('qualityChecks.externalLinks.enabled', false) === true,
@@ -91,6 +99,8 @@ module.exports = ({ strapi }) => ({
           ai: can(ACTIONS.ai),
           upload: can('plugin::upload.assets.create'),
           mediaLibrary: can('plugin::upload.read'),
+          // 2.12: Crop in the Media Library replaces the file (needs update rights there).
+          mediaLibraryUpdate: can('plugin::upload.assets.update'),
           customBlocksManage: can(ACTIONS.customBlocksManage),
           settingsRead: can(ACTIONS.settingsRead),
           commentsRead: can(ACTIONS.commentsRead),
