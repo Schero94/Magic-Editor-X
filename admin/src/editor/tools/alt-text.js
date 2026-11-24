@@ -2,7 +2,11 @@ import ImageTool from '@editorjs/image';
 import { el, field, input } from './dom';
 import { createFocalControl } from './focal-point';
 import { createAltSuggestion, mediaFileId } from '../ai-alt-text';
-import { focalFromMediaLibrary, mergeMediaLibraryFile } from '../../../../shared/media-library.mjs';
+import {
+  focalFromMediaLibrary,
+  mediaDisplayUrl,
+  mergeMediaLibraryFile,
+} from '../../../../shared/media-library.mjs';
 
 /**
  * Alternative text for image blocks: a labelled input plus a "decorative
@@ -192,7 +196,16 @@ export class MexImageTool extends ImageTool {
     const next = mergeMediaLibraryFile(stored, fresh);
     let changed = false;
     if (next) {
-      this.image = next;
+      // `data` is the tool's own object: set the file without the image setter, which would draw a
+      // second picture (`fillImage` appends an element every time).
+      this.data.file = next;
+      const ui = this.ui;
+      if (ui && typeof ui.fillImage === 'function') {
+        const previous = ui.nodes && ui.nodes.imageEl;
+        // Strapi keeps the URL when a file is replaced: show the new file, store the clean URL.
+        ui.fillImage(mediaDisplayUrl(next.url, fresh.updatedAt));
+        if (previous && ui.nodes.imageEl !== previous) previous.remove();
+      }
       changed = true;
     }
     const focal = focalFromMediaLibrary(fresh && fresh.focalPoint);
@@ -220,7 +233,8 @@ export class MexImageTool extends ImageTool {
         if (target && target !== mount && target.closest && target.closest('button, a, [tabindex]'))
           event.stopPropagation();
       });
-      parts.push(mount);
+      // Same row as "Set focal point": both act on the picture.
+      this.mexFocal.addBeside(mount);
       if (typeof this.mexUnmountMedia === 'function') this.mexUnmountMedia();
       this.mexUnmountMedia = this.mexMountMedia(mount, {
         blockId: this.mexBlock && this.mexBlock.id,

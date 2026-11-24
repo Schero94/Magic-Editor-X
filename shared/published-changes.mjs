@@ -95,7 +95,7 @@ export const publishedChangesCss = (changes, style) => {
   const bar = (ids, color) => {
     if (!ids.length) return;
     const content = (id, rtl) =>
-      `${root} ${rtl ? '[dir="rtl"] ' : ''}.ce-block[data-id="${id}"] > .ce-block__content`;
+      `${root} ${rtl ? '[dir="rtl"] ' : ''}.ce-block[data-id="${id}"] .ce-block__content`;
     rules.push(
       `${ids.map((id) => content(id, false)).join(',\n')} { box-shadow: inset ${style.width} 0 0 0 ${color}; }`
     );

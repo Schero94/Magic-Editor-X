@@ -262,3 +262,51 @@ test('Edit in Media Library: warning popover, new-tab deep link, refresh on retu
   assert.equal(document.querySelector('[data-testid="mex-media-edit"]'), null);
   await none.unmount();
 });
+
+test('image tool: a refreshed Media Library file replaces the picture, keeps the stored URL clean', async () => {
+  const { MexImageTool } = await import('../../admin/src/editor/tools/alt-text.js');
+  let changes = 0;
+  const tool = new MexImageTool({
+    data: { file: { id: 5, url: '/uploads/a.png', alt: 'Synthetic', width: 10 }, caption: '' },
+    config: {
+      mountMediaEdit: (element) => {
+        element.setAttribute('data-mounted', 'yes');
+        return () => {};
+      },
+    },
+    api: {
+      styles: { block: 'cdx-block', input: 'cdx-input', button: 'cdx-button', loader: 'cdx-loader' },
+      i18n: { t: (text) => text },
+    },
+    readOnly: false,
+    block: { id: 'img1', dispatchChange: () => (changes += 1) },
+  });
+  const element = tool.render();
+  document.body.appendChild(element);
+  assert.equal(
+    element.querySelector('.mex-focal__row [data-mounted="yes"]') !== null,
+    true,
+    'beside "Set focal point"'
+  );
+  const fresh = {
+    id: 5,
+    url: '/uploads/a.png',
+    width: 6,
+    updatedAt: '2026-11-24T20:57:18.466Z',
+    focalPoint: { x: 40, y: 60 },
+  };
+  assert.equal(tool.mexApplyMediaFile(fresh), true);
+  const pictures = element.querySelectorAll('img.image-tool__image-picture');
+  assert.equal(pictures.length, 1, 'one picture');
+  assert.match(pictures[0].getAttribute('src'), /\?mexv=2026-11-24T20%3A57%3A18\.466Z$/);
+  const saved = tool.save();
+  assert.equal(saved.file.url, '/uploads/a.png', 'stored URL without the display parameter');
+  assert.equal(saved.file.width, 6);
+  assert.equal(saved.file.alt, 'Synthetic');
+  assert.deepEqual(saved.focalPoint, { x: 0.4, y: 0.6 });
+  assert.equal(changes, 1);
+  assert.equal(tool.mexApplyMediaFile(fresh), false, 'same file again: no change');
+  assert.equal(changes, 1);
+  tool.destroy();
+  element.remove();
+});

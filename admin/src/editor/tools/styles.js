@@ -1948,6 +1948,15 @@ export const editorStyles = css`
       margin-bottom: ${s(2)};
     }
 
+    /* 2.11: "Set focal point" and "Edit in Media Library" in one row. */
+    .mex-focal__row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: ${s(2)};
+      min-width: 0;
+    }
+
     .mex-focal__panel {
       display: flex;
       flex-direction: column;

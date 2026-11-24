@@ -883,7 +883,7 @@
   "editor.publishedChanges.loading": "A comparar com a versão publicada",
   "editor.publishedChanges.error": "Não foi possível carregar a versão publicada.",
   "editor.publishedChanges.none": "Sem alterações desde a última publicação.",
-  "editor.publishedChanges.summary": "{changed} alterados · {added} adicionados · {removed} removidos",
+  "editor.publishedChanges.summary": "{changed, plural, one {# alterado} other {# alterados}} · {added, plural, one {# adicionado} other {# adicionados}} · {removed, plural, one {# removido} other {# removidos}}",
   "editor.publishedChanges.legend": "Legenda",
   "editor.publishedChanges.added": "Adicionado",
   "editor.publishedChanges.changed": "Alterado",

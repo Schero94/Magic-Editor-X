@@ -178,3 +178,19 @@ export const mergeMediaLibraryFile = (stored, fresh) => {
   }
   return changed ? next : null;
 };
+
+/**
+ * URL to show a refreshed file in the editor. Strapi keeps the URL when a file is replaced (crop,
+ * "Replace"), so the browser would show its cached copy; like the Media Library itself, the display
+ * URL carries the file's `updatedAt`. The stored URL never gets this parameter.
+ * @param {string} url - Stored file URL.
+ * @param {unknown} version - `updatedAt` (or hash) of the Media Library file.
+ * @returns {string} URL for display.
+ */
+export const mediaDisplayUrl = (url, version) => {
+  if (typeof url !== 'string' || !url) return '';
+  if (typeof version !== 'string' || !/^[A-Za-z0-9:._-]{1,64}$/.test(version)) return url;
+  const [base, hash = ''] = url.split('#');
+  const joined = `${base}${base.includes('?') ? '&' : '?'}mexv=${encodeURIComponent(version)}`;
+  return hash ? `${joined}#${hash}` : joined;
+};

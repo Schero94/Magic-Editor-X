@@ -45,6 +45,7 @@ const DashedSwatch = styled.span`
  */
 export const PublishedChangesBar = ({ t, onToggle, status, publishedAt, changes, onRetry }) => {
   const labelId = useId();
+  const switchId = useId();
   const { formatDate } = useIntl();
   const counts = changes ? changes.counts : null;
   const none = counts && counts.added + counts.changed + counts.removed === 0;
@@ -91,13 +92,23 @@ export const PublishedChangesBar = ({ t, onToggle, status, publishedAt, changes,
           <Switch
             checked
             onCheckedChange={(next) => onToggle(Boolean(next))}
+            id={switchId}
             aria-labelledby={labelId}
             onLabel={t('editor.publishedChanges.on', 'On')}
             offLabel={t('editor.publishedChanges.off', 'Off')}
             data-testid="mex-published-switch"
           />
           <Flex direction="column" alignItems="flex-start" minWidth={0}>
-            <Typography id={labelId} variant="omega" fontWeight="bold" textColor="neutral800">
+            {/* A label, so the title is part of the switch's click target (touch). */}
+            <Typography
+              id={labelId}
+              tag="label"
+              htmlFor={switchId}
+              variant="omega"
+              fontWeight="bold"
+              textColor="neutral800"
+              style={{ cursor: 'pointer' }}
+            >
               {t('editor.publishedChanges.title', 'Changes since last publish')}
             </Typography>
             {publishedAt ? (

@@ -23,8 +23,9 @@ import { API } from '../../utils/api';
  * block has none.
  */
 
+// Sits in the row of the "Set focal point" button (`.mex-focal__row`).
 const Root = styled(Box)`
-  margin-top: ${({ theme }) => theme.spaces[2]};
+  display: inline-flex;
 `;
 
 const Body = styled(Box)`

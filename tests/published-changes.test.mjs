@@ -106,7 +106,7 @@ test('mark style sheet: scoped selectors, inline-start bars (also right to left)
   const changes = classifyPublishedChanges(published, current);
   const style = { scope: 'mexbody', added: 'GREEN', changed: 'ORANGE', gap: '4rem', width: '3px' };
   const css = publishedChangesCss(changes, style);
-  assert.match(css, /\[data-mex-changes="mexbody"\] \.ce-block\[data-id="a"\] > \.ce-block__content/);
+  assert.match(css, /\[data-mex-changes="mexbody"\] \.ce-block\[data-id="a"\] \.ce-block__content/);
   assert.match(css, /\[data-id="ok_1"\][^{]*\{ box-shadow: inset 3px 0 0 0 GREEN; \}/);
   assert.match(
     css,

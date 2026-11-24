@@ -12,6 +12,7 @@ import {
   focalFromMediaLibrary,
   hasNewMediaLibrary,
   isVersionAtLeast,
+  mediaDisplayUrl,
   mediaLibraryAssetHref,
   mediaLibraryFileId,
   mergeMediaLibraryFile,
@@ -211,4 +212,18 @@ test('GET /config: assetEditor follows the Strapi version; mediaLibraryUpdate fo
   assert.equal(current.permissions.mediaLibraryUpdate, true);
   assert.equal((await read('5.53.0', both)).mediaLibrary.assetEditor, false);
   assert.equal((await read('5.63.0', ['plugin::upload.read'])).permissions.mediaLibraryUpdate, false);
+});
+
+test('display URL: cache-busting parameter for a replaced file, stored URL unchanged', () => {
+  assert.equal(
+    mediaDisplayUrl('/uploads/a.png', '2026-11-24T20:54:54.610Z'),
+    '/uploads/a.png?mexv=2026-11-24T20%3A54%3A54.610Z'
+  );
+  assert.equal(
+    mediaDisplayUrl('https://cdn.example.test/a.png?w=1#x', 'v1'),
+    'https://cdn.example.test/a.png?w=1&mexv=v1#x'
+  );
+  assert.equal(mediaDisplayUrl('/uploads/a.png', undefined), '/uploads/a.png');
+  assert.equal(mediaDisplayUrl('/uploads/a.png', '"><script>'), '/uploads/a.png');
+  assert.equal(mediaDisplayUrl('', 'v1'), '');
 });
