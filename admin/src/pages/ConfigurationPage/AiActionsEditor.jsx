@@ -93,28 +93,41 @@ export const AiActionsEditor = ({ actions, onChange, readOnly, error }) => {
       index: -1,
       action: { key: '', name: '', instruction: '', scope: 'selection', output: 'replace' },
     });
+  const editLabel = (action) => t('settings.ai.actions.editNamed', 'Edit {name}', { name: action.name });
   const submit = (action) => {
     const next = [...actions];
-    if (editing.index < 0) next.push(action);
+    const adding = editing.index < 0;
+    if (adding) next.push(action);
     else next[editing.index] = action;
     onChange(next);
     setEditing(null);
+    // Added: "Add action" (still there, or the heading at the limit); edited: the same row's Edit button.
+    restoreFocus(adding ? null : editLabel(action));
+  };
+  const closeModal = () => {
+    const label = editing && editing.index >= 0 ? editLabel(editing.action) : null;
+    setEditing(null);
+    restoreFocus(label);
   };
   /**
-   * Focus after the confirmation closes: the delete button of the same action (it may have been
-   * rendered anew in the other layout), else "Add action", else the heading. Never <body>.
-   * @param {string|null} label - Accessible name of the delete button, or null after a delete.
+   * Focus after the Modal or the confirmation closes: the button with `label` (the same action's
+   * Edit or Delete button; it may have been rendered anew in the other layout), else "Add action",
+   * else the heading. Never <body>.
+   * @param {string|null} label - Accessible name of the button to return to, or null.
    */
   const restoreFocus = (label) =>
-    window.requestAnimationFrame(() => {
+    // After the dialog's own focus handling (Radix restores focus on a timer when it unmounts).
+    window.setTimeout(() => {
       const active = document.activeElement;
-      if (active && active !== document.body) return;
+      // Focus already on a control of the page (not <body>, not a closing dialog): leave it there.
+      if (active && active !== document.body && !active.closest('[role="dialog"], [role="alertdialog"]'))
+        return;
       const buttons = rootRef.current ? [...rootRef.current.querySelectorAll('button[aria-label]')] : [];
       const trigger = label ? buttons.find((button) => button.getAttribute('aria-label') === label) : null;
       const target =
         trigger || (addRef.current && !addRef.current.disabled ? addRef.current : headingRef.current);
       if (target) target.focus();
-    });
+    }, 50);
   const deleteLabel = (action) =>
     t('settings.ai.actions.deleteNamed', 'Delete {name}', { name: action.name });
   const closeDelete = (open) => {
@@ -295,7 +308,7 @@ export const AiActionsEditor = ({ actions, onChange, readOnly, error }) => {
           isNew={editing.index < 0}
           others={actions.filter((_, index) => index !== editing.index)}
           onSubmit={submit}
-          onClose={() => setEditing(null)}
+          onClose={closeModal}
         />
       ) : null}
     </Flex>

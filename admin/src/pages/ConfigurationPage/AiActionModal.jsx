@@ -51,10 +51,12 @@ export const ActionModal = ({ initial, isNew, others, onSubmit, onClose }) => {
   const t = useT();
   const [draft, setDraft] = useState(initial);
   const [keyTouched, setKeyTouched] = useState(!isNew);
+  // Errors show after the first "Add action"/"Apply" and then follow the typing. Not on blur: inside
+  // the Modal's focus trap, swapping a hint for an error between blur and focus moved focus to the
+  // dialog itself (Radix FocusScope refocuses the container when a node goes while <body> is active).
   const [showErrors, setShowErrors] = useState(false);
-  const [touched, setTouched] = useState({});
   const errors = validateAction(draft, { others });
-  const visible = (name) => (showErrors || touched[name] ? errors[name] : undefined);
+  const visible = (name) => (showErrors ? errors[name] : undefined);
   const set = (name, value) =>
     setDraft((current) => {
       const next = { ...current, [name]: value };
@@ -65,7 +67,6 @@ export const ActionModal = ({ initial, isNew, others, onSubmit, onClose }) => {
         );
       return next;
     });
-  const touch = (name) => setTouched((current) => ({ ...current, [name]: true }));
   const submit = () => {
     setShowErrors(true);
     if (Object.keys(errors).length) return;
@@ -100,7 +101,6 @@ export const ActionModal = ({ initial, isNew, others, onSubmit, onClose }) => {
                 value={draft.name}
                 maxLength={MAX_ACTION_NAME_CHARS}
                 onChange={(event) => set('name', event.target.value)}
-                onBlur={() => touch('name')}
               />
               <Field.Hint />
               <Field.Error />
@@ -130,7 +130,6 @@ export const ActionModal = ({ initial, isNew, others, onSubmit, onClose }) => {
                   setKeyTouched(true);
                   set('key', event.target.value.toLowerCase());
                 }}
-                onBlur={() => touch('key')}
               />
               <Field.Hint />
               <Field.Error />
@@ -150,7 +149,6 @@ export const ActionModal = ({ initial, isNew, others, onSubmit, onClose }) => {
                 value={draft.instruction}
                 maxLength={MAX_ACTION_INSTRUCTION_CHARS}
                 onChange={(event) => set('instruction', event.target.value)}
-                onBlur={() => touch('instruction')}
               />
               <Field.Hint />
               <Field.Error />
