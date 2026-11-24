@@ -298,6 +298,20 @@ test('Configuration: add an AI action in a Modal, delete one with a ConfirmDialo
       await click(button('Add action', dialog()));
       await waitFor(() => !dialog(), 'the modal closes');
       assert.match(document.body.textContent, /SEO Einleitung/);
+      // Cancel returns focus to the same Delete button, never to <body>.
+      await click(button('Delete Old one'));
+      await waitFor(() => alertDialog(), 'the delete confirmation');
+      await click(button('Cancel', alertDialog()));
+      await waitFor(() => !alertDialog(), 'the confirmation closes');
+      await waitFor(
+        () =>
+          (
+            document.activeElement?.textContent ||
+            document.activeElement?.getAttribute('aria-label') ||
+            ''
+          ).trim() === 'Delete Old one',
+        'focus back on the Delete button'
+      );
       // Delete the old action: ConfirmDialog, then it is gone from the draft.
       await click(button('Delete Old one'));
       await waitFor(() => alertDialog(), 'the delete confirmation');

@@ -122,8 +122,10 @@ export const AiActionsEditor = ({ actions, onChange, readOnly, error }) => {
       // Focus already on a control of the page (not <body>, not a closing dialog): leave it there.
       if (active && active !== document.body && !active.closest('[role="dialog"], [role="alertdialog"]'))
         return;
-      const buttons = rootRef.current ? [...rootRef.current.querySelectorAll('button[aria-label]')] : [];
-      const trigger = label ? buttons.find((button) => button.getAttribute('aria-label') === label) : null;
+      // DS IconButton names itself with visually hidden text or aria-label; match either.
+      const nameOf = (button) => (button.getAttribute('aria-label') || button.textContent || '').trim();
+      const buttons = rootRef.current ? [...rootRef.current.querySelectorAll('button')] : [];
+      const trigger = label ? buttons.find((button) => nameOf(button) === label) : null;
       const target =
         trigger || (addRef.current && !addRef.current.disabled ? addRef.current : headingRef.current);
       if (target) target.focus();
