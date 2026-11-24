@@ -98,6 +98,9 @@ const RemovedMarker = styled.button`
   }
 `;
 
+/** Stable empty state (no re-render when there is nothing to place). */
+const NO_POSITIONS = { changed: [], removed: [] };
+
 const PopoverBody = styled(Box)`
   min-width: 0;
   width: min(48rem, calc(100vw - 3.2rem));
@@ -163,7 +166,7 @@ export const PublishedChangeMarks = ({
   t,
 }) => {
   const theme = useTheme();
-  const [positions, setPositions] = useState({ changed: [], removed: [] });
+  const [positions, setPositions] = useState(NO_POSITIONS);
   const frame = useRef(0);
   const css = useMemo(
     () =>
@@ -178,49 +181,64 @@ export const PublishedChangeMarks = ({
   );
 
   useLayoutEffect(() => {
-    const container = containerRef.current;
-    const holder = holderRef.current;
-    if (!container || !holder || !changes) {
-      setPositions({ changed: [], removed: [] });
-      return undefined;
-    }
+    // The container is a parent of this layer: its ref is attached after this effect runs, so the
+    // refs are read in the next frame (React 19 does not run the effect a second time).
+    let holder = null;
+    let observer = null;
+    let disposed = false;
     const find = (id) => (MARKABLE_ID.test(id) ? holder.querySelector(`.ce-block[data-id="${id}"]`) : null);
+    const measure = () => {
+      const container = containerRef.current;
+      if (!container || !holder || !changes) {
+        setPositions(NO_POSITIONS);
+        return;
+      }
+      const origin = container.getBoundingClientRect();
+      const changed = [];
+      for (const [id, mark] of changes.marks) {
+        if (mark.kind !== 'changed' || changed.length >= MAX_MARKERS) continue;
+        const block = find(id);
+        if (!block) continue;
+        changed.push({ id, mark, top: block.getBoundingClientRect().top - origin.top });
+      }
+      const removed = [];
+      const blocks = holder.querySelectorAll('.ce-block');
+      const last = blocks.length ? blocks[blocks.length - 1] : null;
+      changes.removed.slice(0, MAX_MARKERS).forEach((group, index) => {
+        let top = null;
+        if (group.before) {
+          const block = find(group.before);
+          if (block) top = block.getBoundingClientRect().top - origin.top;
+        } else if (last) top = last.getBoundingClientRect().bottom - origin.top;
+        // The marker sits in the room the style sheet opens above the block (or below the last one).
+        if (top !== null) removed.push({ key: `${group.before || 'end'}-${index}`, group, top });
+      });
+      setPositions({ changed, removed });
+    };
     const update = () => {
       cancelAnimationFrame(frame.current);
-      frame.current = requestAnimationFrame(() => {
-        const origin = container.getBoundingClientRect();
-        const changed = [];
-        for (const [id, mark] of changes.marks) {
-          if (mark.kind !== 'changed' || changed.length >= MAX_MARKERS) continue;
-          const block = find(id);
-          if (!block) continue;
-          changed.push({ id, mark, top: block.getBoundingClientRect().top - origin.top });
-        }
-        const removed = [];
-        const blocks = holder.querySelectorAll('.ce-block');
-        const last = blocks.length ? blocks[blocks.length - 1] : null;
-        changes.removed.slice(0, MAX_MARKERS).forEach((group, index) => {
-          let top = null;
-          if (group.before) {
-            const block = find(group.before);
-            if (block) top = block.getBoundingClientRect().top - origin.top;
-          } else if (last) top = last.getBoundingClientRect().bottom - origin.top;
-          // The marker sits in the room the style sheet opens above the block (or below the last one).
-          if (top !== null) removed.push({ key: `${group.before || 'end'}-${index}`, group, top });
-        });
-        setPositions({ changed, removed });
-      });
+      frame.current = requestAnimationFrame(measure);
     };
-    update();
-    const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(update) : null;
-    if (observer) observer.observe(holder);
+    const start = requestAnimationFrame(() => {
+      if (disposed) return;
+      holder = holderRef.current;
+      if (holder) {
+        if (typeof ResizeObserver === 'function') {
+          observer = new ResizeObserver(update);
+          observer.observe(holder);
+        }
+        holder.addEventListener('scroll', update, true);
+      }
+      measure();
+    });
     window.addEventListener('resize', update);
-    holder.addEventListener('scroll', update, true);
     return () => {
+      disposed = true;
+      cancelAnimationFrame(start);
       cancelAnimationFrame(frame.current);
       if (observer) observer.disconnect();
       window.removeEventListener('resize', update);
-      holder.removeEventListener('scroll', update, true);
+      if (holder) holder.removeEventListener('scroll', update, true);
     };
   }, [containerRef, holderRef, changes, version, css]);
 
