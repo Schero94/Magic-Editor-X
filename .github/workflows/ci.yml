@@ -7,7 +7,8 @@
 # performance benchmark against scripts/bench-thresholds.json; a fourth builds
 # and tests against the lowest declared peer versions (Strapi 5.38.0, Design
 # System 2.2.0), so the peer floor is tested and not only declared; a fifth
-# runs the Core Blocks bridge tests on the peer floor and the newest 5.x.
+# runs the Core Blocks bridge tests on the peer floor and the newest 5.x; a sixth runs the
+# browser benchmark and touch checks on a packed build (2.10.1).
 # The integration and multi-process suites need a Strapi host; CONTRIBUTING.md
 # describes how to run them.
 name: CI
@@ -144,6 +145,52 @@ jobs:
       # The benchmark imports the shared sources directly; no build is needed.
       - name: Benchmark (budgets, scaling, counters)
         run: npm run bench
+
+  browser-bench:
+    # Browser benchmark and touch checks (2.10.1, scripts/bench-browser): builds the packed plugin
+    # into a throw-away Strapi host (SQLite, loopback only, egress blocked, random secrets), drives
+    # the real edit view in headless Chromium with 1,000, 2,000 and 5,000 blocks (load, typing,
+    # Enter, paste, panels, save, JS heap after garbage collection) and on Pixel 7 and iPhone 13
+    # emulation (tap, toolbox, block menu, inline toolbar, table, More tools, sheets, keyboard,
+    # 44 px targets, scroll). The table goes to the job summary and the JSON is kept as an artifact.
+    # Budgets marked "enforce" in scripts/bench-browser-budgets.json and the touch checks fail the
+    # job; timing budgets are reported only, because shared runners vary (see CONTRIBUTING.md).
+    name: Browser benchmark and touch checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install dependencies (no lifecycle scripts)
+        run: npm ci --ignore-scripts
+      - name: Build the SQLite driver for the host
+        run: npm rebuild better-sqlite3
+      - name: Install headless Chromium for Playwright
+        run: npx playwright install --with-deps --only-shell chromium
+      - name: Build and pack the plugin
+        run: |
+          npm run build
+          npm pack --ignore-scripts --pack-destination "$RUNNER_TEMP"
+      - name: Browser benchmark and touch checks
+        run: >-
+          npm run bench:browser -- --suite all --enforce
+          --tarball "$(ls "$RUNNER_TEMP"/magic-editor-x-*.tgz)"
+          --out "$RUNNER_TEMP/bench-browser.json"
+      - name: Keep the results
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: bench-browser
+          path: ${{ runner.temp }}/bench-browser.json
+          if-no-files-found: warn
+          retention-days: 14
 
   core-blocks:
     # Core Blocks bridge (2.7): the bridge wraps Strapi's entity validator, an internal hook point.

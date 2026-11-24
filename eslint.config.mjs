@@ -4,7 +4,7 @@ import reactHooks from 'eslint-plugin-react-hooks';
 import prettier from 'eslint-config-prettier';
 
 export default [
-  { ignores: ['dist/**', 'node_modules/**', 'docs/site/**', 'coverage/**', 'output/**'] },
+  { ignores: ['dist/**', 'node_modules/**', 'docs/site/**', 'coverage/**', 'output/**', '.tmp/**'] },
   js.configs.recommended,
   {
     files: ['**/*.js', '**/*.cjs'],
@@ -59,6 +59,11 @@ export default [
   {
     files: ['tests/**/*.mjs', 'scripts/**/*.mjs', 'scripts/**/*.cjs'],
     languageOptions: { globals: { ...globals.node } },
+  },
+  // Browser benchmark: functions passed to page.evaluate() run in the browser.
+  {
+    files: ['scripts/bench-browser/**/*.mjs'],
+    languageOptions: { globals: { ...globals.node, ...globals.browser } },
   },
   // Admin StrictMode harness and tests (npm run test:admin): JSX, Node test runner with a jsdom window.
   {
