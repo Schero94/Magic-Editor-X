@@ -1,6 +1,12 @@
 # Changelog
 
-## [Unreleased]
+## [2.12.3](https://github.com/Schero94/Magic-Editor-X/compare/v2.12.2...v2.12.3) (2026-11-25)
+
+
+### Bug Fixes
+
+* **admin:** clearer menus, toolbox order, unified AI and template dialogs, one term per concept ([#49](https://github.com/Schero94/Magic-Editor-X/issues/49)) ([d6ba865](https://github.com/Schero94/Magic-Editor-X/commit/d6ba865b0a00e261df2c503f373621beb3034dc0))
+
 
 ### Fixed (editor click paths and consistency)
 
