@@ -1,5 +1,17 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed (settings click paths)
+
+- **The Configuration page lists what owners change most first.** The order is AI assistant, AI actions and style guide, Readability and SEO hints, Grammar check, Scheduled link check, Custom blocks in Strapi Blocks fields, then the read-only Text colours, Content Security Policy and Server configuration. Readability came after the Strapi Blocks bridge before, and the page subtitle only mentioned the AI provider.
+- **AI actions and the style guide have their own section.** They shared one card of about 1,200 pixels with the provider connection; the connection card now holds only the provider, key, limits and switches.
+- **Long reference content is collapsed.** The server options list and the `config/middlewares.js` snippet of the Content Security Policy open on demand (the copy button stays in the header; a failed copy opens the snippet and selects it). The "Advanced" part of the custom block dialog (text formatting, block settings, keyboard shortcut) is collapsed too and opens by itself when the shortcut is invalid.
+
+### Notes
+
+- Every Configuration setting is still on the page and saved with the page's Save.
+
 ## [2.12.3](https://github.com/Schero94/Magic-Editor-X/compare/v2.12.2...v2.12.3) (2026-11-25)
 
 
@@ -16,17 +28,9 @@
 - **Dialog footers and verbs.** The template dialog has the same footer as every other dialog (Cancel left, actions right) and shows no disabled insert button when there is nothing to insert; "Use template" became "Insert template", and "Save" in "Save as template or pattern" became "Save template". Restore buttons in Version history name their version for screen readers.
 - **One term per concept** in all five languages: "selected blocks" (was "chosen blocks"), "problems" for grammar and quality counts (was partly "issues", in German partly "Hinweise"), "Import file" and "Export file" without a trailing ellipsis, one placeholder for empty blocks that also says a pasted link is embedded. Suggestion cards show the block name ("Text", "Heading") instead of the stored type ("paragraph"). Copy that still pointed at "the editor toolbar" for templates and preview now points at More tools.
 
-### Fixed (settings click paths)
-
-- **The Configuration page lists what owners change most first.** The order is AI assistant, AI actions and style guide, Readability and SEO hints, Grammar check, Scheduled link check, Custom blocks in Strapi Blocks fields, then the read-only Text colours, Content Security Policy and Server configuration. Readability came after the Strapi Blocks bridge before, and the page subtitle only mentioned the AI provider.
-- **AI actions and the style guide have their own section.** They shared one card of about 1,200 pixels with the provider connection; the connection card now holds only the provider, key, limits and switches.
-- **Long reference content is collapsed.** The server options list and the `config/middlewares.js` snippet of the Content Security Policy open on demand (the copy button stays in the header; a failed copy opens the snippet and selects it). The "Advanced" part of the custom block dialog (text formatting, block settings, keyboard shortcut) is collapsed too and opens by itself when the shortcut is invalid.
-
 ### Notes
 
 - No API, route, stored data or configuration change. The field tool registry gained the group `file`; `TOOL_GROUPS` is now `write, review, file, view`.
-- Every Configuration setting is still on the page and saved with the page's Save.
-
 
 ## [2.12.2](https://github.com/Schero94/Magic-Editor-X/compare/v2.12.1...v2.12.2) (2026-11-25)
 
