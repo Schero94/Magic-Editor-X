@@ -1,6 +1,12 @@
 # Changelog
 
-## [Unreleased]
+## [2.12.1](https://github.com/Schero94/Magic-Editor-X/compare/v2.12.0...v2.12.1) (2026-11-25)
+
+
+### Performance Improvements
+
+* fast long documents and a touch-friendly editor field, with browser budgets in CI ([#45](https://github.com/Schero94/Magic-Editor-X/issues/45)) ([9b78088](https://github.com/Schero94/Magic-Editor-X/commit/9b7808833338065b25f905d0cdf682b04fa64b86))
+
 
 ### Fixed (performance in long documents, touch devices)
 
