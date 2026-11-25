@@ -154,7 +154,7 @@
   "tools.names.underline": "Souligné",
   "tools.names.unorderedList": "Liste à puces",
   "tools.names.warning": "Avertissement",
-  "tools.paragraph.placeholder": "Écrivez, ou tapez / pour choisir un bloc",
+  "tools.paragraph.placeholder": "Écrivez, tapez / pour choisir un bloc ou collez un lien pour l’intégrer",
   "tools.personality.description": "Rôle ou description",
   "tools.personality.link": "Lien (facultatif)",
   "tools.personality.name": "Nom",

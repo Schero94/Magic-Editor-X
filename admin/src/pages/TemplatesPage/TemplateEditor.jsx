@@ -382,7 +382,7 @@ export const TemplateEditor = ({ template, targets, onRetryTargets, onSubmit, on
         title={t('settings.templates.form.content', 'Content')}
         subtitle={t(
           'settings.templates.form.contentHint',
-          'The blocks the template inserts. Use the preview in the editor toolbar to see the rendered output.'
+          'The blocks the template inserts. Choose Preview in More tools to see the rendered output.'
         )}
       >
         <EditorFieldBody

@@ -260,7 +260,7 @@ export const BlockSelectionBar = ({
       </IconButton>
       {onAi ? (
         <IconButton
-          label={t('editor.aiBlocks.open', 'AI for the chosen blocks')}
+          label={t('editor.aiBlocks.open', 'AI for the selected blocks')}
           variant="ghost"
           onClick={() => {
             const selection = [...ids];

@@ -78,7 +78,7 @@ export const reviewErrorEntry = (info, error) => {
       'This field has too many open suggestions. Ask a reviewer to decide some first.',
     ];
   if (info.code === 'SUGGESTION_TOO_LARGE')
-    return ['editor.ai.review.error.blockTooLarge', 'A chosen block is too large to review.'];
+    return ['editor.ai.review.error.blockTooLarge', 'A selected block is too large to review.'];
   if (info.status === 404)
     return ['editor.ai.review.error.unavailable', 'This review is not available anymore. Reload the page.'];
   return null;

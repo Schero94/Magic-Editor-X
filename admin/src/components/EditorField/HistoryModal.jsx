@@ -377,6 +377,9 @@ export const HistoryModal = ({
             {canWrite && item.restorable && !locked ? (
               <Button
                 variant="secondary"
+                aria-label={t('editor.history.restoreVersion', 'Restore version {version}', {
+                  version: item.version,
+                })}
                 onClick={(event) => {
                   restoreOpenerRef.current = event.currentTarget;
                   setConfirm(item);

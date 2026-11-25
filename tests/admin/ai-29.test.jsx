@@ -11,6 +11,7 @@ import { test } from 'node:test';
 import { act } from 'react';
 import { checkStrictEntry, network } from './harness/index.jsx';
 import { ALL, pluginRoutes, settingsDto, waitFor } from './fixtures.mjs';
+import { AiDialog } from '../../admin/src/components/EditorField/AiDialog';
 import { BlockAiDialog } from '../../admin/src/components/EditorField/BlockAiDialog';
 import { SuggestionsPanel } from '../../admin/src/components/EditorField/SuggestionsPanel';
 import { useAiReview } from '../../admin/src/components/EditorField/useAiReview';
@@ -109,7 +110,7 @@ test('Ask AI in the block dialog: an instruction is required, quick picks fill i
           return dialog().querySelector('textarea');
         })();
         assert.equal(textarea.getAttribute('maxlength'), '500');
-        await click(button('Send to the AI provider', dialog()));
+        await click(button('Generate', dialog()));
         await waitFor(
           () => /Write an instruction first\./.test(dialog().textContent),
           'the required message'
@@ -118,7 +119,7 @@ test('Ask AI in the block dialog: an instruction is required, quick picks fill i
         await click(button('Use the instruction: Turn this into a short list', dialog()));
         assert.equal(textarea.value, 'Turn this into a short list');
         await type(textarea, 'Make it shorter');
-        await click(button('Send to the AI provider', dialog()));
+        await click(button('Generate', dialog()));
         await waitFor(() => dialog().querySelector('[data-testid="mex-block-ai-preview"]'), 'the preview');
         const posts = network.calls.filter((call) => call.method === 'POST');
         assert.equal(posts.length, 1, 'one request in StrictMode');
@@ -165,6 +166,36 @@ const ReviewHarness = ({ onReviewed, onRefresh }) => {
     />
   );
 };
+
+test('2.12.3 the selected-text dialog uses the shared AI footer: Generate first, then Try again and Replace selection', async () => {
+  network.on('POST', '/magic-editor-x/ai/improve', () => ({ data: { text: 'This is synthetic.' } }));
+  const applied = [];
+  await checkStrictEntry(
+    <AiDialog
+      t={t}
+      request={{ html: 'Ths is synthetic.', text: 'Ths is synthetic.', blockIds: ['p1'] }}
+      config={CONFIG}
+      target={{ uid: 'api::article.article', field: 'body' }}
+      onApply={(html) => applied.push(html)}
+      onClose={() => {}}
+    />,
+    {
+      permissions: ALL,
+      whileMounted: async () => {
+        await waitFor(() => dialog(), 'the selected-text dialog');
+        assert.equal(dialog().querySelector('h2').textContent, 'AI for the selected text');
+        // No disabled apply button before there is a result; one primary action.
+        assert.equal(button('Replace selection', dialog()), undefined);
+        assert.ok(button('Generate', dialog()));
+        await click(button('Generate', dialog()));
+        await waitFor(() => button('Replace selection', dialog()), 'the apply button after the answer');
+        assert.ok(button('Try again', dialog()));
+        await click(button('Replace selection', dialog()));
+        assert.equal(applied.length, 1);
+      },
+    }
+  );
+});
 
 test('AI review from the block dialog: one request with the blocks as shown, then the suggestions reload', async () => {
   network.on('POST', '/magic-editor-x/ai/review/proofread', {

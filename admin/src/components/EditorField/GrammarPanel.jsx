@@ -222,7 +222,7 @@ export const GrammarPanel = ({
       setAnnouncement(
         t(
           'editor.grammar.found',
-          '{count, plural, =0 {No issues found} one {# issue found} other {# issues found}}',
+          '{count, plural, =0 {No problems found} one {# problem found} other {# problems found}}',
           {
             count: result.matches.length,
           }
@@ -358,9 +358,13 @@ export const GrammarPanel = ({
               backgroundColor={state.matches.length ? 'danger100' : 'success100'}
               textColor={state.matches.length ? 'danger700' : 'success700'}
             >
-              {t('editor.grammar.count', '{count, plural, =0 {No issues} one {# issue} other {# issues}}', {
-                count: state.matches.length,
-              })}
+              {t(
+                'editor.grammar.count',
+                '{count, plural, =0 {No problems} one {# problem} other {# problems}}',
+                {
+                  count: state.matches.length,
+                }
+              )}
             </Badge>
           ) : null}
         </Flex>
@@ -379,11 +383,11 @@ export const GrammarPanel = ({
         ) : null}
         {state.truncated ? (
           <Typography variant="pi" textColor="neutral600">
-            {t('editor.grammar.truncated', 'Only the first 500 issues are shown.')}
+            {t('editor.grammar.truncated', 'Only the first 500 problems are shown.')}
           </Typography>
         ) : null}
         {state.status === 'done' && state.matches.length ? (
-          <List ref={listRef} aria-label={t('editor.grammar.results', 'Grammar issues')}>
+          <List ref={listRef} aria-label={t('editor.grammar.results', 'Grammar problems')}>
             {state.matches.map((match) => {
               const context = contextOf(match);
               const key = `${match.blockId}-${match.path}-${match.offset}-${match.length}`;
@@ -459,7 +463,7 @@ export const GrammarPanel = ({
         ) : null}
         {state.status === 'done' && !state.matches.length ? (
           <Typography variant="omega" textColor="neutral600">
-            {t('editor.grammar.none', 'No issues found.')}
+            {t('editor.grammar.none', 'No problems found.')}
           </Typography>
         ) : null}
       </Flex>

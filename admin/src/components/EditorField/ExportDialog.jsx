@@ -12,7 +12,7 @@ import { createImageLoader, downloadFile, openPrintView } from '../../editor/exp
 import { TouchModalContent } from '../ui/touch';
 
 /**
- * "Export…" (2.11, More tools > View): the field's content as Word (.docx),
+ * "Export file" (2.11, More tools > Import and export): the field's content as Word (.docx),
  * PDF (the browser's print dialog, "Save as PDF"), Markdown or HTML. One
  * choice (format), one option for PDF (page breaks), one button. The content
  * is the editor's current content, unsaved changes included. The Word writer
@@ -133,7 +133,7 @@ export const ExportDialog = ({ t, readContent, field, lang, dir, onExported, onC
     >
       <TouchModalContent aria-describedby={undefined}>
         <Modal.Header closeLabel={t('editor.export.close', 'Close')}>
-          <Modal.Title>{t('editor.export.title', 'Export')}</Modal.Title>
+          <Modal.Title>{t('editor.export.title', 'Export file')}</Modal.Title>
         </Modal.Header>
         <Modal.Body>
           <Flex direction="column" alignItems="stretch" gap={4} minWidth={0}>

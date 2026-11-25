@@ -6,7 +6,7 @@ import { ariaShortcut, badgeText, formatShortcut, groupFieldTools } from '../../
 
 /**
  * "More tools": the one menu that holds every secondary tool of an editor
- * field, grouped into Review, Write and View. The entries come from the
+ * field, grouped into Write, Review, Import and export, and View. The entries come from the
  * field tool registry (`editor/field-tools.mjs`); this component only renders
  * them.
  */
@@ -20,6 +20,7 @@ import { ariaShortcut, badgeText, formatShortcut, groupFieldTools } from '../../
 const groupLabel = (t, group) => {
   if (group === 'review') return t('editor.tools.group.review', 'Review');
   if (group === 'write') return t('editor.tools.group.write', 'Write');
+  if (group === 'file') return t('editor.tools.group.file', 'Import and export');
   return t('editor.tools.group.view', 'View');
 };
 

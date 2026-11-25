@@ -286,7 +286,7 @@ const TemplatesPage = () => {
       title={title}
       subtitle={t(
         'settings.templates.subtitle',
-        'Reusable starting content and block patterns. Editors insert them with "Insert template" in the editor toolbar.'
+        'Reusable starting content and block patterns. Editors insert them with "Insert template" in the More tools menu of the editor.'
       )}
       primaryAction={
         <Button ref={createRef} startIcon={<Plus />} onClick={openCreate} data-testid="mex-template-create">

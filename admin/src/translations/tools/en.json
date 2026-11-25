@@ -154,7 +154,7 @@
   "tools.names.underline": "Underline",
   "tools.names.unorderedList": "Bulleted list",
   "tools.names.warning": "Warning",
-  "tools.paragraph.placeholder": "Write, or type / to choose a block",
+  "tools.paragraph.placeholder": "Write, type / to choose a block, or paste a link to embed it",
   "tools.personality.description": "Role or description",
   "tools.personality.link": "Link (optional)",
   "tools.personality.name": "Name",
