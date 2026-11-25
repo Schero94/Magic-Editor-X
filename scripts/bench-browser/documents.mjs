@@ -80,12 +80,19 @@ const blockAt = (i) => {
 /**
  * Editor.js document with `count` blocks.
  * @param {number} count - Number of blocks.
+ * @param {{ changedEvery?: number }} [options] - Change every n-th paragraph (a draft after publishing).
  * @returns {{ time: number, version: string, blocks: object[] }} Document.
  */
-export const makeDocument = (count) => ({
+export const makeDocument = (count, { changedEvery = 0 } = {}) => ({
   time: 1762850000000,
   version: '2.31.7',
-  blocks: Array.from({ length: count }, (_, i) => blockAt(i)),
+  blocks: Array.from({ length: count }, (_, i) => {
+    const block = blockAt(i);
+    // A draft that differs from the published version in every n-th paragraph (2.12 marks).
+    if (changedEvery && i % changedEvery === 5 && block.type === 'paragraph')
+      block.data.text = `${block.data.text} Edited after publishing.`;
+    return block;
+  }),
 });
 
 /**

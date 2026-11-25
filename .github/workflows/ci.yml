@@ -8,7 +8,7 @@
 # and tests against the lowest declared peer versions (Strapi 5.38.0, Design
 # System 2.2.0), so the peer floor is tested and not only declared; a fifth
 # runs the Core Blocks bridge tests on the peer floor and the newest 5.x; a sixth runs the
-# browser benchmark and touch checks on a packed build (2.10.1).
+# browser benchmark and touch checks on a packed build (2.12.1).
 # The integration and multi-process suites need a Strapi host; CONTRIBUTING.md
 # describes how to run them.
 name: CI
@@ -147,7 +147,7 @@ jobs:
         run: npm run bench
 
   browser-bench:
-    # Browser benchmark and touch checks (2.10.1, scripts/bench-browser): builds the packed plugin
+    # Browser benchmark and touch checks (2.12.1, scripts/bench-browser): builds the packed plugin
     # into a throw-away Strapi host (SQLite, loopback only, egress blocked, random secrets), drives
     # the real edit view in headless Chromium with 1,000, 2,000 and 5,000 blocks (load, typing,
     # Enter, paste, panels, save, JS heap after garbage collection) and on Pixel 7 and iPhone 13

@@ -339,3 +339,22 @@ export const createArticle = async (baseUrl, token, data) => {
     throw new Error(`create article answered ${response.status}: ${text.slice(0, 300)}`);
   return JSON.parse(text).data.documentId;
 };
+
+/**
+ * Publishes an article, then stores a changed draft (the "Changes since last publish" marks of
+ * 2.12 compare the draft with the published version).
+ * @param {string} baseUrl - Host URL.
+ * @param {string} token - Admin token.
+ * @param {string} documentId - Document.
+ * @param {{ title: string, body: object }} draft - Draft fields after publishing.
+ * @returns {Promise<void>}
+ * @throws {Error} When the API does not answer 200.
+ */
+export const publishThenEdit = async (baseUrl, token, documentId, draft) => {
+  const base = `${baseUrl}/content-manager/collection-types/api::article.article/${documentId}`;
+  const headers = { 'content-type': 'application/json', authorization: `Bearer ${token}` };
+  const published = await fetch(`${base}/actions/publish`, { method: 'POST', headers, body: '{}' });
+  if (published.status !== 200) throw new Error(`publish answered ${published.status}`);
+  const updated = await fetch(base, { method: 'PUT', headers, body: JSON.stringify(draft) });
+  if (updated.status !== 200) throw new Error(`draft update answered ${updated.status}`);
+};

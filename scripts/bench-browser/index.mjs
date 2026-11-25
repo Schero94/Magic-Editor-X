@@ -41,7 +41,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execSync } from 'node:child_process';
 import { chromium } from 'playwright';
-import { startHost, registerAdmin, loginAdmin, createArticle } from './host.mjs';
+import { startHost, registerAdmin, loginAdmin, createArticle, publishThenEdit } from './host.mjs';
 import { makeDocument, makePasteHtml } from './documents.mjs';
 import { EDITOR_DATA_LIMITS } from '../../shared/editor-data.mjs';
 import {
@@ -55,6 +55,7 @@ import {
   pasteAndMeasure,
   openPanel,
   saveAndMeasure,
+  enablePublishedMarks,
   heapAfterGc,
   median,
   round,
@@ -109,6 +110,16 @@ const runSize = async (browser, { baseUrl, account, size, storageState }) => {
     title: `Bench ${size} edit`,
     body: makeDocument(editSize),
   });
+  // Both entries are published and then edited (every 20th paragraph), so the 2.12 "Changes
+  // since last publish" marks are part of every measurement (turned on below).
+  await publishThenEdit(baseUrl, account.token, readDoc, {
+    title: `Bench ${size} read`,
+    body: makeDocument(size, { changedEvery: 20 }),
+  });
+  await publishThenEdit(baseUrl, account.token, editDoc, {
+    title: `Bench ${size} edit`,
+    body: makeDocument(editSize, { changedEvery: 20 }),
+  });
   const context = await browser.newContext({
     viewport: { width: 1440, height: 900 },
     locale: 'en-US',
@@ -126,7 +137,9 @@ const runSize = async (browser, { baseUrl, account, size, storageState }) => {
   const cdp = await context.newCDPSession(page);
   const result = { blocks: size };
 
-  log(`[${size}] load`);
+  await openEditor(page, editUrl(baseUrl, readDoc), size);
+  result.publishedMarks = await enablePublishedMarks(page);
+  log(`[${size}] load (changed-block marks: ${result.publishedMarks})`);
   const loads = [];
   for (let i = 0; i < 3; i += 1) loads.push(await openEditor(page, editUrl(baseUrl, readDoc), size));
   result.load = {
@@ -138,7 +151,7 @@ const runSize = async (browser, { baseUrl, account, size, storageState }) => {
     },
   };
   // Live regions inside the blocks make every modal menu or dialog (aria-hidden's hideOthers)
-  // mark each block, and Editor.js then checks every block against every mutation (2.10.1).
+  // mark each block, and Editor.js then checks every block against every mutation (2.12.1).
   result.liveRegionsInBlocks = await page.evaluate(
     () => document.querySelectorAll('.codex-editor__redactor [aria-live]').length
   );
@@ -307,6 +320,7 @@ const markdown = (report) => {
     row('JS heap after load, GC (MB)', (r) => r.heap && r.heap.afterLoadMb);
     row('JS heap growth, 1,000 keys, GC (MB)', (r) => r.heap && r.heap.growthMb);
     row('Live regions inside blocks', (r) => r.liveRegionsInBlocks);
+    row('Changes-since-publish marks shown', (r) => r.publishedMarks);
   }
   if (report.results.touch) {
     lines.push('', '| Touch check | Device | Result | Detail |', '| --- | --- | --- | --- |');

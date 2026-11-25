@@ -471,4 +471,25 @@ export const saveAndMeasure = async (page) => {
   };
 };
 
+/**
+ * Turns on "Changes since last publish" (2.12) through More tools, so the marker layer and its
+ * idle-time classification run in every later measurement of this browser context.
+ * @param {import('playwright').Page} page - Page with a ready editor.
+ * @returns {Promise<number>} Changed-block marks shown.
+ */
+export const enablePublishedMarks = async (page) => {
+  await page.locator('[data-testid="mex-tools-menu"]').first().click();
+  // The entry is enabled once the field knows that a published version exists.
+  const item = page.locator('[data-testid="mex-tool-publishedChanges"]:not([data-disabled])');
+  await item.waitFor({ timeout: 15000 });
+  if ((await item.getAttribute('aria-checked')) !== 'true') await item.click();
+  else await page.keyboard.press('Escape');
+  await page
+    .locator('[data-testid="mex-published-changed"]')
+    .first()
+    .waitFor({ timeout: 30000 })
+    .catch(() => {});
+  return page.locator('[data-testid="mex-published-changed"]').count();
+};
+
 export { median, round };
