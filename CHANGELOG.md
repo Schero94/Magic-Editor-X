@@ -1,6 +1,12 @@
 # Changelog
 
-## [Unreleased]
+## [2.12.4](https://github.com/Schero94/Magic-Editor-X/compare/v2.12.3...v2.12.4) (2026-11-25)
+
+
+### Bug Fixes
+
+* **admin:** Configuration page sorted by use, AI actions in their own section, long reference content collapsed ([#50](https://github.com/Schero94/Magic-Editor-X/issues/50)) ([e51b117](https://github.com/Schero94/Magic-Editor-X/commit/e51b117578e77ea7b48f959508a3eb07e33e6df9))
+
 
 ### Fixed (settings click paths)
 
