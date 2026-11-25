@@ -1,4 +1,4 @@
-// 2.10.1 performance and touch contract (source level; the browser numbers come from
+// 2.12.1 performance and touch contract (source level; the browser numbers come from
 // npm run bench:browser, see CONTRIBUTING.md).
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -15,12 +15,13 @@ const walk = (dir) =>
       entry.isDirectory() ? walk(path.join(dir, entry.name)) : [path.join(dir, entry.name)]
     );
 
-test('save delay: unchanged up to 1,000 blocks, longer in long documents, never for 0', () => {
+test('save delay: unchanged up to 500 blocks, longer in long documents, never for 0', () => {
   assert.equal(saveDelay(40, 10), 40);
   assert.equal(saveDelay(40, SCALE_FROM_BLOCKS), 40);
-  assert.equal(saveDelay(40, 2000), 140);
+  assert.equal(saveDelay(40, 1000), 90);
+  assert.equal(saveDelay(40, 2000), 190);
   assert.equal(saveDelay(40, 5000), MAX_DELAY_MS);
-  assert.equal(saveDelay(150, 1500), 200);
+  assert.equal(saveDelay(150, 1500), 250);
   assert.equal(saveDelay(0, 5000), 0, 'focus out and Save are never delayed');
   assert.equal(saveDelay(500, 5000), 500, 'a longer requested delay is kept');
   assert.equal(saveDelay(40, Number.NaN), 40);

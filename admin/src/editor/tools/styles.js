@@ -90,7 +90,7 @@ export const editorStyles = css`
     }
 
     /*
-     * 2.10.1: blocks outside the viewport skip style, layout and paint work
+     * 2.12.1: blocks outside the viewport skip style, layout and paint work
      * (content-visibility: auto), so a menu, dialog or panel that makes the
      * browser recalculate the page styles costs the visible blocks only, not
      * thousands. The text stays in the accessibility tree and in find in page.
@@ -134,7 +134,7 @@ export const editorStyles = css`
       border-radius: ${radius};
       /* 2.7.8: Editor.js turns the handles into white floating buttons below 650 px (fixed light
          colours, 2.4:1 in dark mode). They use DS surface, border and size instead: 32 px touch
-         targets on phones, 24 px from the DS small breakpoint up; 2.10.1: 44 px on touch screens
+         targets on phones, 24 px from the DS small breakpoint up; 2.12.1: 44 px on touch screens
          (components/ui/touch.js, applied by the field frame). */
       width: 32px;
       height: 32px;

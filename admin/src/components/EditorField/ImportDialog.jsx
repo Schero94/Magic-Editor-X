@@ -16,6 +16,7 @@ import { RenderedContent } from '../RenderedContent';
 import { prepareEditorValue } from '../../editor/sanitize';
 import { parseHtmlWithDom } from '../../../../shared/convert/dom-adapter.mjs';
 import { blockTypeLabel } from './reuse-labels';
+import { TouchModalContent } from '../ui/touch';
 
 /**
  * "Import file…" (2.11, More tools > Write): choose a Word (.docx) or
@@ -364,7 +365,7 @@ export const ImportDialog = ({ t, hasContent, onImport, onClose, allowRaw = fals
         if (!next && !busy) onClose();
       }}
     >
-      <Modal.Content aria-describedby={undefined}>
+      <TouchModalContent aria-describedby={undefined}>
         <Modal.Header closeLabel={t('editor.import.close', 'Close')}>
           <Modal.Title>{t('editor.import.title', 'Import file')}</Modal.Title>
         </Modal.Header>
@@ -422,7 +423,7 @@ export const ImportDialog = ({ t, hasContent, onImport, onClose, allowRaw = fals
             </Flex>
           ) : null}
         </Modal.Footer>
-      </Modal.Content>
+      </TouchModalContent>
     </Modal.Root>
   );
 };

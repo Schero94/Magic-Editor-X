@@ -24,7 +24,7 @@ import IndentTune from 'editorjs-indent-tune';
  * subclass measures first: a block without a width is styled once it gets
  * one (ResizeObserver), and the original method only runs when it cannot loop.
  *
- * 2.10.1: the original measures the block (or the redactor) with
+ * 2.12.1: the original measures the block (or the redactor) with
  * `getBoundingClientRect()` every time it styles a wrapper, also while a new
  * block is composed. Each call forces a layout of the whole page when the DOM
  * has just changed, so styling many blocks in a row (a remote update, a paste,

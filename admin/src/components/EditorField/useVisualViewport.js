@@ -4,7 +4,7 @@ import { useEffect } from 'react';
 export const VIEWPORT_VARS = ['--mex-vv-height', '--mex-vv-top', '--mex-keyboard-inset'];
 
 /**
- * Visual viewport values for CSS (2.10.1): the height and top of the visual
+ * Visual viewport values for CSS (2.12.1): the height and top of the visual
  * viewport and the part of the layout viewport an on-screen keyboard covers.
  * @param {{ height: number, offsetTop: number }} viewport - `window.visualViewport`.
  * @param {number} layoutHeight - `window.innerHeight`.

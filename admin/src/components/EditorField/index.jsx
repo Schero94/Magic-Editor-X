@@ -306,7 +306,7 @@ const SHORTCUT_LABELS = {
 };
 
 /*
- * 2.10.1: on phones (below the DS small breakpoint) a panel is a bottom sheet over the editor, so
+ * 2.12.1: on phones (below the DS small breakpoint) a panel is a bottom sheet over the editor, so
  * the text stays in view while a finding, comment or match is picked. It sits above an on-screen
  * keyboard (--mex-keyboard-inset, useVisualViewport) and takes at most 60% of the visible height.
  * From the small breakpoint up it stays in the field above the text, as before.
@@ -359,7 +359,7 @@ const Frame = styled(Box)`
       ? `
     position: fixed;
     inset: 0;
-    /* 2.10.1: follows the visual viewport, so an on-screen keyboard never covers the text. */
+    /* 2.12.1: follows the visual viewport, so an on-screen keyboard never covers the text. */
     top: var(--mex-vv-top, 0px);
     bottom: auto;
     height: var(--mex-vv-height, 100%);
@@ -886,7 +886,7 @@ const EditorFieldBody = ({
   );
 
   /** Saves the editor into the form now (the body of a scheduled save). */
-  // 2.10.1: blocks with footnote markers keep normal rendering (editor/footnote-blocks.mjs).
+  // 2.12.1: blocks with footnote markers keep normal rendering (editor/footnote-blocks.mjs).
   const footnoteBlocksRef = useRef(new Set());
   const markFootnotes = useCallback(
     () => markFootnoteBlocks(holderRef.current, footnoteBlocksRef.current, FOOTNOTE_SELECTOR),
@@ -926,7 +926,7 @@ const EditorFieldBody = ({
     }
   }, [emit, markFootnotes]);
   /**
-   * Saves the editor (debounced) after a local change; `delay` 0 saves at once. 2.10.1: in long
+   * Saves the editor (debounced) after a local change; `delay` 0 saves at once. 2.12.1: in long
    * documents the delay grows with the block count (editor/save-timing.mjs), so the save runs in
    * the pauses of typing instead of between two key presses.
    */
@@ -2239,10 +2239,10 @@ const EditorFieldBody = ({
     () => (preset.restricted && currentData ? checkPreset(prepareEditorValue(currentData).data, preset) : []),
     [currentData, preset]
   );
-  // 2.10.1: the count on "More tools" follows the content once typing pauses (the Quality panel
+  // 2.12.1: the count on "More tools" follows the content once typing pauses (the Quality panel
   // itself checks the current content), so long documents do not lint the whole field per save.
   const qualityData = useIdleValue(currentData);
-  // 2.10.1: full screen editing and the panel sheets follow the visual viewport (on-screen keyboard).
+  // 2.12.1: full screen editing and the panel sheets follow the visual viewport (on-screen keyboard).
   useVisualViewport(
     frameRef,
     fullscreen || suggestionsOpen || grammarOpen || findOpen || qualityOpen || commentsOpen
@@ -2280,7 +2280,7 @@ const EditorFieldBody = ({
     const block = editor.blocks.getById(blockId);
     if (!block) return;
     if (block.holder) {
-      // 2.10.1: on phones a panel is a bottom sheet; the block is centred in the part above it.
+      // 2.12.1: on phones a panel is a bottom sheet; the block is centred in the part above it.
       const sheet = frameRef.current && frameRef.current.querySelector('[data-mex-sheet]');
       const covered =
         sheet && window.getComputedStyle(sheet).position === 'fixed'

@@ -1,5 +1,5 @@
 /**
- * Save timing of the editor field for long documents (2.10.1).
+ * Save timing of the editor field for long documents (2.12.1).
  *
  * After each change the field serialises the whole document (Editor.js
  * `save()`, the form value, the live session update). That work grows with
@@ -12,7 +12,7 @@
  */
 
 /** Documents up to this many blocks keep the requested delay. */
-export const SCALE_FROM_BLOCKS = 1000;
+export const SCALE_FROM_BLOCKS = 500;
 /** Extra milliseconds per block above SCALE_FROM_BLOCKS. */
 export const MS_PER_BLOCK = 0.1;
 /** Upper bound of a lengthened delay. */

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 
 /**
  * A value that follows `value` once changes have paused for `delayMs` and the
- * browser is idle (2.10.1). Work that only feeds a summary, such as the
+ * browser is idle (2.12.1). Work that only feeds a summary, such as the
  * problem count on "More tools", reads this copy, so it runs after typing
  * stops instead of after every save of a long document.
  * @template T

@@ -29,7 +29,7 @@ const CONTENT_MAX_HEIGHT =
   'min(48rem, calc(var(--radix-dropdown-menu-content-available-height, 48rem) - 0.8rem))';
 const CONTENT_MAX_WIDTH = 'min(36rem, var(--radix-dropdown-menu-content-available-width, 36rem))';
 
-/** 2.10.1: menu entries get the DS large touch size (44 px) on touch screens. */
+/** 2.12.1: menu entries get the DS large touch size (44 px) on touch screens. */
 const ToolItem = styled(Menu.Item)`
   @media (pointer: coarse) {
     min-height: ${({ theme }) => theme.sizes.button.M.initial};
@@ -138,7 +138,7 @@ export const FieldToolsMenu = forwardRef(({ t, tools, disabled = false, onOpenCh
   if (!sections.length) return null;
   return (
     <Menu.Root
-      // 2.10.1: not modal. A modal menu locks page scrolling and hides the rest of the page from
+      // 2.12.1: not modal. A modal menu locks page scrolling and hides the rest of the page from
       // screen readers while open; both change styles of the whole page, which costs a full style
       // recalculation per open and close in long documents. Focus still moves into the menu,
       // arrow keys and Escape work as before, and a click outside closes it.

@@ -1,5 +1,5 @@
 /**
- * Blocks that hold footnote markers (2.10.1).
+ * Blocks that hold footnote markers (2.12.1).
  *
  * Blocks outside the viewport use `content-visibility: auto` (see
  * tools/styles.js), which implies style containment: a CSS counter inside such

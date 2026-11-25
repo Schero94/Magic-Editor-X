@@ -1,5 +1,5 @@
 /**
- * 2.10.1 performance and touch fixes of the editor field, measured in the browser by
+ * 2.12.1 performance and touch fixes of the editor field, measured in the browser by
  * scripts/bench-browser (npm run bench:browser). These tests pin the mechanisms in jsdom:
  * cached indent width (no forced layout per block), footnote block marking for
  * content-visibility, visual viewport variables for full screen and sheets, and the idle copy
