@@ -1,6 +1,12 @@
 # Changelog
 
-## [Unreleased]
+## [2.12.2](https://github.com/Schero94/Magic-Editor-X/compare/v2.12.1...v2.12.2) (2026-11-25)
+
+
+### Bug Fixes
+
+* ignore list defaults in changes since last publish and version history ([#47](https://github.com/Schero94/Magic-Editor-X/issues/47)) ([d1f99b4](https://github.com/Schero94/Magic-Editor-X/commit/d1f99b43a7d5fc524f3bed8d0e736cdda689ce3f))
+
 
 ### Fixed (changes since last publish)
 
