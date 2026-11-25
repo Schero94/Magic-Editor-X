@@ -1261,13 +1261,20 @@
                   <td>TinyMCE AI review "Improve readability" on paid subscriptions; no SEO checks documented (<a href="https://www.tiny.cloud/docs/tinymce/latest/tinymceai/">source</a>)</td>
                   <td>Not documented (<a href="https://docs.strapi.io/cms/features/content-manager">source</a>)</td>
                 </tr>
+                <tr>
+                  <th scope="row">Long documents and touch devices</th>
+                  <td>Measured on every pull request: at 2,000 blocks a key press is painted in 16 ms (p95) and panels open in under 0.1 s on an Apple M3 Pro; touch checks in Pixel 7 and iPhone 13 emulation. Not measured on real phones or in Safari</td>
+                  <td>Android and iOS browsers (all vendor-supported versions) are officially supported; no figures for long documents (<a href="https://ckeditor.com/docs/ckeditor5/latest/updating/technology-upgrades-policy.html#supported-browsers-and-environments">source</a>)</td>
+                  <td>Mobile on the latest two releases of Android (Chrome) and iOS (Safari), with features listed as limited on mobile; no figures for long documents (<a href="https://www.tiny.cloud/docs/tinymce/latest/tinymce-for-mobile/">source</a>)</td>
+                  <td>Not documented (<a href="https://docs.strapi.io/cms/features/content-manager">source</a>)</td>
+                </tr>
               </tbody>
             </table>
           </div>
           <ul class="check-list">
             <li>Payload (Lexical): multiplayer editing is announced under Payload for Enterprise but not available yet (<a href="https://payloadcms.com/enterprise/multi-player-editing">source</a>); tables are an experimental feature (<a href="https://payloadcms.com/docs/rich-text/official-features">source</a>); uploads have crop and a focal point (<a href="https://payloadcms.com/docs/upload/overview">source</a>).</li>
             <li>Sanity: real-time multiplayer editing with character-level sync (<a href="https://www.sanity.io/studio">source</a>); comments, also on words in Portable Text, on the Growth plan (<a href="https://www.sanity.io/docs/studio/comments">source</a>); image crop and hotspot (<a href="https://www.sanity.io/docs/studio/image-type">source</a>).</li>
-            <li>Where Magic Editor X is weaker: suggestions cover whole blocks, table cells hold inline text only, there is no crop inside the editor, the AI actions are a fixed list, and Word import leaves images as placeholders. The full list is in the <a href="https://github.com/Schero94/Magic-Editor-X#how-magic-editor-x-compares">README</a>.</li>
+            <li>Where Magic Editor X is weaker: suggestions cover whole blocks, table cells hold inline text only, there is no crop inside the editor, the AI actions are a fixed list, and Word import leaves images as placeholders. Touch is checked in Chromium emulation only, not on real phones or in Safari. The full list is in the <a href="https://github.com/Schero94/Magic-Editor-X#how-magic-editor-x-compares">README</a>.</li>
           </ul>
         </section>
         <!-- comparison:end -->
