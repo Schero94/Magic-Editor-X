@@ -20,7 +20,7 @@ import {
   Typography,
 } from '@strapi/design-system';
 import { ConfirmDialog } from '@strapi/strapi/admin';
-import { useT } from '../../components/ui';
+import { CollapsibleDetails, useT } from '../../components/ui';
 import { deriveName, emptyValues, fromDto, TUNES, validateBlock } from './blockForm.mjs';
 import { blockErrorText, blockTypeLabel } from './messages';
 import { FieldsEditor } from './FieldsEditor';
@@ -82,6 +82,8 @@ export const BlockFormModal = ({
   const [serverErrors, setServerErrors] = useState({});
   const [showErrors, setShowErrors] = useState(false);
   const [saving, setSaving] = useState(false);
+  // 2.12.3: "Advanced" is collapsed; it opens by itself while one of its fields has an error.
+  const [advancedOpen, setAdvancedOpen] = useState(false);
 
   const originalName = block ? block.name : null;
   const errors = useMemo(
@@ -504,8 +506,12 @@ export const BlockFormModal = ({
 
             <Divider />
 
-            <Flex direction="column" alignItems="stretch" gap={4}>
-              <SubHeading title={t('settings.blocks.modal.advanced', 'Advanced')} />
+            <CollapsibleDetails
+              value="block-advanced"
+              title={t('settings.blocks.modal.advanced', 'Advanced')}
+              open={advancedOpen || Boolean(err('shortcut'))}
+              onOpenChange={setAdvancedOpen}
+            >
               <Flex gap={3} alignItems="center">
                 <Switch
                   checked={values.inlineToolbar}
@@ -563,7 +569,7 @@ export const BlockFormModal = ({
                 <Field.Hint />
                 <Field.Error />
               </Field.Root>
-            </Flex>
+            </CollapsibleDetails>
           </Flex>
         </Modal.Body>
         <Modal.Footer>

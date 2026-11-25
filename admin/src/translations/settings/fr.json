@@ -344,7 +344,7 @@
   "settings.close": "Fermer",
   "settings.configuration.loadError": "Les paramètres n’ont pas pu être chargés. Rien ne peut être enregistré avant leur chargement.",
   "settings.configuration.readOnly": "Vous pouvez consulter ces paramètres. Pour les modifier, l’autorisation « Update settings » est nécessaire.",
-  "settings.configuration.subtitle": "Choisissez un fournisseur d’IA pour l’assistant de l’éditeur et vérifiez les options du serveur.",
+  "settings.configuration.subtitle": "Configurez l’assistant IA, les conseils de lisibilité et la vérification grammaticale de l’éditeur. Les options du serveur figurent à la fin.",
   "settings.configuration.title": "Configuration",
   "settings.blocks.code.title": "Défini dans le code",
   "settings.blocks.code.subtitle": "Blocs que votre application enregistre dans le code avec le SDK de blocs personnalisés. Ils se modifient dans le code et ne peuvent pas être modifiés ici.",
@@ -669,5 +669,8 @@
   "settings.contentChecks.rules.showLabel": "Afficher : {rule}",
   "settings.contentChecks.rules.show": "Afficher",
   "settings.contentChecks.rules.blockLabel": "Bloquer la publication : {rule}",
-  "settings.contentChecks.rules.block": "Bloquer la publication"
+  "settings.contentChecks.rules.block": "Bloquer la publication",
+  "settings.ai.extras.title": "Actions IA et guide de style",
+  "settings.ai.extras.subtitle": "Vos propres actions IA dans l’éditeur et le style maison que l’assistant suit. Elles fonctionnent dès que l’assistant IA est activé.",
+  "settings.environment.details": "Options du serveur"
 }

@@ -1,6 +1,6 @@
 import { Badge } from '@strapi/design-system';
 import { useIntl } from 'react-intl';
-import { useT, SectionCard, PropertyList } from '../../components/ui';
+import { useT, SectionCard, PropertyList, CollapsibleDetails } from '../../components/ui';
 
 /**
  * Formats a byte count in megabytes with the admin locale.
@@ -105,104 +105,107 @@ export const EnvironmentSection = ({ environment }) => {
         'These options are set in config/plugins.js and apply after a restart. They cannot be changed here.'
       )}
     >
-      <PropertyList
-        items={[
-          {
-            key: 'collaboration',
-            label: t('settings.environment.collaboration', 'Live collaboration'),
-            value: on(collaboration.enabled),
-            hint: collaboration.enabled
-              ? t(
-                  'settings.environment.collaborationHint',
-                  'Socket path {path}. Other servers are checked every {interval} ms.',
-                  {
-                    path: collaboration.path || '',
-                    interval: collaboration.pollIntervalMs ?? 0,
-                  }
-                )
-              : undefined,
-          },
-          {
-            key: 'snapshots',
-            label: t('settings.environment.snapshots', 'Automatic snapshots'),
-            value: collaboration.snapshotIntervalMinutes
-              ? t('settings.environment.snapshotsEvery', 'Every {minutes} minutes during live editing', {
-                  minutes: collaboration.snapshotIntervalMinutes,
-                })
-              : t('settings.environment.snapshotsOff', 'Off'),
-          },
-          { key: 'rawHtml', label: t('settings.environment.rawHtml', 'Raw HTML block'), value: rawHtml },
-          {
-            key: 'images',
-            label: t('settings.environment.maxImage', 'Largest image upload'),
-            value: megabytes(t, formatNumber, environment.uploads && environment.uploads.maxImageBytes),
-          },
-          {
-            key: 'files',
-            label: t('settings.environment.maxFile', 'Largest file upload'),
-            value: megabytes(t, formatNumber, environment.uploads && environment.uploads.maxFileBytes),
-          },
-          {
-            key: 'linkSchedule',
-            label: t('settings.environment.linkSchedule', 'Scheduled link check'),
-            value: on(Boolean(linkSchedule && linkSchedule.enabled)),
-            hint: linkScheduleHint,
-          },
-          {
-            key: 'privateImages',
-            label: t('settings.environment.privateImages', 'Private image storage for alt text'),
-            value: privateImages.length
-              ? t(
-                  'settings.environment.privateImagesCount',
-                  '{count, plural, =0 {Off} one {# origin} other {# origins}}',
-                  { count: privateImages.length }
-                )
-              : on(false),
-            hint: privateImages.length
-              ? t(
-                  'settings.environment.privateImagesHint',
-                  'Alt text suggestions may read images from {origins} (ai.altText.allowPrivateOrigins). Redirects are not followed.',
-                  { origins: privateImages.join(', ') }
-                )
-              : t(
-                  'settings.environment.privateImagesNone',
-                  'Alt text suggestions read images from public addresses only. Self-hosted storage on a private network needs ai.altText.allowPrivateOrigins.'
-                ),
-          },
-          {
-            key: 'mentionEmails',
-            label: t('settings.environment.mentionEmails', 'E-mails for comment mentions'),
-            value: on(Boolean(environment.mentionEmails && environment.mentionEmails.enabled)),
-            hint:
-              environment.mentionEmails && environment.mentionEmails.enabled
+      {/* 2.12.3: read-only reference, collapsed so the page shows what can be changed first. */}
+      <CollapsibleDetails value="server-options" title={t('settings.environment.details', 'Server options')}>
+        <PropertyList
+          items={[
+            {
+              key: 'collaboration',
+              label: t('settings.environment.collaboration', 'Live collaboration'),
+              value: on(collaboration.enabled),
+              hint: collaboration.enabled
                 ? t(
-                    'settings.environment.mentionEmailsOn',
-                    'People mentioned in a comment get an e-mail through the Strapi email plugin, at most {count} per hour. It names who mentioned them and links to the entry, never the comment text (comments.notifications.email).',
-                    { count: environment.mentionEmails.perHour ?? 10 }
+                    'settings.environment.collaborationHint',
+                    'Socket path {path}. Other servers are checked every {interval} ms.',
+                    {
+                      path: collaboration.path || '',
+                      interval: collaboration.pollIntervalMs ?? 0,
+                    }
+                  )
+                : undefined,
+            },
+            {
+              key: 'snapshots',
+              label: t('settings.environment.snapshots', 'Automatic snapshots'),
+              value: collaboration.snapshotIntervalMinutes
+                ? t('settings.environment.snapshotsEvery', 'Every {minutes} minutes during live editing', {
+                    minutes: collaboration.snapshotIntervalMinutes,
+                  })
+                : t('settings.environment.snapshotsOff', 'Off'),
+            },
+            { key: 'rawHtml', label: t('settings.environment.rawHtml', 'Raw HTML block'), value: rawHtml },
+            {
+              key: 'images',
+              label: t('settings.environment.maxImage', 'Largest image upload'),
+              value: megabytes(t, formatNumber, environment.uploads && environment.uploads.maxImageBytes),
+            },
+            {
+              key: 'files',
+              label: t('settings.environment.maxFile', 'Largest file upload'),
+              value: megabytes(t, formatNumber, environment.uploads && environment.uploads.maxFileBytes),
+            },
+            {
+              key: 'linkSchedule',
+              label: t('settings.environment.linkSchedule', 'Scheduled link check'),
+              value: on(Boolean(linkSchedule && linkSchedule.enabled)),
+              hint: linkScheduleHint,
+            },
+            {
+              key: 'privateImages',
+              label: t('settings.environment.privateImages', 'Private image storage for alt text'),
+              value: privateImages.length
+                ? t(
+                    'settings.environment.privateImagesCount',
+                    '{count, plural, =0 {Off} one {# origin} other {# origins}}',
+                    { count: privateImages.length }
+                  )
+                : on(false),
+              hint: privateImages.length
+                ? t(
+                    'settings.environment.privateImagesHint',
+                    'Alt text suggestions may read images from {origins} (ai.altText.allowPrivateOrigins). Redirects are not followed.',
+                    { origins: privateImages.join(', ') }
                   )
                 : t(
-                    'settings.environment.mentionEmailsOff',
-                    'Mentions show up in the admin only. Turn on e-mails with comments.notifications.email in config/plugins.'
+                    'settings.environment.privateImagesNone',
+                    'Alt text suggestions read images from public addresses only. Self-hosted storage on a private network needs ai.altText.allowPrivateOrigins.'
                   ),
-          },
-          {
-            key: 'privateAi',
-            label: t('settings.environment.privateAi', 'Private AI hosts allowed'),
-            value: on(environment.allowPrivateBaseUrl),
-            hint: t(
-              'settings.environment.privateAiHint',
-              'Needed for local models on localhost or a private network (ai.allowPrivateBaseUrl).'
-            ),
-          },
-          // 2.5: MCP tools for AI clients (config only).
-          {
-            key: 'mcp',
-            label: t('settings.environment.mcp', 'Tools for AI clients (MCP)'),
-            value: on(Boolean(mcp.active)),
-            hint: mcpHint,
-          },
-        ]}
-      />
+            },
+            {
+              key: 'mentionEmails',
+              label: t('settings.environment.mentionEmails', 'E-mails for comment mentions'),
+              value: on(Boolean(environment.mentionEmails && environment.mentionEmails.enabled)),
+              hint:
+                environment.mentionEmails && environment.mentionEmails.enabled
+                  ? t(
+                      'settings.environment.mentionEmailsOn',
+                      'People mentioned in a comment get an e-mail through the Strapi email plugin, at most {count} per hour. It names who mentioned them and links to the entry, never the comment text (comments.notifications.email).',
+                      { count: environment.mentionEmails.perHour ?? 10 }
+                    )
+                  : t(
+                      'settings.environment.mentionEmailsOff',
+                      'Mentions show up in the admin only. Turn on e-mails with comments.notifications.email in config/plugins.'
+                    ),
+            },
+            {
+              key: 'privateAi',
+              label: t('settings.environment.privateAi', 'Private AI hosts allowed'),
+              value: on(environment.allowPrivateBaseUrl),
+              hint: t(
+                'settings.environment.privateAiHint',
+                'Needed for local models on localhost or a private network (ai.allowPrivateBaseUrl).'
+              ),
+            },
+            // 2.5: MCP tools for AI clients (config only).
+            {
+              key: 'mcp',
+              label: t('settings.environment.mcp', 'Tools for AI clients (MCP)'),
+              value: on(Boolean(mcp.active)),
+              hint: mcpHint,
+            },
+          ]}
+        />
+      </CollapsibleDetails>
     </SectionCard>
   );
 };
