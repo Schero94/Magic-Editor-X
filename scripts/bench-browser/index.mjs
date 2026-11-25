@@ -306,6 +306,7 @@ const markdown = (report) => {
       'Long tasks while typing (count, max ms)',
       (r) => r.typing && `${r.typing.longTasks.count}, ${r.typing.longTasks.max}`
     );
+    row('Longest task after typing stops (ms)', (r) => r.typing && r.typing.settle.max);
     row('Enter p50 / p95 (ms)', (r) => r.enter && `${r.enter.p50} / ${r.enter.p95}`);
     row('Paste 200 blocks (ms)', (r) => r.paste && r.paste.ms);
     for (const name of PANELS)

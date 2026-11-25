@@ -7,6 +7,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { inlineCacheSize, prepareEditorValue, sanitizeInline } from '../../admin/src/editor/sanitize.js';
+import { STRICT_TIMING } from '../helpers/perf-strict.mjs';
 
 const doc = (n, changed = -1) => ({
   time: 1,
@@ -55,5 +56,5 @@ test('2,000 blocks: preparing again after a one-block change is fast and equal',
   assert.deepEqual(again.blocks[999], full.blocks[999]);
   assert.ok(inlineCacheSize() >= 2000);
   // jsdom is far slower than a browser; the uncached run takes several hundred ms here.
-  assert.ok(ms < 150, `re-prepare took ${Math.round(ms)} ms`);
+  if (STRICT_TIMING) assert.ok(ms < 150, `re-prepare took ${Math.round(ms)} ms`);
 });

@@ -1,28 +1,133 @@
 {
-  "$comment": "Budgets of scripts/bench-browser (npm run bench:browser, CI job browser-bench). Times in ms, heap in MB (after forced garbage collection). The 2,000-block budgets are the product targets (keystroke p95 <= 50, no long task while typing, panel open <= 100, load <= 3 s, bounded heap growth). The 5,000-block budgets allow the larger document: 5,000 blocks is the field's limit. Measured 2026-11-24 on an Apple M3 Pro (Chromium 159 headless, Strapi 5.63, Node 22.23): see CONTRIBUTING.md, Browser benchmark. `enforce: true` fails the CI job; timing budgets are reported in the job summary only, because shared CI runners vary too much for a fixed millisecond limit (see the CI numbers in CONTRIBUTING.md).",
+  "$comment": "Budgets of scripts/bench-browser (npm run bench:browser, CI job browser-bench). Times in ms, heap in MB (after forced garbage collection). The 2,000-block budgets are the product targets (keystroke p95 <= 50, no long task while typing, panel open <= 100, load <= 3 s, bounded heap growth). The 5,000-block budgets allow the larger document: 5,000 blocks is the field's limit. Measured 2026-11-24 on an Apple M3 Pro (Chromium 159 headless, Strapi 5.63, Node 22.23): see CONTRIBUTING.md, Browser benchmark. `enforce: true` fails the CI job; timing budgets are reported in the job summary only, because shared CI runners vary too much for a fixed millisecond limit (see the CI numbers in CONTRIBUTING.md). after-typing-long-task: the longest task in the 1.5 s after the last key, where the field's save and the 2.12 classification of changes since publish run (the unit tests no longer assert time; see tests/helpers/perf-strict.mjs).",
   "budgets": [
-    { "id": "load-1000", "metric": "1000.load.readyMs", "max": 2000 },
-    { "id": "typing-p95-1000", "metric": "1000.typing.p95", "max": 50 },
-    { "id": "typing-long-task-1000", "metric": "1000.typing.longTasks.max", "max": 50 },
-    { "id": "load-2000", "metric": "2000.load.readyMs", "max": 3000 },
-    { "id": "typing-p95-2000", "metric": "2000.typing.p95", "max": 50 },
-    { "id": "typing-long-task-2000", "metric": "2000.typing.longTasks.max", "max": 50 },
-    { "id": "enter-p95-2000", "metric": "2000.enter.p95", "max": 150 },
-    { "id": "paste-200-2000", "metric": "2000.paste.ms", "max": 1000 },
-    { "id": "panel-quality-2000", "metric": "2000.panels.quality.openMs", "max": 100 },
-    { "id": "panel-comments-2000", "metric": "2000.panels.comments.openMs", "max": 100 },
-    { "id": "panel-history-2000", "metric": "2000.panels.history.openMs", "max": 100 },
-    { "id": "panel-find-2000", "metric": "2000.panels.find.openMs", "max": 100 },
-    { "id": "menu-2000", "metric": "2000.panels.quality.menuMs", "max": 100 },
-    { "id": "heap-growth-2000", "metric": "2000.heap.growthMb", "max": 30 },
-    { "id": "load-5000", "metric": "5000.load.readyMs", "max": 6000 },
-    { "id": "typing-p95-5000", "metric": "5000.typing.p95", "max": 100 },
-    { "id": "typing-long-task-5000", "metric": "5000.typing.longTasks.max", "max": 100 },
-    { "id": "panel-quality-5000", "metric": "5000.panels.quality.openMs", "max": 250 },
-    { "id": "panel-history-5000", "metric": "5000.panels.history.openMs", "max": 250 },
-    { "id": "heap-5000", "metric": "5000.heap.afterLoadMb", "max": 250 },
-    { "id": "live-regions-1000", "metric": "1000.liveRegionsInBlocks", "max": 0, "enforce": true },
-    { "id": "live-regions-2000", "metric": "2000.liveRegionsInBlocks", "max": 0, "enforce": true },
-    { "id": "live-regions-5000", "metric": "5000.liveRegionsInBlocks", "max": 0, "enforce": true }
+    {
+      "id": "load-1000",
+      "metric": "1000.load.readyMs",
+      "max": 2000
+    },
+    {
+      "id": "typing-p95-1000",
+      "metric": "1000.typing.p95",
+      "max": 50
+    },
+    {
+      "id": "typing-long-task-1000",
+      "metric": "1000.typing.longTasks.max",
+      "max": 50
+    },
+    {
+      "id": "load-2000",
+      "metric": "2000.load.readyMs",
+      "max": 3000
+    },
+    {
+      "id": "typing-p95-2000",
+      "metric": "2000.typing.p95",
+      "max": 50
+    },
+    {
+      "id": "typing-long-task-2000",
+      "metric": "2000.typing.longTasks.max",
+      "max": 50
+    },
+    {
+      "id": "after-typing-long-task-2000",
+      "metric": "2000.typing.settle.max",
+      "max": 100
+    },
+    {
+      "id": "enter-p95-2000",
+      "metric": "2000.enter.p95",
+      "max": 150
+    },
+    {
+      "id": "paste-200-2000",
+      "metric": "2000.paste.ms",
+      "max": 1000
+    },
+    {
+      "id": "panel-quality-2000",
+      "metric": "2000.panels.quality.openMs",
+      "max": 100
+    },
+    {
+      "id": "panel-comments-2000",
+      "metric": "2000.panels.comments.openMs",
+      "max": 100
+    },
+    {
+      "id": "panel-history-2000",
+      "metric": "2000.panels.history.openMs",
+      "max": 100
+    },
+    {
+      "id": "panel-find-2000",
+      "metric": "2000.panels.find.openMs",
+      "max": 100
+    },
+    {
+      "id": "menu-2000",
+      "metric": "2000.panels.quality.menuMs",
+      "max": 100
+    },
+    {
+      "id": "heap-growth-2000",
+      "metric": "2000.heap.growthMb",
+      "max": 30
+    },
+    {
+      "id": "load-5000",
+      "metric": "5000.load.readyMs",
+      "max": 6000
+    },
+    {
+      "id": "typing-p95-5000",
+      "metric": "5000.typing.p95",
+      "max": 100
+    },
+    {
+      "id": "typing-long-task-5000",
+      "metric": "5000.typing.longTasks.max",
+      "max": 100
+    },
+    {
+      "id": "after-typing-long-task-5000",
+      "metric": "5000.typing.settle.max",
+      "max": 200
+    },
+    {
+      "id": "panel-quality-5000",
+      "metric": "5000.panels.quality.openMs",
+      "max": 250
+    },
+    {
+      "id": "panel-history-5000",
+      "metric": "5000.panels.history.openMs",
+      "max": 250
+    },
+    {
+      "id": "heap-5000",
+      "metric": "5000.heap.afterLoadMb",
+      "max": 250
+    },
+    {
+      "id": "live-regions-1000",
+      "metric": "1000.liveRegionsInBlocks",
+      "max": 0,
+      "enforce": true
+    },
+    {
+      "id": "live-regions-2000",
+      "metric": "2000.liveRegionsInBlocks",
+      "max": 0,
+      "enforce": true
+    },
+    {
+      "id": "live-regions-5000",
+      "metric": "5000.liveRegionsInBlocks",
+      "max": 0,
+      "enforce": true
+    }
   ]
 }

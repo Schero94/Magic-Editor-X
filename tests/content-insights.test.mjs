@@ -38,6 +38,7 @@ import {
   validateContentChecks,
 } from '../admin/src/pages/ConfigurationPage/contentChecksForm.mjs';
 import { replaceInSegment } from '../shared/ai-fields.mjs';
+import { STRICT_TIMING } from './helpers/perf-strict.mjs';
 
 const require = createRequire(import.meta.url);
 const settingsService = require('../server/src/services/settings.js');
@@ -498,7 +499,10 @@ test('grammar replacement keeps stored markup (no render-only classes)', () => {
   );
 });
 
-test('runner: 2,000 blocks in slices, no slice near the 50 ms long-task limit', async () => {
+// Timing budgets run only with MEX_PERF_STRICT=1 (tests/helpers/perf-strict.mjs); every other
+// run asserts the slicing itself, with a clock that advances per call.
+
+test('runner: 2,000 blocks in slices bounded by the time budget, cached on the second run', async () => {
   const blocks = [];
   for (let i = 0; i < 2000; i += 1) {
     if (i % 10 === 0) blocks.push(['header', { text: `Section ${i}`, level: 2 }]);
@@ -511,40 +515,51 @@ test('runner: 2,000 blocks in slices, no slice near the 50 ms long-task limit', 
       ]);
   }
   const value = doc(blocks);
-  const slices = [];
+  // Deterministic clock: each reading advances 1 ms, so a slice that respects the 8 ms budget
+  // reads the clock at most 9 times (the start and one reading per unit).
+  let clock = 0;
+  let readings = 0;
+  const now = () => {
+    readings += 1;
+    clock += 1;
+    return clock;
+  };
   const queue = [];
-  const now = () => performance.now();
   const runner = createInsightsRunner({
     schedule: (fn) => queue.push(fn),
     cancel: () => {},
     now,
     budgetMs: 8,
   });
+  const drain = () => {
+    const perSlice = [];
+    while (queue.length) {
+      const fn = queue.shift();
+      const before = readings;
+      fn();
+      perSlice.push(readings - before);
+    }
+    return perSlice;
+  };
   let result = null;
   runner.run(value, { language: 'en', keyphrase: 'synthetic team' }, (done) => {
     result = done;
   });
-  while (queue.length) {
-    const fn = queue.shift();
-    const start = now();
-    fn();
-    slices.push(now() - start);
-  }
+  const perSlice = drain();
   assert.ok(result, 'the runner finished');
-  assert.ok(slices.length > 1, 'the work was split');
-  const longest = Math.max(...slices);
-  assert.ok(longest < 50, `longest slice ${longest.toFixed(1)} ms`);
+  assert.ok(perSlice.length > 100, `the work was split (${perSlice.length} slices)`);
+  assert.ok(
+    Math.max(...perSlice) <= 9,
+    `a slice stops at the budget (${Math.max(...perSlice)} clock readings)`
+  );
   assert.ok(result.issues.some((issue) => issue.rule === 'extra-spaces'));
-  // Second run: unchanged text comes from the cache, so it is fast.
-  const again = [];
-  runner.run(value, { language: 'en' }, () => {});
-  while (queue.length) {
-    const fn = queue.shift();
-    const start = now();
-    fn();
-    again.push(now() - start);
-  }
-  assert.ok(Math.max(...again) < 50);
+  // Second run: the same result, from the cache.
+  let again = null;
+  runner.run(value, { language: 'en', keyphrase: 'synthetic team' }, (done) => {
+    again = done;
+  });
+  drain();
+  assert.deepEqual(again, result);
   // A newer run cancels the older one.
   let first = 0;
   let second = 0;
@@ -554,6 +569,35 @@ test('runner: 2,000 blocks in slices, no slice near the 50 ms long-task limit', 
   assert.equal(first, 0);
   assert.equal(second, 1);
 });
+
+test(
+  'runner timing (MEX_PERF_STRICT=1): no real slice near the 50 ms long-task limit',
+  { skip: !STRICT_TIMING },
+  () => {
+    const blocks = [];
+    for (let i = 0; i < 2000; i += 1)
+      blocks.push([
+        'paragraph',
+        { text: `Paragraph ${i} was written by the synthetic team. ${sentence(22)}` },
+      ]);
+    const queue = [];
+    const runner = createInsightsRunner({
+      schedule: (fn) => queue.push(fn),
+      cancel: () => {},
+      now: () => performance.now(),
+      budgetMs: 8,
+    });
+    runner.run(doc(blocks), { language: 'en' }, () => {});
+    const slices = [];
+    while (queue.length) {
+      const fn = queue.shift();
+      const start = performance.now();
+      fn();
+      slices.push(performance.now() - start);
+    }
+    assert.ok(Math.max(...slices) < 50, `longest slice ${Math.max(...slices).toFixed(1)} ms`);
+  }
+);
 
 test('configuration form: draft, validation, payload and dirty check', () => {
   assert.equal(toContentChecksDraft(undefined), undefined);

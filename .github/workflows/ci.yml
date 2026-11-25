@@ -145,6 +145,15 @@ jobs:
       # The benchmark imports the shared sources directly; no build is needed.
       - name: Benchmark (budgets, scaling, counters)
         run: npm run bench
+      # Wall-clock assertions of the unit tests run only here (MEX_PERF_STRICT=1,
+      # tests/helpers/perf-strict.mjs): this job has its runner to itself, while the other jobs and
+      # the workbench CI share busy runners. The other jobs assert behaviour only.
+      - name: Unit test time budgets (MEX_PERF_STRICT=1)
+        env:
+          MEX_PERF_STRICT: '1'
+        run: |
+          node --test --test-concurrency=1 tests/content-insights.test.mjs tests/published-changes.test.mjs tests/import-export.test.mjs tests/audit.test.mjs tests/diff.test.mjs tests/shared-ydoc.test.mjs
+          node --import ./tests/admin/harness/setup.mjs --test tests/admin/sanitize-cache.test.jsx
 
   browser-bench:
     # Browser benchmark and touch checks (2.12.1, scripts/bench-browser): builds the packed plugin

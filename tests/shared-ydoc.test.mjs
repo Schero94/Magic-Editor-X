@@ -8,6 +8,7 @@ import {
   legacyStateToEditorData,
   applyTextDiff,
 } from '../shared/ydoc.mjs';
+import { STRICT_TIMING } from './helpers/perf-strict.mjs';
 
 const doc = (blocks) => ({ time: 1, version: '2.31.7', blocks });
 const p = (id, text, extra = {}) => ({ id, type: 'paragraph', data: { text, ...extra } });
@@ -172,7 +173,7 @@ test('seeding a large document keeps the order, drops duplicate ids and stays li
   assert.equal(read.blocks[3999].id, 's3999');
   // One bulk insert: the order array holds one item run, not one per block.
   assert.equal(target.getArray('order').length, 4000);
-  assert.ok(elapsed < 5000, `seeding took ${elapsed} ms`);
+  if (STRICT_TIMING) assert.ok(elapsed < 5000, `seeding took ${elapsed} ms`);
 });
 
 /** Merges a local edit (base -> local) into a shared text that changed since base. */
