@@ -344,7 +344,7 @@
   "settings.close": "Schließen",
   "settings.configuration.loadError": "Die Einstellungen konnten nicht geladen werden. Bis sie geladen sind, kann nichts gespeichert werden.",
   "settings.configuration.readOnly": "Sie können diese Einstellungen ansehen. Zum Ändern brauchen Sie die Berechtigung „Update settings“.",
-  "settings.configuration.subtitle": "Wählen Sie einen KI-Anbieter für den Editor-Assistenten und prüfen Sie die Serveroptionen.",
+  "settings.configuration.subtitle": "Richten Sie den KI-Assistenten, die Lesbarkeitshinweise und die Grammatikprüfung für den Editor ein. Die Serveroptionen stehen am Ende.",
   "settings.configuration.title": "Konfiguration",
   "settings.blocks.code.title": "Im Code definiert",
   "settings.blocks.code.subtitle": "Blöcke, die Ihre App im Code mit dem Custom-Block-SDK registriert. Sie werden im Code geändert und können hier nicht bearbeitet werden.",
@@ -669,5 +669,8 @@
   "settings.contentChecks.rules.showLabel": "Anzeigen: {rule}",
   "settings.contentChecks.rules.show": "Anzeigen",
   "settings.contentChecks.rules.blockLabel": "Veröffentlichen blockieren: {rule}",
-  "settings.contentChecks.rules.block": "Veröffentlichen blockieren"
+  "settings.contentChecks.rules.block": "Veröffentlichen blockieren",
+  "settings.ai.extras.title": "KI-Aktionen und Styleguide",
+  "settings.ai.extras.subtitle": "Ihre eigenen KI-Aktionen im Editor und der Hausstil, dem der Assistent folgt. Sie wirken, sobald der KI-Assistent eingeschaltet ist.",
+  "settings.environment.details": "Serveroptionen"
 }

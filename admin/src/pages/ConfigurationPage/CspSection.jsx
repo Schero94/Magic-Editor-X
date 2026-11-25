@@ -1,9 +1,9 @@
 import { useRef, useState } from 'react';
-import { Alert, Box, Flex, IconButton, Typography } from '@strapi/design-system';
+import { Alert, Box, IconButton, Typography } from '@strapi/design-system';
 import { Duplicate } from '@strapi/icons';
 import { useClipboard, useNotification } from '@strapi/strapi/admin';
 import styled from 'styled-components';
-import { useT, SectionCard, PropertyList } from '../../components/ui';
+import { useT, SectionCard, PropertyList, CollapsibleDetails } from '../../components/ui';
 
 /**
  * Scrollable, keyboard-focusable code block. Colours and sizes come from the
@@ -58,6 +58,8 @@ export const CspSection = ({ csp }) => {
   const { toggleNotification } = useNotification();
   const codeRef = useRef(null);
   const [alertOpen, setAlertOpen] = useState(true);
+  // 2.12.3: the long snippet is collapsed; a failed copy opens it so the text can be selected.
+  const [snippetOpen, setSnippetOpen] = useState(false);
 
   const frameMissing = (csp && Array.isArray(csp.frameSrcMissing) && csp.frameSrcMissing) || [];
   const imgMissing = Boolean(csp && csp.imgSrcMissing);
@@ -71,7 +73,9 @@ export const CspSection = ({ csp }) => {
         message: t('settings.csp.copied', 'Snippet copied to the clipboard.'),
       });
     } else {
-      selectText(codeRef.current);
+      setSnippetOpen(true);
+      // The code block mounts with the opened item; select it on the next frame.
+      window.requestAnimationFrame(() => selectText(codeRef.current));
       toggleNotification({
         type: 'warning',
         message: t(
@@ -133,17 +137,19 @@ export const CspSection = ({ csp }) => {
           },
         ]}
       />
-      <Flex direction="column" alignItems="stretch" gap={2} minWidth={0}>
-        <Flex justifyContent="space-between" alignItems="center" gap={2} wrap="wrap">
-          <Typography variant="sigma" textColor="neutral600" id="mex-csp-snippet-label">
-            {codeLabel}
-          </Typography>
+      <CollapsibleDetails
+        value="csp-snippet"
+        title={codeLabel}
+        open={snippetOpen}
+        onOpenChange={setSnippetOpen}
+        actions={
           <IconButton label={t('settings.csp.copy', 'Copy the snippet')} variant="tertiary" onClick={onCopy}>
             <Duplicate />
           </IconButton>
-        </Flex>
+        }
+      >
         <Box minWidth={0}>
-          <CodeBlock ref={codeRef} tabIndex={0} aria-labelledby="mex-csp-snippet-label">
+          <CodeBlock ref={codeRef} tabIndex={0} aria-label={codeLabel}>
             <code>{csp.snippet}</code>
           </CodeBlock>
         </Box>
@@ -153,7 +159,7 @@ export const CspSection = ({ csp }) => {
             'Keep your other directives (for example the hosts of your upload provider) and restart Strapi after the change.'
           )}
         </Typography>
-      </Flex>
+      </CollapsibleDetails>
     </SectionCard>
   );
 };

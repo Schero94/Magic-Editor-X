@@ -344,7 +344,7 @@
   "settings.close": "Fechar",
   "settings.configuration.loadError": "Não foi possível carregar as definições. Nada pode ser guardado até que sejam carregadas.",
   "settings.configuration.readOnly": "Pode ver estas definições. Para as alterar precisa da permissão «Update settings».",
-  "settings.configuration.subtitle": "Escolha um fornecedor de IA para o assistente do editor e reveja as opções do servidor.",
+  "settings.configuration.subtitle": "Configure o assistente de IA, as sugestões de legibilidade e a verificação gramatical do editor. As opções do servidor aparecem no fim.",
   "settings.configuration.title": "Configuração",
   "settings.blocks.code.title": "Definido no código",
   "settings.blocks.code.subtitle": "Blocos que a sua aplicação regista no código com o SDK de blocos personalizados. São alterados no código e não podem ser editados aqui.",
@@ -669,5 +669,8 @@
   "settings.contentChecks.rules.showLabel": "Mostrar: {rule}",
   "settings.contentChecks.rules.show": "Mostrar",
   "settings.contentChecks.rules.blockLabel": "Bloquear a publicação: {rule}",
-  "settings.contentChecks.rules.block": "Bloquear a publicação"
+  "settings.contentChecks.rules.block": "Bloquear a publicação",
+  "settings.ai.extras.title": "Ações de IA e guia de estilo",
+  "settings.ai.extras.subtitle": "As suas próprias ações de IA no editor e o estilo da casa que o assistente segue. Funcionam quando o assistente de IA está ativado.",
+  "settings.environment.details": "Opções do servidor"
 }

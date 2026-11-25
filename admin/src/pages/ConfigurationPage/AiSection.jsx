@@ -2,7 +2,6 @@ import {
   Badge,
   Box,
   Button,
-  Divider,
   Field,
   Flex,
   Grid,
@@ -17,8 +16,6 @@ import {
 import { useT, SectionCard } from '../../components/ui';
 import { LIMITS, applyProvider, environmentKeyApplies } from './configForm.mjs';
 import { SwitchRow, errorText } from './formParts';
-import { AiActionsEditor } from './AiActionsEditor';
-import { StyleGuideEditor } from './StyleGuideEditor';
 
 export { SwitchRow, errorText };
 
@@ -28,7 +25,7 @@ export { SwitchRow, errorText };
  * @param {object} draft - Draft.
  * @returns {string} Name.
  */
-const providerName = (t, draft) => {
+export const providerName = (t, draft) => {
   if (draft.provider === 'anthropic') return t('settings.ai.provider.anthropic.name', 'Anthropic');
   if (draft.provider === 'openai') return t('settings.ai.provider.openai.name', 'OpenAI');
   const host = (() => {
@@ -357,23 +354,6 @@ export const AiSection = ({ form, readOnly, onTest }) => {
           { count: dto.environment.requestsPerMinute }
         )}
       </Typography>
-      {Array.isArray(draft.actions) ? (
-        <>
-          <Divider />
-          <AiActionsEditor
-            actions={draft.actions}
-            onChange={(next) => setField('actions', next)}
-            readOnly={readOnly}
-            error={errors.actions}
-          />
-        </>
-      ) : null}
-      {typeof draft.styleGuide === 'string' ? (
-        <>
-          <Divider />
-          <StyleGuideEditor form={form} readOnly={readOnly} providerName={providerName(t, draft)} />
-        </>
-      ) : null}
     </SectionCard>
   );
 };

@@ -6,6 +6,7 @@ import { PERMISSIONS } from '../../permissions';
 import { ConfirmAction, DraftSync, PageShell, useT } from '../../components/ui';
 import { useConfigurationForm } from './useConfigurationForm';
 import { AiSection } from './AiSection';
+import { AiActionsSection } from './AiActionsSection';
 import { EnvironmentSection } from './EnvironmentSection';
 import { CspSection } from './CspSection';
 import { PaletteSection } from './PaletteSection';
@@ -215,7 +216,7 @@ const ConfigurationPage = () => {
             )
           : t(
               'settings.configuration.subtitle',
-              'Choose an AI provider for the editor assistant and review the server options.'
+              'Set up the AI assistant, readability hints and grammar check for the editor. Server options are listed at the end.'
             )
       }
       primaryAction={
@@ -266,10 +267,20 @@ const ConfigurationPage = () => {
           {typeof form.errors._form === 'object' ? form.errors._form.server : form.errors._form}
         </Alert>
       ) : null}
+      {/* 2.12.3: what editors use most first (AI, its actions, readability, grammar), then the
+          scheduled link check and the Strapi Blocks bridge, then read-only server details. */}
       <AiSection form={form} readOnly={readOnly} onTest={onTest} />
-      <LanguageToolSection form={form} readOnly={readOnly} onTest={onTestLanguageTool} />
-      <CoreBlocksSection form={form} readOnly={readOnly} />
+      <AiActionsSection form={form} readOnly={readOnly} />
       <ContentChecksSection form={form} readOnly={readOnly} />
+      <LanguageToolSection form={form} readOnly={readOnly} onTest={onTestLanguageTool} />
+      <LinkScheduleSection
+        initial={(form.dto.environment && form.dto.environment.linkSchedule) || null}
+        canRun={!readOnly}
+        onStatus={setLiveSchedule}
+      />
+      <CoreBlocksSection form={form} readOnly={readOnly} />
+      <PaletteSection palette={form.dto.environment && form.dto.environment.palette} />
+      <CspSection csp={form.dto.environment && form.dto.environment.csp} />
       <EnvironmentSection
         environment={
           liveSchedule && form.dto.environment
@@ -280,13 +291,6 @@ const ConfigurationPage = () => {
             : form.dto.environment
         }
       />
-      <LinkScheduleSection
-        initial={(form.dto.environment && form.dto.environment.linkSchedule) || null}
-        canRun={!readOnly}
-        onStatus={setLiveSchedule}
-      />
-      <CspSection csp={form.dto.environment && form.dto.environment.csp} />
-      <PaletteSection palette={form.dto.environment && form.dto.environment.palette} />
       <Form method="PUT" initialValues={form.saved}>
         <DraftSync values={form.draft} />
         <Blocker />

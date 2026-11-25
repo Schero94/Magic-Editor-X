@@ -344,7 +344,7 @@
   "settings.close": "Close",
   "settings.configuration.loadError": "The settings could not be loaded. Nothing can be saved until they load.",
   "settings.configuration.readOnly": "You can view these settings. Changing them needs the \"Update settings\" permission.",
-  "settings.configuration.subtitle": "Choose an AI provider for the editor assistant and review the server options.",
+  "settings.configuration.subtitle": "Set up the AI assistant, readability hints and grammar check for the editor. Server options are listed at the end.",
   "settings.configuration.title": "Configuration",
   "settings.blocks.code.title": "Defined in code",
   "settings.blocks.code.subtitle": "Blocks your app registers in code with the custom block SDK. They are changed in the code and cannot be edited here.",
@@ -669,5 +669,8 @@
   "settings.contentChecks.rules.showLabel": "Show: {rule}",
   "settings.contentChecks.rules.show": "Show",
   "settings.contentChecks.rules.blockLabel": "Block publishing: {rule}",
-  "settings.contentChecks.rules.block": "Block publishing"
+  "settings.contentChecks.rules.block": "Block publishing",
+  "settings.ai.extras.title": "AI actions and style guide",
+  "settings.ai.extras.subtitle": "Your own AI actions in the editor and the house style the assistant follows. They work once the AI assistant is on.",
+  "settings.environment.details": "Server options"
 }

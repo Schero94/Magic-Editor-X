@@ -1,5 +1,17 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed (settings click paths)
+
+- **The Configuration page lists what owners change most first.** The order is AI assistant, AI actions and style guide, Readability and SEO hints, Grammar check, Scheduled link check, Custom blocks in Strapi Blocks fields, then the read-only Text colours, Content Security Policy and Server configuration. Readability came after the Strapi Blocks bridge before, and the page subtitle only mentioned the AI provider.
+- **AI actions and the style guide have their own section.** They shared one card of about 1,200 pixels with the provider connection; the connection card now holds only the provider, key, limits and switches.
+- **Long reference content is collapsed.** The server options list and the `config/middlewares.js` snippet of the Content Security Policy open on demand (the copy button stays in the header; a failed copy opens the snippet and selects it). The "Advanced" part of the custom block dialog (text formatting, block settings, keyboard shortcut) is collapsed too and opens by itself when the shortcut is invalid.
+
+### Notes
+
+- Every Configuration setting is still on the page and saved with the page's Save.
+
 ## [2.12.3](https://github.com/Schero94/Magic-Editor-X/compare/v2.12.2...v2.12.3) (2026-11-25)
 
 
