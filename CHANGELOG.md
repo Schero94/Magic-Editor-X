@@ -16,6 +16,7 @@ Measured with the new browser benchmark (`npm run bench:browser`, CI job `browse
 ### Notes
 
 - No migration and no change to stored content.
+- Tests: unit tests no longer assert wall-clock time (they failed on busy shared runners); the remaining time limits run with `MEX_PERF_STRICT=1` in the CI job `bench`, and the browser benchmark measures time in the editor.
 - Strapi accepts 1 MB of JSON per request by default, about 3,000 text blocks; longer entries need a larger `jsonLimit` for `strapi::body` (README, Troubleshooting).
 - The styled-components warning about an unknown prop `attribute` in development mode comes from Strapi's Content Manager: it also appears on an edit view without any Magic Editor X field (checked on Strapi 5.63.0 with the plugin turned off).
 

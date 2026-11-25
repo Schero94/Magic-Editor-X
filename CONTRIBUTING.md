@@ -87,6 +87,10 @@ Documents with many editor fields (2.5, `documents` in the thresholds file): a w
 
 Browser cost with many fields is not part of CI: measure an entry with 20+ fields with Playwright (time until the fields in view are ready, long tasks, JS heap, collaboration sessions and sockets) before and after a change that touches field start-up.
 
+### Time in unit tests (2.12.1)
+
+Unit tests assert behaviour, not wall-clock time: slicing is checked with a clock that advances per reading, streaming aborts by the error and the slices read, caches by their results. Wall-clock limits that remain are wrapped in `STRICT_TIMING` (`tests/helpers/perf-strict.mjs`) and run only with `MEX_PERF_STRICT=1`, which the CI job `bench` sets because it has its runner to itself. Run them locally with `MEX_PERF_STRICT=1 npm test`. New timing budgets belong in `npm run bench` or `npm run bench:browser`.
+
 ### Browser benchmark and touch checks (2.12.1)
 
 `npm run bench:browser` (`scripts/bench-browser/`) measures one editor field in the real admin. It needs a built plugin (`npm run build`) and a Chromium for Playwright (`npx playwright install --only-shell chromium` once):
