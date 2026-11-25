@@ -9,6 +9,7 @@ import {
   exportMarkdown,
 } from '../../editor/export/export-content.mjs';
 import { createImageLoader, downloadFile, openPrintView } from '../../editor/export/browser';
+import { TouchModalContent } from '../ui/touch';
 
 /**
  * "Export…" (2.11, More tools > View): the field's content as Word (.docx),
@@ -130,7 +131,7 @@ export const ExportDialog = ({ t, readContent, field, lang, dir, onExported, onC
         if (!next && !busy) onClose();
       }}
     >
-      <Modal.Content aria-describedby={undefined}>
+      <TouchModalContent aria-describedby={undefined}>
         <Modal.Header closeLabel={t('editor.export.close', 'Close')}>
           <Modal.Title>{t('editor.export.title', 'Export')}</Modal.Title>
         </Modal.Header>
@@ -225,7 +226,7 @@ export const ExportDialog = ({ t, readContent, field, lang, dir, onExported, onC
               : t('editor.export.download', 'Download')}
           </Button>
         </Modal.Footer>
-      </Modal.Content>
+      </TouchModalContent>
     </Modal.Root>
   );
 };

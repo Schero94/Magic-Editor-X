@@ -18,6 +18,7 @@ import { RenderedContent } from '../RenderedContent';
 import { useTemplates } from './useTemplates';
 import { filterSyncedForField, prepareInsertion, searchTemplates } from '../../../../shared/templates.mjs';
 import { sourceBlocksOf } from '../../../../shared/synced.mjs';
+import { TouchModalContent } from '../ui/touch';
 
 /**
  * "Insert template" dialog (2.3): lists the templates and patterns offered in
@@ -314,7 +315,7 @@ export const TemplateDialog = ({
         if (!next && !busy) onClose();
       }}
     >
-      <Modal.Content aria-describedby={undefined}>
+      <TouchModalContent aria-describedby={undefined}>
         <Modal.Header closeLabel={t('editor.templates.close', 'Close')}>
           <Modal.Title>{t('editor.templates.title', 'Insert a template or pattern')}</Modal.Title>
         </Modal.Header>
@@ -344,7 +345,7 @@ export const TemplateDialog = ({
                 : t('editor.templates.insert', 'Insert pattern')}
           </Button>
         </Modal.Footer>
-      </Modal.Content>
+      </TouchModalContent>
       <Dialog.Root
         open={Boolean(confirm)}
         onOpenChange={(next) => {

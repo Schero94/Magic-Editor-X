@@ -77,7 +77,7 @@ export class TocTool {
     });
     this.nodes.empty = el('p', {
       className: 'mex-tool__muted',
-      attrs: { role: 'status', 'aria-live': 'polite' },
+      attrs: { role: 'status' },
     });
     if (this.readOnly) {
       this.nodes.title = el('p', { className: 'mex-toc__title', text: this.data.title });

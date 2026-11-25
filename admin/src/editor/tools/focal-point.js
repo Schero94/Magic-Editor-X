@@ -49,7 +49,7 @@ export const createFocalControl = ({ t, url = '', point, readOnly = false, onCha
   });
   const value = el('p', {
     className: 'mex-focal__value',
-    attrs: { id: valueId, 'aria-live': 'polite' },
+    attrs: { id: valueId, role: 'status' },
   });
   const hint = el('p', {
     className: 'mex-tool__muted',

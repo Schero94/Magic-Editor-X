@@ -24,6 +24,7 @@ import { aiMenuEntries, entryRequest } from '../../editor/ai-menu.mjs';
 import { entryLabel } from './aiLabels';
 import { AskInstruction } from './AskInstruction';
 import { reviewErrorEntry } from './useAiReview';
+import { TouchModalContent } from '../ui/touch';
 
 /**
  * Block-aware AI actions (2.4): rewrite, shorten, translate or change the
@@ -256,7 +257,7 @@ export const BlockAiDialog = ({
   const blockCount = segments ? new Set(segments.map((segment) => segment.blockId)).size : 0;
   return (
     <Modal.Root open onOpenChange={(open) => !open && onClose()}>
-      <Modal.Content
+      <TouchModalContent
         aria-describedby={undefined}
         data-testid="mex-block-ai-dialog"
         onCloseAutoFocus={(event) => {
@@ -432,7 +433,7 @@ export const BlockAiDialog = ({
             ) : null}
           </Flex>
         </Modal.Footer>
-      </Modal.Content>
+      </TouchModalContent>
     </Modal.Root>
   );
 };

@@ -1,6 +1,7 @@
 import { css } from 'styled-components';
 import { setOpacity } from '@strapi/design-system';
 import { CODE_FONT } from '../code-font.mjs';
+import { FOOTNOTE_BLOCK_CLASS } from '../footnote-blocks.mjs';
 
 /**
  * Styles for the Editor.js core UI and every tool, scoped under `.mex-editor`.
@@ -88,6 +89,23 @@ export const editorStyles = css`
       padding-bottom: ${s(6)} !important;
     }
 
+    /*
+     * 2.12.1: blocks outside the viewport skip style, layout and paint work
+     * (content-visibility: auto), so a menu, dialog or panel that makes the
+     * browser recalculate the page styles costs the visible blocks only, not
+     * thousands. The text stays in the accessibility tree and in find in page.
+     * The block with the caret or an open tool, selected blocks and blocks with
+     * footnotes (a counter numbers them across blocks, which style containment
+     * would reset; editor/footnote-blocks.mjs marks them) are left out. 4rem is
+     * the estimated height of a block that has not been shown yet; once shown,
+     * the browser keeps its real height.
+     */
+    .codex-editor__redactor
+      > .ce-block:not(:focus-within):not(.ce-block--selected):not(.${FOOTNOTE_BLOCK_CLASS}) {
+      content-visibility: auto;
+      contain-intrinsic-size: auto 4rem;
+    }
+
     .ce-block__content,
     .ce-toolbar__content {
       max-width: none;
@@ -116,7 +134,8 @@ export const editorStyles = css`
       border-radius: ${radius};
       /* 2.7.8: Editor.js turns the handles into white floating buttons below 650 px (fixed light
          colours, 2.4:1 in dark mode). They use DS surface, border and size instead: 32 px touch
-         targets on phones, 24 px from the DS small breakpoint up. */
+         targets on phones, 24 px from the DS small breakpoint up; 2.12.1: 44 px on touch screens
+         (components/ui/touch.js, applied by the field frame). */
       width: 32px;
       height: 32px;
       background-color: ${c('neutral0')};

@@ -22,6 +22,7 @@ import { blockTypeLabel } from './reuse-labels';
 import { scopeFieldOf, filterSyncedForField } from '../../../../shared/templates.mjs';
 import { sourceBlocksOf, syncedRefOf, syncedRefsOf } from '../../../../shared/synced.mjs';
 import { fieldPathLabel, reuseStatus } from '../../../../shared/reuse.mjs';
+import { TouchModalContent } from '../ui/touch';
 
 /**
  * "Insert from another entry" (2.5, More tools > Write): pick an entry (type
@@ -638,7 +639,7 @@ export const ReuseDialog = ({
         if (!next && !busy) onClose();
       }}
     >
-      <Modal.Content aria-describedby={undefined}>
+      <TouchModalContent aria-describedby={undefined}>
         <Modal.Header closeLabel={t('editor.reuse.close', 'Close')}>
           <Modal.Title>{t('editor.reuse.title', 'Insert from another entry')}</Modal.Title>
         </Modal.Header>
@@ -658,7 +659,7 @@ export const ReuseDialog = ({
             })}
           </Button>
         </Modal.Footer>
-      </Modal.Content>
+      </TouchModalContent>
     </Modal.Root>
   );
 };

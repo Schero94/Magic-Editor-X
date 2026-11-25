@@ -25,6 +25,7 @@ import { aiErrorEntry } from '../../editor/ai-errors.mjs';
 import { aiMenuEntries, entryRequest } from '../../editor/ai-menu.mjs';
 import { entryLabel } from './aiLabels';
 import { reviewErrorEntry } from './useAiReview';
+import { TouchModalContent } from '../ui/touch';
 
 /**
  * Whole-field AI actions (2.3): translate every text of the field or
@@ -255,7 +256,7 @@ export const FieldAiDialog = ({
   const result = state.result;
   return (
     <Modal.Root open onOpenChange={(open) => !open && onClose()}>
-      <Modal.Content
+      <TouchModalContent
         aria-describedby={undefined}
         onCloseAutoFocus={(event) => {
           if (!returnFocus) return;
@@ -426,7 +427,7 @@ export const FieldAiDialog = ({
             ) : null}
           </Flex>
         </Modal.Footer>
-      </Modal.Content>
+      </TouchModalContent>
     </Modal.Root>
   );
 };

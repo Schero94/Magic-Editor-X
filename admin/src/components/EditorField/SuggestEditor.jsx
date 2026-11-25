@@ -23,6 +23,7 @@ import { markInputReady } from '../../editor/input-tracking.mjs';
 import { holdSelection } from '../../editor/selection-keeper.mjs';
 import { checkPreset, isBlockAllowed } from '../../../../shared/presets.mjs';
 import { MAX_SUGGESTION_NOTE_LENGTH, suggestionsFromDiff } from '../../../../shared/suggestions.mjs';
+import { TouchModalContent } from '../ui/touch';
 
 /**
  * Suggest mode (2.4): a separate, local Editor.js instance on a copy of the
@@ -454,7 +455,7 @@ export const SuggestEditor = ({
             if (!next && !sending) closeSend();
           }}
         >
-          <Modal.Content aria-describedby={undefined} {...escapeProps}>
+          <TouchModalContent aria-describedby={undefined} {...escapeProps}>
             <Modal.Header closeLabel={t('editor.suggest.dialog.close', 'Close')}>
               <Modal.Title>{t('editor.suggest.dialog.title', 'Send suggestions')}</Modal.Title>
             </Modal.Header>
@@ -516,7 +517,7 @@ export const SuggestEditor = ({
                 )}
               </Button>
             </Modal.Footer>
-          </Modal.Content>
+          </TouchModalContent>
         </Modal.Root>
       ) : null}
     </>

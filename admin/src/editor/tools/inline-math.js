@@ -173,7 +173,6 @@ export const createInlineMathKeys = ({ holder, t, enabled }) => {
     className: 'mex-math-popover',
     attrs: {
       role: 'status',
-      'aria-live': 'polite',
       'aria-label': tr('tools.inlineMath.preview', 'Formula preview'),
     },
   });

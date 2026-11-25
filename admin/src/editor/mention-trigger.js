@@ -70,7 +70,7 @@ export const createMentionTrigger = ({ holder, editor, fetchClient, getLocale, t
 
   const status = el('p', {
     className: 'mex-mention-popup__status',
-    attrs: { role: 'status', 'aria-live': 'polite' },
+    attrs: { role: 'status' },
   });
   const list = el('ul', {
     className: 'mex-mention-popup__results',

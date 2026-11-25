@@ -70,6 +70,9 @@ import { RemoteCarets, offsetOf } from './RemoteCarets';
 import { usePresenceAnnouncements } from './usePresenceAnnouncements';
 import { QualityPanel } from './QualityPanel';
 import { useQualityIssues } from './useQualityIssues';
+import { useIdleValue } from './useIdleValue';
+import { useVisualViewport } from './useVisualViewport';
+import { touchTargets } from '../ui/touch';
 import { fixedBlockData } from './quality-fixes.mjs';
 import { normalizeLinkText } from '../../../../shared/quality.mjs';
 import { FindReplacePanel } from './FindReplacePanel';
@@ -188,6 +191,8 @@ import { useLazyActivation } from './useLazyActivation';
 import { LazyPlaceholder } from './LazyPlaceholder';
 import { savedValueOf } from '../../editor/drafts-logic.mjs';
 import { lazyMarginOf } from '../../editor/lazy-init.mjs';
+import { saveDelay } from '../../editor/save-timing.mjs';
+import { markFootnoteBlocks } from '../../editor/footnote-blocks.mjs';
 import {
   resolveFieldPreset,
   enabledAnnotations,
@@ -300,10 +305,38 @@ const SHORTCUT_LABELS = {
   annotation$abbreviation: ['tools.names.abbreviation', 'Abbreviation'],
 };
 
+/*
+ * 2.12.1: on phones (below the DS small breakpoint) a panel is a bottom sheet over the editor, so
+ * the text stays in view while a finding, comment or match is picked. It sits above an on-screen
+ * keyboard (--mex-keyboard-inset, useVisualViewport) and takes at most 60% of the visible height.
+ * From the small breakpoint up it stays in the field above the text, as before.
+ */
 const PanelSlot = styled(Box)`
   min-width: 0;
-  border-bottom: 1px solid ${({ theme }) => theme.colors.neutral150};
-  ${({ $fullscreen }) => ($fullscreen ? 'max-height: 45vh; overflow: auto; flex: 0 0 auto;' : '')}
+  position: fixed;
+  inset-inline: 0;
+  bottom: var(--mex-keyboard-inset, 0px);
+  z-index: ${({ theme }) => theme.zIndices.overlay};
+  max-height: calc(var(--mex-vv-height, 100dvh) * 0.6);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: ${({ theme }) => theme.colors.neutral0};
+  border-top: 1px solid ${({ theme }) => theme.colors.neutral200};
+  border-radius: ${({ theme }) => `${theme.borderRadius} ${theme.borderRadius} 0 0`};
+  box-shadow: ${({ theme }) => theme.shadows.popupShadow};
+  padding-bottom: max(${({ theme }) => theme.spaces[2]}, env(safe-area-inset-bottom));
+  ${({ theme }) => theme.breakpoints.small} {
+    position: static;
+    z-index: auto;
+    max-height: none;
+    overflow-y: visible;
+    border-top: 0;
+    border-bottom: 1px solid ${({ theme }) => theme.colors.neutral150};
+    border-radius: 0;
+    box-shadow: none;
+    padding-bottom: ${({ theme }) => theme.spaces[2]};
+    ${({ $fullscreen }) => ($fullscreen ? 'max-height: 45vh; overflow-y: auto; flex: 0 0 auto;' : '')}
+  }
 `;
 
 /** Settings page that explains the CSP sources (registered in admin/src/index.js). */
@@ -312,6 +345,7 @@ const TEMPLATES_PATH = '/settings/magic-editor-x/templates';
 
 const Frame = styled(Box)`
   min-width: 0;
+  ${touchTargets}
   border: 1px solid ${({ theme, $error }) => ($error ? theme.colors.danger600 : theme.colors.neutral200)};
   border-radius: ${({ theme }) => theme.borderRadius};
   background: ${({ theme }) => theme.colors.neutral0};
@@ -325,6 +359,10 @@ const Frame = styled(Box)`
       ? `
     position: fixed;
     inset: 0;
+    /* 2.12.1: follows the visual viewport, so an on-screen keyboard never covers the text. */
+    top: var(--mex-vv-top, 0px);
+    bottom: auto;
+    height: var(--mex-vv-height, 100%);
     z-index: ${theme.zIndices.modal};
     border-radius: 0;
     display: flex;
@@ -848,12 +886,19 @@ const EditorFieldBody = ({
   );
 
   /** Saves the editor into the form now (the body of a scheduled save). */
+  // 2.12.1: blocks with footnote markers keep normal rendering (editor/footnote-blocks.mjs).
+  const footnoteBlocksRef = useRef(new Set());
+  const markFootnotes = useCallback(
+    () => markFootnoteBlocks(holderRef.current, footnoteBlocksRef.current, FOOTNOTE_SELECTOR),
+    []
+  );
   const runSave = useCallback(async () => {
     const editor = editorRef.current;
     if (!editor || applyingRef.current) return;
     pendingLocalRef.current = false;
     try {
       const data = await editor.save();
+      markFootnotes();
       // 2.7.8: Editor.js' save of a long document is one task; the form update
       // and the field's own state follow in the next task, and the field's
       // panels (stats, comments, quality) re-render as a transition that React
@@ -879,20 +924,29 @@ const EditorFieldBody = ({
     } catch {
       // Editor.js rejects saves while a block is being re-rendered; the next change saves again.
     }
-  }, [emit]);
-  /** Saves the editor (debounced) after a local change; `delay` 0 saves at once. */
+  }, [emit, markFootnotes]);
+  /**
+   * Saves the editor (debounced) after a local change; `delay` 0 saves at once. 2.12.1: in long
+   * documents the delay grows with the block count (editor/save-timing.mjs), so the save runs in
+   * the pauses of typing instead of between two key presses.
+   */
   const scheduleSave = useCallback(
     (delay = SAVE_DEBOUNCE_MS) => {
       if (applyingRef.current) return;
       pendingLocalRef.current = true;
       clearTimeout(saveTimerRef.current);
-      saveTimerRef.current = setTimeout(() => {
-        const running = runSave();
-        savingRef.current = running;
-        running.finally(() => {
-          if (savingRef.current === running) savingRef.current = null;
-        });
-      }, delay);
+      const editor = editorRef.current;
+      const blockCount = delay > 0 && editor && editor.blocks ? editor.blocks.getBlocksCount() : 0;
+      saveTimerRef.current = setTimeout(
+        () => {
+          const running = runSave();
+          savingRef.current = running;
+          running.finally(() => {
+            if (savingRef.current === running) savingRef.current = null;
+          });
+        },
+        saveDelay(delay, blockCount)
+      );
     },
     [runSave]
   );
@@ -1095,6 +1149,7 @@ const EditorFieldBody = ({
                 signer.signValue({ blocks: [{ ...block, data: blockData }] }).blocks[0].data
             : undefined,
         });
+        markFootnotes();
         setStats(computeStats(data));
         setCurrentData(data || null);
         setContentVersion((version) => version + 1);
@@ -1109,7 +1164,7 @@ const EditorFieldBody = ({
         if (undoRef.current) undoRef.current.resume();
       }
     },
-    [emit]
+    [emit, markFootnotes]
   );
 
   /** Saves pending local edits into the shared document before remote content is shown. */
@@ -1679,6 +1734,7 @@ const EditorFieldBody = ({
             getLocale: () => contentLocaleRef.current,
             t,
           });
+        markFootnotes();
         setReady(true);
         // Edits made while Editor.js was starting are stored right away.
         if (userTouchedRef.current) scheduleSave(0);
@@ -2183,7 +2239,15 @@ const EditorFieldBody = ({
     () => (preset.restricted && currentData ? checkPreset(prepareEditorValue(currentData).data, preset) : []),
     [currentData, preset]
   );
-  const quality = useQualityIssues(currentData, fieldOptions || undefined, palette);
+  // 2.12.1: the count on "More tools" follows the content once typing pauses (the Quality panel
+  // itself checks the current content), so long documents do not lint the whole field per save.
+  const qualityData = useIdleValue(currentData);
+  // 2.12.1: full screen editing and the panel sheets follow the visual viewport (on-screen keyboard).
+  useVisualViewport(
+    frameRef,
+    fullscreen || suggestionsOpen || grammarOpen || findOpen || qualityOpen || commentsOpen
+  );
+  const quality = useQualityIssues(qualityData, fieldOptions || undefined, palette);
   const qualityFetch = useMemo(() => ({ get, post }), [get, post]);
   const qualityCount = {
     errors: quality.stats.errors + violations.length,
@@ -2215,7 +2279,17 @@ const EditorFieldBody = ({
     if (!editor || !blockId) return;
     const block = editor.blocks.getById(blockId);
     if (!block) return;
-    if (block.holder) block.holder.scrollIntoView({ block: 'center' });
+    if (block.holder) {
+      // 2.12.1: on phones a panel is a bottom sheet; the block is centred in the part above it.
+      const sheet = frameRef.current && frameRef.current.querySelector('[data-mex-sheet]');
+      const covered =
+        sheet && window.getComputedStyle(sheet).position === 'fixed'
+          ? sheet.getBoundingClientRect().height
+          : 0;
+      if (covered) block.holder.style.scrollMarginBottom = `${Math.round(covered)}px`;
+      block.holder.scrollIntoView({ block: 'center' });
+      if (covered) block.holder.style.removeProperty('scroll-margin-bottom');
+    }
     try {
       editor.caret.setToBlock(blockId, 'start');
     } catch {
@@ -3929,7 +4003,7 @@ const EditorFieldBody = ({
             />
           ) : null}
           {suggestionsOpen && suggestionsEnabled && ready && !suggestMode ? (
-            <PanelSlot padding={2} $fullscreen={fullscreen}>
+            <PanelSlot padding={2} $fullscreen={fullscreen} data-mex-sheet="true">
               <SuggestionsPanel
                 autoFocus={menuPanel === 'suggestions'}
                 t={t}
@@ -3946,7 +4020,7 @@ const EditorFieldBody = ({
             </PanelSlot>
           ) : null}
           {grammarOpen && grammarAllowed && ready && !suggestMode ? (
-            <PanelSlot padding={2} $fullscreen={fullscreen}>
+            <PanelSlot padding={2} $fullscreen={fullscreen} data-mex-sheet="true">
               <GrammarPanel
                 t={t}
                 fetchClient={qualityFetch}
@@ -3960,7 +4034,7 @@ const EditorFieldBody = ({
             </PanelSlot>
           ) : null}
           {findOpen && ready && !suggestMode ? (
-            <PanelSlot padding={2} $fullscreen={fullscreen}>
+            <PanelSlot padding={2} $fullscreen={fullscreen} data-mex-sheet="true">
               <FindReplacePanel
                 t={t}
                 getData={readForFind}
@@ -3973,7 +4047,7 @@ const EditorFieldBody = ({
             </PanelSlot>
           ) : null}
           {qualityOpen && ready && !suggestMode ? (
-            <PanelSlot padding={2} $fullscreen={fullscreen}>
+            <PanelSlot padding={2} $fullscreen={fullscreen} data-mex-sheet="true">
               <QualityPanel
                 autoFocus={menuPanel === 'quality'}
                 t={t}
@@ -3995,7 +4069,7 @@ const EditorFieldBody = ({
             </PanelSlot>
           ) : null}
           {commentsOpen && commentsEnabled && ready && !suggestMode ? (
-            <PanelSlot padding={2} $fullscreen={fullscreen}>
+            <PanelSlot padding={2} $fullscreen={fullscreen} data-mex-sheet="true">
               <CommentsPanel
                 autoFocus={menuPanel === 'comments'}
                 t={t}

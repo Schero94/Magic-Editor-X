@@ -14,6 +14,7 @@ import {
   hasPublishedChanges,
   publishedChangesCss,
 } from '../shared/published-changes.mjs';
+import { STRICT_TIMING } from './helpers/perf-strict.mjs';
 
 const require = createRequire(import.meta.url);
 const { errors } = require('@strapi/utils');
@@ -123,7 +124,9 @@ test('mark style sheet: scoped selectors, inline-start bars (also right to left)
   assert.equal(publishedChangesCss(null, style), '');
 });
 
-test('budget: classifying 2,000 blocks stays under 50 ms per update', () => {
+// The time budget runs only with MEX_PERF_STRICT=1 (CI job `bench`); the browser benchmark
+// (npm run bench:browser) measures the marks in the editor with every run.
+test('2,000 blocks: one edit, one addition and one removal are classified exactly', () => {
   const fixture = JSON.parse(
     readFileSync(new URL('./fixtures/editor-2x-all-blocks.json', import.meta.url), 'utf8')
   );
@@ -134,21 +137,46 @@ test('budget: classifying 2,000 blocks stays under 50 ms per update', () => {
   }
   const published = doc(blocks);
   const current = doc(JSON.parse(JSON.stringify(blocks)));
-  // Typical editing: a few blocks changed, one added, one removed.
   current.blocks[10] = p('b10', 'Edited paragraph text');
   current.blocks.splice(700, 1);
   current.blocks.splice(1500, 0, p('fresh', 'Added while typing'));
-  classifyPublishedChanges(published, current); // warm-up
-  const times = [];
-  for (let run = 0; run < 7; run += 1) {
-    const start = performance.now();
-    classifyPublishedChanges(published, current);
-    times.push(performance.now() - start);
-  }
-  times.sort((a, b) => a - b);
-  const median = times[Math.floor(times.length / 2)];
-  assert.ok(median < 50, `median ${median.toFixed(1)} ms`);
+  const result = classifyPublishedChanges(published, current);
+  assert.deepEqual(result.counts, { added: 1, changed: 1, removed: 1 });
+  assert.equal(result.marks.get('b10').kind, 'changed');
+  assert.equal(result.marks.get('fresh').kind, 'added');
+  assert.equal(result.removed.length, 1);
 });
+
+test(
+  'budget (MEX_PERF_STRICT=1): classifying 2,000 blocks stays under 50 ms per update',
+  { skip: !STRICT_TIMING },
+  () => {
+    const fixture = JSON.parse(
+      readFileSync(new URL('./fixtures/editor-2x-all-blocks.json', import.meta.url), 'utf8')
+    );
+    const blocks = [];
+    for (let index = 0; blocks.length < 2000; index += 1) {
+      const source = fixture.blocks[index % fixture.blocks.length];
+      blocks.push({ ...JSON.parse(JSON.stringify(source)), id: `b${index}` });
+    }
+    const published = doc(blocks);
+    const current = doc(JSON.parse(JSON.stringify(blocks)));
+    // Typical editing: a few blocks changed, one added, one removed.
+    current.blocks[10] = p('b10', 'Edited paragraph text');
+    current.blocks.splice(700, 1);
+    current.blocks.splice(1500, 0, p('fresh', 'Added while typing'));
+    classifyPublishedChanges(published, current); // warm-up
+    const times = [];
+    for (let run = 0; run < 7; run += 1) {
+      const start = performance.now();
+      classifyPublishedChanges(published, current);
+      times.push(performance.now() - start);
+    }
+    times.sort((a, b) => a - b);
+    const median = times[Math.floor(times.length / 2)];
+    assert.ok(median < 50, `median ${median.toFixed(1)} ms`);
+  }
+);
 
 // --- Server: service, handler, route -------------------------------------------------------
 

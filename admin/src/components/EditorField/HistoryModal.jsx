@@ -23,6 +23,7 @@ import { API, readApiError } from '../../utils/api';
 import { VersionDiff } from './VersionDiff';
 import { FieldActivity } from './FieldActivity';
 import { useTooltipSafeEscape } from '../../hooks/useTooltipSafeEscape';
+import { TouchModalContent } from '../ui/touch';
 
 /**
  * Version history of one field: list snapshots, save (and name) the current
@@ -497,7 +498,7 @@ export const HistoryModal = ({
   const escapeProps = useTooltipSafeEscape(onClose);
   return (
     <Modal.Root open onOpenChange={(open) => !open && onClose()}>
-      <Modal.Content aria-describedby={undefined} {...escapeProps}>
+      <TouchModalContent aria-describedby={undefined} {...escapeProps}>
         <Modal.Header closeLabel={t('editor.history.close', 'Close')}>
           <Modal.Title>{t('editor.history.title', 'Version history')}</Modal.Title>
         </Modal.Header>
@@ -618,7 +619,7 @@ export const HistoryModal = ({
             </WrappingButton>
           ) : null}
         </Footer>
-      </Modal.Content>
+      </TouchModalContent>
       <Dialog.Root
         open={Boolean(confirm)}
         onOpenChange={(open) => {

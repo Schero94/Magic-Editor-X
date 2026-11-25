@@ -23,6 +23,7 @@ import {
   exportMarkdown,
   exportStylesheet,
 } from '../admin/src/editor/export/export-content.mjs';
+import { STRICT_TIMING } from './helpers/perf-strict.mjs';
 
 const require = createRequire(import.meta.url);
 const { cleanEditorValue } = require('../server/src/utils/sanitizer.js');
@@ -93,7 +94,8 @@ test('zip bomb: a high compression ratio is refused before anything is inflated'
     () => readZipDirectory(bomb),
     (error) => error.code === 'ZIP_RATIO'
   );
-  assert.ok(performance.now() - started < 50, 'refused from the directory alone');
+  // readZipDirectory reads the central directory only: ZIP_RATIO from it means nothing was inflated.
+  if (STRICT_TIMING) assert.ok(performance.now() - started < 50, 'refused from the directory alone');
 });
 
 test('zip bomb: a total uncompressed size over 50 MB is refused', () => {
@@ -120,9 +122,19 @@ test('zip bomb: an entry that inflates past its declared size is aborted while s
   // Declare a small size (and a matching ratio) so the directory checks pass.
   const lying = patchDirectory(zip, { size: 4096 });
   const { entries } = readZipDirectory(lying);
-  const started = performance.now();
-  assert.equal(await codeOf(inflateEntry(lying, entries[0])), 'ZIP_SIZE_MISMATCH');
-  assert.ok(performance.now() - started < 200);
+  // Deterministic proof that it stops while streaming (no wall-clock time): the compressed data is
+  // read in 64-byte slices, and the abort comes long before the last slice. The output buffer has
+  // the declared size and a write past it is refused, so no more than 4,096 bytes are inflated.
+  const chunkBytes = 64;
+  const slices = Math.ceil(entries[0].compressedSize / chunkBytes);
+  let read = 0;
+  const pause = async () => {
+    read += 1;
+  };
+  const code = await codeOf(inflateEntry(lying, entries[0], { chunkBytes, pauseEvery: 1, pause }));
+  assert.equal(code, 'ZIP_SIZE_MISMATCH');
+  assert.ok(slices > 4, `the entry has ${slices} slices`);
+  assert.ok(read < slices / 2, `aborted after ${read} of ${slices} slices`);
 });
 
 test('zip: too many entries, encryption, zip64 markers, corrupt data and non-zip input are refused', async () => {
@@ -177,7 +189,7 @@ test('import: an oversized file and a zip bomb disguised as .docx are refused fa
   const bomb = buildDocx('', { extra: { 'word/media/big.bin': new Uint8Array(30 * 1024 * 1024) } });
   const started = performance.now();
   assert.equal(await codeOf(importDocx(bomb)), 'ZIP_RATIO');
-  assert.ok(performance.now() - started < 100);
+  if (STRICT_TIMING) assert.ok(performance.now() - started < 100);
   assert.equal(await codeOf(importDocx(strToU8('not a zip'))), 'NOT_ZIP');
   assert.equal(
     await codeOf(convertImportFile({ name: 'a.pdf', bytes: PNG }, { parseXml, parseHtml })),

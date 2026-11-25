@@ -1,5 +1,25 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed (performance in long documents, touch devices)
+
+Measured with the new browser benchmark (`npm run bench:browser`, CI job `browser-bench`), 2,000 blocks, 2.12.0 -> this release on an Apple M3 Pro: key press p95 68 -> 16 ms with no long task while typing, More tools 1.5 s -> 34 ms, Quality / Comments / Version history / Find 1.5 to 2.9 s -> 61 to 88 ms, paste of 200 blocks 6.7 -> 0.18 s, load 1.5 -> 1.3 s. At 5,000 blocks typing p95 180 -> 24 ms (119 long tasks -> none) and panels 10 to 22 s -> 0.14 to 0.2 s. The README has the table, the budgets and what is not measured.
+
+- **Menus and dialogs froze long documents.** Status messages inside blocks (tables, columns, table of contents, formulas, media, alternative text, focal point, link picker, mention and formula popovers) were live regions. Every Design System menu or dialog keeps live regions visible to screen readers, so it hid every other block one by one, and Editor.js checked every block against each of those changes: 1.4 s at 2,000 blocks and up to 20 s at 5,000 for opening More tools. They are status regions without that attribute now (screen readers announce them as before).
+- **Blocks outside the screen are no longer laid out** (`content-visibility: auto`), except the block being edited, selected blocks and blocks with footnotes. Their text stays searchable and readable by screen readers.
+- **Pasting many blocks, undo and live updates no longer slow down per block.** The indent tune measured the page once per styled block (a full layout each time); it now reads the width once and follows resizes.
+- **Typing in long documents.** From 500 blocks on, the field stores its value in typing pauses (up to 400 ms after the last key at 5,000 blocks; leaving the field or Save still store at once), and the problem count on More tools is updated once typing pauses.
+- **More tools** no longer locks page scrolling while open (a non-modal menu; keyboard use is unchanged).
+- **Touch devices.** On phones the panels (Quality, Comments, Find, Grammar, Suggestions) open as a bottom sheet over the text, and a block picked in a sheet is shown above it; full screen editing and the sheets stay above the on-screen keyboard; buttons of the field, its dialogs and the More tools entries are at least 44 px on touch screens.
+
+### Notes
+
+- No migration and no change to stored content.
+- Tests: unit tests no longer assert wall-clock time (they failed on busy shared runners); the remaining time limits run with `MEX_PERF_STRICT=1` in the CI job `bench`, and the browser benchmark measures time in the editor.
+- Strapi accepts 1 MB of JSON per request by default, about 3,000 text blocks; longer entries need a larger `jsonLimit` for `strapi::body` (README, Troubleshooting).
+- The styled-components warning about an unknown prop `attribute` in development mode comes from Strapi's Content Manager: it also appears on an edit view without any Magic Editor X field (checked on Strapi 5.63.0 with the plugin turned off).
+
 # [2.12.0](https://github.com/Schero94/Magic-Editor-X/compare/v2.11.0...v2.12.0) (2026-11-24)
 
 
