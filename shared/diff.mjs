@@ -129,10 +129,63 @@ const comparableColumns = (data) => {
   return out;
 };
 
+/** Start number and counter style of an ordered list without them (@editorjs/list 2.0). */
+export const LIST_DEFAULT_START = 1;
+export const LIST_DEFAULT_COUNTER = 'numeric';
+
+/**
+ * List items as they are compared: legacy string items become `{ content }`,
+ * a missing `items` is `[]`, an empty `meta` is left out and a checklist item
+ * without `checked` is unchecked.
+ * @param {unknown} items - Items.
+ * @param {boolean} checklist - Whether the list is a checklist.
+ * @param {number} depth - Nesting depth (bounded).
+ * @returns {Array} Items.
+ */
+const comparableListItems = (items, checklist, depth) => {
+  if (!Array.isArray(items) || depth > MAX_DEPTH) return [];
+  return items.map((item) => {
+    if (typeof item === 'string') return { content: item, items: [] };
+    if (!item || typeof item !== 'object' || Array.isArray(item)) return item;
+    const { meta, items: children, ...rest } = item;
+    const out = { ...rest, items: comparableListItems(children, checklist, depth + 1) };
+    const kept = meta && typeof meta === 'object' && !Array.isArray(meta) ? { ...meta } : {};
+    if (checklist) kept.checked = kept.checked === true;
+    if (Object.keys(kept).length) out.meta = kept;
+    return out;
+  });
+};
+
+/**
+ * List (@editorjs/list 2.0) as it is compared. The tool fills in defaults
+ * when it loads a block, so a list saved again differs from the stored one
+ * without a change by the author: an ordered list gets
+ * `meta.counterType: 'numeric'`, legacy string items become objects, and
+ * `meta` is `{}` on unordered lists and checklists (the tool and the
+ * renderer read it only on ordered lists). Both sides get the same defaults
+ * (start 1, counter `numeric`), so only real differences remain.
+ * @param {object} data - List block data.
+ * @returns {object} Data.
+ */
+const comparableList = (data) => {
+  const { meta, items, ...rest } = data;
+  const out = { ...rest, items: comparableListItems(items, data.style === 'checklist', 0) };
+  if (data.style === 'ordered') {
+    const value = meta && typeof meta === 'object' && !Array.isArray(meta) ? meta : {};
+    out.meta = {
+      ...value,
+      start: Number.isInteger(value.start) ? value.start : LIST_DEFAULT_START,
+      counterType: typeof value.counterType === 'string' ? value.counterType : LIST_DEFAULT_COUNTER,
+    };
+  }
+  return out;
+};
+
 /**
  * Data of a block as it is compared. Table merges and column alignments
  * (2.4) are one readable value each (`A1:B2, C3:C4`; `left, -, center`),
- * not a field per number.
+ * not a field per number. Lists get the defaults of the list tool
+ * (`comparableList`).
  * @param {{ type: string, data?: unknown }} block - Block.
  * @returns {object} Data.
  */
@@ -140,6 +193,7 @@ const comparableData = (block) => {
   const data = block.data && typeof block.data === 'object' ? block.data : {};
   if (block.type === 'columns' && !Array.isArray(data) && isBuiltInBlock(block))
     return comparableColumns(data);
+  if (block.type === 'list' && !Array.isArray(data) && isBuiltInBlock(block)) return comparableList(data);
   if (block.type !== 'table' || Array.isArray(data)) return data;
   const out = { ...data };
   if (Array.isArray(data.merges))

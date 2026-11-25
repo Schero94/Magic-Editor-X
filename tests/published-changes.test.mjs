@@ -96,6 +96,124 @@ test('classify: an empty published field marks every block as added; identical c
   assert.equal(hasPublishedChanges(classifyPublishedChanges(current, tuned)), false);
 });
 
+/**
+ * What @editorjs/list 2.0.9 returns from `save()` for stored list data: legacy shapes converted
+ * (string items, items without `meta`), `meta.counterType` set to `numeric` on an ordered list
+ * that has none, and `meta` only on ordered lists (`{}` otherwise).
+ * @param {object} data - Stored list data.
+ * @returns {object} Data as the editor saves it.
+ */
+const listToolSave = (data) => {
+  const items = (list) =>
+    (list || []).map((item) =>
+      typeof item === 'string'
+        ? { content: item, meta: {}, items: [] }
+        : { content: item.content, meta: item.meta || {}, items: items(item.items) }
+    );
+  const meta = { ...(data.meta || {}) };
+  if (data.style === 'ordered' && meta.counterType === undefined) meta.counterType = 'numeric';
+  return {
+    style: data.style,
+    meta: data.style === 'ordered' ? { start: meta.start, counterType: meta.counterType } : {},
+    items: items(data.items),
+  };
+};
+const list = (id, data) => ({ id, type: 'list', data });
+const resave = (value) => ({
+  ...value,
+  blocks: value.blocks.map((block) =>
+    block.type === 'list' ? { ...block, data: listToolSave(block.data) } : block
+  ),
+});
+
+test('classify: list defaults the editor adds on save are not changes (counterType, start, legacy items)', () => {
+  const items = [
+    { content: 'One', meta: {}, items: [{ content: 'Nested', meta: {}, items: [] }] },
+    { content: 'Two', meta: {}, items: [] },
+  ];
+  const published = doc([
+    // Published before the list tool wrote meta.counterType (2.12.0 bench shape: meta {}).
+    list('o1', { style: 'ordered', meta: {}, items }),
+    list('o2', { style: 'ordered', items }),
+    list('o3', { style: 'ordered', meta: { start: 1 }, items }),
+    list('u1', { style: 'unordered', items: ['Legacy one', 'Legacy <i>two</i>'] }),
+    list('u2', { style: 'unordered', meta: {}, items }),
+    list('c1', { style: 'checklist', items: [{ content: 'Done', meta: { checked: true }, items: [] }] }),
+  ]);
+  const saved = resave(published);
+  assert.deepEqual(saved.blocks[0].data.meta, { start: undefined, counterType: 'numeric' });
+  const changes = classifyPublishedChanges(published, JSON.parse(JSON.stringify(saved)));
+  assert.equal(changes.marks.size, 0, `no marks, got ${[...changes.marks.keys()].join(', ')}`);
+  assert.equal(hasPublishedChanges(changes), false);
+  // Both directions: a published list with the defaults against a draft without them.
+  assert.equal(hasPublishedChanges(classifyPublishedChanges(saved, published)), false);
+  // A checklist item without `checked` is unchecked.
+  const unchecked = doc([list('c', { style: 'checklist', items: [{ content: 'Open', items: [] }] })]);
+  const checkedFalse = doc([
+    list('c', {
+      style: 'checklist',
+      meta: {},
+      items: [{ content: 'Open', meta: { checked: false }, items: [] }],
+    }),
+  ]);
+  assert.equal(hasPublishedChanges(classifyPublishedChanges(unchecked, checkedFalse)), false);
+});
+
+test('classify: real list changes are still marked (style, start number, counter type, items)', () => {
+  const items = [{ content: 'One', meta: {}, items: [] }];
+  const base = list('l', { style: 'ordered', meta: {}, items });
+  const published = doc([base]);
+  const changedWith = (data) => {
+    const result = classifyPublishedChanges(published, doc([list('l', data)]));
+    return result.marks.get('l') ? result.marks.get('l').kind : 'none';
+  };
+  assert.equal(changedWith({ style: 'ordered', meta: { counterType: 'lower-roman' }, items }), 'changed');
+  assert.equal(
+    changedWith({ style: 'ordered', meta: { start: 3, counterType: 'numeric' }, items }),
+    'changed'
+  );
+  assert.equal(changedWith({ style: 'ordered', meta: { start: 0 }, items }), 'changed');
+  assert.equal(changedWith({ style: 'unordered', meta: {}, items }), 'changed');
+  assert.equal(
+    changedWith({ style: 'ordered', meta: {}, items: [{ content: 'One edited', meta: {}, items: [] }] }),
+    'changed'
+  );
+  assert.equal(
+    changedWith({
+      style: 'ordered',
+      meta: {},
+      items: [{ content: 'One', meta: {}, items: [{ content: 'New child', meta: {}, items: [] }] }],
+    }),
+    'changed'
+  );
+  const field = classifyPublishedChanges(
+    published,
+    doc([list('l', { style: 'ordered', meta: { start: 5, counterType: 'numeric' }, items })])
+  ).marks.get('l').entry.fields;
+  assert.deepEqual(
+    field.map((entry) => [entry.path, entry.before, entry.after]),
+    [['meta.start', 1, 5]],
+    'only the start number is reported, against its default'
+  );
+  // Checklist: ticking an item is a change.
+  const open = doc([
+    list('c', { style: 'checklist', items: [{ content: 'Task', meta: { checked: false }, items: [] }] }),
+  ]);
+  const done = doc([
+    list('c', { style: 'checklist', items: [{ content: 'Task', meta: { checked: true }, items: [] }] }),
+  ]);
+  assert.equal(classifyPublishedChanges(open, done).marks.get('c').kind, 'changed');
+});
+
+test('classify: the browser benchmark document, published and saved once, has no false marks', async () => {
+  const { makeDocument } = await import('../scripts/bench-browser/documents.mjs');
+  const published = makeDocument(1000);
+  const ordered = published.blocks.filter((block) => block.type === 'list' && block.data.style === 'ordered');
+  assert.equal(ordered.length, 20, 'the document has 20 ordered lists (the false marks of 2.12.1)');
+  const changes = classifyPublishedChanges(published, JSON.parse(JSON.stringify(resave(published))));
+  assert.deepEqual(changes.counts, { added: 0, changed: 0, removed: 0 });
+});
+
 test('mark style sheet: scoped selectors, inline-start bars (also right to left), unsafe ids skipped', () => {
   const published = doc([p('a', 'A'), p('gone', 'Gone'), p('b', 'B')]);
   const current = doc([

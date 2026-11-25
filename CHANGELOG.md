@@ -1,5 +1,15 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed (changes since last publish)
+
+- **Lists were marked as changed after the first save.** The list tool fills in defaults when it loads a block: an ordered list gets `meta.counterType: 'numeric'`, legacy string items become objects and unordered lists and checklists get an empty `meta`. A list published before that differed from the saved draft only by these defaults, so "Changes since last publish" marked it (about 20 false marks per 1,000 blocks in the browser benchmark document). The comparison now gives both sides the same defaults (start 1, counter `numeric`, `meta` only on ordered lists, a checklist item without `checked` is unchecked). Changing the list style, the start number, the counter type, an item or a checkbox is still marked. The version history comparison uses the same rule, so it no longer lists these defaults as changes either.
+
+### Notes
+
+- No migration and no change to stored content: the defaults are applied only for the comparison.
+
 ## [2.12.1](https://github.com/Schero94/Magic-Editor-X/compare/v2.12.0...v2.12.1) (2026-11-25)
 
 
