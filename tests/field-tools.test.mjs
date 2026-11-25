@@ -15,19 +15,23 @@ import {
 const noop = () => {};
 const entry = (id, group, extra = {}) => ({ id, group, label: id, onSelect: noop, ...extra });
 
-test('groups follow Review, Write, View and drop empty groups', () => {
-  assert.deepEqual(TOOL_GROUPS, ['review', 'write', 'view']);
+test('groups follow Write, Review, Import and export, View and drop empty groups', () => {
+  // 2.12.3: frequent tasks first; import and export are one section.
+  assert.deepEqual(TOOL_GROUPS, ['write', 'review', 'file', 'view']);
   const sections = groupFieldTools([
     entry('preview', 'view'),
+    entry('export', 'file'),
     entry('find', 'write'),
     entry('history', 'review'),
+    entry('import', 'file'),
     entry('quality', 'review'),
   ]);
   assert.deepEqual(
     sections.map((section) => [section.group, section.items.map((item) => item.id)]),
     [
-      ['review', ['history', 'quality']],
       ['write', ['find']],
+      ['review', ['history', 'quality']],
+      ['file', ['export', 'import']],
       ['view', ['preview']],
     ]
   );

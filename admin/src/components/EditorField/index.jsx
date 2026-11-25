@@ -690,7 +690,7 @@ const EditorFieldBody = ({
   const lastBlockIdRef = useRef(null);
   // 2.5 "Use existing content": insert dialog, block clipboard (paste and the "Copy block" tune).
   const [reuseOpen, setReuseOpen] = useState(false);
-  // 2.11 "Import file…" and "Export…" (More tools).
+  // 2.11 "Import file" and "Export file" (More tools > Import and export).
   const [importOpen, setImportOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [importHasContent, setImportHasContent] = useState(false);
@@ -1658,7 +1658,9 @@ const EditorFieldBody = ({
       data: (mediaSignerRef.current ? mediaSignerRef.current.signValue(initial) : initial) || undefined,
       readOnly,
       minHeight: 0,
-      placeholder: placeholder || t('editor.placeholder', 'Write something, or type / to choose a block'),
+      placeholder:
+        placeholder ||
+        t('editor.placeholder', 'Write, type / to choose a block, or paste a link to embed it'),
       autofocus: false,
       logLevel: 'ERROR',
       i18n: { ...editorI18n(t), direction },
@@ -3538,7 +3540,7 @@ const EditorFieldBody = ({
     );
   }, [focusToolsMenu, selectBlock]);
 
-  /** 2.11 "Import file…": opens the dialog (it offers "Insert at cursor" only when the field has content). */
+  /** 2.11 "Import file": opens the dialog (it offers "Insert at cursor" only when the field has content). */
   const openImport = useCallback(async () => {
     const editor = editorRef.current;
     const saved = editor ? await editor.save().catch(() => null) : null;
@@ -3546,7 +3548,7 @@ const EditorFieldBody = ({
     setImportOpen(true);
   }, []);
 
-  /** 2.11 "Export…": the content as shown (unsaved changes included) and the sources of its synced blocks. */
+  /** 2.11 "Export file": the content as shown (unsaved changes included) and the sources of its synced blocks. */
   const readExportContent = useCallback(async () => {
     const editor = editorRef.current;
     const saved = editor ? await editor.save().catch(() => null) : null;
@@ -3640,10 +3642,14 @@ const EditorFieldBody = ({
 
   // Field tool registry (2.4, editor/field-tools.mjs): every secondary tool is one entry of the
   // "More tools" menu. A new tool adds one entry here; `visible` hides it where it cannot work.
+  // 2.12.3: `order` puts the tasks editors need most first in each group (Write: AI, templates,
+  // reuse, find, grammar, suggest; Review: quality, comments, suggestions, history, published
+  // changes; Import and export; View).
   const fieldTools = [
     {
       id: 'comments',
       group: 'review',
+      order: 2,
       label: t('editor.toolbar.comments', 'Comments'),
       icon: <Discuss />,
       badge: {
@@ -3669,6 +3675,7 @@ const EditorFieldBody = ({
     {
       id: 'history',
       group: 'review',
+      order: 4,
       label: t('editor.toolbar.history', 'Version history'),
       icon: <ClockCounterClockwise />,
       movesFocus: true,
@@ -3679,25 +3686,22 @@ const EditorFieldBody = ({
     {
       id: 'publishedChanges',
       group: 'review',
+      order: 5,
       label: t('editor.publishedChanges.title', 'Changes since last publish'),
       icon: <ListSearch />,
       pressed: publishedChanges.on,
-      visible: publishedAvailable,
-      disabled:
-        publishedChanges.status === 'loading' ||
-        (publishedChanges.status === 'ready' && !publishedChanges.published),
+      // 2.12.3: an entry that was never published has nothing to compare, so the entry is left out
+      // instead of being shown disabled with an explanation (the registry rule: never render a tool
+      // that cannot work). While the status loads it stays visible but disabled.
+      visible: publishedAvailable && !(publishedChanges.status === 'ready' && !publishedChanges.published),
+      disabled: publishedChanges.status === 'loading',
       description:
-        publishedChanges.status === 'ready' && !publishedChanges.published
+        publishedChanges.status === 'error'
           ? t(
-              'editor.publishedChanges.neverPublished',
-              'This entry has not been published yet, so there is nothing to compare.'
+              'editor.publishedChanges.statusError',
+              'Could not check the published version. Select to try again.'
             )
-          : publishedChanges.status === 'error'
-            ? t(
-                'editor.publishedChanges.statusError',
-                'Could not check the published version. Select to try again.'
-              )
-            : undefined,
+          : undefined,
       onSelect: () => {
         if (publishedChanges.status === 'error') publishedChanges.retry();
         publishedChanges.setOn(!publishedChanges.on);
@@ -3706,6 +3710,7 @@ const EditorFieldBody = ({
     {
       id: 'suggestions',
       group: 'review',
+      order: 3,
       label: t('editor.toolbar.suggestions', 'Suggestions'),
       icon: <Lightbulb />,
       badge: {
@@ -3731,6 +3736,7 @@ const EditorFieldBody = ({
     {
       id: 'suggest',
       group: 'write',
+      order: 6,
       label: t('editor.toolbar.suggest', 'Suggest changes'),
       icon: <Pencil />,
       movesFocus: true,
@@ -3741,6 +3747,7 @@ const EditorFieldBody = ({
     {
       id: 'quality',
       group: 'review',
+      order: 1,
       label: t('editor.toolbar.quality', 'Quality checks'),
       icon: <SealCheck />,
       badge: {
@@ -3765,6 +3772,7 @@ const EditorFieldBody = ({
     {
       id: 'fieldAi',
       group: 'write',
+      order: 1,
       label: t('editor.toolbar.fieldAi', 'AI for the whole field'),
       icon: <Sparkle />,
       movesFocus: true,
@@ -3774,6 +3782,7 @@ const EditorFieldBody = ({
     {
       id: 'grammar',
       group: 'write',
+      order: 5,
       label: t('editor.toolbar.grammar', 'Check grammar'),
       icon: <Feather />,
       pressed: grammarOpen,
@@ -3784,6 +3793,7 @@ const EditorFieldBody = ({
     {
       id: 'find',
       group: 'write',
+      order: 4,
       label: t('editor.toolbar.find', 'Find and replace'),
       icon: <Search />,
       shortcut: 'CMD+SHIFT+F',
@@ -3794,6 +3804,7 @@ const EditorFieldBody = ({
     {
       id: 'templates',
       group: 'write',
+      order: 2,
       label: t('editor.toolbar.templates', 'Insert template'),
       icon: <Layout />,
       movesFocus: true,
@@ -3804,6 +3815,7 @@ const EditorFieldBody = ({
     {
       id: 'preview',
       group: 'view',
+      order: 1,
       label: t('editor.toolbar.preview', 'Preview'),
       icon: <Monitor />,
       shortcut: 'CMD+ALT+P',
@@ -3815,6 +3827,7 @@ const EditorFieldBody = ({
     {
       id: 'focus',
       group: 'view',
+      order: 2,
       label: t('editor.toolbar.focusOn', 'Focus mode'),
       icon: <Eye />,
       pressed: focusMode,
@@ -3828,6 +3841,7 @@ const EditorFieldBody = ({
     {
       id: 'shortcuts',
       group: 'view',
+      order: 3,
       label: t('editor.toolbar.shortcuts', 'Keyboard shortcuts'),
       icon: <Command />,
       shortcut: 'CMD+ALT+/',
@@ -3841,6 +3855,7 @@ const EditorFieldBody = ({
     {
       id: 'reuse',
       group: 'write',
+      order: 3,
       label: t('editor.toolbar.reuse', 'Insert from another entry'),
       icon: <Files />,
       movesFocus: true,
@@ -3848,11 +3863,12 @@ const EditorFieldBody = ({
       disabled: previewOpen || !ready,
       onSelect: () => setReuseOpen(true),
     },
-    // 2.11 import and export.
+    // 2.11 import and export (2.12.3: one "Import and export" section).
     {
       id: 'import',
-      group: 'write',
-      label: t('editor.toolbar.import', 'Import file…'),
+      group: 'file',
+      order: 1,
+      label: t('editor.toolbar.import', 'Import file'),
       icon: <Upload />,
       movesFocus: true,
       visible: !readOnly,
@@ -3861,8 +3877,9 @@ const EditorFieldBody = ({
     },
     {
       id: 'export',
-      group: 'view',
-      label: t('editor.toolbar.export', 'Export…'),
+      group: 'file',
+      order: 2,
+      label: t('editor.toolbar.export', 'Export file'),
       icon: <Download />,
       movesFocus: true,
       disabled: !ready,
@@ -3919,7 +3936,8 @@ const EditorFieldBody = ({
               lang={target.locale || undefined}
               minHeight={minHeight}
               placeholder={
-                placeholder || t('editor.placeholder', 'Write something, or type / to choose a block')
+                placeholder ||
+                t('editor.placeholder', 'Write, type / to choose a block, or paste a link to embed it')
               }
               fullscreen={fullscreen}
               onSend={sendSuggestions}

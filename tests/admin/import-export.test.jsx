@@ -1,5 +1,5 @@
 /**
- * 2.11 "Import file…" and "Export…" in React StrictMode with the real Strapi
+ * 2.11 "Import file" and "Export file" in React StrictMode with the real Strapi
  * admin providers: a generated Word file through the hidden file input
  * (preview, notes, focus, "Insert at cursor" / "Replace content"), a zip
  * bomb refused with a readable message, and the export dialog (format
@@ -283,7 +283,7 @@ const TOASTS = [{ match: /document:visibilitychange lib:sonner\//, reason: 'admi
  * Opens a field tool from the "More tools" menu (Radix dropdown: pointerdown opens it).
  * @param {string} id - Tool id.
  */
-const openTool = async (id) => {
+const openTool = async (id, inspect) => {
   const trigger = document.querySelector('[data-testid="mex-tools-menu"]');
   await act(async () => {
     trigger.dispatchEvent(
@@ -291,12 +291,13 @@ const openTool = async (id) => {
     );
   });
   await waitFor(() => byTestId(`mex-tool-${id}`), `menu item ${id}`);
+  if (inspect) inspect(document.querySelector('[role="menu"]'));
   await act(async () => {
     byTestId(`mex-tool-${id}`).click();
   });
 };
 
-test('editor field: "Import file…" (Write) and "Export…" (View) in More tools; Replace content changes the field once', async () => {
+test('editor field: "Import file" and "Export file" (Import and export) in More tools; Replace content changes the field once', async () => {
   resetEditorConfigCache();
   contentManagerRoutes();
   editorRoutes({
@@ -321,7 +322,19 @@ test('editor field: "Import file…" (Write) and "Export…" (View) in More tool
       allowLeaks: TOASTS,
       whileMounted: async (handle) => {
         await waitFor(() => /2 blocks/.test(handle.container.textContent), 'Editor.js to render the value');
-        await openTool('import');
+        await openTool('import', (menu) => {
+          // 2.12.3: sections ordered by how often editors need them; import and export together.
+          const labels = [...menu.querySelectorAll('[role="group"] > *, [role="menu"] > *')]
+            .map((el) => el.textContent.trim())
+            .filter((text) => ['Write', 'Review', 'Import and export', 'View'].includes(text));
+          assert.deepEqual(labels, ['Write', 'Review', 'Import and export', 'View']);
+          const section = (id) =>
+            byTestId(`mex-tool-${id}`).compareDocumentPosition(byTestId('mex-tool-import')) &
+            window.Node.DOCUMENT_POSITION_FOLLOWING;
+          assert.ok(section('find') && section('quality'), 'Write and Review come before Import');
+          assert.equal(byTestId('mex-tool-import').textContent.trim(), 'Import file');
+          assert.equal(byTestId('mex-tool-export').textContent.trim(), 'Export file');
+        });
         assert.equal(
           document.querySelector('[role="menu"]'),
           null,

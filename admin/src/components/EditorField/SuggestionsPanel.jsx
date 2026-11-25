@@ -16,6 +16,7 @@ import { Cross } from '@strapi/icons';
 import styled from 'styled-components';
 import { ConfirmAction } from '../ui/ConfirmAction';
 import { TextOps, tuneLabel, tuneValueText } from './VersionDiff';
+import { blockTypeLabel } from './reuse-labels';
 import { prepareEditorValue } from '../../editor/sanitize';
 import { blockText, diffDocuments } from '../../../../shared/diff.mjs';
 import { relativeTimeParts } from '../../../../shared/comments.mjs';
@@ -492,8 +493,9 @@ export const SuggestionsPanel = ({
                         {aiBadgeText(t, suggestion.ai)}
                       </Badge>
                     ) : null}
+                    {/* 2.12.3: the translated block name ("Text", "Heading"), not the stored type. */}
                     <Typography variant="pi" textColor="neutral600">
-                      {(after || before || {}).type || ''}
+                      {after || before ? blockTypeLabel(t, after || before) : ''}
                     </Typography>
                   </Flex>
                   <Flex gap={2} wrap="wrap" alignItems="baseline" minWidth={0}>

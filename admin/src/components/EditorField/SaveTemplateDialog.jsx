@@ -155,7 +155,7 @@ export const SaveTemplateDialog = ({ t, request, target, fieldLabel, onSaved, on
             <Button variant="tertiary">{t('editor.templates.cancel', 'Cancel')}</Button>
           </Modal.Close>
           <Button onClick={save} loading={saving} disabled={saving} data-testid="mex-template-save">
-            {t('editor.saveTemplate.save', 'Save')}
+            {t('editor.saveTemplate.save', 'Save template')}
           </Button>
         </Modal.Footer>
       </TouchModalContent>

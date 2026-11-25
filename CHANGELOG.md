@@ -1,5 +1,19 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed (editor click paths and consistency)
+
+- **More tools is sorted by what editors need most.** The sections are now Write (AI for the whole field, insert template, insert from another entry, find and replace, check grammar, suggest changes), Review (quality checks, comments, suggestions, version history, changes since last publish), Import and export (import file, export file) and View (preview, focus mode, keyboard shortcuts). Import and export were split across Write and View before. "Changes since last publish" is left out for an entry that was never published instead of being shown disabled with an explanation.
+- **The block toolbox lists Image and Table right after the text blocks.** They were below Delimiter, Table of contents and Math, and typing "/tab" listed Table of contents as the first match, so the arrow key and Enter inserted a table of contents.
+- **The three AI dialogs work the same way.** Selected text, selected blocks and whole field share the title pattern ("AI for the selected text", "AI for the selected blocks", "AI for the whole field"), the same privacy box and the same footer: Generate first, then Try again and the apply action. The selected-text dialog no longer shows a disabled "Replace selection" before there is a result, and "Send to the AI provider" became "Generate".
+- **Dialog footers and verbs.** The template dialog has the same footer as every other dialog (Cancel left, actions right) and shows no disabled insert button when there is nothing to insert; "Use template" became "Insert template", and "Save" in "Save as template or pattern" became "Save template". Restore buttons in Version history name their version for screen readers.
+- **One term per concept** in all five languages: "selected blocks" (was "chosen blocks"), "problems" for grammar and quality counts (was partly "issues", in German partly "Hinweise"), "Import file" and "Export file" without a trailing ellipsis, one placeholder for empty blocks that also says a pasted link is embedded. Suggestion cards show the block name ("Text", "Heading") instead of the stored type ("paragraph"). Copy that still pointed at "the editor toolbar" for templates and preview now points at More tools.
+
+### Notes
+
+- No API, route, stored data or configuration change. The field tool registry gained the group `file`; `TOOL_GROUPS` is now `write, review, file, view`.
+
 ## [2.12.2](https://github.com/Schero94/Magic-Editor-X/compare/v2.12.1...v2.12.2) (2026-11-25)
 
 

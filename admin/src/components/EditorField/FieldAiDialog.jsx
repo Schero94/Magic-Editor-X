@@ -403,7 +403,7 @@ export const FieldAiDialog = ({
                 ? t('editor.ai.review.run', 'Add suggestions')
                 : result
                   ? t('editor.ai.retry', 'Try again')
-                  : t('editor.aiField.send', 'Send to the AI provider')}
+                  : t('editor.ai.generate', 'Generate')}
             </Button>
             {result && result.action === 'translate' && !readOnly ? (
               <Button onClick={replace}>{t('editor.aiField.replace', 'Replace field content')}</Button>

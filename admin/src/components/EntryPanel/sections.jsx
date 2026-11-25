@@ -232,7 +232,7 @@ const QualitySection = ({ t, summary }) => {
                 panel="quality"
                 text={[
                   issues
-                    ? t('entryPanel.quality.issues', '{count, plural, one {# issue} other {# issues}}', {
+                    ? t('entryPanel.quality.issues', '{count, plural, one {# problem} other {# problems}}', {
                         count: issues,
                       })
                     : null,

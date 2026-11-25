@@ -19,6 +19,8 @@ import {
   createHistoryStack,
   historyKey,
   dropIndex,
+  orderToolbox,
+  TOOLBOX_FIRST,
 } from '../admin/src/editor/tools/logic.mjs';
 
 test('alert keeps 1.x data and fills defaults', () => {
@@ -177,4 +179,44 @@ test('drop index follows the pointer and accounts for the dragged block', () => 
   assert.equal(dropIndex(rects, 29, 0), 2);
   assert.equal(dropIndex(rects, 16, 0), 1);
   assert.equal(dropIndex([], 5, 0), 0);
+});
+
+test('2.12.3 toolbox order: frequent blocks first, everything else keeps its order', () => {
+  const tools = {
+    paragraph: 1,
+    header: 2,
+    list: 3,
+    checklist: 4,
+    quote: 5,
+    warning: 6,
+    toc: 7,
+    math: 8,
+    table: 9,
+    raw: 10,
+    image: 11,
+    gallery: 12,
+  };
+  const ordered = orderToolbox(tools);
+  assert.deepEqual(Object.keys(ordered), [
+    'paragraph',
+    'header',
+    'list',
+    'checklist',
+    'quote',
+    'image',
+    'table',
+    'warning',
+    'toc',
+    'math',
+    'raw',
+    'gallery',
+  ]);
+  // Values are the same objects, missing keys are skipped, the input is not changed.
+  assert.equal(ordered.table, 9);
+  // Filtering with "/tab" lists Table before Table of contents (the first match is chosen with an arrow key and Enter).
+  assert.deepEqual(Object.keys(orderToolbox({ toc: 1, table: 2 })), ['table', 'toc']);
+  assert.deepEqual(Object.keys(tools).slice(-3), ['raw', 'image', 'gallery']);
+  // A tool named like an Object.prototype key still keeps its place.
+  assert.deepEqual(Object.keys(orderToolbox({ constructor: 1, table: 2 })), ['table', 'constructor']);
+  assert.ok(Object.isFrozen(TOOLBOX_FIRST));
 });

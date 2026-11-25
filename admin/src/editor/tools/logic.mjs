@@ -478,3 +478,34 @@ export const normalizeToc = (data, levels) => {
     style: d.style === 'ordered' ? 'ordered' : 'unordered',
   };
 };
+
+/**
+ * Blocks the toolbox ("+" and "/") lists first, in this order (2.12.3). Editor.js 2.31 lists the
+ * block tools in the key order of its `tools` config, so Image and Table, which editors insert
+ * often, used to sit below Delimiter, Table of contents and Math, and filtering with "/tab"
+ * offered Table of contents as the first match.
+ */
+export const TOOLBOX_FIRST = Object.freeze([
+  'paragraph',
+  'header',
+  'list',
+  'checklist',
+  'quote',
+  'image',
+  'table',
+]);
+
+/**
+ * Returns the tools with the keys of `TOOLBOX_FIRST` first (in that order) and every other key
+ * in its original order. Keys that are missing are skipped; values are not copied.
+ * @param {Record<string, object>} tools - Editor.js tools.
+ * @param {readonly string[]} [first] - Keys to put first.
+ * @returns {Record<string, object>} Tools in toolbox order.
+ */
+export const orderToolbox = (tools, first = TOOLBOX_FIRST) => {
+  const has = (object, key) => Object.prototype.hasOwnProperty.call(object, key);
+  const ordered = {};
+  for (const key of first) if (has(tools, key)) ordered[key] = tools[key];
+  for (const [key, value] of Object.entries(tools)) if (!has(ordered, key)) ordered[key] = value;
+  return ordered;
+};

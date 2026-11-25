@@ -55,6 +55,7 @@ import { allowAnnotationKeys } from './sanitize-config';
 import { hasPalette } from '../../../../shared/inline-format.mjs';
 import { MARKED_BLOCKS } from '../../../../shared/sanitize-policy.mjs';
 import { markedTool } from './marked';
+import { orderToolbox } from './logic.mjs';
 import { isBlockAllowed } from '../../../../shared/presets.mjs';
 import { buildCodeBlockTools, codeBlocks } from '../block-registry';
 
@@ -228,7 +229,8 @@ export function buildTools(ctx) {
       tunes: ['alignmentTune', 'textVariant', 'indentTune'],
       config: {
         placeholder:
-          ctx.placeholder || t('tools.paragraph.placeholder', 'Write, or type / to choose a block'),
+          ctx.placeholder ||
+          t('tools.paragraph.placeholder', 'Write, type / to choose a block, or paste a link to embed it'),
         preserveBlank: true,
       },
     },
@@ -511,7 +513,9 @@ export function buildTools(ctx) {
       tools[name] = { ...tool, tunes: [...(Array.isArray(tool.tunes) ? tool.tunes : []), 'copyBlockTune'] };
     }
   }
-  const result = preset ? applyPreset(tools, preset) : tools;
+  // 2.12.3: frequent blocks first in the toolbox (Editor.js keeps the key order).
+  const toolbox = orderToolbox(tools);
+  const result = preset ? applyPreset(toolbox, preset) : toolbox;
   disposers.set(result, indent.dispose);
   return result;
 }

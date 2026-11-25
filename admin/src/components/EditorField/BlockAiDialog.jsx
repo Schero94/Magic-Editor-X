@@ -28,7 +28,7 @@ import { TouchModalContent } from '../ui/touch';
 
 /**
  * Block-aware AI actions (2.4): rewrite, shorten, translate or change the
- * tone of one or more chosen blocks. Only the inline text strings of these
+ * tone of one or more selected blocks. Only the inline text strings of these
  * blocks travel (with their inline formatting and links); block ids, types,
  * tunes and every other value stay in the browser. The answer is shown as a
  * word diff and applied only after "Apply to blocks", as one undo step and
@@ -81,7 +81,7 @@ const toText = (html) => segmentPlainText(sanitizeInline(html));
  * @param {Function} props.t - Translator.
  * @param {{ languages: string[], tones: string[], maxInputChars: number }} props.config - `config.ai`.
  * @param {{ uid: string, field: string }} props.target - Field.
- * @param {string[]} props.blockIds - Chosen blocks.
+ * @param {string[]} props.blockIds - Selected blocks.
  * @param {object} props.preset - Field preset (applied blocks are fixed against it).
  * @param {() => Promise<object|null>} props.getData - Current normalised editor data.
  * @param {(data: object, count: number) => Promise<void>} props.onApply - Replaces the content (one undo step).
@@ -220,7 +220,7 @@ export const BlockAiDialog = ({
         (info.status === 429
           ? ['editor.ai.error.rateLimit', 'You sent many requests. Try again in a minute.']
           : info.status === 413
-            ? ['editor.aiBlocks.error.tooLong', 'The chosen blocks are longer than the configured limit.']
+            ? ['editor.aiBlocks.error.tooLong', 'The selected blocks are longer than the configured limit.']
             : info.status === 403
               ? ['editor.ai.error.disabled', 'The AI assistant is turned off.']
               : ['editor.ai.error.generic', 'The AI assistant is not available right now.']);
@@ -267,7 +267,7 @@ export const BlockAiDialog = ({
         }}
       >
         <Modal.Header closeLabel={t('editor.ai.close', 'Close')}>
-          <Modal.Title>{t('editor.aiBlocks.title', 'AI for the chosen blocks')}</Modal.Title>
+          <Modal.Title>{t('editor.aiBlocks.title', 'AI for the selected blocks')}</Modal.Title>
         </Modal.Header>
         <Modal.Body>
           <Flex direction="column" alignItems="stretch" gap={4}>
@@ -343,7 +343,7 @@ export const BlockAiDialog = ({
               <Typography variant="omega" textColor="neutral800" tag="p">
                 {t(
                   'editor.aiBlocks.disclosure',
-                  'The text of the chosen blocks ({blocks, plural, one {# block} other {# blocks}}, {characters} characters) is sent to the AI provider your administrator configured, with its inline formatting and links. Images, files and other block data are not sent.',
+                  'The text of the selected blocks ({blocks, plural, one {# block} other {# blocks}}, {characters} characters) is sent to the AI provider your administrator configured, with its inline formatting and links. Images, files and other block data are not sent.',
                   { blocks: blockCount, characters }
                 )}
                 {suggests
@@ -356,14 +356,14 @@ export const BlockAiDialog = ({
             </Box>
             {segments && !segments.length ? (
               <Typography textColor="neutral600">
-                {t('editor.aiBlocks.empty', 'The chosen blocks have no text the assistant can change.')}
+                {t('editor.aiBlocks.empty', 'The selected blocks have no text the assistant can change.')}
               </Typography>
             ) : null}
             {tooLong ? (
               <Typography textColor="danger600">
                 {t(
                   'editor.aiBlocks.error.tooLong',
-                  'The chosen blocks are longer than the configured limit.'
+                  'The selected blocks are longer than the configured limit.'
                 )}
               </Typography>
             ) : null}
@@ -424,7 +424,7 @@ export const BlockAiDialog = ({
                 ? t('editor.ai.review.run', 'Add suggestions')
                 : result
                   ? t('editor.ai.retry', 'Try again')
-                  : t('editor.aiField.send', 'Send to the AI provider')}
+                  : t('editor.ai.generate', 'Generate')}
             </Button>
             {result ? (
               <Button onClick={apply} data-testid="mex-block-ai-apply">

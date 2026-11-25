@@ -12,7 +12,9 @@
  * Entry contract:
  * - `id` (string, unique per field): stable name, also the `data-testid`
  *   suffix (`mex-tool-<id>`).
- * - `group` ('review' | 'write' | 'view'): menu section.
+ * - `group` ('write' | 'review' | 'file' | 'view'): menu section. Sections are
+ *   ordered by how often editors need them: writing tools first, then review,
+ *   then import and export, then view options.
  * - `label` (string): translated plain-language name.
  * - `icon` (React node, optional): decorative start icon.
  * - `shortcut` (string, optional): key combination in ShortcutsDialog form,
@@ -41,8 +43,11 @@
  *   trigger on close.
  */
 
-/** Menu sections in display order. */
-export const TOOL_GROUPS = Object.freeze(['review', 'write', 'view']);
+/**
+ * Menu sections in display order (2.12.3: frequent tasks first; import and export got their own
+ * section instead of being split across Write and View).
+ */
+export const TOOL_GROUPS = Object.freeze(['write', 'review', 'file', 'view']);
 
 /**
  * Validates and groups the registry for the menu.

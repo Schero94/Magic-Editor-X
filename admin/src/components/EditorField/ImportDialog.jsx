@@ -19,7 +19,7 @@ import { blockTypeLabel } from './reuse-labels';
 import { TouchModalContent } from '../ui/touch';
 
 /**
- * "Import file…" (2.11, More tools > Write): choose a Word (.docx) or
+ * "Import file" (2.11, More tools > Import and export): choose a Word (.docx) or
  * Markdown (.md) file, see the blocks it becomes, then replace the field's
  * content or insert the blocks at the cursor (after the block worked on
  * last). The conversion runs in the browser (`shared/convert/import-file.mjs`,

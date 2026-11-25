@@ -320,30 +320,35 @@ export const TemplateDialog = ({
           <Modal.Title>{t('editor.templates.title', 'Insert a template or pattern')}</Modal.Title>
         </Modal.Header>
         <Modal.Body>{body}</Modal.Body>
+        {/* 2.12.3: the footer of every editor dialog: Cancel on the left, the actions on the right
+            (secondary first, primary last). The insert button is left out while there is nothing
+            to insert (loading, error, no templates) instead of being shown disabled. */}
         <Modal.Footer>
-          <Flex gap={2} wrap="wrap">
-            <Modal.Close>
-              <Button variant="tertiary">{t('editor.templates.cancel', 'Cancel')}</Button>
-            </Modal.Close>
+          <Modal.Close>
+            <Button variant="tertiary">{t('editor.templates.cancel', 'Cancel')}</Button>
+          </Modal.Close>
+          <Flex gap={2} wrap="wrap" justifyContent="flex-end">
             {onSaveCurrent ? (
               <Button variant="secondary" onClick={onSaveCurrent} disabled={busy}>
                 {t('editor.templates.saveCurrent', 'Save content as template')}
               </Button>
             ) : null}
+            {status === 'ready' && items.length > 0 ? (
+              <Button
+                ref={applyRef}
+                onClick={choose}
+                loading={busy}
+                disabled={busy || !selected || !plan || plan.blocks.length === 0}
+                data-testid="mex-template-apply"
+              >
+                {selected && selected.kind === 'template'
+                  ? t('editor.templates.apply', 'Insert template')
+                  : selected && selected.kind === 'synced'
+                    ? t('editor.synced.insert', 'Insert synced block')
+                    : t('editor.templates.insert', 'Insert pattern')}
+              </Button>
+            ) : null}
           </Flex>
-          <Button
-            ref={applyRef}
-            onClick={choose}
-            loading={busy}
-            disabled={busy || !selected || !plan || plan.blocks.length === 0}
-            data-testid="mex-template-apply"
-          >
-            {selected && selected.kind === 'template'
-              ? t('editor.templates.apply', 'Use template')
-              : selected && selected.kind === 'synced'
-                ? t('editor.synced.insert', 'Insert synced block')
-                : t('editor.templates.insert', 'Insert pattern')}
-          </Button>
         </Modal.Footer>
       </TouchModalContent>
       <Dialog.Root

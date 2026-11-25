@@ -25,7 +25,7 @@ import { SwitchRow, errorText } from './formParts';
 
 export const SCOPE_LABELS = {
   selection: ['settings.ai.actions.scope.selection', 'Selected text'],
-  blocks: ['settings.ai.actions.scope.blocks', 'Chosen blocks'],
+  blocks: ['settings.ai.actions.scope.blocks', 'Selected blocks'],
   field: ['settings.ai.actions.scope.field', 'Whole field'],
 };
 
@@ -157,7 +157,7 @@ export const ActionModal = ({ initial, isNew, others, onSubmit, onClose }) => {
               name="mex-ai-action-scope"
               hint={t(
                 'settings.ai.actions.scope.hint',
-                'Where editors find the action: in the AI dialog of selected text, of chosen blocks, or of the whole field (More tools).'
+                'Where editors find the action: in the AI dialog of selected text, of selected blocks, or of the whole field (More tools).'
               )}
             >
               <Field.Label>{t('settings.ai.actions.scope.label', 'Works on')}</Field.Label>

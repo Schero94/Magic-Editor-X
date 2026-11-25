@@ -195,7 +195,7 @@ export const AiDialog = ({
         }}
       >
         <Modal.Header closeLabel={t('editor.ai.close', 'Close')}>
-          <Modal.Title>{t('editor.ai.title', 'AI assistant')}</Modal.Title>
+          <Modal.Title>{t('editor.ai.title', 'AI for the selected text')}</Modal.Title>
         </Modal.Header>
         <Modal.Body>
           <Flex direction="column" alignItems="stretch" gap={4}>
@@ -259,18 +259,21 @@ export const AiDialog = ({
                 error={state.missing}
               />
             ) : null}
-            <Typography variant="pi" textColor="neutral600">
-              {suggests
-                ? t(
-                    'editor.ai.review.privacy',
-                    'The text of the {count, plural, one {block} other {# blocks}} with the selection is sent to the AI provider your administrator configured. Each change appears as a suggestion in the Suggestions panel; the field does not change.',
-                    { count: blockIds.length }
-                  )
-                : t(
-                    'editor.ai.privacy',
-                    'The selected text is sent to the AI provider your administrator configured.'
-                  )}
-            </Typography>
+            {/* 2.12.3: the same disclosure box as the block and whole-field dialogs. */}
+            <Box padding={3} background="warning100" hasRadius borderColor="warning200">
+              <Typography variant="omega" textColor="neutral800" tag="p">
+                {suggests
+                  ? t(
+                      'editor.ai.review.privacy',
+                      'The text of the {count, plural, one {block} other {# blocks}} with the selection is sent to the AI provider your administrator configured. Each change appears as a suggestion in the Suggestions panel; the field does not change.',
+                      { count: blockIds.length }
+                    )
+                  : t(
+                      'editor.ai.privacy',
+                      'The selected text is sent to the AI provider your administrator configured.'
+                    )}
+              </Typography>
+            </Box>
             {tooLong ? (
               <Typography textColor="danger600">
                 {t('editor.ai.error.tooLong', 'The selected text is too long for the assistant.')}
@@ -312,22 +315,25 @@ export const AiDialog = ({
               </Button>
             ) : (
               <>
+                {/* 2.12.3: the same footer as the block and whole-field dialogs: one primary
+                    "Generate" first; with a result "Try again" becomes secondary and the apply
+                    action is the primary button. */}
                 <Button
-                  variant="secondary"
+                  variant={state.result !== null ? 'secondary' : 'default'}
                   onClick={run}
                   loading={state.loading}
                   disabled={!entry || !originalText || tooLong}
+                  data-testid="mex-ai-run"
                 >
                   {state.result !== null
                     ? t('editor.ai.retry', 'Try again')
                     : t('editor.ai.generate', 'Generate')}
                 </Button>
-                <Button
-                  onClick={() => onApply(state.result)}
-                  disabled={state.result === null || state.loading}
-                >
-                  {t('editor.ai.apply', 'Replace selection')}
-                </Button>
+                {state.result !== null ? (
+                  <Button onClick={() => onApply(state.result)} disabled={state.loading}>
+                    {t('editor.ai.apply', 'Replace selection')}
+                  </Button>
+                ) : null}
               </>
             )}
           </Flex>
