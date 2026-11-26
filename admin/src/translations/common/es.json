@@ -8,7 +8,7 @@
   "field.options.minHeight.label": "Altura mínima (px)",
   "field.options.minHeight.description": "Altura del editor vacío, entre 120 y 2000 píxeles",
   "field.options.preset.label": "Ajuste predefinido",
-  "field.options.preset.description": "Qué bloques y formatos pueden usar los editores en este campo. Se aplica al guardar.",
+  "field.options.preset.description": "Qué bloques, formatos y herramientas pueden usar los editores en este campo. Se aplica al guardar. Empiece con Simple y cambie a Estándar cuando necesite más.",
   "field.options.linkTargets.label": "Enlaces permitidos",
   "field.options.linkTargets.description": "Enlaces a entradas de este sitio, a direcciones web, ambos o ninguno",
   "field.options.requireAlt.label": "Exigir texto alternativo para las imágenes",
@@ -59,5 +59,7 @@
   "field.options.allowedComponents.reason.enum": "{name} (sin opciones)",
   "field.options.allowedComponents.reason.tooMany": "más de 50 campos",
   "field.options.aiActions.label": "Acciones de IA en este campo",
-  "field.options.aiActions.description": "Claves de acción separadas por comas, por ejemplo: improve, shorten, ask, proofread, clarity, style-guide o la clave de su propia acción. Vacío ofrece todas las acciones. El servidor lo comprueba de nuevo."
+  "field.options.aiActions.description": "Claves de acción separadas por comas, por ejemplo: improve, shorten, ask, proofread, clarity, style-guide o la clave de su propia acción. Vacío ofrece todas las acciones. El servidor lo comprueba de nuevo.",
+  "field.options.preset.simple": "Simple: como Strapi Blocks, más tablas (recomendado)",
+  "field.options.preset.standard": "Estándar: todos los bloques y herramientas excepto HTML sin procesar"
 }

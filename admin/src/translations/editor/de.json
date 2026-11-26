@@ -994,5 +994,7 @@
   "editor.mediaEdit.missing": "Dieses Bild ist nicht mehr in der Medienbibliothek.",
   "editor.mediaEdit.refreshFailed": "Das Bild konnte nicht aus der Medienbibliothek aktualisiert werden.",
   "editor.tools.group.file": "Importieren und exportieren",
-  "editor.history.restoreVersion": "Version {version} wiederherstellen"
+  "editor.history.restoreVersion": "Version {version} wiederherstellen",
+  "editor.toolbar.presetHint": "Mehr benötigt? Stellen Sie dieses Feld auf die Vorgabe Standard um",
+  "editor.toolbar.presetHint.description": "Öffnet den Content-Type Builder, in dem Feldvorgaben festgelegt werden"
 }

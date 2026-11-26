@@ -18,6 +18,7 @@ import { EDITOR_DATA_LIMITS } from './editor-data.mjs';
 export const describePreset = (preset) => ({
   name: preset.name,
   blocks: preset.blocks ? [...preset.blocks] : null,
+  excludedBlocks: [...(preset.excludedBlocks || [])],
   inlineTools: preset.inline ? [...preset.inline] : [...INLINE_TOOLS],
   headingLevels: [...preset.headingLevels],
   maxBlocks: preset.maxBlocks,
@@ -49,6 +50,16 @@ export const buildPresetSchema = (preset) => {
     for (const key of Object.keys(schema.$defs)) {
       if (key.startsWith('data_') && !preset.blocks.includes(key.slice(5))) delete schema.$defs[key];
     }
+  }
+  // 2.13: an open list without some blocks (`standard`: no raw HTML).
+  const excluded = preset.blocks ? [] : preset.excludedBlocks || [];
+  if (excluded.length) {
+    block.properties.type = { ...block.properties.type, not: { enum: [...excluded] } };
+    block.allOf = block.allOf.filter((rule) => {
+      const type = rule.if && rule.if.properties && rule.if.properties.type && rule.if.properties.type.const;
+      return typeof type !== 'string' || !excluded.includes(type);
+    });
+    for (const type of excluded) delete schema.$defs[`data_${type}`];
   }
   const header = schema.$defs.data_header;
   if (header && preset.headingLevels.length && preset.headingLevels.length < 6) {

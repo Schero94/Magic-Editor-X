@@ -56,7 +56,7 @@ import { hasPalette } from '../../../../shared/inline-format.mjs';
 import { MARKED_BLOCKS } from '../../../../shared/sanitize-policy.mjs';
 import { markedTool } from './marked';
 import { orderToolbox } from './logic.mjs';
-import { isBlockAllowed } from '../../../../shared/presets.mjs';
+import { isBlockAllowed, isBlockOffered } from '../../../../shared/presets.mjs';
 import { buildCodeBlockTools, codeBlocks } from '../block-registry';
 
 export { createUndoManager } from './undo';
@@ -577,8 +577,15 @@ export function applyPreset(tools, preset) {
       out[name] = tool;
       continue;
     }
-    if (isInlineKey(name) || isBlockAllowed(preset, name)) {
+    if (isInlineKey(name) || isBlockOffered(preset, name)) {
       out[name] = tool;
+      continue;
+    }
+    // 2.13: allowed but not offered (the `simple` preset offers one code block): stored blocks and
+    // pasted content keep working, the toolbox does not list it.
+    if (isBlockAllowed(preset, name)) {
+      const { shortcut: _shortcut, ...visible } = tool;
+      out[name] = { ...visible, toolbox: false };
       continue;
     }
     const { shortcut, ...rest } = tool;

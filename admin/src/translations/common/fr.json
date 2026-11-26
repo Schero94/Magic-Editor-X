@@ -8,7 +8,7 @@
   "field.options.minHeight.label": "Hauteur minimale (px)",
   "field.options.minHeight.description": "Hauteur de l’éditeur vide, entre 120 et 2000 pixels",
   "field.options.preset.label": "Préréglage",
-  "field.options.preset.description": "Les blocs et mises en forme que les rédacteurs peuvent utiliser dans ce champ. Appliqué à l’enregistrement.",
+  "field.options.preset.description": "Les blocs, mises en forme et outils que les rédacteurs peuvent utiliser dans ce champ. Appliqué à l’enregistrement. Commencez par Simple et passez à Standard lorsque vous avez besoin de plus.",
   "field.options.linkTargets.label": "Liens autorisés",
   "field.options.linkTargets.description": "Liens vers des entrées de ce site, vers des adresses web, les deux ou aucun",
   "field.options.requireAlt.label": "Exiger un texte alternatif pour les images",
@@ -59,5 +59,7 @@
   "field.options.allowedComponents.reason.enum": "{name} (aucune option)",
   "field.options.allowedComponents.reason.tooMany": "plus de 50 champs",
   "field.options.aiActions.label": "Actions IA de ce champ",
-  "field.options.aiActions.description": "Clés d’action séparées par des virgules, par exemple : improve, shorten, ask, proofread, clarity, style-guide ou la clé de votre propre action. Vide propose toutes les actions. Vérifié à nouveau sur le serveur."
+  "field.options.aiActions.description": "Clés d’action séparées par des virgules, par exemple : improve, shorten, ask, proofread, clarity, style-guide ou la clé de votre propre action. Vide propose toutes les actions. Vérifié à nouveau sur le serveur.",
+  "field.options.preset.simple": "Simple : comme Strapi Blocks, avec des tableaux (recommandé)",
+  "field.options.preset.standard": "Standard : tous les blocs et outils sauf le HTML brut"
 }

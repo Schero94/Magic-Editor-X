@@ -5,7 +5,10 @@
  * Document Service middleware (every rule on every write).
  *
  * Options (all optional, `attribute.options.<name>`):
- * - `preset`: 'full' (default) | 'article' | 'basic' | 'minimal'
+ * - `preset`: 'full' (default when the option is missing) | 'article' | 'basic' | 'minimal' |
+ *   'simple' (2.13: about the Strapi Blocks set plus tables, no advanced tools; the
+ *   Content-Type Builder preselects it for new fields) | 'standard' (2.13: every block
+ *   except raw HTML, every tool)
  * - `allowedBlocks`: comma-separated block names; replaces the preset's list
  * - `headingLevels`: "2-4" or "2,3,4"; replaces the preset's levels
  * - `maxBlocks`, `maxCharacters`: positive integers (0 or empty = no limit)
@@ -123,7 +126,48 @@ export const PRESETS = Object.freeze({
     inline: Object.freeze(['bold', 'italic', 'hyperlink']),
     headingLevels: [],
   }),
+  // 2.13: "Start as simple as Strapi Blocks, grow when you need to." The Strapi Blocks set
+  // (paragraph, headings 1-6, lists, quote, code, image, links, bold/italic/underline/strike/
+  // inline code) plus tables. Advanced tools are off (`SIMPLE_TOOLS`). `toolbox` lists the
+  // blocks offered for new content; `code` stays allowed (imports and Blocks migrations write it)
+  // but the toolbox offers one code block only.
+  simple: Object.freeze({
+    blocks: Object.freeze(['paragraph', 'header', 'list', 'quote', 'code', 'codeFlask', 'image', 'table']),
+    inline: Object.freeze(['bold', 'italic', 'underline', 'strikethrough', 'inlineCode', 'hyperlink']),
+    headingLevels: [1, 2, 3, 4, 5, 6],
+    toolbox: Object.freeze(['paragraph', 'header', 'list', 'quote', 'codeFlask', 'image', 'table']),
+  }),
+  // 2.13: every block (custom blocks included) and every tool, without raw HTML.
+  standard: Object.freeze({
+    blocks: null,
+    excludedBlocks: Object.freeze(['raw']),
+    inline: null,
+    headingLevels: [1, 2, 3, 4, 5, 6],
+  }),
 });
+
+/** 2.13: preset the Content-Type Builder preselects for new fields (existing fields keep theirs). */
+export const NEW_FIELD_PRESET = 'simple';
+
+/**
+ * 2.13: editor tools of a preset beyond the block and inline lists. The `simple` preset turns
+ * every advanced tool off; the field options cannot turn them on again (switch the preset to
+ * `standard` or `full` for that). `ai`, `grammar` and `collaboration` are also checked on the
+ * server; the others only shape the editor UI.
+ */
+export const ADVANCED_TOOLS = Object.freeze([
+  'ai',
+  'grammar',
+  'collaboration',
+  'comments',
+  'suggestions',
+  'quality',
+  'templates',
+  'reuse',
+  'publishedChanges',
+  'focusMode',
+  'export',
+]);
 
 export const PRESET_NAMES = Object.freeze(Object.keys(PRESETS));
 export const LINK_TARGETS = Object.freeze(['all', 'internal', 'external', 'none']);
@@ -195,6 +239,10 @@ const limitOf = (value) => {
  * @property {string[]} annotations - 2.5: annotation names listed in `inlineAnnotations`.
  * @property {string[]} components - 2.5: component uids allowed as component blocks (not part of `restricted`).
  * @property {string[]|null} aiActions - 2.9: AI action keys the field offers, null for all (not part of `restricted`).
+ * @property {string[]} excludedBlocks - 2.13: block types left out of an otherwise open list (`standard`: raw).
+ * @property {string[]|null} toolbox - 2.13: blocks offered for new content, null for every allowed block.
+ * @property {boolean} simple - 2.13: the `simple` preset (calm toolbar, short More tools list).
+ * @property {Record<string, boolean>} tools - 2.13: advanced editor tools (`ADVANCED_TOOLS`) the field offers.
  */
 
 /**
@@ -217,29 +265,39 @@ export const resolveFieldPreset = (options) => {
         blocks.push(definition.name);
   // A paragraph is the default block: it is always allowed.
   if (blocks && !blocks.includes('paragraph')) blocks = ['paragraph', ...blocks];
+  const excludedBlocks = listed ? [] : [...(base.excludedBlocks || [])];
   let headingLevels = parseHeadingLevels(source.headingLevels) || [...base.headingLevels];
   if (blocks && !blocks.includes('header')) headingLevels = [];
   const linkTargets = LINK_TARGETS.includes(source.linkTargets) ? source.linkTargets : 'all';
   let inline = base.inline ? [...base.inline] : null;
   if (linkTargets === 'none') inline = (inline || [...INLINE_TOOLS]).filter((tool) => tool !== 'hyperlink');
+  const simple = name === 'simple';
   const preset = {
     name,
     blocks,
+    excludedBlocks,
+    toolbox: !listed && base.toolbox ? [...base.toolbox] : null,
+    simple,
     inline,
     headingLevels,
     maxBlocks: limitOf(source.maxBlocks),
     maxCharacters: limitOf(source.maxCharacters),
     requireAlt: source.requireAlt === true,
     linkTargets,
-    ai: source.disableAi !== true,
-    grammar: source.disableGrammar !== true,
-    collaboration: source.disableCollaboration !== true,
+    ai: !simple && source.disableAi !== true,
+    grammar: !simple && source.disableGrammar !== true,
+    collaboration: !simple && source.disableCollaboration !== true,
     publishGuard: source.publishGuard === true,
     components: parseComponentList(source.allowedComponents),
     aiActions: parseAiActionList(source.aiActions),
   };
+  preset.tools = Object.fromEntries(ADVANCED_TOOLS.map((tool) => [tool, !simple]));
+  preset.tools.ai = preset.ai;
+  preset.tools.grammar = preset.grammar;
+  preset.tools.collaboration = preset.collaboration;
   preset.restricted = Boolean(
     preset.blocks ||
+    preset.excludedBlocks.length ||
     preset.inline ||
     preset.headingLevels.length !== 6 ||
     preset.maxBlocks ||
@@ -276,7 +334,19 @@ export const parseAnnotationList = (value) => {
  * @returns {boolean} Allowed.
  */
 export const isBlockAllowed = (preset, type) =>
-  type === 'paragraph' || !preset.blocks || preset.blocks.includes(type);
+  type === 'paragraph' ||
+  ((!preset.blocks || preset.blocks.includes(type)) &&
+    !(Array.isArray(preset.excludedBlocks) && preset.excludedBlocks.includes(type)));
+
+/**
+ * 2.13: true when the editor offers a block type for new content (toolbox, paste). A preset's
+ * `toolbox` narrows the allowed blocks; stored blocks of other allowed types stay editable.
+ * @param {FieldPreset} preset - Preset.
+ * @param {string} type - Block type.
+ * @returns {boolean} Offered.
+ */
+export const isBlockOffered = (preset, type) =>
+  isBlockAllowed(preset, type) && (!Array.isArray(preset.toolbox) || preset.toolbox.includes(type));
 
 /**
  * Inline tags a preset allows (for the sanitiser). `null` = every inline tag.
@@ -321,7 +391,10 @@ export const enabledAnnotations = (preset, definitions = activeAnnotations()) =>
   definitions.filter(
     (definition) =>
       (preset.annotations || []).includes(definition.name) ||
-      (Array.isArray(definition.presets) && definition.presets.includes(preset.name))
+      (Array.isArray(definition.presets) &&
+        // 2.13: `standard` offers what `full` offers (it only leaves out raw HTML).
+        (definition.presets.includes(preset.name) ||
+          (preset.name === 'standard' && definition.presets.includes('full'))))
   );
 
 /**

@@ -53,8 +53,23 @@ const LOADERS = {
   ],
 };
 
+/**
+ * 2.13: preset of new fields. Equal to `NEW_FIELD_PRESET` in shared/presets.mjs (a test checks it);
+ * not imported, so the admin entry chunk does not pull in the preset module.
+ */
+export const NEW_FIELD_PRESET = 'simple';
+
 /** Field presets offered in the Content-Type Builder (shared/presets.mjs). */
 const PRESET_OPTIONS = [
+  // 2.13: Simple is preselected for new fields (CTB `defaultValue`); existing fields keep their preset.
+  {
+    value: 'simple',
+    label: ['field.options.preset.simple', 'Simple: like Strapi Blocks, plus tables (recommended)'],
+  },
+  {
+    value: 'standard',
+    label: ['field.options.preset.standard', 'Standard: every block and tool except raw HTML'],
+  },
   { value: 'full', label: ['field.options.preset.full', 'Full: every block and formatting'] },
   { value: 'article', label: ['field.options.preset.article', 'Article: long-form text without raw HTML'] },
   { value: 'basic', label: ['field.options.preset.basic', 'Basic: headings 2-3, lists, quotes, images'] },
@@ -185,10 +200,14 @@ export default {
                 description: {
                   id: getTranslation('field.options.preset.description'),
                   defaultMessage:
-                    'Which blocks and formatting editors can use in this field. Enforced when saving.',
+                    'Which blocks, formatting and tools editors can use in this field. Enforced when saving. Start with Simple and switch to Standard when you need more.',
                 },
                 name: 'options.preset',
                 type: 'select',
+                // 2.13: applied by the Content-Type Builder only when a field is created (installed
+                // CTB 5.63/5.64 `setCustomFieldDataSchema` reads `defaultValue` on the item; editing
+                // an existing field keeps its stored options).
+                defaultValue: NEW_FIELD_PRESET,
                 options: PRESET_OPTIONS.map(({ value, label: [id, defaultMessage] }) => ({
                   key: value,
                   value,
