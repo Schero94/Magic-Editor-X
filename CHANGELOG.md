@@ -1,6 +1,12 @@
 # Changelog
 
-## [Unreleased]
+## [2.14.1](https://github.com/Schero94/Magic-Editor-X/compare/v2.14.0...v2.14.1) (2026-11-26)
+
+
+### Bug Fixes
+
+* **admin:** dialogs visible in full screen, triple click after a table selects the right paragraph ([#55](https://github.com/Schero94/Magic-Editor-X/issues/55)) ([80f44fc](https://github.com/Schero94/Magic-Editor-X/commit/80f44fc96d1542a389d3ccb31674a6c72bbd9258))
+
 
 ### Fixed (full screen dialogs and triple click after a table)
 
