@@ -1,6 +1,12 @@
 # Changelog
 
-## [Unreleased]
+## [2.13.1](https://github.com/Schero94/Magic-Editor-X/compare/v2.13.0...v2.13.1) (2026-11-26)
+
+
+### Bug Fixes
+
+* **touch:** touch drag of blocks, tablet handles and inline toolbar, WebKit touch checks ([#53](https://github.com/Schero94/Magic-Editor-X/issues/53)) ([dfa1300](https://github.com/Schero94/Magic-Editor-X/commit/dfa13005e36a8eb885aefa59c0c72d6f0d030421))
+
 
 ### Fixed (touch in WebKit and on tablets)
 
