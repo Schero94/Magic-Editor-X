@@ -10,6 +10,26 @@ const mediaByUrlSchema = z.strictObject({
   kind: z.enum(['video', 'audio', 'track']),
 });
 
+/** Longest alt text accepted with an uploaded image (2.13, Word import). */
+const MAX_UPLOAD_ALT = 500;
+
+/**
+ * Reads the optional `alt` text field of a multipart image upload (2.13: the
+ * Word import sends the picture's description). Control characters are
+ * removed and white space is collapsed; the Media Library stores the result
+ * as `alternativeText`.
+ * @param {unknown} body - `ctx.request.body` of the multipart request.
+ * @returns {{ ok: true, alt: string } | { ok: false }} Clean alt text ('' when absent).
+ */
+const readUploadAlt = (body) => {
+  const value = body && typeof body === 'object' ? body.alt : undefined;
+  if (value === undefined || value === null) return { ok: true, alt: '' };
+  if (typeof value !== 'string' || value.length > MAX_UPLOAD_ALT) return { ok: false };
+  // eslint-disable-next-line no-control-regex -- control characters are removed on purpose
+  const clean = value.replace(/[\u0000-\u001f\u007f-\u009f]/g, ' ');
+  return { ok: true, alt: clean.replace(/\s+/g, ' ').trim() };
+};
+
 /**
  * Editor.js helper endpoints. Responses follow the Editor.js tool contracts
  * (`{ success: 1, ... }` / `{ success: 0, message }`).
@@ -39,13 +59,20 @@ module.exports = ({ strapi }) => {
     },
 
     /**
-     * @route POST /magic-editor-x/image/byFile (multipart field "image")
+     * @route POST /magic-editor-x/image/byFile (multipart field "image", optional text field "alt" up to 500 characters)
      * @auth admin; plugin::magic-editor-x.access + plugin::upload.assets.create
-     * @sideeffect Creates a Media Library file owned by the admin.
+     * @sideeffect Creates a Media Library file owned by the admin (2.13: with `alt` as its alternative text).
+     * @throws 400 when `alt` is not a string of at most 500 characters.
      */
     async uploadImageFile(ctx) {
+      const alt = readUploadAlt(ctx.request.body);
+      if (!alt.ok) {
+        ctx.status = 400;
+        ctx.body = { success: 0, message: 'The alternative text must be text of at most 500 characters' };
+        return;
+      }
       try {
-        ctx.body = await editor().uploadImageFile(ctx.request.files, ctx.state.user);
+        ctx.body = await editor().uploadImageFile(ctx.request.files, ctx.state.user, { alt: alt.alt });
       } catch (error) {
         sendEditorError(ctx, error, 'The image could not be uploaded', logger, 'image upload');
       }

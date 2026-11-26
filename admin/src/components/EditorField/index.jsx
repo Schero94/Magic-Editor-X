@@ -694,6 +694,8 @@ const EditorFieldBody = ({
   const [importOpen, setImportOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [importHasContent, setImportHasContent] = useState(false);
+  // 2.13: the field has the image tool (its preset allows images) when the import dialog opens.
+  const [importImages, setImportImages] = useState(false);
   const toolNamesRef = useRef(new Set());
   // 2.7.8: translated tool names for the inline toolbar buttons.
   const toolTitlesRef = useRef({});
@@ -1449,6 +1451,32 @@ const EditorFieldBody = ({
       }
     },
     [post, t, toggleNotification]
+  );
+
+  // 2.13 Word import: one picture with its alt text, no notification per file (the import
+  // dialog names the pictures that failed in its summary).
+  const uploadImportImage = useCallback(
+    async (file, alt) => {
+      const body = new FormData();
+      body.append('image', file);
+      if (alt) body.append('alt', String(alt).slice(0, 500));
+      try {
+        // The route answers refusals as `{ success: 0, message }` (400, 413, 415), a body Strapi's
+        // fetch client turns into a FetchError without the message; accept them to keep the reason.
+        // 401 stays an error so the client can refresh the admin token.
+        const { data } = await post(API.imageByFile, body, {
+          validateStatus: (status) => status >= 400 && status < 500 && status !== 401,
+        });
+        if (data && data.success === 1) return data;
+        return {
+          success: 0,
+          message: (data && (data.message || (data.error && data.error.message))) || '',
+        };
+      } catch (requestError) {
+        return { success: 0, message: readApiError(requestError).message || '' };
+      }
+    },
+    [post]
   );
 
   const uploadImageByUrl = useCallback(
@@ -3545,8 +3573,10 @@ const EditorFieldBody = ({
     const editor = editorRef.current;
     const saved = editor ? await editor.save().catch(() => null) : null;
     setImportHasContent(Boolean(saved) && !isEmptyDocument(saved));
+    // Restricted tools stay registered (to render existing content), so the preset decides.
+    setImportImages(hasBlockTool('image') && isBlockAllowed(presetRef.current, 'image'));
     setImportOpen(true);
-  }, []);
+  }, [hasBlockTool]);
 
   /** 2.11 "Export file": the content as shown (unsaved changes included) and the sources of its synced blocks. */
   const readExportContent = useCallback(async () => {
@@ -4519,6 +4549,10 @@ const EditorFieldBody = ({
           hasContent={importHasContent}
           onImport={(blocks, { replace, title }) => insertReused(blocks, { replace, title })}
           onClose={closeImport}
+          canUpload={Boolean(permissions.upload)}
+          imagesAllowed={importImages}
+          maxImageBytes={config && config.uploads ? config.uploads.maxImageBytes : undefined}
+          uploadImage={uploadImportImage}
           allowRaw={allowRawPreview}
           lang={target.locale || undefined}
           dir={direction}

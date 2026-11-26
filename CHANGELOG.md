@@ -1,5 +1,21 @@
 # Changelog
 
+## [Unreleased]
+
+### Added (Word import keeps its pictures)
+
+- **Import file brings the pictures of a Word document.** PNG, JPEG, GIF and WebP pictures in a paragraph or heading become image blocks with the alt text from Word (the picture's description, else its title). Before, every picture became a "[Image: …]" placeholder.
+- **The preview stays free of side effects.** The dialog shows each picture from the file's own bytes in the browser (object URL); nothing is sent and no Media Library file is created until you click **Replace content** or **Insert at cursor**.
+- **Uploads only on confirmation, one after the other,** with a progress line and **Stop uploading**, through the image tool's route (`POST /magic-editor-x/image/byFile`: type by signature, damaged images refused, `uploads.maxImageBytes`, the Media Library's type settings). A picture used twice is uploaded once. Files go to the Media Library's root folder: Strapi documents no folder-create API for plugins.
+- **A failed upload never stops the import.** The picture keeps its placeholder, and the dialog stays open with a summary that names it and the reason.
+- **Placeholders are explained.** EMF, WMF and other vector or legacy formats, linked pictures, charts, shapes and embedded objects, pictures inside lists, tables or links, pictures over the limits, and pictures in a field without images or for an admin without the Media Library upload permission stay placeholders; the dialog says why for each group.
+- **Limits per import:** at most 50 different pictures, each at most 10 MB (or the lower `uploads.maxImageBytes`), 40 MB of pictures in all, after the existing ZIP limits (10 MB file, 50 MB uncompressed).
+- **`POST /magic-editor-x/image/byFile` accepts an optional `alt` text field** (up to 500 characters, control characters removed) and stores it as the file's `alternativeText`. Without `alt` the route behaves as before; a non-string or longer value answers 400.
+
+### Notes
+
+- No new permission, route or configuration. Markdown imports keep image placeholders as before.
+
 ## [2.12.4](https://github.com/Schero94/Magic-Editor-X/compare/v2.12.3...v2.12.4) (2026-11-25)
 
 

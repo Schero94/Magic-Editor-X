@@ -92,7 +92,10 @@ test('import: a Word file is previewed, then inserted at the cursor (sanitised, 
         await waitFor(() => byTestId('mex-import-summary'), 'the preview');
         assert.equal(byTestId('mex-import-summary').textContent, '13 blocks from field-report.docx');
         assert.equal(document.activeElement, byTestId('mex-import-summary'), 'focus on the result');
-        assert.match(byTestId('mex-import-notes').textContent, /1 image was not imported\./);
+        assert.match(
+          byTestId('mex-import-notes').textContent,
+          /1 picture is a chart, a shape or an embedded object, so it stays a placeholder\./
+        );
         const preview = byTestId('mex-import-preview');
         assert.equal(preview.getAttribute('role'), 'region');
         assert.ok(preview.querySelector('table'), 'the table is previewed');

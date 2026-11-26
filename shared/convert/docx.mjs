@@ -17,8 +17,13 @@
  * hyperlinks (relationship targets and HYPERLINK fields; internal bookmarks
  * become plain text), bulleted and numbered lists with nesting and start
  * numbers, tables (header rows, gridSpan -> colspan, vMerge -> rowspan),
- * quote and code paragraph styles. Images are not imported: each one becomes
- * a visible placeholder text (`imageLabel`), and the report counts them.
+ * quote and code paragraph styles. Images: by default each one becomes a
+ * visible placeholder text (`imageLabel`), and the report counts them. With
+ * `images: 'collect'` (2.13, the import dialog) a picture in a paragraph or
+ * heading becomes its own fragment `{ image: index }` and `media[index]`
+ * carries its bytes (PNG, JPEG, GIF, WebP, detected by signature, within
+ * `DOCX_IMAGE_LIMITS`) or the reason it stays a placeholder. Nothing is
+ * uploaded here; the dialog uploads only after the user confirms.
  * Deleted text of tracked changes is left out, inserted text is kept; the
  * table-of-contents content control is skipped (its entries are generated).
  *
@@ -40,10 +45,50 @@ export const DOCX_LIMITS = Object.freeze({
   maxDepth: 16,
 });
 
+/**
+ * Limits for pictures read from one Word file (2.13). Pictures beyond them stay placeholders.
+ * The ZIP limits apply first (`ZIP_LIMITS`: 10 MiB file, 20 MiB per part, 50 MiB in all).
+ */
+export const DOCX_IMAGE_LIMITS = Object.freeze({
+  /** Different pictures imported from one file. */
+  maxImages: 50,
+  /** Largest picture (bytes); the dialog lowers it to the server's `uploads.maxImageBytes`. */
+  maxImageBytes: 10 * 1024 * 1024,
+  /** All pictures of one file together (bytes). */
+  maxTotalBytes: 40 * 1024 * 1024,
+});
+
+/** Picture types that are imported (by signature); everything else stays a placeholder. */
+export const DOCX_IMAGE_TYPES = Object.freeze(['image/png', 'image/jpeg', 'image/gif', 'image/webp']);
+
+/** Vector and legacy picture formats that are never read (EMF, WMF and their compressed forms, SVG, TIFF, BMP). */
+const VECTOR_EXTENSION = /\.(emf|wmf|emz|wmz|svg|svgz|tif|tiff|bmp|pict|eps)$/i;
+
+/**
+ * Picture type by its first bytes (never by file name).
+ * @param {Uint8Array} bytes - Picture bytes.
+ * @returns {string|null} `image/png`, `image/jpeg`, `image/gif`, `image/webp` or null.
+ */
+export const sniffImageType = (bytes) => {
+  if (!bytes || bytes.length < 12) return null;
+  const at = (offset, values) => values.every((value, index) => bytes[offset + index] === value);
+  if (at(0, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) return 'image/png';
+  if (at(0, [0xff, 0xd8, 0xff])) return 'image/jpeg';
+  if (at(0, [0x47, 0x49, 0x46, 0x38]) && (bytes[4] === 0x37 || bytes[4] === 0x39) && bytes[5] === 0x61)
+    return 'image/gif';
+  if (at(0, [0x52, 0x49, 0x46, 0x46]) && at(8, [0x57, 0x45, 0x42, 0x50])) return 'image/webp';
+  return null;
+};
+
+/** Marks a collected picture inside paragraph HTML (XML text cannot contain U+0000). */
+// eslint-disable-next-line no-control-regex -- U+0000 is the picture mark on purpose (XML text cannot contain it)
+const IMAGE_MARK = /\u0000(\d+)\u0000/g;
+
 const MAIN_TYPE = /\/officeDocument$/;
 const REL_STYLES = /\/styles$/;
 const REL_NUMBERING = /\/numbering$/;
 const REL_HYPERLINK = /\/hyperlink$/;
+const REL_IMAGE = /\/image$/;
 
 const xmlDecoder = new TextDecoder('utf-8');
 
@@ -285,11 +330,50 @@ const escapeAttribute = (value) => escapeText(value).replace(/"/g, '&quot;');
 
 /**
  * Creates the reader for one document.
- * @param {{ rels: Map<string, object>, styles: Map<string, object>, numbering: Function, imageLabel: (alt: string) => string }} env - Parts.
- * @returns {{ body: (element: Element) => { fragments: string[], images: number, skipped: Record<string, number>, truncated: boolean } }} Reader.
+ * @param {{ rels: Map<string, object>, styles: Map<string, object>, numbering: Function, imageLabel: (alt: string) => string, collect?: boolean, folder?: string }} env - Parts; `collect` keeps pictures as their own fragments (2.13), `folder` is the main part's folder.
+ * @returns {{ body: (element: Element) => { fragments: Array<string|{ image: number }>, images: number, media: Array<object>, skipped: Record<string, number>, truncated: boolean } }} Reader.
  */
-const createReader = ({ rels, styles, numbering, imageLabel }) => {
+const createReader = ({ rels, styles, numbering, imageLabel, collect = false, folder = '' }) => {
   const report = { images: 0, skipped: {}, truncated: false };
+  // 2.13: pictures found while reading (`collect`), in document order.
+  const media = [];
+
+  /** Alt text of a picture: DrawingML `docPr` description or title, VML shape `alt`. */
+  const imageAlt = (node) => {
+    const properties = descendant(node, 'docPr');
+    const shape = properties ? null : descendant(node, 'shape');
+    return String(attr(properties, 'descr') || attr(properties, 'title') || attr(shape, 'alt') || '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 200);
+  };
+
+  /**
+   * Package part of a picture, or the reason it cannot be imported.
+   * @param {Element} node - `w:drawing`, `w:pict` or `w:object`.
+   * @returns {{ part: string|null, reason: string|null }} Part path or reason.
+   */
+  const imageSource = (node) => {
+    // An embedded OLE object (chart, equation, other program) shows only a preview picture.
+    if (node.localName === 'object') return { part: null, reason: 'embedded' };
+    const blip = node.localName === 'drawing' ? descendant(node, 'blip') : descendant(node, 'imagedata');
+    if (!blip) return { part: null, reason: 'unsupported' };
+    const id = relAttr(blip, node.localName === 'drawing' ? 'embed' : 'id');
+    if (!id) return { part: null, reason: relAttr(blip, 'link') ? 'linked' : 'unsupported' };
+    const rel = rels.get(id);
+    if (!rel || !REL_IMAGE.test(rel.type)) return { part: null, reason: 'unsupported' };
+    if (rel.external) return { part: null, reason: 'linked' };
+    return { part: resolvePart(folder, rel.target), reason: null };
+  };
+
+  /** Placeholder HTML of a collected picture that cannot stand on its own (in a list, table or link text). */
+  const placeholderOf = (index) => {
+    const item = media[index];
+    if (!item) return '';
+    if (!item.reason) item.reason = 'position';
+    item.placeholder = true;
+    return `<i>${escapeText(imageLabel(item.alt))}</i>`;
+  };
   const skip = (reason) => {
     report.skipped[reason] = (report.skipped[reason] || 0) + 1;
   };
@@ -386,13 +470,15 @@ const createReader = ({ rels, styles, numbering, imageLabel }) => {
         case 'object': {
           if (inInstruction()) break;
           flushText();
-          const properties = descendant(node, 'docPr');
-          const alt = String(attr(properties, 'descr') || attr(properties, 'title') || '')
-            .replace(/\s+/g, ' ')
-            .trim()
-            .slice(0, 200);
+          const alt = imageAlt(node);
           report.images += 1;
-          out.html += `<i>${escapeText(imageLabel(alt))}</i>`;
+          if (!collect) {
+            out.html += `<i>${escapeText(imageLabel(alt))}</i>`;
+            break;
+          }
+          const index = media.length;
+          media.push({ index, alt, ...imageSource(node) });
+          out.html += `\u0000${index}\u0000`;
           break;
         }
         default:
@@ -625,7 +711,7 @@ const createReader = ({ rels, styles, numbering, imageLabel }) => {
   /**
    * Reads the body into top-level HTML fragments.
    * @param {Element} body - `w:body`.
-   * @returns {{ fragments: string[], images: number, skipped: Record<string, number>, truncated: boolean }} Result.
+   * @returns {{ fragments: Array<string|{ image: number }>, images: number, media: Array<object>, skipped: Record<string, number>, truncated: boolean }} Result.
    */
   const body = (element) => {
     const fragments = [];
@@ -636,7 +722,44 @@ const createReader = ({ rels, styles, numbering, imageLabel }) => {
         report.truncated = true;
         return;
       }
-      fragments.push(html);
+      // A picture inside a list, a table or a link stays a placeholder (blocks cannot nest there).
+      fragments.push(
+        typeof html === 'string' && html.includes('\u0000')
+          ? html.replace(IMAGE_MARK, (_, index) => placeholderOf(Number(index)))
+          : html
+      );
+    };
+    /**
+     * Pushes a paragraph, heading or quote; collected pictures in it become their own fragments
+     * (the text before and after stays in the block type).
+     * @param {string} html - Inline HTML.
+     * @param {(inner: string) => string} wrap - Block wrapper.
+     */
+    const pushSplit = (html, wrap) => {
+      if (!html.includes('\u0000')) {
+        push(wrap(html));
+        return;
+      }
+      // Split only outside links (text is escaped, so `<a ` and `</a>` are this module's own tags);
+      // a picture inside link text stays a placeholder (push replaces its mark).
+      let depth = 0;
+      let last = 0;
+      const flush = (end) => {
+        const part = html.slice(last, end);
+        // A mark left in the part (inside link text) counts as content.
+        if (!isBlank(part.replace(IMAGE_MARK, 'x'))) push(wrap(part));
+      };
+      // eslint-disable-next-line no-control-regex -- U+0000 is the picture mark on purpose (see IMAGE_MARK)
+      for (const match of html.matchAll(/<a\s|<\/a>|\u0000(\d+)\u0000/g)) {
+        if (match[0] === '</a>') depth = Math.max(0, depth - 1);
+        else if (match[1] === undefined) depth += 1;
+        else if (depth === 0) {
+          flush(match.index);
+          push({ image: Number(match[1]) });
+          last = match.index + match[0].length;
+        }
+      }
+      flush(html.length);
     };
     const flushList = () => {
       if (list.length) push(listHtml(list));
@@ -669,9 +792,10 @@ const createReader = ({ rels, styles, numbering, imageLabel }) => {
             flushList();
             if (isBlank(paragraph.html)) break;
             if (paragraph.kind === 'heading')
-              push(`<h${paragraph.level}>${paragraph.html}</h${paragraph.level}>`);
-            else if (paragraph.kind === 'quote') push(`<blockquote><p>${paragraph.html}</p></blockquote>`);
-            else push(`<p>${paragraph.html}</p>`);
+              pushSplit(paragraph.html, (inner) => `<h${paragraph.level}>${inner}</h${paragraph.level}>`);
+            else if (paragraph.kind === 'quote')
+              pushSplit(paragraph.html, (inner) => `<blockquote><p>${inner}</p></blockquote>`);
+            else pushSplit(paragraph.html, (inner) => `<p>${inner}</p>`);
             break;
           }
           case 'tbl':
@@ -703,7 +827,16 @@ const createReader = ({ rels, styles, numbering, imageLabel }) => {
     walk(element, 0);
     flushList();
     flushCode();
-    return { fragments, images: report.images, skipped: report.skipped, truncated: report.truncated };
+    // Pictures whose fragment was cut by the fragment limit are not imported.
+    const kept = new Set(fragments.filter((item) => typeof item === 'object').map((item) => item.image));
+    for (const item of media) if (!kept.has(item.index) && !item.placeholder) item.reason = 'truncated';
+    return {
+      fragments,
+      images: report.images,
+      media,
+      skipped: report.skipped,
+      truncated: report.truncated,
+    };
   };
 
   return { body };
@@ -713,14 +846,65 @@ const createReader = ({ rels, styles, numbering, imageLabel }) => {
 const defaultImageLabel = (alt) => (alt ? `[Image: ${alt}]` : '[Image]');
 
 /**
+ * Reads the pictures the reader collected (2.13): checks the limits, inflates
+ * each different part once through the bounded ZIP reader and detects the type
+ * by signature. Fills `bytes`, `mime`, `size`, `name` or `reason` in place.
+ * @param {Array<object>} media - Collected pictures (`part`, `reason`).
+ * @param {(entry: object) => Promise<Uint8Array>} inflate - Bounded inflate of one ZIP entry.
+ * @param {Map<string, object>} byName - ZIP entries by name.
+ * @param {Partial<typeof DOCX_IMAGE_LIMITS>} [limits] - Overrides (the dialog passes the server's image size).
+ * @returns {Promise<void>}
+ * @throws {ImportError} Codes of `inflateEntry` (a corrupt part fails the whole file, like any other part).
+ */
+const readImages = async (media, inflate, byName, limits = {}) => {
+  const max = { ...DOCX_IMAGE_LIMITS, ...limits };
+  const parts = new Map();
+  let count = 0;
+  let total = 0;
+  for (const item of media) {
+    if (!item.part || item.reason) continue;
+    let found = parts.get(item.part);
+    if (!found) {
+      const entry = byName.get(item.part);
+      const name = item.part.slice(item.part.lastIndexOf('/') + 1).slice(0, 120);
+      if (!entry) found = { reason: 'unsupported' };
+      else if (VECTOR_EXTENSION.test(name)) found = { reason: 'format', name };
+      else if (entry.size > max.maxImageBytes) found = { reason: 'too-large', name, size: entry.size };
+      else if (count >= max.maxImages || total + entry.size > max.maxTotalBytes)
+        found = { reason: 'limit', name, size: entry.size };
+      else {
+        const data = await inflate(entry);
+        const mime = sniffImageType(data);
+        if (!mime) found = { reason: 'format', name };
+        else {
+          count += 1;
+          total += data.length;
+          found = { reason: null, name, mime, size: data.length, bytes: data };
+        }
+      }
+      parts.set(item.part, found);
+    }
+    Object.assign(item, found);
+  }
+};
+
+/**
  * Reads a .docx file into HTML fragments.
  * @param {Uint8Array} bytes - File bytes.
- * @param {{ parseXml: (xml: string) => Document, imageLabel?: (alt: string) => string, pause?: () => Promise<void>, limits?: object }} options - XML parser (DOMParser), placeholder text, a pause between steps (keeps the page responsive) and limit overrides for tests.
- * @returns {Promise<{ fragments: string[], images: number, skipped: Record<string, number>, truncated: boolean }>} Result.
+ * @param {{ parseXml: (xml: string) => Document, imageLabel?: (alt: string) => string, pause?: () => Promise<void>, limits?: object, images?: 'placeholder'|'collect', imageLimits?: Partial<typeof DOCX_IMAGE_LIMITS> }} options - XML parser (DOMParser), placeholder text, a pause between steps (keeps the page responsive), limit overrides for tests; `images: 'collect'` (2.13) returns pictures as fragments plus `media`.
+ * @returns {Promise<{ fragments: Array<string|{ image: number }>, images: number, media: Array<{ index: number, alt: string, part: string|null, reason: string|null, name?: string, mime?: string, size?: number, bytes?: Uint8Array }>, skipped: Record<string, number>, truncated: boolean }>} Result; `media` is empty without `collect`.
  * @throws {ImportError} Codes of `zip.mjs` plus `NOT_DOCX`, `XML_TOO_LARGE`, `XML_INVALID`.
  */
 export const docxToHtml = async (bytes, options) => {
-  const { parseXml, imageLabel = defaultImageLabel, pause, limits } = options || {};
+  const {
+    parseXml,
+    imageLabel = defaultImageLabel,
+    pause,
+    limits,
+    images = 'placeholder',
+    imageLimits,
+  } = options || {};
+  const collect = images === 'collect';
   if (typeof parseXml !== 'function') throw new TypeError('docxToHtml needs parseXml');
   const directory = readZipDirectory(bytes, limits);
   const byName = new Map(directory.entries.map((entry) => [entry.name, entry]));
@@ -749,6 +933,18 @@ export const docxToHtml = async (bytes, options) => {
   const main = await read(mainPath);
   const bodyElement = child(main.documentElement, 'body');
   if (main.documentElement.localName !== 'document' || !bodyElement) throw new ImportError('NOT_DOCX');
-  const reader = createReader({ rels, styles, numbering, imageLabel });
-  return reader.body(bodyElement);
+  const reader = createReader({ rels, styles, numbering, imageLabel, collect, folder });
+  const result = reader.body(bodyElement);
+  if (collect && result.media.length)
+    await readImages(
+      result.media,
+      async (entry) => {
+        const data = await inflateEntry(bytes, entry, { ...(limits || {}), pause });
+        if (pause) await pause();
+        return data;
+      },
+      byName,
+      imageLimits
+    );
+  return result;
 };

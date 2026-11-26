@@ -403,19 +403,19 @@ module.exports = ({ strapi }, dependencies = {}) => {
    * Stores a checked file through the Media Library upload service.
    * @param {object} fileData - File (path, name with the checked extension, detected type, size).
    * @param {object} user - Admin user (creator).
+   * @param {{ alternativeText?: string }} [fileInfo] - Media Library file info (2.13: alt text of a Word import).
    * @returns {Promise<object>} Stored file (signed URL for private providers).
    * @throws {Error} 415 for types the upload settings refuse; 400 when the Media Library
    *   refuses the content (`ApplicationError`/`ValidationError`, for example a damaged
    *   image); other errors propagate (500 with a fixed message).
    */
-  const toMediaLibrary = async (fileData, user) => {
+  const toMediaLibrary = async (fileData, user, fileInfo = {}) => {
     assertUploadAllowed(fileData.mimetype);
+    // `fileInfo` is the documented upload field (name, alternativeText, caption); only alt text is set.
+    const data = fileInfo.alternativeText ? { fileInfo: { alternativeText: fileInfo.alternativeText } } : {};
     let uploaded;
     try {
-      uploaded = await strapi
-        .plugin('upload')
-        .service('upload')
-        .upload({ data: {}, files: fileData }, { user });
+      uploaded = await strapi.plugin('upload').service('upload').upload({ data, files: fileData }, { user });
     } catch (error) {
       // Strapi's own refusals (a faulty image, an invalid name) are client errors with fixed messages.
       if (error && (error.name === 'ApplicationError' || error.name === 'ValidationError'))
@@ -533,10 +533,11 @@ module.exports = ({ strapi }, dependencies = {}) => {
      * the extension of the detected type.
      * @param {object} files - ctx.request.files.
      * @param {object} user - Admin user.
+     * @param {{ alt?: string }} [options] - 2.13: alternative text stored with the file (already cleaned by the controller).
      * @returns {Promise<object>} Editor.js image tool response.
      * @throws {Error} 400 no/unsupported/damaged image, 413 too large, 415 type refused by the upload settings.
      */
-    async uploadImageFile(files, user) {
+    async uploadImageFile(files, user, options = {}) {
       const file = getSingleFile(files, ['image', 'files.image', 'file']);
       const { filepath, size } = await fileStats(file, limit('uploads.maxImageBytes', 10 * 1024 * 1024));
       const mime = detectImageMime(await readHead(filepath, 16));
@@ -551,7 +552,8 @@ module.exports = ({ strapi }, dependencies = {}) => {
       );
       const uploaded = await toMediaLibrary(
         { filepath, originalFilename: name, mimetype: mime, detectedMimeType: mime, size },
-        user
+        user,
+        { alternativeText: typeof options.alt === 'string' ? options.alt.slice(0, 500) : '' }
       );
       return imageResponse(uploaded);
     },

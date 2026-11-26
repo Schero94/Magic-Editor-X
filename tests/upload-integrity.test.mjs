@@ -133,3 +133,70 @@ for (const format of ['jpeg', 'gif', 'webp']) {
     }
   });
 }
+
+// 2.13 Word import: the image route stores the picture's alt text (`fileInfo.alternativeText`, the
+// upload service's documented field) and refuses an alt text that is not a short string.
+test('image by file: an optional alt text is cleaned and stored as alternativeText', async () => {
+  const received = [];
+  const strapi = {
+    config: { get: () => undefined },
+    log: { debug() {}, warn() {}, error() {}, info() {} },
+    plugin: (name) => ({
+      service: (service) => {
+        if (name === 'upload' && service === 'image-manipulation') return imageManipulation;
+        if (name === 'upload' && service === 'upload')
+          return {
+            upload: async ({ data, files }) => {
+              received.push(data);
+              return [
+                {
+                  id: 1,
+                  url: `/uploads/${files.originalFilename}`,
+                  alternativeText: data.fileInfo?.alternativeText,
+                },
+              ];
+            },
+          };
+        return {};
+      },
+    }),
+  };
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'mex-alt-'));
+  try {
+    const service = editorService({ strapi });
+    const plugin = strapi.plugin;
+    strapi.plugin = (name) => (name === 'magic-editor-x' ? { service: () => service } : plugin(name));
+    const controller = require('../server/src/controllers/editor.js')({ strapi });
+    const png = await image('png');
+    const request = (body) => {
+      const filepath = path.join(directory, `f-${Math.random().toString(36).slice(2)}`);
+      fs.writeFileSync(filepath, png);
+      return {
+        request: { files: { image: { filepath, originalFilename: 'pic.png' } }, body },
+        state: { user: { id: 1 } },
+      };
+    };
+    const withAlt = request({ alt: '  Valley\u0000 at\n dawn\u0007 ' });
+    await controller.uploadImageFile(withAlt);
+    assert.equal(withAlt.body.success, 1);
+    assert.equal(withAlt.body.file.alt, 'Valley at dawn');
+    assert.deepEqual(received[0], { fileInfo: { alternativeText: 'Valley at dawn' } });
+
+    const without = request(undefined);
+    await controller.uploadImageFile(without);
+    assert.deepEqual(received[1], {}, 'no fileInfo without alt text (unchanged behaviour)');
+
+    for (const alt of ['x'.repeat(501), ['array'], { $ne: 1 }]) {
+      const refused = request({ alt });
+      await controller.uploadImageFile(refused);
+      assert.equal(refused.status, 400);
+      assert.deepEqual(refused.body, {
+        success: 0,
+        message: 'The alternative text must be text of at most 500 characters',
+      });
+    }
+    assert.equal(received.length, 2, 'refused requests store nothing');
+  } finally {
+    fs.rmSync(directory, { recursive: true });
+  }
+});
