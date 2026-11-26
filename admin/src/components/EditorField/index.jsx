@@ -1461,17 +1461,19 @@ const EditorFieldBody = ({
       body.append('image', file);
       if (alt) body.append('alt', String(alt).slice(0, 500));
       try {
-        const { data } = await post(API.imageByFile, body);
-        return data;
+        // The route answers refusals as `{ success: 0, message }` (400, 413, 415), a body Strapi's
+        // fetch client turns into a FetchError without the message; accept them to keep the reason.
+        // 401 stays an error so the client can refresh the admin token.
+        const { data } = await post(API.imageByFile, body, {
+          validateStatus: (status) => status >= 400 && status < 500 && status !== 401,
+        });
+        if (data && data.success === 1) return data;
+        return {
+          success: 0,
+          message: (data && (data.message || (data.error && data.error.message))) || '',
+        };
       } catch (requestError) {
-        const message =
-          (requestError &&
-            requestError.response &&
-            requestError.response.data &&
-            requestError.response.data.message) ||
-          readApiError(requestError).message ||
-          '';
-        return { success: 0, message };
+        return { success: 0, message: readApiError(requestError).message || '' };
       }
     },
     [post]
@@ -3571,7 +3573,8 @@ const EditorFieldBody = ({
     const editor = editorRef.current;
     const saved = editor ? await editor.save().catch(() => null) : null;
     setImportHasContent(Boolean(saved) && !isEmptyDocument(saved));
-    setImportImages(hasBlockTool('image'));
+    // Restricted tools stay registered (to render existing content), so the preset decides.
+    setImportImages(hasBlockTool('image') && isBlockAllowed(presetRef.current, 'image'));
     setImportOpen(true);
   }, [hasBlockTool]);
 

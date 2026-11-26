@@ -444,8 +444,10 @@ export const ImportDialog = ({
   const counts = useMemo(() => {
     if (state.phase !== 'ready') return [];
     const map = new Map();
+    // A picture that will be uploaded counts as an image, not as its placeholder text.
+    const uploads = new Set(state.pictures.filter((item) => !item.reason).map((item) => item.blockId));
     for (const block of state.blocks) {
-      const label = blockTypeLabel(t, block);
+      const label = blockTypeLabel(t, uploads.has(block.id) ? { type: 'image', data: {} } : block);
       map.set(label, (map.get(label) || 0) + 1);
     }
     return [...map.entries()];
@@ -551,7 +553,8 @@ export const ImportDialog = ({
 
   const skippedTotal =
     state.phase === 'ready' ? Object.values(state.report.skipped).reduce((sum, count) => sum + count, 0) : 0;
-  const maxMb = Math.max(1, Math.floor(Math.min(Number(maxImageBytes) || 10 * MB, 10 * MB) / MB));
+  // Largest picture in MB with two significant digits (0.25 for a 256 KiB server limit).
+  const maxMb = Number((Math.min(Number(maxImageBytes) || 10 * MB, 10 * MB) / MB).toPrecision(2));
   const pictureNotes = useMemo(() => {
     if (state.phase !== 'ready') return [];
     const counts = new Map();
@@ -658,7 +661,12 @@ export const ImportDialog = ({
                 : null,
             ]
               .filter(Boolean)
-              .join(' ')}
+              .map((note, index) => (
+                // The Alert body is a paragraph: one line per note.
+                <Box key={index} tag="span" display="block">
+                  {note}
+                </Box>
+              ))}
           </Alert>
         ) : null}
         <PreviewBox
