@@ -13,6 +13,7 @@ import {
 } from '@strapi/design-system';
 import { Upload } from '@strapi/icons';
 import styled from 'styled-components';
+import { useIntl } from 'react-intl';
 import { RenderedContent } from '../RenderedContent';
 import { prepareEditorValue } from '../../editor/sanitize';
 import { parseHtmlWithDom } from '../../../../shared/convert/dom-adapter.mjs';
@@ -332,6 +333,7 @@ export const ImportDialog = ({
   maxImageBytes = 10 * MB,
   uploadImage,
 }) => {
+  const { formatNumber } = useIntl();
   const inputRef = useRef(null);
   const chooseRef = useRef(null);
   const summaryRef = useRef(null);
@@ -554,7 +556,10 @@ export const ImportDialog = ({
   const skippedTotal =
     state.phase === 'ready' ? Object.values(state.report.skipped).reduce((sum, count) => sum + count, 0) : 0;
   // Largest picture in MB with two significant digits (0.25 for a 256 KiB server limit).
-  const maxMb = Number((Math.min(Number(maxImageBytes) || 10 * MB, 10 * MB) / MB).toPrecision(2));
+  // Formatted in the admin language (0,25 in German).
+  const maxMb = formatNumber(
+    Number((Math.min(Number(maxImageBytes) || 10 * MB, 10 * MB) / MB).toPrecision(2))
+  );
   const pictureNotes = useMemo(() => {
     if (state.phase !== 'ready') return [];
     const counts = new Map();
