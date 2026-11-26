@@ -20,10 +20,11 @@ test('the full screen frame sits below the DS overlay layer, so DS Modal and Dia
   assert.doesNotMatch(frame, /zIndices\.(modal|dialog|popover|notification|tooltip)/);
 });
 
-test('the DS overlay is the stacking context of Modal and Dialog content (installed DS)', () => {
+test('the DS overlay is the stacking context of Modal and Dialog content (installed DS, 2.2.0 to 2.3.1)', () => {
   const ds = read('node_modules/@strapi/design-system/dist/index.mjs');
   // Overlay wraps the content and has its own z-index: the frame must stay below it.
-  const overlays = ds.match(/Overlay\)`[^`]*?z-index: \$\{\(e\) => e\.theme\.zIndices\.overlay\};/g) || [];
+  const overlays =
+    ds.match(/Overlay\)`[^`]*?z-index: \$\{\(?(\w+)\)? => \1\.theme\.zIndices\.overlay\};/g) || [];
   assert.ok(overlays.length >= 2, 'Modal and Dialog overlays use zIndices.overlay');
 });
 
