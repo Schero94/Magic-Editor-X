@@ -1,5 +1,16 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed (full screen dialogs and triple click after a table)
+
+- **Dialogs opened in full screen are visible again.** The full screen editor sat on the Design System's modal layer, above the overlay that holds every DS Modal and Dialog, so "AI for the selected text" and every other dialog opened from full screen (AI for blocks and for the field, version history, templates, insert from another entry, import, export, keyboard shortcuts, confirmations, the Media Library) opened behind it: invisible, with focus inside. The full screen frame now sits one step below the DS overlay layer. Menus, popovers, tooltips and notifications were not affected and still open above it; Escape closes the dialog and keeps full screen, and focus returns into the editor.
+- **A triple click right after typing in a table selects the clicked paragraph.** Blocks outside the viewport are skipped by the browser (`content-visibility`, 2.12.1) and keep their last size only while they carry `contain-intrinsic-size: auto`. The block with the caret did not carry it, so the table the caret left was laid out at the 4rem placeholder for one frame, the text below it moved up under the pointer and the next clicks of a double or triple click hit another block. Every block now keeps its size; nothing moves when the caret leaves a block. This was not an Editor.js bug.
+
+### Tests
+
+- `tests/stacking-layout.test.mjs` (source contract) and the browser suite `npm run bench:browser -- --suite regressions` (`scripts/bench-browser/regressions.mjs`, part of `--suite all` in CI): dialogs in full screen painted on top with focus inside and back, no jump when the caret leaves a table, fast triple click selects the clicked paragraph.
+
 # [2.14.0](https://github.com/Schero94/Magic-Editor-X/compare/v2.13.1...v2.14.0) (2026-11-26)
 
 
