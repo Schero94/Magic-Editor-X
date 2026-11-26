@@ -268,10 +268,14 @@ export const runTouch = async ({
       await tapFirst(page, '.ce-popover--opened [data-item-name="header"]');
       await page.waitForTimeout(300);
       const after = await page.locator('.ce-block').count();
+      const screen = await page.evaluate(() => ({
+        inner: window.innerHeight,
+        visual: Math.round(window.visualViewport ? window.visualViewport.height : 0),
+      }));
       record(
         'toolbox',
         popover.found && popover.inside && after === before + 1,
-        `popover ${JSON.stringify(popover.rect)} inside=${popover.inside}, blocks +${after - before}`
+        `popover ${JSON.stringify(popover.rect)} inside=${popover.inside}, blocks +${after - before}, viewport ${JSON.stringify(screen)}`
       );
     });
 
@@ -312,7 +316,8 @@ export const runTouch = async ({
         const all = () => [...document.querySelectorAll('.ce-block')];
         const block = document.activeElement && document.activeElement.closest('.ce-block');
         const from = all().indexOf(block);
-        const text = block ? block.innerText.slice(0, 40) : '';
+        // textContent, not innerText: WebKit renders no text for blocks skipped by content-visibility.
+        const text = block ? block.textContent.slice(0, 40) : '';
         const handle = document.querySelector('.ce-toolbar__settings-btn');
         if (!handle || from < 0) return { from, error: 'no handle or block' };
         const hr = handle.getBoundingClientRect();
@@ -339,7 +344,7 @@ export const runTouch = async ({
         handle.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
         handle.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
         await wait(400);
-        const to = all().findIndex((node) => node.innerText.slice(0, 40) === text);
+        const to = all().findIndex((node) => node.textContent.slice(0, 40) === text);
         return {
           from,
           to,
@@ -405,8 +410,12 @@ export const runTouch = async ({
       await cell.evaluate(centre);
       await cell.tap();
       await page.waitForTimeout(300);
+      // Reported: whether the first tap focused the cell (WebKit on Linux did not always).
+      const focused = await cell.evaluate(
+        (node) => node === document.activeElement || node.contains(document.activeElement)
+      );
       await page.keyboard.type(' touched');
-      const typed = await cell.innerText();
+      const typed = await cell.textContent();
       const rowsBefore = await page.locator('.mex-table-tool').first().locator('tr').count();
       await collectTargets();
       await shot('table');
@@ -416,7 +425,7 @@ export const runTouch = async ({
       record(
         'table',
         /touched/.test(typed) && added && rowsAfter > rowsBefore,
-        `typed=${/touched/.test(typed)}, rows ${rowsBefore} -> ${rowsAfter}`
+        `focused=${focused}, typed=${/touched/.test(typed)}, rows ${rowsBefore} -> ${rowsAfter}`
       );
     });
 
