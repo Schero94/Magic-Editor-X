@@ -264,6 +264,12 @@ What made the difference (2.12.1): live regions inside blocks made every menu an
 - `magic-editor-x/render` and `magic-editor-x/blocks` have no dependencies and no Node built-ins, so they run in Node, browsers and edge runtimes.
 - The GraphQL fields need `@strapi/plugin-graphql`; without it nothing is registered.
 
+### Compatibility canary
+
+A scheduled workflow, `.github/workflows/canary.yml`, runs every Monday at 04:17 UTC and on demand (Actions → Compatibility canary → Run workflow). It installs the newest Strapi 5.x release over the lockfile and tests the plugin on the newest Node.js release, the newest LTS and every LTS line inside `engines.node`: the build, the tests, the admin tests and `verify` as in `ci.yml`, and the Core Blocks bridge tests of the `core-blocks` job, which boot Strapi with the real entity validator.
+
+A failure opens or updates one issue labelled `compat` ("Compatibility: Strapi X.Y.Z / Node A.B.C") with the failing jobs, the failing step and a log excerpt; the next green run closes it. The last passing and the last run are recorded in the closed issue "Compatibility canary state". A manual run can force a Strapi version (`strapi`) or Node.js versions (`node`), and `dry-run` prints the plan instead of writing issues. Pull requests that change the canary run it as a dry run. The logic lives in `.github/scripts/compat-canary.mjs` (byte-identical in every plugin of the workbench, unit-tested in `compat-canary.test.mjs`).
+
 ## Install
 
 ```bash
