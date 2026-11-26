@@ -579,8 +579,8 @@ module.exports = ({ strapi }) => {
   /**
    * Transforms values for output: expands synced blocks, resolves references
    * once for all values, then renders each.
-   * @param {Array<{ value: unknown, locale?: string|null, format?: 'html'|'text'|'markdown'|'json', options?: object, render?: { blockIds?: object } }>} items - Values (an item's `format` wins over `options.format`; `options` are the field options, for the preset of synced content; `render.blockIds` (2.6) is passed to the HTML renderer).
-   * @param {{ format?: 'html'|'text'|'markdown'|'json', auth?: object, status?: 'draft'|'published', limits?: object }} options - Output options.
+   * @param {Array<{ value: unknown, locale?: string|null, format?: 'html'|'text'|'markdown'|'json'|'blocks', options?: object, render?: { blockIds?: object, extensions?: boolean } }>} items - Values (an item's `format` wins over `options.format`; `options` are the field options, for the preset of synced content; `render.blockIds` (2.6) is passed to the HTML renderer; 2.13 `render.extensions` to the Blocks converter).
+   * @param {{ format?: 'html'|'text'|'markdown'|'json'|'blocks', auth?: object, status?: 'draft'|'published', limits?: object }} options - Output options.
    * @returns {Promise<Array<object|string|null>>} Output per item.
    */
   const transform = async (items, { format = 'json', auth, status, limits } = {}) => {
@@ -596,10 +596,12 @@ module.exports = ({ strapi }) => {
     );
     // 2.5: inline annotations with a `resolve` function (rendered formats only; JSON keeps the stored form).
     const formats = items.map((item) => item.format || format);
-    const annotationValues = formats.some((value) => value !== 'json')
+    // `blocks` (2.13) keeps annotations as their text, like `json` keeps the stored form.
+    const rendered = (value) => value !== 'json' && value !== 'blocks';
+    const annotationValues = formats.some(rendered)
       ? await resolveAnnotations(
           appliedAll.map((data, index) => ({
-            data: formats[index] === 'json' ? null : data,
+            data: rendered(formats[index]) ? data : null,
             locale: prepared[index].locale,
           })),
           { auth, status, limits }
@@ -618,6 +620,8 @@ module.exports = ({ strapi }) => {
       // 2.6: block source attributes (`?mex=html&mexBlockIds=true`), HTML only.
       const render = items[index].render;
       if (outputFormat === 'html' && render && render.blockIds) extras.blockIds = render.blockIds;
+      // 2.13: `?mex=blocks&mexExtensions=true` / GraphQL `<field>Blocks(extensions: true)`.
+      if (outputFormat === 'blocks' && render && render.extensions === true) extras.extensions = true;
       if (annotationValues.size)
         extras.resolveAnnotation = ({ name, attrs }) =>
           annotationValues.get(annotationKey(name, attrs, locale));

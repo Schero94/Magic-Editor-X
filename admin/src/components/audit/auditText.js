@@ -36,6 +36,11 @@ export const EVENT_LABELS = {
   'suggestion.accept': { key: 'settings.audit.event.suggestionAccept', text: 'Suggestion accepted' },
   'suggestion.reject': { key: 'settings.audit.event.suggestionReject', text: 'Suggestion rejected' },
   'suggestion.withdraw': { key: 'settings.audit.event.suggestionWithdraw', text: 'Suggestion withdrawn' },
+  // 2.13 migration wizard
+  'migration.start': { key: 'settings.audit.event.migrationStart', text: 'Migration started' },
+  'migration.finish': { key: 'settings.audit.event.migrationFinish', text: 'Migration finished' },
+  'migration.cancel': { key: 'settings.audit.event.migrationCancel', text: 'Migration stopped' },
+  'migration.backup': { key: 'settings.audit.event.migrationBackup', text: 'Migration backup downloaded' },
 };
 
 /**
@@ -127,6 +132,22 @@ export const changeSummary = (t, item) => {
     parts.push(
       t('settings.audit.counts.blocks', '{count, plural, one {# block} other {# blocks}}', {
         count: counts.suggestions,
+      })
+    );
+  if (item.event === 'migration.finish')
+    parts.push(
+      t(
+        'settings.audit.counts.migration',
+        '{converted, number} of {processed, number} entries migrated from {from}',
+        { converted: counts.converted || 0, processed: counts.processed || 0, from: meta.from || '—' }
+      )
+    );
+  if (item.event === 'migration.start' && typeof meta.from === 'string')
+    parts.push(t('settings.audit.meta.migrationFrom', 'From the field {from}', { from: meta.from }));
+  if (item.event === 'migration.backup')
+    parts.push(
+      t('settings.audit.counts.entries', '{count, plural, one {# entry} other {# entries}}', {
+        count: counts.entries || 0,
       })
     );
   if (item.event === 'suggestion.accept' && counts.outdated)

@@ -20,6 +20,7 @@ export const PERMISSIONS = {
   suggestionsCreate: action('suggestions.create'),
   suggestionsReview: action('suggestions.review'),
   mcpUse: action('mcp.use'),
+  migrate: action('migrate.run'),
 };
 
 export default PERMISSIONS;

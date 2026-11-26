@@ -154,6 +154,8 @@ const registerOutputParam = (strapi) => {
     mex: { schema: (z) => z.enum(OUTPUT_FORMATS).optional(), matchRoute },
     // 2.6: block source attributes in `?mex=html` output.
     mexBlockIds: { schema: (z) => z.enum(['true', 'false']).optional(), matchRoute },
+    // 2.13: extension nodes in `?mex=blocks` output.
+    mexExtensions: { schema: (z) => z.enum(['true', 'false']).optional(), matchRoute },
   });
 };
 

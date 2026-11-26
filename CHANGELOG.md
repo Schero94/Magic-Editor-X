@@ -1,5 +1,24 @@
 # Changelog
 
+## [Unreleased]
+
+### Added (start simple, grow, and move content between Magic Editor X and Strapi Blocks)
+
+- **Simple preset, the default for new fields.** The Content-Type Builder preselects `simple` for every new Magic Editor X field: the Strapi Blocks set (paragraph, headings 1-6, lists, quote, code, image, links, bold, italic, underline, strikethrough, inline code) plus tables. The field shows a calm toolbar (word count only) and a short More tools list (Find and replace, Version history, Import file, Preview, Keyboard shortcuts). AI, grammar check, live editing, comments, suggestions, the quality panel, templates, insert from another entry, export and focus mode are off. "Need more? Switch this field to the Standard preset" at the end of More tools opens the content type in the Content-Type Builder (shown to admins who may read the Content-Type Builder).
+- **Standard preset:** every block and tool except raw HTML.
+- **`?mex=blocks`:** Strapi Blocks JSON for `@strapi/blocks-react-renderer`, checked against Strapi's Blocks validator. The supported subset maps without loss; every other block has a documented fallback (README mapping table), or stays as a `magic-editor-x/<block>` extension node with `&mexExtensions=true`. GraphQL `<field>Blocks(extensions: Boolean = false): JSON`; `renderStrapiBlocks()` in `magic-editor-x/render`.
+- **Settings > Magic Editor X > Migrate content:** move a Strapi Blocks, Markdown rich text or text/HTML field into a Magic Editor X field with a preview (source and result side by side, warnings for lossy parts), a JSON backup download, a confirmed run in batches with progress, Resume and Stop, and a summary. Drafts only, the target field only, one run per field across all processes, each locale on its own, previous target content saved as the version "Before migration". New RBAC action `plugin::magic-editor-x.migrate.run`; audit events `migration.start`, `migration.finish`, `migration.cancel`, `migration.backup`.
+
+### Fixed
+
+- An Editor.js change notification that arrived after a field unmounted started a save timer that was never cleared.
+
+### Migration notes
+
+- No content changes and no migration. Existing fields keep their stored preset; a field without a `preset` option is still `full`. Only fields created after the upgrade start with `simple`; pick another preset in the Content-Type Builder when you create the field, or switch it later.
+- Give the new action `Migrate content into Magic Editor X fields` to the roles that should use the wizard (Super Admins have it). The wizard also needs Content Manager read on the source field and update on the target field.
+- `@strapi/blocks-react-renderer` is not a dependency. It is only needed in your frontend if you render `?mex=blocks` output with it.
+
 ## [2.13.1](https://github.com/Schero94/Magic-Editor-X/compare/v2.13.0...v2.13.1) (2026-11-26)
 
 

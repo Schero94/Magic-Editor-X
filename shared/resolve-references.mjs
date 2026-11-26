@@ -25,9 +25,13 @@ import {
   escapeHtml,
   escapeMarkdown,
 } from './render/index.mjs';
+import { editorToStrapiBlocks } from './convert/to-strapi-blocks.mjs';
 
-/** Output formats of `?mex=` (and the GraphQL `format` argument, lower-cased). */
-export const OUTPUT_FORMATS = Object.freeze(['html', 'text', 'markdown', 'json']);
+/**
+ * Output formats of `?mex=` (and the GraphQL `format` argument, lower-cased). 2.13: `blocks` is
+ * Strapi Blocks JSON (`convert/to-strapi-blocks.mjs`; GraphQL has its own `<field>Blocks` field).
+ */
+export const OUTPUT_FORMATS = Object.freeze(['html', 'text', 'markdown', 'json', 'blocks']);
 
 const API_UID = /^api::[a-z0-9_-]{1,100}\.[a-z0-9_-]{1,100}$/;
 const DOCUMENT_ID = /^[A-Za-z0-9]{1,64}$/;
@@ -365,12 +369,14 @@ const entryOverrides = (data, format) => {
  * Renders a resolved value. Raw HTML blocks are left out (the renderers'
  * default); use the `json` format to get them.
  * @param {object|null} data - Value from `applyReferences`.
- * @param {'html'|'text'|'markdown'|'json'} format - Output format.
- * @param {{ math?: Function, footnotes?: object }} [extra] - Render options (2.4: the server passes its math renderer and a footnote id prefix).
- * @returns {object|string|null} The value for `json`, a string otherwise ('' when empty).
+ * @param {'html'|'text'|'markdown'|'json'|'blocks'} format - Output format.
+ * @param {{ math?: Function, footnotes?: object, extensions?: boolean }} [extra] - Render options (2.4: the server passes its math renderer and a footnote id prefix; 2.13: `extensions` for `blocks`).
+ * @returns {object|string|Array<object>|null} The value for `json`, Strapi Blocks nodes for `blocks` ([] when empty), a string otherwise ('' when empty).
  */
 export const renderResolved = (data, format, extra = {}) => {
   if (format === 'json') return data || null;
+  if (format === 'blocks')
+    return data ? editorToStrapiBlocks(data, { extensions: extra.extensions === true }).blocks : [];
   if (!data) return '';
   const options = { ...extra, overrides: entryOverrides(data, format) };
   if (format === 'text') return renderText(data, options);

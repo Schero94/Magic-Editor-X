@@ -250,6 +250,7 @@
         <a href="#used-by">Used by</a>
         <a href="#demo">Demo</a>
         <a href="#fit">Is it a fit?</a>
+        <a href="#start-simple">Start simple</a>
         <a href="#core-blocks">New in 2.7</a>
         <a href="#whats-new">New in 2.5</a>
         <a href="#features">Features</a>
@@ -318,6 +319,23 @@
               </ul>
             </div>
           </div>
+        </section>
+
+        <section class="section" id="start-simple" aria-labelledby="start-simple-title">
+          <h2 id="start-simple-title">Start as simple as Strapi Blocks, grow when you need to</h2>
+          <p class="section-lead">
+            New fields start with the Simple preset: the Strapi Blocks set (paragraph, headings, lists, quote,
+            code, image, links, bold, italic, underline, strikethrough, inline code) plus tables, with a calm
+            toolbar and a short More tools list. When a field needs more, switch it to Standard or Full in the
+            Content-Type Builder; "Need more? Switch this field to the Standard preset" in More tools takes you there.
+          </p>
+          <ul class="check-list">
+            <li>Existing fields keep their preset. Nothing is migrated when you upgrade.</li>
+            <li>Standard adds comments, suggestions, quality checks, AI, live editing, templates, embeds, math, columns and custom blocks (everything except raw HTML).</li>
+            <li><code>?mex=blocks</code> serves Strapi Blocks JSON for <code>@strapi/blocks-react-renderer</code>, so a Blocks frontend keeps working. Blocks that Strapi Blocks cannot hold get a documented fallback, or <code>magic-editor-x/&lt;block&gt;</code> extension nodes with <code>&amp;mexExtensions=true</code>.</li>
+            <li>Settings &gt; Magic Editor X &gt; Migrate content moves a Blocks, Markdown or HTML field into a Magic Editor X field: preview, backup download, migrate with progress, resume, and a summary. Drafts only; the source field is never changed.</li>
+          </ul>
+          <p><a href="https://github.com/Schero94/Magic-Editor-X#strapi-blocks-interoperability">Mapping table and migration rules in the README</a></p>
         </section>
 
         <section class="section" id="core-blocks" aria-labelledby="core-blocks-title">
@@ -1471,9 +1489,11 @@
                 <tr><td><code>?mex=text</code></td><td>Plain text</td></tr>
                 <tr><td><code>?mex=markdown</code></td><td>Markdown</td></tr>
                 <tr><td><code>?mex=json</code></td><td>The stored document with resolved references</td></tr>
+                <tr><td><code>?mex=blocks</code></td><td>Strapi Blocks JSON for <code>@strapi/blocks-react-renderer</code> (2.13); <code>&amp;mexExtensions=true</code> keeps other blocks as <code>magic-editor-x/&lt;block&gt;</code> nodes</td></tr>
                 <tr><td><code>?mex=html&amp;mexBlockIds=true</code></td><td>Rendered HTML with <code>data-mex-block-id</code> and <code>data-mex-field-path</code> on each block (2.6); with the preview header <code>strapi-encode-source-maps: true</code> also <code>data-strapi-source</code> for Strapi's preview</td></tr>
                 <tr><td>GraphQL <code>bodyRendered(format: HTML)</code></td><td>Rendered string (<code>HTML</code>, <code>TEXT</code>, <code>MARKDOWN</code>), with <code>@strapi/plugin-graphql</code></td></tr>
                 <tr><td>GraphQL <code>bodyResolved</code></td><td>JSON with resolved references</td></tr>
+                <tr><td>GraphQL <code>bodyBlocks(extensions: false)</code></td><td>Strapi Blocks JSON (2.13)</td></tr>
               </tbody>
             </table>
           </div>

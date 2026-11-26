@@ -153,6 +153,15 @@ const adminRoutes = [
   ['GET', '/reuse/source', 'reuse.source', [ACTIONS.access]],
   // 2.5: fresh signed URLs for a private upload provider (Media Library read or the field's own files; handler).
   ['POST', '/media/signed-urls', 'media.signedUrls', [ACTIONS.access]],
+  // 2.13 migration wizard (Content Manager rights on the type checked in the service).
+  ['GET', '/migration/types', 'migration.types', [ACTIONS.migrate]],
+  ['POST', '/migration/preview', 'migration.preview', [ACTIONS.migrate]],
+  ['GET', '/migration/backup', 'migration.backup', [ACTIONS.migrate]],
+  ['GET', '/migration/jobs', 'migration.jobs', [ACTIONS.migrate]],
+  ['POST', '/migration/jobs', 'migration.start', [ACTIONS.migrate]],
+  ['GET', '/migration/jobs/:id', 'migration.job', [ACTIONS.migrate]],
+  ['POST', '/migration/jobs/:id/next', 'migration.next', [ACTIONS.migrate]],
+  ['POST', '/migration/jobs/:id/cancel', 'migration.cancel', [ACTIONS.migrate]],
 ].map(([method, path, handler, actions]) => ({
   method,
   path,

@@ -668,3 +668,74 @@ test('2.6: transform renders block ids for HTML items with render.blockIds only'
   assert.equal(marked.replace(/ data-(?:mex-block-id|mex-field-path|strapi-source)="[^"]*"/g, ''), plain);
   assert.doesNotMatch(text, /data-/);
 });
+
+test('2.13: ?mex=blocks returns Strapi Blocks nodes; mexExtensions=true asks for extension nodes', async () => {
+  const calls = [];
+  const strapi = middlewareStrapi([]);
+  strapi.plugin = () => ({
+    service: () => ({
+      transform: async (items, options) => {
+        calls.push({ items, options });
+        return items.map(() => [{ type: 'paragraph', children: [{ type: 'text', text: 'x' }] }]);
+      },
+    }),
+  });
+  const mw = renderOutput({}, { strapi });
+  const route = { handler: 'api::article.article.findOne', info: { type: 'content-api' } };
+  const run = async (query) => {
+    const ctx = {
+      method: 'GET',
+      path: '/api/articles/abc',
+      query,
+      headers: {},
+      status: 200,
+      state: { route },
+    };
+    await mw(ctx, async () => {
+      ctx.body = { data: { documentId: 'abc', body: { blocks: [] } } };
+    });
+    return ctx;
+  };
+  const plain = await run({ mex: 'blocks' });
+  assert.equal(calls[0].options.format, 'blocks');
+  assert.equal(calls[0].items[0].render, undefined);
+  assert.deepEqual(plain.body.data.body, [{ type: 'paragraph', children: [{ type: 'text', text: 'x' }] }]);
+  await run({ mex: 'blocks', mexExtensions: 'true' });
+  assert.deepEqual(calls[1].items[0].render, { extensions: true });
+  await run({ mex: 'html', mexExtensions: 'true' });
+  assert.equal(calls[2].items[0].render, undefined, 'other formats ignore it');
+  for (const mexExtensions of ['1', 'yes', ['true']])
+    await assert.rejects(run({ mex: 'blocks', mexExtensions }), (error) => error.name === 'ValidationError');
+});
+
+test('2.13: transform renders Strapi Blocks with resolved references; extensions only on request', async () => {
+  const { strapi } = fakeStrapi({ allowed: new Set([`${ARTICLE}.find`]), rows: ROWS });
+  const service = createReferences({ strapi });
+  const table = {
+    time: 1,
+    version: '2.31.7',
+    blocks: [
+      { id: 'h', type: 'header', data: { text: 'Title', level: 2 } },
+      { id: 't', type: 'table', data: { withHeadings: false, stretched: false, content: [['a', 'b']] } },
+    ],
+  };
+  const [plain, extended, linked] = await service.transform(
+    [
+      { value: table, format: 'blocks' },
+      { value: table, format: 'blocks', render: { extensions: true } },
+      { value: value(), locale: 'de', format: 'blocks' },
+    ],
+    { status: 'published' }
+  );
+  assert.deepEqual(
+    plain.map((node) => node.type),
+    ['heading', 'paragraph']
+  );
+  assert.deepEqual(
+    extended.map((node) => node.type),
+    ['heading', 'magic-editor-x/table']
+  );
+  // Internal links come out with the resolved href (or as text when they do not resolve).
+  assert.ok(Array.isArray(linked));
+  assert.ok(!JSON.stringify(linked).includes('data-mex-uid'));
+});

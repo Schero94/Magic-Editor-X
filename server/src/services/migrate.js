@@ -191,7 +191,125 @@ module.exports = ({ strapi }) => {
     return locales.map((entry) => entry.code).filter((code) => typeof code === 'string');
   };
 
+  /**
+   * Processes one page of documents of one locale (2.13: shared by `run` and the admin migration
+   * wizard, so both convert and write the same way).
+   * @param {object} options - Prepared options (`prepare`).
+   * @param {{ locale?: string, start: number, limit: number, filters?: object, dryRun: boolean, overwrite: boolean, rawHtml: string, collect?: boolean, beforeWrite?: (entry: { documentId: string, locale: string|null, previous: unknown }) => Promise<void> }} page - Page and mode.
+   *   `filters` (2.13) narrows the documents (the wizard passes the admin's Content Manager
+   *   permission filters); `collect` returns per-entry details for a preview; `beforeWrite` runs
+   *   before a target that already has content is overwritten.
+   * @returns {Promise<{ fetched: number, report: object, entries: Array<object> }>} Documents read, counts and (with `collect`) details.
+   * @sideeffect Writes the target field of converted documents (draft) unless `dryRun`.
+   */
+  const batch = async (options, page) => {
+    const report = {
+      scanned: 0,
+      converted: 0,
+      skippedExisting: 0,
+      skippedEmpty: 0,
+      failed: [],
+      lossy: [],
+    };
+    const entries = [];
+    const documents = strapi.documents(options.uid);
+    const { locale } = page;
+    const rows = await documents.findMany({
+      ...(locale ? { locale } : {}),
+      ...(page.filters ? { filters: page.filters } : {}),
+      status: options.status,
+      fields: [options.from, options.to],
+      sort: ['id:asc'],
+      start: page.start,
+      limit: page.limit,
+    });
+    const list = Array.isArray(rows) ? rows : [];
+    for (const entry of list) {
+      report.scanned += 1;
+      const where = { documentId: entry.documentId, locale: locale || entry.locale || null };
+      const sourceValue = entry[options.from];
+      const detail = page.collect ? { ...where, source: sourceValue, value: null, notes: [] } : null;
+      const note = (status) => {
+        if (detail) entries.push({ ...detail, status });
+      };
+      if (isEmptySource(sourceValue)) {
+        report.skippedEmpty += 1;
+        note('empty');
+        continue;
+      }
+      const hasTarget = hasEditorContent(entry[options.to]);
+      if (!page.overwrite && hasTarget) {
+        report.skippedExisting += 1;
+        note('existing');
+        continue;
+      }
+      let converted;
+      let format;
+      try {
+        format = detectFormat(options.source, sourceValue, options.format);
+        if (!format) {
+          report.failed.push({ ...where, code: 'UNSUPPORTED_VALUE' });
+          note('failed');
+          continue;
+        }
+        converted = convertValue(sourceValue, format, page.rawHtml);
+      } catch (error) {
+        report.failed.push({ ...where, code: (error && error.code) || 'CONVERT_FAILED' });
+        note('failed');
+        continue;
+      }
+      if (!converted.value) {
+        report.skippedEmpty += 1;
+        note('empty');
+        continue;
+      }
+      if (converted.notes.length) report.lossy.push({ ...where, notes: converted.notes });
+      if (detail) {
+        detail.value = converted.value;
+        detail.notes = converted.notes;
+        detail.format = format;
+        detail.overwrites = hasTarget;
+      }
+      if (!page.dryRun) {
+        try {
+          if (hasTarget && typeof page.beforeWrite === 'function')
+            await page.beforeWrite({ ...where, previous: entry[options.to] });
+          // Only the target field is sent: the Document Service keeps every other field as stored.
+          await documents.update({
+            documentId: entry.documentId,
+            ...(locale ? { locale } : {}),
+            data: { [options.to]: converted.value },
+          });
+        } catch (error) {
+          report.failed.push({
+            ...where,
+            code: error && error.name === 'ValidationError' ? 'VALIDATION' : 'WRITE_FAILED',
+          });
+          note('failed');
+          continue;
+        }
+      }
+      report.converted += 1;
+      note('converted');
+    }
+    return { fetched: list.length, report, entries };
+  };
+
+  /**
+   * Adds one batch report to a running total.
+   * @param {object} total - Running report.
+   * @param {object} part - Batch report.
+   */
+  const addReport = (total, part) => {
+    for (const key of ['scanned', 'converted', 'skippedExisting', 'skippedEmpty']) total[key] += part[key];
+    total.failed.push(...part.failed);
+    total.lossy.push(...part.lossy);
+  };
+
   return {
+    prepare,
+    locales: localesOf,
+    batch,
     /**
      * Migrates one field of one content type into a Magic Editor X field.
      * @param {object} input - Options.
@@ -225,68 +343,22 @@ module.exports = ({ strapi }) => {
         failed: [],
         lossy: [],
       };
-      const documents = strapi.documents(options.uid);
       const max = options.limit || Infinity;
       for (const locale of await localesOf(options)) {
         let start = 0;
         while (report.scanned < max) {
-          const page = await documents.findMany({
-            ...(locale ? { locale } : {}),
-            status: options.status,
-            fields: [options.from, options.to],
-            sort: ['id:asc'],
+          const result = await batch(options, {
+            locale,
             start,
             limit: Math.min(options.batchSize, max - report.scanned),
+            dryRun: options.dryRun,
+            overwrite: options.overwrite,
+            rawHtml,
           });
-          if (!Array.isArray(page) || page.length === 0) break;
-          start += page.length;
-          for (const entry of page) {
-            report.scanned += 1;
-            const where = { documentId: entry.documentId, locale: locale || entry.locale || null };
-            const sourceValue = entry[options.from];
-            if (isEmptySource(sourceValue)) {
-              report.skippedEmpty += 1;
-              continue;
-            }
-            if (!options.overwrite && hasEditorContent(entry[options.to])) {
-              report.skippedExisting += 1;
-              continue;
-            }
-            let converted;
-            try {
-              const format = detectFormat(options.source, sourceValue, options.format);
-              if (!format) {
-                report.failed.push({ ...where, code: 'UNSUPPORTED_VALUE' });
-                continue;
-              }
-              converted = convertValue(sourceValue, format, rawHtml);
-            } catch (error) {
-              report.failed.push({ ...where, code: (error && error.code) || 'CONVERT_FAILED' });
-              continue;
-            }
-            if (!converted.value) {
-              report.skippedEmpty += 1;
-              continue;
-            }
-            if (converted.notes.length) report.lossy.push({ ...where, notes: converted.notes });
-            if (!options.dryRun) {
-              try {
-                await documents.update({
-                  documentId: entry.documentId,
-                  ...(locale ? { locale } : {}),
-                  data: { [options.to]: converted.value },
-                });
-              } catch (error) {
-                report.failed.push({
-                  ...where,
-                  code: error && error.name === 'ValidationError' ? 'VALIDATION' : 'WRITE_FAILED',
-                });
-                continue;
-              }
-            }
-            report.converted += 1;
-          }
-          if (page.length < options.batchSize) break;
+          if (result.fetched === 0) break;
+          start += result.fetched;
+          addReport(report, result.report);
+          if (result.fetched < options.batchSize) break;
         }
       }
       logger.info(options.dryRun ? 'field migration dry run finished' : 'field migration finished', {
@@ -304,3 +376,4 @@ module.exports = ({ strapi }) => {
 
 module.exports.MigrationOptionsError = MigrationOptionsError;
 module.exports.detectFormat = detectFormat;
+module.exports.SOURCE_TYPES = SOURCE_TYPES;

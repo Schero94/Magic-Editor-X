@@ -6,7 +6,11 @@ const { walkOutput, routeContentType } = require('../utils/output-walk');
 const { createLogger } = require('../utils/logger');
 
 /**
- * Content API output transform (`?mex=html|text|markdown|json`).
+ * Content API output transform (`?mex=html|text|markdown|json|blocks`).
+ *
+ * 2.13: `blocks` replaces each value with Strapi Blocks JSON (an array of nodes, `[]` when
+ * empty) for `@strapi/blocks-react-renderer`; `&mexExtensions=true` keeps blocks without a
+ * Blocks form as `magic-editor-x/<type>` nodes instead of their fallback.
  *
  * Opt-in per request: without `mex` the response is not touched. With it,
  * every Magic Editor X value in a GET response of a Content API route of an
@@ -34,6 +38,8 @@ const PARAM = 'mex';
  */
 const IDS_PARAM = 'mexBlockIds';
 const IDS_VALUES = Object.freeze(['true', 'false']);
+/** 2.13: `?mex=blocks&mexExtensions=true` (other formats ignore it). Same values as `mexBlockIds`. */
+const EXTENSIONS_PARAM = 'mexExtensions';
 
 /**
  * @param {object} strapi - Strapi instance.
@@ -80,6 +86,19 @@ const middleware = (_config, { strapi }) => {
         param: IDS_PARAM,
       });
     }
+    const extensionsValue = query[EXTENSIONS_PARAM];
+    if (
+      extensionsValue !== undefined &&
+      (typeof extensionsValue !== 'string' || !IDS_VALUES.includes(extensionsValue))
+    ) {
+      throw new errors.ValidationError(`Invalid query param ${EXTENSIONS_PARAM}`, {
+        key: EXTENSIONS_PARAM,
+        path: null,
+        source: 'query',
+        param: EXTENSIONS_PARAM,
+      });
+    }
+    const withExtensions = extensionsValue === 'true' && format === 'blocks';
     const withIds = ids === 'true' && format === 'html';
     const withSource = withIds && Boolean(ctx.headers) && ctx.headers['strapi-encode-source-maps'] === 'true';
     if (ctx.status !== 200 || !ctx.body || typeof ctx.body !== 'object' || !('data' in ctx.body)) return;
@@ -92,6 +111,7 @@ const middleware = (_config, { strapi }) => {
         target.render = {
           blockIds: { field: where.path, ...(withSource ? { strapiSource: where.entry } : {}) },
         };
+      if (withExtensions) target.render = { extensions: true };
       targets.push(target);
     });
     if (!targets.length) return;
@@ -120,3 +140,4 @@ module.exports = middleware;
 module.exports.PARAM = PARAM;
 module.exports.IDS_PARAM = IDS_PARAM;
 module.exports.IDS_VALUES = IDS_VALUES;
+module.exports.EXTENSIONS_PARAM = EXTENSIONS_PARAM;

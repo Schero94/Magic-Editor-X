@@ -15,6 +15,8 @@ export { escapeHtml, inlineToHtml, inlineToText } from './inline.mjs';
 export { DEFAULT_EMBED_HOSTS } from './common.mjs';
 export { enhanceCodeBlocks, copyText } from './dom.mjs';
 export { isBlockId, isFieldPath, strapiSourceValue } from './source.mjs';
+// 2.13: Strapi Blocks JSON for @strapi/blocks-react-renderer (same converter as `?mex=blocks`).
+export { renderStrapiBlocks, BLOCKS_FALLBACKS, EXTENSION_PREFIX } from '../convert/to-strapi-blocks.mjs';
 export {
   locateMessage,
   editViewUrl,

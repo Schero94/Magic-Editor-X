@@ -495,6 +495,14 @@ export default {
           permissions: PERMISSIONS.templatesManage,
           Component: () => import('./pages/TemplatesPage'),
         },
+        // 2.13: move Strapi Blocks, Markdown or text content into a Magic Editor X field.
+        {
+          id: `${PLUGIN_ID}-migration`,
+          intlLabel: { id: getTranslation('settings.link.migration'), defaultMessage: 'Migrate content' },
+          to: `${PLUGIN_ID}/migration`,
+          permissions: PERMISSIONS.migrate,
+          Component: () => import('./pages/MigrationPage'),
+        },
         {
           id: `${PLUGIN_ID}-audit`,
           intlLabel: { id: getTranslation('settings.link.audit'), defaultMessage: 'Audit trail' },
