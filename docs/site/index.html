@@ -123,6 +123,30 @@
               },
               {
                 "@type": "Question",
+                "name": "Which rich text editor plugin should I use for Strapi 5?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "It depends on what your editors need. Strapi's built-in Blocks field is enough for simple formatted text. CKEditor 5 suits Word-like editing with HTML output and complex tables. Better Blocks keeps the Strapi Blocks format with more block types. Tiptap by Notum stores ProseMirror JSON. Magic Editor X fits teams that need live co-editing, comments, version history and AI on their own provider without paying for add-ons. The comparison page links a source for every claim (checked 2026-11-26)."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Which Strapi editor plugin has free real-time collaboration?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Of the plugins compared on 2026-11-26 (Strapi Blocks, the community and official CKEditor plugins, Tiptap by Notum, Better Blocks and TinyMCE by SKLINET), only Magic Editor X documents real-time co-editing, comments and suggestions in the free plugin. CKEditor sells these as paid add-ons, and the other plugin READMEs do not mention them."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "When is Strapi's built-in Blocks field enough?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "When editors write short formatted text with headings, lists, quotes, code and images. It needs no plugin and Strapi maintains it. It has no tables, and its version history (Content History) needs the Growth or Enterprise plan."
+                }
+              },
+              {
+                "@type": "Question",
                 "name": "How do I show the content in my frontend?",
                 "acceptedAnswer": {
                   "@type": "Answer",
@@ -179,6 +203,7 @@
             <div class="hero-actions">
               <a class="button primary" href="#install">Install</a>
               <a class="button" href="https://github.com/Schero94/Magic-Editor-X#readme">Read the README</a>
+              <a class="button button-star" href="https://github.com/Schero94/Magic-Editor-X"><svg aria-hidden="true" viewBox="0 0 16 16" width="16" height="16"><path fill="currentColor" d="M8 .25a.75.75 0 0 1 .673.418l1.882 3.815 4.21.612a.75.75 0 0 1 .416 1.279l-3.046 2.97.719 4.192a.75.75 0 0 1-1.088.791L8 12.347l-3.766 1.98a.75.75 0 0 1-1.088-.79l.72-4.194L.818 6.374a.75.75 0 0 1 .416-1.28l4.21-.611L7.327.668A.75.75 0 0 1 8 .25Z"/></svg>Star on GitHub</a>
             </div>
             <code class="hero-install">npm install magic-editor-x</code>
             <section
@@ -223,6 +248,7 @@
     <main class="layout" id="main-content" tabindex="-1">
       <nav class="side-nav" aria-label="Documentation sections">
         <a href="#used-by">Used by</a>
+        <a href="#demo">Demo</a>
         <a href="#fit">Is it a fit?</a>
         <a href="#core-blocks">New in 2.7</a>
         <a href="#whats-new">New in 2.5</a>
@@ -238,9 +264,30 @@
         <a href="#migration">Migration</a>
         <a href="#faq">FAQ</a>
         <a href="#releases">Releases</a>
+        <a href="./compare.html">Editor comparison</a>
       </nav>
 
       <div class="content">
+        <section class="section" id="demo" aria-labelledby="demo-title">
+          <h2 id="demo-title">See it in 35 seconds</h2>
+          <p class="section-lead">
+            A silent recording of one entry: writing, the slash menu, a table, Ask AI, the quality check with Fix and
+            export. It has no sound and does not play on its own.
+          </p>
+          <figure class="demo-video">
+            <video controls muted playsinline preload="none" width="1280" height="800" poster="./img/editor-demo-poster.webp">
+              <source src="./img/editor-demo.webm" type="video/webm" />
+              <source src="./img/editor-demo.mp4" type="video/mp4" />
+              <track kind="captions" src="./img/editor-demo.en.vtt" srclang="en" label="English" />
+              <a href="./img/editor-demo.mp4">Download the demo video (MP4, 0.7 MB)</a>
+            </video>
+            <figcaption>
+              Recorded on Strapi 5.64 with Magic Editor X 2.12.4 and synthetic content. The AI answer comes from a local
+              mock provider, so the text is scripted; with a real provider the dialog works the same way.
+            </figcaption>
+          </figure>
+        </section>
+
         <section class="section summary" id="fit" aria-labelledby="fit-title">
           <h2 id="fit-title">Is Magic Editor X the right fit?</h2>
           <div class="fit-grid">
@@ -1232,7 +1279,7 @@
                 </tr>
                 <tr>
                   <th scope="row">AI writing help</th>
-                  <td>Your own key: Anthropic, OpenAI or a compatible server such as a local model. Fixed actions, no free-form prompt</td>
+                  <td>Your own key: Anthropic, OpenAI or a compatible server such as a local model. Built-in actions, "Ask AI…" with your own instruction, and owner-defined actions</td>
                   <td>CKEditor AI, add-on from Essential (<a href="https://ckeditor.com/pricing/">source</a>)</td>
                   <td>TinyMCE AI, add-on from Essential (<a href="https://www.tiny.cloud/pricing/">source</a>)</td>
                   <td>Strapi AI (translations, Media Library alt text and captions), Growth or a paid Enterprise add-on (<a href="https://docs.strapi.io/cms/ai/for-content-managers">source</a>)</td>
@@ -1285,7 +1332,8 @@
           <ul class="check-list">
             <li>Payload (Lexical): multiplayer editing is announced under Payload for Enterprise but not available yet (<a href="https://payloadcms.com/enterprise/multi-player-editing">source</a>); tables are an experimental feature (<a href="https://payloadcms.com/docs/rich-text/official-features">source</a>); uploads have crop and a focal point (<a href="https://payloadcms.com/docs/upload/overview">source</a>).</li>
             <li>Sanity: real-time multiplayer editing with character-level sync (<a href="https://www.sanity.io/studio">source</a>); comments, also on words in Portable Text, on the Growth plan (<a href="https://www.sanity.io/docs/studio/comments">source</a>); image crop and hotspot (<a href="https://www.sanity.io/docs/studio/image-type">source</a>).</li>
-            <li>Where Magic Editor X is weaker: suggestions cover whole blocks, table cells hold inline text only, there is no crop inside the editor, the AI actions are a fixed list, and Word import leaves images as placeholders. Touch is checked in Chromium emulation only, not on real phones or in Safari. The full list is in the <a href="https://github.com/Schero94/Magic-Editor-X#how-magic-editor-x-compares">README</a>.</li>
+            <li>Where Magic Editor X is weaker: suggestions cover whole blocks, table cells hold inline text only, there is no crop inside the editor, AI review lands as block suggestions, and Word import leaves images as placeholders. Touch is checked in Chromium emulation only, not on real phones or in Safari. The full list is in the <a href="https://github.com/Schero94/Magic-Editor-X#how-magic-editor-x-compares">README</a>.</li>
+            <li>Other Strapi editor plugins (the community and official CKEditor plugins, Tiptap, Better Blocks and TinyMCE) are compared feature by feature on <a href="./compare.html">Strapi editor plugins compared</a>, including where they are the better choice.</li>
           </ul>
         </section>
         <!-- comparison:end -->
@@ -1549,6 +1597,24 @@
                 suggestions cover whole blocks, table cells hold inline text only, and images are cropped in the
                 Media Library, not in the editor. The <a href="#compare">comparison</a> links every source
                 (checked 2026-11).
+              </p>
+            </details>
+            <details>
+              <summary>Which rich text editor plugin should I use for Strapi 5?</summary>
+              <p>
+                It depends on what your editors need. Strapi's built-in Blocks field is enough for simple formatted text. CKEditor 5 suits Word-like editing with HTML output and complex tables. Better Blocks keeps the Strapi Blocks format with more block types. Tiptap by Notum stores ProseMirror JSON. Magic Editor X fits teams that need live co-editing, comments, version history and AI on their own provider without paying for add-ons. The <a href="./compare.html">comparison of Strapi editor plugins</a> links a source for every claim (checked 2026-11-26).
+              </p>
+            </details>
+            <details>
+              <summary>Which Strapi editor plugin has free real-time collaboration?</summary>
+              <p>
+                Of the plugins compared on 2026-11-26 (Strapi Blocks, the community and official CKEditor plugins, Tiptap by Notum, Better Blocks and TinyMCE by SKLINET), only Magic Editor X documents real-time co-editing, comments and suggestions in the free plugin. CKEditor sells these as paid add-ons, and the other plugin READMEs do not mention them.
+              </p>
+            </details>
+            <details>
+              <summary>When is Strapi&#39;s built-in Blocks field enough?</summary>
+              <p>
+                When editors write short formatted text with headings, lists, quotes, code and images. It needs no plugin and Strapi maintains it. It has no tables, and its version history (<a href="https://docs.strapi.io/cms/features/content-history">Content History</a>) needs the Growth or Enterprise plan.
               </p>
             </details>
             <details>

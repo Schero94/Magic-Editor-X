@@ -1,0 +1,487 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Strapi 5 rich text editor plugins compared (2026) | Magic Editor X</title>
+    <meta
+      name="description"
+      content="Strapi Blocks, CKEditor, Tiptap, Better Blocks, TinyMCE and Magic Editor X side by side: licence, tables, custom blocks, collaboration, history and AI, with a source for every claim."
+    />
+    <link rel="canonical" href="https://schero94.github.io/Magic-Editor-X/compare.html" />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <meta name="author" content="Schero D." />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#12151d" />
+    <meta property="og:type" content="article" />
+    <meta property="og:site_name" content="Magic Editor X documentation" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:title" content="Strapi 5 rich text editor plugins compared (2026)" />
+    <meta
+      property="og:description"
+      content="Six ways to edit rich text in Strapi 5, compared feature by feature with a source link per claim. Checked 2026-11-26."
+    />
+    <meta property="og:url" content="https://schero94.github.io/Magic-Editor-X/compare.html" />
+    <meta property="og:image" content="https://schero94.github.io/Magic-Editor-X/img/og.jpg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Magic Editor X field in the Strapi Content Manager" />
+    <meta property="article:modified_time" content="2026-11-26" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Strapi 5 rich text editor plugins compared (2026)" />
+    <meta
+      name="twitter:description"
+      content="Strapi Blocks, CKEditor, Tiptap, Better Blocks, TinyMCE and Magic Editor X, with a source link per claim."
+    />
+    <meta name="twitter:image" content="https://schero94.github.io/Magic-Editor-X/img/og.jpg" />
+    <link rel="icon" href="./img/icon.svg" type="image/svg+xml" />
+    <link rel="icon" href="./img/icon-128.png" type="image/png" sizes="128x128" />
+    <link rel="apple-touch-icon" href="./img/icon-512.png" />
+    <link rel="alternate" type="text/plain" href="./llms.txt" title="llms.txt" />
+    <link rel="stylesheet" href="./site.css" />
+    <link rel="stylesheet" href="./site-extra.css" />
+    <script src="./site.js" defer></script>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebPage",
+            "@id": "https://schero94.github.io/Magic-Editor-X/compare.html#page",
+            "url": "https://schero94.github.io/Magic-Editor-X/compare.html",
+            "name": "Strapi 5 rich text editor plugins compared (2026)",
+            "description": "Strapi Blocks, the community and official CKEditor plugins, Tiptap by Notum, Better Blocks, TinyMCE by SKLINET and Magic Editor X compared feature by feature, with a source link per claim. Facts checked on 2026-11-26.",
+            "inLanguage": "en",
+            "datePublished": "2026-11-26",
+            "dateModified": "2026-11-26",
+            "author": { "@type": "Person", "name": "Schero D.", "url": "https://schero94.github.io/" },
+            "about": { "@id": "https://schero94.github.io/Magic-Editor-X/#software" },
+            "isPartOf": { "@type": "WebSite", "name": "Magic Editor X documentation", "url": "https://schero94.github.io/Magic-Editor-X/" }
+          },
+          {
+            "@type": "BreadcrumbList",
+            "itemListElement": [
+              { "@type": "ListItem", "position": 1, "name": "Schero94", "item": "https://schero94.github.io/" },
+              { "@type": "ListItem", "position": 2, "name": "Plugins", "item": "https://schero94.github.io/plugins/" },
+              { "@type": "ListItem", "position": 3, "name": "Magic Editor X", "item": "https://schero94.github.io/Magic-Editor-X/" },
+              { "@type": "ListItem", "position": 4, "name": "Editor comparison", "item": "https://schero94.github.io/Magic-Editor-X/compare.html" }
+            ]
+          }
+        ]
+      }
+    </script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">Skip to content</a>
+
+    <header class="topbar">
+      <div class="topbar-inner">
+        <a class="brand" href="./" aria-label="Magic Editor X documentation home">
+          <img class="brand-logo" src="./img/icon.svg" alt="" width="32" height="32" />
+          <span>Magic Editor X</span>
+        </a>
+        <nav class="top-links" aria-label="Project links">
+          <a href="./">Docs</a>
+          <a href="./#install">Install</a>
+          <a href="https://github.com/Schero94/Magic-Editor-X">GitHub</a>
+          <a href="https://www.npmjs.com/package/magic-editor-x">npm</a>
+        </nav>
+      </div>
+    </header>
+
+    <div class="hero-wrap" id="top">
+      <section class="hero hero-compact" aria-labelledby="page-title">
+        <nav class="crumbs" aria-label="Breadcrumb">
+          <ol>
+            <li><a href="https://schero94.github.io/">Schero94</a></li>
+            <li><a href="https://schero94.github.io/plugins/">Plugins</a></li>
+            <li><a href="./">Magic Editor X docs</a></li>
+            <li><span aria-current="page">Editor comparison</span></li>
+          </ol>
+        </nav>
+        <h1 id="page-title">How Magic Editor X compares with other Strapi editors</h1>
+        <p class="definition">
+          Six ways to edit rich text in Strapi 5, compared feature by feature. Every claim about another
+          product links to the page it comes from. Facts as of 2026-11, checked on 26 November 2026.
+        </p>
+        <p>
+          This page is written by the maintainer of Magic Editor X, so read it with that in mind. Where another
+          editor is the better or simpler choice, it says so. If something here is wrong or out of date,
+          <a href="https://github.com/Schero94/Magic-Editor-X/issues/new">open an issue</a> and it gets fixed.
+        </p>
+        <div class="hero-actions">
+          <a class="button primary" href="#matrix">See the feature matrix</a>
+          <a class="button" href="./#demo">Watch the 35-second demo</a>
+        </div>
+      </section>
+    </div>
+
+    <main class="layout" id="main-content" tabindex="-1">
+      <nav class="side-nav" aria-label="Sections of this page">
+        <a href="#choose">Which one to choose</a>
+        <a href="#matrix">Feature matrix</a>
+        <a href="#others-better">Where others are better</a>
+        <a href="#weaker">Limits of Magic Editor X</a>
+        <a href="#popularity">Adoption</a>
+        <a href="#method">How this was checked</a>
+      </nav>
+
+      <div class="content">
+        <section class="section" id="choose" aria-labelledby="choose-title">
+          <h2 id="choose-title">Which one to choose</h2>
+          <p class="section-lead">
+            Start from what your editors need, not from the longest feature list. Short answers:
+          </p>
+          <ul class="check-list">
+            <li>
+              <strong>Simple formatted text, nothing to install:</strong> Strapi's built-in Blocks field. It covers
+              paragraphs, headings, lists, quotes, code and images, and Strapi publishes a React renderer for it.
+            </li>
+            <li>
+              <strong>Word-like editing and HTML output:</strong> CKEditor 5. The community plugin
+              (<code>@_sh/strapi-plugin-ckeditor</code>) is free under GPL and self-hosted; the official plugin
+              (<code>@ckeditor/strapi-plugin-ckeditor</code>) needs a CKEditor licence key. CKEditor tables can hold
+              lists and headings in their cells and can be nested.
+            </li>
+            <li>
+              <strong>Keep the Strapi Blocks format, with more block types:</strong> Better Blocks
+              (<code>@qkix/strapi-plugin-better-blocks</code>). It stores Blocks JSON plus its own node types and
+              adds tables, callouts, math and diagrams.
+            </li>
+            <li>
+              <strong>ProseMirror JSON and your own React components:</strong> the Tiptap plugin by Notum
+              (<code>@notum-cz/strapi-plugin-tiptap-editor</code>).
+            </li>
+            <li>
+              <strong>A team that already knows TinyMCE:</strong> the TinyMCE plugin by SKLINET
+              (<code>@sklinet/strapi-plugin-tinymce</code>), with HTML output.
+            </li>
+            <li>
+              <strong>Several people editing the same entry, with comments, version history and AI on your own
+              provider, all free:</strong> Magic Editor X (<code>magic-editor-x</code>), a block editor built on
+              Editor.js.
+            </li>
+          </ul>
+        </section>
+
+        <section class="section" id="matrix" aria-labelledby="matrix-title">
+          <h2 id="matrix-title">Feature matrix</h2>
+          <p class="section-lead">
+            Versions compared: Magic Editor X 2.12.4, Strapi 5.64 (Blocks), <code>@_sh/strapi-plugin-ckeditor</code>
+            8.0.0, <code>@ckeditor/strapi-plugin-ckeditor</code> 1.1.2, <code>@notum-cz/strapi-plugin-tiptap-editor</code>
+            1.3.0, <code>@qkix/strapi-plugin-better-blocks</code> 0.25.2 and <code>@sklinet/strapi-plugin-tinymce</code>
+            2.0.0. Each cell says what the product's own documentation states.
+          </p>
+          <dl class="status-legend" aria-label="Legend">
+            <div><dt><span class="st st-has">Has</span></dt><dd>documented and included</dd></div>
+            <div><dt><span class="st st-partial">Partial</span></dt><dd>included with a limit named in the cell</dd></div>
+            <div><dt><span class="st st-paid">Paid</span></dt><dd>needs a paid plan or add-on</dd></div>
+            <div><dt><span class="st st-missing">Missing</span></dt><dd>the source shows it is not there</dd></div>
+            <div><dt><span class="st st-none">Not documented</span></dt><dd>the pages we checked say nothing either way</dd></div>
+          </dl>
+          <div class="table-wrap matrix-wrap" role="region" aria-labelledby="matrix-title" tabindex="0">
+            <table class="matrix">
+              <thead>
+                <tr>
+                  <th scope="col">Feature</th>
+                  <th scope="col">Magic Editor X</th>
+                  <th scope="col">Strapi Blocks (built in)</th>
+                  <th scope="col">CKEditor 5, community plugin</th>
+                  <th scope="col">CKEditor 5, official plugin</th>
+                  <th scope="col">Tiptap (Notum)</th>
+                  <th scope="col">Better Blocks</th>
+                  <th scope="col">TinyMCE (SKLINET)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">Editor and stored format</th>
+                  <td>Editor.js; stores Editor.js JSON (<a href="https://github.com/Schero94/Magic-Editor-X#data-format">source</a>)</td>
+                  <td>Stores Blocks JSON with paragraph, heading, quote, code, list and image nodes (<a href="https://github.com/strapi/strapi/blob/develop/packages/core/core/src/services/entity-validator/blocks-validator.ts">source</a>)</td>
+                  <td>CKEditor 5; stores HTML or Markdown, depending on the preset (<a href="https://github.com/nshenderov/strapi-plugin-ckeditor#usage">source</a>)</td>
+                  <td>CKEditor 5, loaded from cdn.ckeditor.com (<a href="https://github.com/ckeditor/strapi-plugin-ckeditor#installation">source</a>)</td>
+                  <td>Tiptap (ProseMirror); stores Tiptap JSON (<a href="https://github.com/notum-cz/strapi-plugin-tiptap-editor#readme">source</a>)</td>
+                  <td>Slate; stores Strapi Blocks JSON plus its own node types (<a href="https://github.com/qkix/strapi-plugins#packages">source</a>)</td>
+                  <td>TinyMCE 8; stores HTML (<a href="https://github.com/SKLINET/strapi-plugin-tinymce#configuration">source</a>)</td>
+                </tr>
+                <tr>
+                  <th scope="row">Licence and cost</th>
+                  <td><span class="st st-has">Has</span> MIT, no plans or usage limits (<a href="https://github.com/Schero94/Magic-Editor-X/blob/main/LICENSE">source</a>)</td>
+                  <td><span class="st st-has">Has</span> Part of Strapi (<a href="https://docs.strapi.io/cms/features/content-type-builder">source</a>)</td>
+                  <td><span class="st st-has">Has</span> Plugin MIT; CKEditor 5 runs under GPL 2+ (<code>licenseKey: 'GPL'</code>) with non-premium plugins (<a href="https://github.com/nshenderov/strapi-plugin-ckeditor#usage">source</a>)</td>
+                  <td><span class="st st-partial">Partial</span> Plugin MIT, but it needs a CKEditor licence key. CKEditor's free plan is cloud-hosted with 1,000 editor loads a month; paid plans start at $144 a month billed annually (<a href="https://github.com/ckeditor/strapi-plugin-ckeditor#installation">source</a>, <a href="https://ckeditor.com/pricing/">pricing</a>)</td>
+                  <td><span class="st st-has">Has</span> MIT (<a href="https://github.com/notum-cz/strapi-plugin-tiptap-editor#readme">source</a>)</td>
+                  <td><span class="st st-has">Has</span> MIT (<a href="https://github.com/qkix/strapi-plugins#license">source</a>)</td>
+                  <td><span class="st st-partial">Partial</span> Plugin MIT on npm. TinyMCE needs a Tiny Cloud API key (free plan: 1,000 editor loads a month) or self-hosting with <code>license_key: "gpl"</code> (<a href="https://github.com/SKLINET/strapi-plugin-tinymce#tinymce-8">source</a>, <a href="https://www.tiny.cloud/pricing/">pricing</a>)</td>
+                </tr>
+                <tr>
+                  <th scope="row">Runs without an outside service</th>
+                  <td><span class="st st-has">Has</span> Outgoing requests only for features you use: link previews, media by URL, link checks, and the AI or grammar server you set up (<a href="https://github.com/Schero94/Magic-Editor-X/blob/main/AGENTS.md#rules">source</a>)</td>
+                  <td><span class="st st-has">Has</span> Part of Strapi</td>
+                  <td><span class="st st-has">Has</span> Self-hosted (<a href="https://github.com/nshenderov/strapi-plugin-ckeditor#features">source</a>)</td>
+                  <td><span class="st st-missing">Missing</span> Loads the editor from cdn.ckeditor.com and sends usage information to proxy-event.ckeditor.com (<a href="https://github.com/ckeditor/strapi-plugin-ckeditor#installation">source</a>)</td>
+                  <td><span class="st st-has">Has</span> Tiptap ships inside the plugin (<a href="https://github.com/notum-cz/strapi-plugin-tiptap-editor#the-extension-escape-hatch">source</a>)</td>
+                  <td><span class="st st-has">Has</span> Slate is a peer dependency in your own project (<a href="https://www.npmjs.com/package/@qkix/strapi-plugin-better-blocks?activeTab=dependencies">source</a>)</td>
+                  <td><span class="st st-partial">Partial</span> Loads from Tiny Cloud by default; self-hosting means copying TinyMCE into your public folder (<a href="https://github.com/SKLINET/strapi-plugin-tinymce#tinymce-8">source</a>)</td>
+                </tr>
+                <tr>
+                  <th scope="row">Images from the Media Library</th>
+                  <td><span class="st st-has">Has</span> Image, gallery, video and audio blocks (<a href="https://github.com/Schero94/Magic-Editor-X#features">source</a>)</td>
+                  <td><span class="st st-has">Has</span> Image node (<a href="https://github.com/strapi/strapi/blob/develop/packages/core/core/src/services/entity-validator/blocks-validator.ts">source</a>)</td>
+                  <td><span class="st st-has">Has</span> With responsive <code>srcset</code> (<a href="https://github.com/nshenderov/strapi-plugin-ckeditor#usage">source</a>)</td>
+                  <td><span class="st st-has">Has</span> (<a href="https://github.com/ckeditor/strapi-plugin-ckeditor#features">source</a>)</td>
+                  <td><span class="st st-has">Has</span> With alt text, alignment and resize (<a href="https://github.com/notum-cz/strapi-plugin-tiptap-editor#images">source</a>)</td>
+                  <td><span class="st st-has">Has</span> Images, video, audio and file buttons (<a href="https://github.com/qkix/strapi-plugins/tree/main/packages/strapi-plugin-better-blocks#features">source</a>)</td>
+                  <td><span class="st st-none">Not documented</span></td>
+                </tr>
+                <tr>
+                  <th scope="row">Tables</th>
+                  <td><span class="st st-partial">Partial</span> Header row and column, alignment, merged cells, caption. Cells hold inline text only (<a href="https://github.com/Schero94/Magic-Editor-X#how-magic-editor-x-compares">source</a>)</td>
+                  <td><span class="st st-missing">Missing</span> No table node (<a href="https://github.com/strapi/strapi/blob/develop/packages/core/core/src/services/entity-validator/blocks-validator.ts">source</a>)</td>
+                  <td><span class="st st-has">Has</span> In the default HTML preset. CKEditor tables take lists and headings in cells, nest, and merge cells (<a href="https://github.com/nshenderov/strapi-plugin-ckeditor/blob/master/admin/src/config/htmlPreset.ts">preset</a>, <a href="https://ckeditor.com/docs/ckeditor5/latest/features/tables/tables.html">tables</a>)</td>
+                  <td><span class="st st-has">Has</span> In the presets, with merged cells and captions (<a href="https://github.com/ckeditor/strapi-plugin-ckeditor/blob/master/admin/src/components/CKEditorInput/Configurator.js">source</a>)</td>
+                  <td><span class="st st-has">Has</span> Row and column controls, cell background colour (<a href="https://github.com/notum-cz/strapi-plugin-tiptap-editor#tables">source</a>)</td>
+                  <td><span class="st st-partial">Partial</span> Header row; cells hold inline content (<a href="https://github.com/qkix/strapi-plugins/tree/main/packages/strapi-plugin-better-blocks#table-json-shape-for-frontend-renderers">source</a>)</td>
+                  <td><span class="st st-has">Has</span> <code>table</code> plugin in the documented default config (<a href="https://github.com/SKLINET/strapi-plugin-tinymce#configuration">source</a>)</td>
+                </tr>
+                <tr>
+                  <th scope="row">Your own block types</th>
+                  <td><span class="st st-has">Has</span> In Settings without code, or in code with the block SDK (<a href="https://github.com/Schero94/Magic-Editor-X#custom-blocks-in-code-sdk">source</a>)</td>
+                  <td><span class="st st-partial">Partial</span> <code>addRichTextBlocks</code> adds block types to the admin editor, but the server validator accepts only the built-in nodes (<a href="https://docs.strapi.io/cms/plugins-development/content-manager-apis">docs</a>, <a href="https://github.com/strapi/strapi/blob/develop/packages/core/core/src/services/entity-validator/blocks-validator.ts">validator</a>)</td>
+                  <td><span class="st st-has">Has</span> Your own CKEditor 5 plugins in the preset config, in code (<a href="https://github.com/nshenderov/strapi-plugin-ckeditor#configuration">source</a>)</td>
+                  <td><span class="st st-none">Not documented</span></td>
+                  <td><span class="st st-has">Has</span> Custom rich-text components, registered in code (<a href="https://github.com/notum-cz/strapi-plugin-tiptap-editor#custom-components">source</a>)</td>
+                  <td><span class="st st-has">Has</span> Block registration contract in <code>better-blocks-core</code> (<a href="https://github.com/qkix/strapi-plugins#packages">source</a>)</td>
+                  <td><span class="st st-none">Not documented</span></td>
+                </tr>
+                <tr>
+                  <th scope="row">Several people editing at once</th>
+                  <td><span class="st st-has">Has</span> Character-level, across several Node processes, no sticky sessions (<a href="https://github.com/Schero94/Magic-Editor-X#live-collaboration">source</a>)</td>
+                  <td><span class="st st-none">Not documented</span></td>
+                  <td><span class="st st-none">Not documented</span> CKEditor sells real-time collaboration as an add-on to its Professional plan (<a href="https://ckeditor.com/pricing/">pricing</a>)</td>
+                  <td><span class="st st-none">Not documented</span> Same CKEditor add-on (<a href="https://ckeditor.com/pricing/">pricing</a>)</td>
+                  <td><span class="st st-none">Not documented</span></td>
+                  <td><span class="st st-none">Not documented</span></td>
+                  <td><span class="st st-none">Not documented</span></td>
+                </tr>
+                <tr>
+                  <th scope="row">Comments</th>
+                  <td><span class="st st-has">Has</span> On blocks and selected text, with replies and @mentions (<a href="https://github.com/Schero94/Magic-Editor-X#comments">source</a>)</td>
+                  <td><span class="st st-none">Not documented</span></td>
+                  <td><span class="st st-none">Not documented</span> CKEditor comments are a paid add-on (<a href="https://ckeditor.com/pricing/">pricing</a>)</td>
+                  <td><span class="st st-none">Not documented</span> Same CKEditor add-on (<a href="https://ckeditor.com/pricing/">pricing</a>)</td>
+                  <td><span class="st st-none">Not documented</span></td>
+                  <td><span class="st st-none">Not documented</span></td>
+                  <td><span class="st st-none">Not documented</span></td>
+                </tr>
+                <tr>
+                  <th scope="row">Suggestions (track changes)</th>
+                  <td><span class="st st-partial">Partial</span> Whole blocks only: a suggestion replaces, inserts or deletes a block (<a href="https://github.com/Schero94/Magic-Editor-X#suggestions">source</a>)</td>
+                  <td><span class="st st-none">Not documented</span></td>
+                  <td><span class="st st-none">Not documented</span> CKEditor track changes is a paid add-on (<a href="https://ckeditor.com/pricing/">pricing</a>)</td>
+                  <td><span class="st st-none">Not documented</span> Same CKEditor add-on (<a href="https://ckeditor.com/pricing/">pricing</a>)</td>
+                  <td><span class="st st-none">Not documented</span></td>
+                  <td><span class="st st-none">Not documented</span></td>
+                  <td><span class="st st-none">Not documented</span></td>
+                </tr>
+                <tr>
+                  <th scope="row">Version history</th>
+                  <td><span class="st st-has">Has</span> Per field, word-level comparison, restore the field or one block (<a href="https://github.com/Schero94/Magic-Editor-X#version-history">source</a>)</td>
+                  <td><span class="st st-paid">Paid</span> Strapi Content History on Growth (14 days) or Enterprise (30 to 90 days): browse and restore the entry (<a href="https://docs.strapi.io/cms/features/content-history">source</a>)</td>
+                  <td><span class="st st-paid">Paid</span> Only Strapi's Content History (<a href="https://docs.strapi.io/cms/features/content-history">source</a>)</td>
+                  <td><span class="st st-paid">Paid</span> Only Strapi's Content History (<a href="https://docs.strapi.io/cms/features/content-history">source</a>)</td>
+                  <td><span class="st st-paid">Paid</span> Only Strapi's Content History (<a href="https://docs.strapi.io/cms/features/content-history">source</a>)</td>
+                  <td><span class="st st-has">Has</span> With Rewind, a separate free plugin by the same author: a snapshot per save, diff and restore (<a href="https://github.com/qkix/strapi-plugins#products">source</a>)</td>
+                  <td><span class="st st-paid">Paid</span> Only Strapi's Content History (<a href="https://docs.strapi.io/cms/features/content-history">source</a>)</td>
+                </tr>
+                <tr>
+                  <th scope="row">AI writing help</th>
+                  <td><span class="st st-has">Has</span> Your own provider: Anthropic, OpenAI or an OpenAI-compatible server, also a local model. The key stays on the server (<a href="https://github.com/Schero94/Magic-Editor-X#ai-assistant">source</a>)</td>
+                  <td><span class="st st-none">Not documented</span></td>
+                  <td><span class="st st-none">Not documented</span> CKEditor AI is a paid add-on (<a href="https://ckeditor.com/pricing/">pricing</a>)</td>
+                  <td><span class="st st-none">Not documented</span> Same CKEditor add-on (<a href="https://ckeditor.com/pricing/">pricing</a>)</td>
+                  <td><span class="st st-none">Not documented</span></td>
+                  <td><span class="st st-none">Not documented</span></td>
+                  <td><span class="st st-none">Not documented</span></td>
+                </tr>
+                <tr>
+                  <th scope="row">Accessibility, readability and SEO checks</th>
+                  <td><span class="st st-has">Has</span> 15 accessibility rules, readability and SEO hints, one-click Fix, optional publishing guard (<a href="https://github.com/Schero94/Magic-Editor-X#quality-checks">source</a>)</td>
+                  <td><span class="st st-none">Not documented</span></td>
+                  <td><span class="st st-none">Not documented</span></td>
+                  <td><span class="st st-none">Not documented</span></td>
+                  <td><span class="st st-none">Not documented</span></td>
+                  <td><span class="st st-none">Not documented</span> Word and character count only (<a href="https://github.com/qkix/strapi-plugins/tree/main/packages/strapi-plugin-better-blocks#features">source</a>)</td>
+                  <td><span class="st st-none">Not documented</span></td>
+                </tr>
+                <tr>
+                  <th scope="row">Markdown</th>
+                  <td><span class="st st-has">Has</span> Paste and import Markdown; Markdown output from the Content API and export (<a href="https://github.com/Schero94/Magic-Editor-X#paste-import-and-migration">source</a>)</td>
+                  <td><span class="st st-none">Not documented</span></td>
+                  <td><span class="st st-has">Has</span> A Markdown preset that stores Markdown (<a href="https://github.com/nshenderov/strapi-plugin-ckeditor#usage">source</a>)</td>
+                  <td><span class="st st-none">Not documented</span></td>
+                  <td><span class="st st-none">Not documented</span></td>
+                  <td><span class="st st-partial">Partial</span> Markdown paste (CommonMark and GFM) (<a href="https://github.com/qkix/strapi-plugins/tree/main/packages/strapi-plugin-better-blocks#features">source</a>)</td>
+                  <td><span class="st st-none">Not documented</span></td>
+                </tr>
+                <tr>
+                  <th scope="row">Math</th>
+                  <td><span class="st st-has">Has</span> TeX, rendered as MathML (<a href="https://github.com/Schero94/Magic-Editor-X#data-format">source</a>)</td>
+                  <td><span class="st st-none">Not documented</span></td>
+                  <td><span class="st st-none">Not documented</span></td>
+                  <td><span class="st st-none">Not documented</span></td>
+                  <td><span class="st st-none">Not documented</span></td>
+                  <td><span class="st st-has">Has</span> KaTeX, plus Mermaid diagrams (<a href="https://github.com/qkix/strapi-plugins/tree/main/packages/strapi-plugin-better-blocks#features">source</a>)</td>
+                  <td><span class="st st-none">Not documented</span></td>
+                </tr>
+                <tr>
+                  <th scope="row">Showing the content on your site</th>
+                  <td><span class="st st-has">Has</span> HTML, text or Markdown from the Content API (<code>?mex=</code>), GraphQL fields, React and Vue components (<a href="https://github.com/Schero94/Magic-Editor-X#content-api-and-graphql-output">source</a>)</td>
+                  <td><span class="st st-has">Has</span> Strapi's Blocks React Renderer (<a href="https://docs.strapi.io/cms/features/content-type-builder">source</a>)</td>
+                  <td><span class="st st-has">Has</span> Stored HTML or Markdown; load CKEditor's content styles on your site (<a href="https://github.com/nshenderov/strapi-plugin-ckeditor#usage">source</a>)</td>
+                  <td><span class="st st-none">Not documented</span></td>
+                  <td><span class="st st-has">Has</span> Render the JSON with Tiptap (<code>generateHTML</code> or React) (<a href="https://github.com/notum-cz/strapi-plugin-tiptap-editor#rendering-components-on-the-frontend">source</a>)</td>
+                  <td><span class="st st-has">Has</span> React, Astro and Vue renderers (<a href="https://github.com/qkix/strapi-plugins#packages">source</a>)</td>
+                  <td><span class="st st-has">Has</span> Stored HTML (<a href="https://github.com/SKLINET/strapi-plugin-tinymce#configuration">source</a>)</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="table-note">The table scrolls sideways on small screens. The first column names the feature.</p>
+        </section>
+
+        <section class="section" id="others-better" aria-labelledby="others-better-title">
+          <h2 id="others-better-title">Where the others are better or simpler</h2>
+          <ul class="check-list">
+            <li>
+              <strong>Strapi Blocks is the simplest choice.</strong> There is nothing to install or update, Strapi
+              maintains it, and its JSON works with Strapi's own React renderer. If your editors write short,
+              formatted text, a plugin adds more to maintain than it gives back.
+            </li>
+            <li>
+              <strong>CKEditor is the closest to Word.</strong> It is a classic rich text editor with HTML output, and
+              its table cells can hold lists, headings and even other tables
+              (<a href="https://ckeditor.com/docs/ckeditor5/latest/features/tables/tables.html">CKEditor tables</a>).
+              Magic Editor X table cells hold inline text only. The community CKEditor plugin is also by far the
+              most used of the plugins here (see <a href="#popularity">adoption</a>).
+            </li>
+            <li>
+              <strong>Better Blocks keeps the Strapi Blocks format.</strong> Content stays Blocks JSON, so you do not
+              have to migrate existing fields or change how your site reads them. Magic Editor X stores Editor.js
+              JSON and converts Blocks fields with a one-way migration command.
+            </li>
+            <li>
+              <strong>Tiptap gives you ProseMirror JSON.</strong> The Notum plugin lets you register your own
+              components with their own forms and render the same JSON with Tiptap on your site, which suits teams
+              that already build with Tiptap.
+            </li>
+            <li>
+              <strong>CKEditor and TinyMCE are backed by companies.</strong> Both sell collaboration, track changes
+              and AI with support contracts (<a href="https://ckeditor.com/pricing/">CKEditor pricing</a>,
+              <a href="https://www.tiny.cloud/pricing/">TinyMCE pricing</a>). Neither Strapi plugin documents those
+              paid features, but if you need a vendor to call, that matters.
+            </li>
+          </ul>
+        </section>
+
+        <section class="section" id="weaker" aria-labelledby="weaker-title">
+          <h2 id="weaker-title">Limits of Magic Editor X</h2>
+          <p class="section-lead">
+            These come from Editor.js or are not built yet. The README keeps the full list under
+            <a href="https://github.com/Schero94/Magic-Editor-X#how-magic-editor-x-compares">How Magic Editor X compares</a>.
+          </p>
+          <ul class="check-list">
+            <li>Suggestions and AI review work on whole blocks, not on a few words inside a block.</li>
+            <li>Table cells and columns hold inline text and simple items only, because Editor.js has no nested blocks.</li>
+            <li>There is no crop or rotate inside the editor. The image block opens the file in Strapi's Media Library (Strapi 5.54 and later).</li>
+            <li>Word import leaves out images and keeps a marker in their place; PDF export goes through the browser's print dialog.</li>
+            <li>Touch support is measured in Chromium device emulation, not on real phones or in Safari.</li>
+            <li>It is a young project with one maintainer and few GitHub stars so far.</li>
+          </ul>
+        </section>
+
+        <section class="section" id="popularity" aria-labelledby="popularity-title">
+          <h2 id="popularity-title">Adoption</h2>
+          <p class="section-lead">
+            Stars and weekly npm downloads on 26 November 2026 (downloads for 19 to 25 November). Popularity is
+            not quality, but it tells you how many people already run into, and report, the problems.
+          </p>
+          <div class="table-wrap" role="region" aria-labelledby="popularity-title" tabindex="0">
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col">Package</th>
+                  <th scope="col">GitHub stars</th>
+                  <th scope="col">npm downloads per week</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><th scope="row"><code>@_sh/strapi-plugin-ckeditor</code></th><td>148</td><td>32,247</td></tr>
+                <tr><th scope="row"><code>magic-editor-x</code></th><td>3</td><td>3,757</td></tr>
+                <tr><th scope="row"><code>@ckeditor/strapi-plugin-ckeditor</code></th><td>78</td><td>3,641</td></tr>
+                <tr><th scope="row"><code>@sklinet/strapi-plugin-tinymce</code></th><td>16</td><td>1,284</td></tr>
+                <tr><th scope="row"><code>@notum-cz/strapi-plugin-tiptap-editor</code></th><td>26</td><td>1,091</td></tr>
+                <tr><th scope="row"><code>@qkix/strapi-plugin-better-blocks</code></th><td>13 (whole monorepo)</td><td>457</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            Sources: the GitHub repositories linked in the matrix and the
+            <a href="https://github.com/npm/registry/blob/main/docs/download-counts.md">npm download counts API</a>.
+            Strapi Blocks ships with Strapi, so it has no separate numbers.
+          </p>
+          <aside class="star-cta" aria-labelledby="star-cta-title">
+            <h3 id="star-cta-title">Find Magic Editor X useful?</h3>
+            <p>
+              A star on GitHub helps other Strapi developers find it. It costs nothing and you can remove it any time.
+            </p>
+            <a class="star-link" href="https://github.com/Schero94/Magic-Editor-X">
+              <svg aria-hidden="true" viewBox="0 0 16 16" width="16" height="16"><path fill="currentColor" d="M8 .25a.75.75 0 0 1 .673.418l1.882 3.815 4.21.612a.75.75 0 0 1 .416 1.279l-3.046 2.97.719 4.192a.75.75 0 0 1-1.088.791L8 12.347l-3.766 1.98a.75.75 0 0 1-1.088-.79l.72-4.194L.818 6.374a.75.75 0 0 1 .416-1.28l4.21-.611L7.327.668A.75.75 0 0 1 8 .25Z"/></svg>
+              Star Magic Editor X on GitHub
+            </a>
+          </aside>
+        </section>
+
+        <section class="section" id="method" aria-labelledby="method-title">
+          <h2 id="method-title">How this was checked</h2>
+          <ul class="check-list">
+            <li>On 26 November 2026, each product's README, documentation or source file linked in its cell was read for the version named above. Pricing comes from <a href="https://ckeditor.com/pricing/">ckeditor.com/pricing</a> and <a href="https://www.tiny.cloud/pricing/">tiny.cloud/pricing</a> on the same day.</li>
+            <li>A claim that could not be confirmed from a source was left out. "Not documented" does not mean a feature is impossible; you may be able to add it with your own code.</li>
+            <li>Plans, prices and features change. Follow the links before you decide, and <a href="https://github.com/Schero94/Magic-Editor-X/issues/new">report a mistake</a> if you find one.</li>
+            <li>Magic Editor X features are described in its <a href="https://github.com/Schero94/Magic-Editor-X#readme">README</a>. The vendor comparison with CKEditor 5 and TinyMCE plans is on the <a href="./#compare">docs home page</a>.</li>
+          </ul>
+        </section>
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        <div>
+          <p class="footer-name">Magic Editor X</p>
+          <p>
+            Editor.js block editor for Strapi 5. MIT licensed, maintained by
+            <a href="https://schero94.github.io/">Schero D.</a>
+          </p>
+        </div>
+        <div>
+          <h2>Project</h2>
+          <ul>
+            <li><a href="https://github.com/Schero94/Magic-Editor-X">GitHub repository</a></li>
+            <li><a href="https://www.npmjs.com/package/magic-editor-x">npm package</a></li>
+            <li><a href="https://github.com/Schero94/Magic-Editor-X/blob/main/CHANGELOG.md">Changelog</a></li>
+            <li><a href="https://github.com/Schero94/Magic-Editor-X/issues">Issues</a></li>
+          </ul>
+        </div>
+        <div>
+          <h2>Docs</h2>
+          <ul>
+            <li><a href="./">Documentation home</a></li>
+            <li><a href="https://github.com/Schero94/Magic-Editor-X#readme">README</a></li>
+            <li><a href="./llms.txt">llms.txt</a></li>
+            <li><a href="./llms-full.txt">llms-full.txt</a></li>
+          </ul>
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>

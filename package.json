@@ -16,7 +16,13 @@
     "collaboration",
     "yjs",
     "version-history",
-    "ai"
+    "ai",
+    "rich-text-editor",
+    "strapi-editor",
+    "content-editor",
+    "real-time-collaboration",
+    "comments",
+    "markdown"
   ],
   "license": "MIT",
   "author": "Schero D.",
@@ -209,6 +215,6 @@
     "kind": "plugin",
     "name": "magic-editor-x",
     "displayName": "Magic Editor X",
-    "description": "Advanced block-based editor with Editor.js for Strapi v5"
+    "description": "Free block editor for Strapi 5: live collaboration, comments, version history, custom blocks and AI with your own provider."
   }
 }

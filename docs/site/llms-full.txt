@@ -20,6 +20,10 @@ Block editor for Strapi 5: an [Editor.js](https://editorjs.io/) custom field wit
 
 Live docs: <https://schero94.github.io/Magic-Editor-X/>
 
+[![Demo, 35 seconds without sound: writing, the slash menu, a table, Ask AI, the quality check with Fix and export](https://schero94.github.io/Magic-Editor-X/img/editor-demo-preview.gif)](https://schero94.github.io/Magic-Editor-X/#demo)
+
+The animation above plays the [35-second demo](https://schero94.github.io/Magic-Editor-X/#demo) at double speed (the AI answer in it comes from a local mock provider). If Magic Editor X is useful to you, a [star on GitHub](https://github.com/Schero94/Magic-Editor-X) helps other Strapi developers find it.
+
 ## Contents
 
 - [Getting started in 3 steps](#getting-started-in-3-steps)
@@ -202,6 +206,14 @@ Two headless CMS editors outside Strapi, for orientation:
 | ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Payload (Lexical editor) | Multiplayer editing is announced under Payload for Enterprise but not available yet ([page](https://payloadcms.com/enterprise/multi-player-editing)). The table feature is `EXPERIMENTAL_TableFeature` and is not on by default ([features](https://payloadcms.com/docs/rich-text/official-features)). Upload collections have a crop tool and a focal point selector in the admin ([uploads](https://payloadcms.com/docs/upload/overview)). |
 | Sanity (Portable Text)   | Studio has real-time multiplayer editing with character-level sync ([Studio](https://www.sanity.io/studio)). Comments, including comments on words and sentences in Portable Text, are a Growth plan feature ([Comments](https://www.sanity.io/docs/studio/comments)). Images can have crop and hotspot tools (`hotspot: true`) ([image type](https://www.sanity.io/docs/studio/image-type)).                                                |
+
+### Other Strapi editor plugins
+
+The table above compares editor products and their paid plans. For the choice between Strapi plugins, [Strapi editor plugins compared](https://schero94.github.io/Magic-Editor-X/compare.html) puts Magic Editor X next to Strapi Blocks, the community CKEditor plugin (`@_sh/strapi-plugin-ckeditor`), the official CKEditor plugin (`@ckeditor/strapi-plugin-ckeditor`, needs a CKEditor licence key), Tiptap by Notum (`@notum-cz/strapi-plugin-tiptap-editor`), Better Blocks (`@qkix/strapi-plugin-better-blocks`) and TinyMCE by SKLINET (`@sklinet/strapi-plugin-tinymce`), with a source link per claim (checked 2026-11-26). In short, the others are the better choice in these cases:
+
+- **Strapi Blocks** for simple formatted text: nothing to install, maintained by Strapi.
+- **CKEditor 5** for Word-like editing with HTML output; its table cells can hold lists and headings and can nest tables. The community plugin is free under GPL and is by far the most used Strapi editor plugin (about 32,000 npm downloads a week).
+- **Better Blocks** to keep the Strapi Blocks JSON format while adding tables, callouts and math. Magic Editor X stores Editor.js JSON and converts Blocks fields with a one-way `migrate` command.
 
 **Where Magic Editor X is weaker.** These limits come from the engine, or the feature is not built yet:
 
