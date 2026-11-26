@@ -329,3 +329,164 @@
     display: none !important;
   }
 }
+
+/* Comparison page (compare.html): a shorter hero without the screenshot column. */
+.hero-compact h1 {
+  max-width: 24ch;
+  font-size: clamp(2rem, 1.4rem + 2.4vw, 3.125rem);
+}
+.hero-compact p {
+  max-width: 46rem;
+}
+
+/* Status labels in the feature matrix: a word, a symbol and a colour, never colour alone. */
+.st {
+  display: block;
+  margin: 0 0 0.15em;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  white-space: nowrap;
+}
+.st::before {
+  margin-right: 0.3em;
+}
+.st-has {
+  color: var(--good);
+}
+.st-has::before {
+  content: '\2713';
+}
+.st-partial,
+.st-paid {
+  color: var(--open);
+}
+.st-partial::before {
+  content: '\25D0';
+}
+.st-paid::before {
+  content: '$';
+}
+.st-missing {
+  color: var(--bad);
+}
+.st-missing::before {
+  content: '\2715';
+}
+.st-none {
+  color: var(--ink-2);
+}
+.st-none::before {
+  content: '\2013';
+}
+.status-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-5);
+  margin: 0 0 var(--space-4);
+  font-size: var(--text-s);
+}
+.status-legend div {
+  display: flex;
+  gap: var(--space-2);
+  align-items: baseline;
+}
+.status-legend dt,
+.status-legend dd {
+  margin: 0;
+}
+.status-legend dd {
+  color: var(--ink-2);
+}
+
+/* The matrix has eight columns: it scrolls inside its frame and keeps the feature column visible. */
+.matrix {
+  min-width: 68rem;
+}
+.matrix th[scope='col'] {
+  min-width: 9rem;
+}
+.matrix th[scope='row'] {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  min-width: 9rem;
+  max-width: 11rem;
+  background: var(--surface-2);
+}
+.matrix td {
+  min-width: 9rem;
+}
+.table-wrap:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+.table-note {
+  color: var(--ink-2);
+  font-size: var(--text-s);
+}
+
+/* Star call to action: one quiet box, no counter, no pop-up. */
+.star-cta {
+  max-width: var(--measure);
+  margin: var(--space-5) 0 0;
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.star-cta h3 {
+  margin: 0 0 var(--space-2);
+}
+.star-cta p {
+  margin: 0 0 var(--space-3);
+  color: var(--ink-2);
+}
+.star-link {
+  display: inline-flex;
+  gap: var(--space-2);
+  align-items: center;
+  min-height: 2.75rem;
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--ink);
+  background: var(--surface-2);
+  font-weight: 650;
+  text-decoration: none;
+}
+.star-link:hover {
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+.star-link svg {
+  flex: none;
+}
+
+/* Demo video: the same frame as the screenshots, never wider than the column. */
+.demo-video {
+  margin: 0;
+}
+.demo-video video {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  aspect-ratio: 16 / 10;
+}
+.demo-video figcaption {
+  margin-top: var(--space-2);
+  color: var(--ink-2);
+  font-size: var(--text-s);
+}
+
+/* Star link in the hero: an ordinary secondary button with a star icon. */
+.button-star {
+  display: inline-flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+.button-star svg {
+  flex: none;
+}

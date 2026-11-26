@@ -1,0 +1,23 @@
+WEBVTT
+
+00:00:00.000 --> 00:00:04.773
+Writing a new paragraph in the editor.
+
+00:00:04.823 --> 00:00:08.176
+Typing a slash opens the block menu; searching for table.
+
+00:00:08.226 --> 00:00:11.891
+A table is inserted and filled: Product, Price, Stock.
+
+00:00:11.941 --> 00:00:22.307
+Ask AI: the instruction "Make it calmer and shorter" returns a suggestion with a word diff, then Replace selection. The answer comes from a local mock provider.
+
+00:00:22.357 --> 00:00:27.695
+Quality checks: the heading level warning is fixed with one click.
+
+00:00:27.745 --> 00:00:31.949
+Export file: Markdown is chosen and downloaded.
+
+00:00:31.999 --> 00:00:34.554
+Magic Editor X, free, MIT, npm install magic-editor-x
+
