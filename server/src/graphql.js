@@ -9,7 +9,9 @@ const { isEditorAttribute } = require('./utils/editor-fields');
  * For every Magic Editor X attribute `body` of a content type or component
  * that is in the GraphQL schema, the type gets:
  * - `bodyRendered(format: MagicEditorXFormat = HTML): String` (HTML, TEXT, MARKDOWN),
- * - `bodyResolved: JSON` (the stored document with resolved references).
+ * - `bodyResolved: JSON` (the stored document with resolved references),
+ * - 2.13: `bodyBlocks(extensions: Boolean = false): JSON` (Strapi Blocks JSON, the `?mex=blocks`
+ *   output; a separate field because `bodyRendered` returns a String).
  *
  * They use the same permission-safe resolution as the Content API `?mex=`
  * parameter (services/references.js) with the locale and publication status
@@ -61,7 +63,9 @@ const plannedFields = (strapi, typeRegistry) => {
       const rendered = `${name}Rendered`;
       const resolved = `${name}Resolved`;
       if (attributes[rendered] || attributes[resolved]) continue;
-      out.push({ typeName, attribute: name, rendered, resolved, options: attribute.options || {} });
+      // 2.13: the Blocks field is left out alone when its name is taken (older schemas keep working).
+      const blocks = attributes[`${name}Blocks`] ? null : `${name}Blocks`;
+      out.push({ typeName, attribute: name, rendered, resolved, blocks, options: attribute.options || {} });
     }
   }
   return out;
@@ -246,12 +250,16 @@ const registerGraphql = (strapi) => {
     for (const [typeName, list] of byType) {
       typeDefs.push(
         `extend type ${typeName} {\n${list
-          .map((field) => `  ${field.rendered}(format: ${ENUM} = HTML): String\n  ${field.resolved}: JSON`)
+          .map(
+            (field) =>
+              `  ${field.rendered}(format: ${ENUM} = HTML): String\n  ${field.resolved}: JSON` +
+              (field.blocks ? `\n  ${field.blocks}(extensions: Boolean = false): JSON` : '')
+          )
           .join('\n')}\n}`
       );
       resolvers[typeName] = {};
       for (const field of list) {
-        const run = (parent, format, context) => {
+        const run = (parent, format, context, render) => {
           const value = parent ? parent[field.attribute] : null;
           if (value === null || value === undefined) return null;
           return load(context, {
@@ -262,6 +270,7 @@ const registerGraphql = (strapi) => {
             ...scopeOf(parent, context),
             // Field options: synced content is filtered by the field preset.
             options: field.options,
+            ...(render ? { render } : {}),
           }).catch((error) => {
             logger.error('GraphQL output could not be rendered', error);
             throw new Error('Magic Editor X output failed');
@@ -274,6 +283,11 @@ const registerGraphql = (strapi) => {
         resolvers[typeName][field.resolved] = {
           resolve: (parent, _args, context) => run(parent, 'json', context),
         };
+        if (field.blocks)
+          resolvers[typeName][field.blocks] = {
+            resolve: (parent, args, context) =>
+              run(parent, 'blocks', context, { extensions: Boolean(args && args.extensions === true) }),
+          };
       }
     }
     return { typeDefs: typeDefs.join('\n'), resolvers, plugins };

@@ -21,4 +21,6 @@ module.exports = {
   reuse: require('./reuse'),
   // 2.5: private upload providers
   media: require('./media'),
+  // 2.13: admin migration wizard (Settings > Migrate content)
+  migration: require('./migration'),
 };

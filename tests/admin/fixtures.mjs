@@ -27,6 +27,7 @@ const ACTIONS = [
   'audit.read',
   'suggestions.create',
   'suggestions.review',
+  'migrate.run',
 ];
 
 /** Every plugin action plus the Content Manager actions on the article type. */

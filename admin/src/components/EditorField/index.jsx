@@ -37,7 +37,7 @@ import {
 } from '@strapi/icons';
 import { useAuth, useNotification, useStrapiApp } from '@strapi/strapi/admin';
 import { useFetchClient } from '../../utils/fetch-client';
-import { Lightbulb, ListSearch, Pencil } from '@strapi/icons';
+import { ArrowRight, Lightbulb, ListSearch, Pencil } from '@strapi/icons';
 import styled, { createGlobalStyle, useTheme } from 'styled-components';
 import { buildTools, disposeTools, editorI18n, createUndoManager, createDragDrop } from '../../editor/tools';
 import { editorStyles } from '../../editor/tools/styles';
@@ -48,6 +48,7 @@ import { createCspGuard } from '../../editor/tools/csp-guard';
 import { prepareEditorValue, prepareRemoteData, sanitizeInline } from '../../editor/sanitize';
 import { roomDiffersFromStored, roomWasReset } from '../../editor/room-state.mjs';
 import { createSubmitGuard } from '../../editor/submit-guard.mjs';
+import { presetHintPath } from '../../editor/preset-hint.mjs';
 import { applyToEditor, blockKey, rememberBlocks } from '../../editor/apply-remote';
 import { holdSelection } from '../../editor/selection-keeper.mjs';
 import {
@@ -1292,6 +1293,8 @@ const EditorFieldBody = ({
 
   // Block comments (2.3): stored apart from the field value, polled while the field is visible.
   const commentsEnabled = Boolean(
+    // 2.13: the `simple` preset has no comments (switch the field to `standard` for them).
+    preset.tools.comments &&
     config &&
     config.comments &&
     config.comments.enabled &&
@@ -1363,6 +1366,7 @@ const EditorFieldBody = ({
   });
   // Block suggestions (2.4): for admins who may suggest or review; stored apart from the value.
   const suggestionsEnabled = Boolean(
+    preset.tools.suggestions &&
     config &&
     config.suggestions &&
     config.suggestions.enabled &&
@@ -1693,7 +1697,10 @@ const EditorFieldBody = ({
       logLevel: 'ERROR',
       i18n: { ...editorI18n(t), direction },
       tools,
-      onChange: () => scheduleSave(),
+      // Editor.js reports changes with its own delay, which can end after the field unmounted.
+      onChange: () => {
+        if (!destroyed) scheduleSave();
+      },
 
       onReady: () => {
         selectionHold.release();
@@ -3723,7 +3730,10 @@ const EditorFieldBody = ({
       // 2.12.3: an entry that was never published has nothing to compare, so the entry is left out
       // instead of being shown disabled with an explanation (the registry rule: never render a tool
       // that cannot work). While the status loads it stays visible but disabled.
-      visible: publishedAvailable && !(publishedChanges.status === 'ready' && !publishedChanges.published),
+      visible:
+        preset.tools.publishedChanges &&
+        publishedAvailable &&
+        !(publishedChanges.status === 'ready' && !publishedChanges.published),
       disabled: publishedChanges.status === 'loading',
       description:
         publishedChanges.status === 'error'
@@ -3791,6 +3801,7 @@ const EditorFieldBody = ({
       },
       pressed: qualityOpen,
       movesFocus: true,
+      visible: preset.tools.quality,
       onSelect: () => {
         if (qualityOpen) closeQuality();
         else {
@@ -3838,7 +3849,7 @@ const EditorFieldBody = ({
       label: t('editor.toolbar.templates', 'Insert template'),
       icon: <Layout />,
       movesFocus: true,
-      visible: Boolean(target.uid) && !readOnly,
+      visible: preset.tools.templates && Boolean(target.uid) && !readOnly,
       disabled: previewOpen,
       onSelect: () => setTemplatesOpen(true),
     },
@@ -3862,6 +3873,7 @@ const EditorFieldBody = ({
       icon: <Eye />,
       pressed: focusMode,
       exitLabel: t('editor.toolbar.focusOff', 'Leave focus mode'),
+      visible: preset.tools.focusMode || focusMode,
       onSelect: () =>
         setFocusMode((value) => {
           if (!value) setFullscreen(true);
@@ -3889,7 +3901,7 @@ const EditorFieldBody = ({
       label: t('editor.toolbar.reuse', 'Insert from another entry'),
       icon: <Files />,
       movesFocus: true,
-      visible: Boolean(config && config.reuse && config.reuse.enabled) && !readOnly,
+      visible: preset.tools.reuse && Boolean(config && config.reuse && config.reuse.enabled) && !readOnly,
       disabled: previewOpen || !ready,
       onSelect: () => setReuseOpen(true),
     },
@@ -3912,8 +3924,26 @@ const EditorFieldBody = ({
       label: t('editor.toolbar.export', 'Export file'),
       icon: <Download />,
       movesFocus: true,
+      visible: preset.tools.export,
       disabled: !ready,
       onSelect: () => setExportOpen(true),
+    },
+    // 2.13: the `simple` preset keeps the list short; one quiet way to more tools, for admins who
+    // may open the Content-Type Builder (the CM edit view asks before leaving unsaved changes).
+    {
+      id: 'presetHint',
+      group: 'view',
+      order: 99,
+      label: t('editor.toolbar.presetHint', 'Need more? Switch this field to the Standard preset'),
+      description: t(
+        'editor.toolbar.presetHint.description',
+        'Opens the Content-Type Builder, where field presets are set'
+      ),
+      icon: <ArrowRight />,
+      visible: Boolean(
+        preset.simple && !readOnly && permissions.contentTypeBuilder && presetHintPath(target.uid)
+      ),
+      onSelect: () => navigate(presetHintPath(target.uid)),
     },
   ];
 
@@ -3998,6 +4028,7 @@ const EditorFieldBody = ({
             }
             collaboration={collaboration}
             stats={stats}
+            calm={preset.simple}
             limits={{ maxBlocks: preset.maxBlocks, maxCharacters: preset.maxCharacters }}
             tools={fieldTools}
             onlyTools={suggestMode ? SUGGEST_MODE_TOOLS : null}

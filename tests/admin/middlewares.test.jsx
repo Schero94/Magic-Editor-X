@@ -79,7 +79,17 @@ test('register and bootstrap add the entries and leave no global listeners or ti
   plugin.bootstrap(app);
   assert.equal(app.recorded.middlewares.length, 4);
   assert.equal(app.recorded.widgets.length, 3);
-  assert.equal(app.recorded.settings.length, 4);
+  // Configuration, custom blocks, templates, migrate content (2.13), audit trail.
+  assert.deepEqual(
+    app.recorded.settings.map((link) => link.to),
+    [
+      'magic-editor-x/configuration',
+      'magic-editor-x/custom-blocks',
+      'magic-editor-x/templates',
+      'magic-editor-x/migration',
+      'magic-editor-x/audit',
+    ]
+  );
   assert.equal(app.recorded.panels.length, 1);
   assert.equal(app.recorded.ctbInputs.length, 1);
   assert.deepEqual(leftovers(before), []);

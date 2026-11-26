@@ -994,5 +994,7 @@
   "editor.mediaEdit.missing": "Cette image n'est plus dans la médiathèque.",
   "editor.mediaEdit.refreshFailed": "L'image n'a pas pu être mise à jour depuis la médiathèque.",
   "editor.tools.group.file": "Import et export",
-  "editor.history.restoreVersion": "Restaurer la version {version}"
+  "editor.history.restoreVersion": "Restaurer la version {version}",
+  "editor.toolbar.presetHint": "Besoin de plus ? Passez ce champ au préréglage Standard",
+  "editor.toolbar.presetHint.description": "Ouvre le Content-Type Builder, où les préréglages des champs sont définis"
 }

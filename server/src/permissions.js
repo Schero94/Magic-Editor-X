@@ -27,6 +27,8 @@ const ACTIONS = Object.freeze({
   suggestionsReview: `plugin::${PLUGIN}.suggestions.review`,
   // 2.5: MCP tools for AI clients (admin tokens).
   mcpUse: `plugin::${PLUGIN}.mcp.use`,
+  // 2.13: admin migration wizard.
+  migrate: `plugin::${PLUGIN}.migrate.run`,
 });
 
 const ACTION_DEFINITIONS = [
@@ -55,6 +57,11 @@ const ACTION_DEFINITIONS = [
   },
   // 2.5: give this to an admin token so AI clients can use the Magic Editor X MCP tools.
   { uid: 'mcp.use', displayName: 'Use the MCP tools (convert, validate and render content; admin tokens)' },
+  // 2.13: Settings > Migrate content (Content Manager rights on the type are checked as well).
+  {
+    uid: 'migrate.run',
+    displayName: 'Migrate content into Magic Editor X fields (preview, backup, run)',
+  },
 ];
 
 /**

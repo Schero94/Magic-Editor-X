@@ -47,7 +47,7 @@ export const ANNOTATION_LIMITS = Object.freeze({
 });
 
 /** Presets an annotation may join (like blocks; `full` is not listed, see `presets`). */
-export const ANNOTATION_PRESETS = Object.freeze(['full', 'article', 'basic', 'minimal']);
+export const ANNOTATION_PRESETS = Object.freeze(['full', 'article', 'basic', 'minimal', 'standard']);
 
 /** Tags a `render` result may use for the wrapping element. */
 export const ANNOTATION_RENDER_TAGS = Object.freeze([

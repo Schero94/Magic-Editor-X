@@ -136,5 +136,6 @@ test('the field toolbar stays short: secondary tools come from the registry, not
   assert.match(registry, /visible: commentsEnabled,/);
   assert.match(registry, /visible: fieldAiAllowed,/);
   assert.match(registry, /visible: grammarAllowed,/);
-  assert.match(registry, /visible: Boolean\(target\.uid\) && !readOnly,/);
+  // 2.13: the `simple` preset turns templates off as well.
+  assert.match(registry, /visible: preset\.tools\.templates && Boolean\(target\.uid\) && !readOnly,/);
 });

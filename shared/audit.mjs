@@ -53,6 +53,11 @@ export const AUDIT_EVENTS = Object.freeze([
   'settings.update',
   'linkcheck.run',
   'ai.localize',
+  // 2.13: admin migration wizard.
+  'migration.start',
+  'migration.finish',
+  'migration.cancel',
+  'migration.backup',
 ]);
 
 /** Event names: `area.verb`, lower case. */

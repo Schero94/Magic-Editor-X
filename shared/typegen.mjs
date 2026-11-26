@@ -555,9 +555,11 @@ export const generateTypes = (input, options = {}) => {
       for (const [name, declaration] of coded)
         if (declaration.presets.includes(preset.name) && !allowed.includes(name)) allowed.push(name);
     if (allowed && allowed.includes('mediaLib') && !allowed.includes('image')) allowed.push('image');
-    const names = allowed
-      ? allowed.filter((name) => name !== 'mediaLib' && name !== 'component')
-      : [...builtIn, ...custom.keys(), ...coded.keys()];
+    const names = (
+      allowed
+        ? allowed.filter((name) => name !== 'mediaLib' && name !== 'component')
+        : [...builtIn, ...custom.keys(), ...coded.keys()]
+    ).filter((name) => !(preset.excludedBlocks || []).includes(name));
 
     const members = [];
     const builtInNames = [];

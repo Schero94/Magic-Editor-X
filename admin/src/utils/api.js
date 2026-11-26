@@ -75,6 +75,14 @@ export const API = {
   // 2.5 "Use existing content".
   reuseTypes: '/magic-editor-x/reuse/types',
   reuseSource: '/magic-editor-x/reuse/source',
+  // 2.13 migration wizard.
+  migrationTypes: '/magic-editor-x/migration/types',
+  migrationPreview: '/magic-editor-x/migration/preview',
+  migrationBackup: '/magic-editor-x/migration/backup',
+  migrationJobs: '/magic-editor-x/migration/jobs',
+  migrationJob: (id) => `/magic-editor-x/migration/jobs/${encodeURIComponent(id)}`,
+  migrationNext: (id) => `/magic-editor-x/migration/jobs/${encodeURIComponent(id)}/next`,
+  migrationCancel: (id) => `/magic-editor-x/migration/jobs/${encodeURIComponent(id)}/cancel`,
 };
 
 /**

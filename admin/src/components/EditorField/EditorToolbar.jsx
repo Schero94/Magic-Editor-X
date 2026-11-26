@@ -73,6 +73,51 @@ const STATUS = {
 };
 
 /**
+ * Count texts of the toolbar. 2.13: a calm toolbar (`simple` preset) shows only the words plus the
+ * block and character counts the field limits; the others show blocks, words, characters and the
+ * reading time.
+ * @param {{ t: Function, stats: { blocks: number, words: number, characters: number }, limits: { maxBlocks?: number|null, maxCharacters?: number|null }, calm?: boolean }} input - Translator, counts, limits, calm mode.
+ * @returns {string[]} Parts, joined with a middle dot.
+ */
+export const statParts = ({ t, stats, limits = {}, calm = false }) => {
+  const parts = [];
+  if (limits.maxBlocks)
+    parts.push(
+      t('editor.stats.blocksLimit', '{blocks} / {max} blocks', {
+        blocks: stats.blocks,
+        max: limits.maxBlocks,
+      })
+    );
+  else if (!calm)
+    parts.push(
+      t('editor.stats.blocks', '{blocks, plural, one {# block} other {# blocks}}', { blocks: stats.blocks })
+    );
+  parts.push(
+    t('editor.stats.words', '{words, plural, one {# word} other {# words}}', { words: stats.words })
+  );
+  if (limits.maxCharacters)
+    parts.push(
+      t('editor.stats.charactersLimit', '{characters} / {max} characters', {
+        characters: stats.characters,
+        max: limits.maxCharacters,
+      })
+    );
+  else if (!calm)
+    parts.push(
+      t('editor.stats.characters', '{characters, plural, one {# character} other {# characters}}', {
+        characters: stats.characters,
+      })
+    );
+  if (!calm)
+    parts.push(
+      t('editor.stats.reading', '{minutes, plural, one {# min read} other {# min read}}', {
+        minutes: stats.words ? Math.max(1, Math.ceil(stats.words / WORDS_PER_MINUTE)) : 0,
+      })
+    );
+  return parts;
+};
+
+/**
  * Initials for an avatar.
  * @param {string} name - Display name.
  * @returns {string} One or two letters.
@@ -89,6 +134,7 @@ const initials = (name) =>
  * @param {object} props - Props.
  * @param {string[]|null} [props.onlyTools] - 2.7.8: ids of the More tools entries to keep (suggest mode).
  * @param {(open: boolean) => void} [props.onToolsOpenChange] - 2.12: the More tools menu opened or closed.
+ * @param {boolean} [props.calm] - 2.13: `simple` preset: the counts show only words (and the field's limits).
  * @returns {JSX.Element} Toolbar.
  */
 export const EditorToolbar = ({
@@ -104,6 +150,7 @@ export const EditorToolbar = ({
   identityHint = null,
   collaboration,
   stats,
+  calm = false,
   limits = {},
   tools = [],
   onlyTools = null,
@@ -258,29 +305,7 @@ export const EditorToolbar = ({
                 : 'neutral600'
             }
           >
-            {limits.maxBlocks
-              ? t('editor.stats.blocksLimit', '{blocks} / {max} blocks', {
-                  blocks: stats.blocks,
-                  max: limits.maxBlocks,
-                })
-              : t('editor.stats.blocks', '{blocks, plural, one {# block} other {# blocks}}', {
-                  blocks: stats.blocks,
-                })}
-            {' · '}
-            {t('editor.stats.words', '{words, plural, one {# word} other {# words}}', { words: stats.words })}
-            {' · '}
-            {limits.maxCharacters
-              ? t('editor.stats.charactersLimit', '{characters} / {max} characters', {
-                  characters: stats.characters,
-                  max: limits.maxCharacters,
-                })
-              : t('editor.stats.characters', '{characters, plural, one {# character} other {# characters}}', {
-                  characters: stats.characters,
-                })}
-            {' · '}
-            {t('editor.stats.reading', '{minutes, plural, one {# min read} other {# min read}}', {
-              minutes: stats.words ? Math.max(1, Math.ceil(stats.words / WORDS_PER_MINUTE)) : 0,
-            })}
+            {statParts({ t, stats, limits, calm }).join(' · ')}
           </Typography>
         </Box>
       </Flex>

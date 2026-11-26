@@ -303,3 +303,83 @@ test('editor field: a synced block loads its source once and shows it after the 
   assert.equal(reads.length, 1, 'the source is read once and that request is not aborted');
   assertAllReleased(start);
 });
+
+/**
+ * Opens the More tools menu and returns the ids of its entries.
+ * @returns {Promise<string[]>} Entry ids (`data-testid="mex-tool-<id>"`).
+ */
+const menuToolIds = async () => {
+  const trigger = document.querySelector('[data-testid="mex-tools-menu"]');
+  await act(async () => {
+    trigger.dispatchEvent(
+      new window.PointerEvent('pointerdown', { bubbles: true, button: 0, pointerType: 'mouse' })
+    );
+  });
+  await waitFor(() => document.querySelector('[role="menu"]'), 'the More tools menu');
+  return [...document.querySelectorAll('[role="menu"] [data-testid^="mex-tool-"]')]
+    .map((element) => element.getAttribute('data-testid').slice('mex-tool-'.length))
+    .filter((id) => !id.endsWith('-description'));
+};
+
+const SIMPLE = {
+  type: 'json',
+  customField: 'plugin::magic-editor-x.richtext',
+  options: { preset: 'simple' },
+};
+
+/**
+ * A field with the 2.13 `simple` preset.
+ * @returns {JSX.Element} Field.
+ */
+const SimpleField = () => (
+  <Form method="PUT" initialValues={{ documentId: DOCUMENT_ID, title: 'Harness article', [FIELD]: VALUE }}>
+    <EditorField name={FIELD} value={VALUE} onChange={() => {}} attribute={SIMPLE} label="Body" />
+  </Form>
+);
+
+test('editor field (simple preset): calm toolbar, short More tools list, no room, upgrade hint for CTB readers', async () => {
+  const config = editorConfig({
+    lazyInit: { enabled: false, marginPx: 800 },
+    ai: { ...editorConfig().ai, enabled: true, fieldActions: true },
+    permissions: { ...editorConfig().permissions, contentTypeBuilder: true },
+  });
+  const { start, sessions } = setup({ config });
+  await checkStrictEntry(<SimpleField />, {
+    ...OPTIONS,
+    async whileMounted(handle) {
+      await waitFor(() => {
+        const trigger = handle.container.querySelector('[data-testid="mex-tools-menu"]');
+        return trigger && !trigger.disabled;
+      }, 'the editor to be ready');
+      const stats = handle.container.querySelector('[data-testid="mex-stats"]').textContent;
+      assert.doesNotMatch(stats, /block|min read|character/, 'calm counts: words only');
+      assert.match(stats, /word/);
+      const ids = await menuToolIds();
+      assert.deepEqual(
+        ids.sort(),
+        ['find', 'history', 'import', 'presetHint', 'preview', 'shortcuts'].sort(),
+        'only the tools that apply to a simple field'
+      );
+      assert.match(document.body.textContent, /Need more\? Switch this field to the Standard preset/);
+    },
+  });
+  assert.equal(sessions.length, 0, 'no live collaboration session for a simple field');
+  assertAllReleased(start);
+});
+
+test('editor field (simple preset): no upgrade hint without Content-Type Builder access', async () => {
+  const config = editorConfig({ lazyInit: { enabled: false, marginPx: 800 } });
+  const { start } = setup({ config });
+  await checkStrictEntry(<SimpleField />, {
+    ...OPTIONS,
+    async whileMounted(handle) {
+      await waitFor(() => {
+        const trigger = handle.container.querySelector('[data-testid="mex-tools-menu"]');
+        return trigger && !trigger.disabled;
+      }, 'the editor to be ready');
+      const ids = await menuToolIds();
+      assert.ok(!ids.includes('presetHint'), 'the hint needs plugin::content-type-builder.read');
+    },
+  });
+  assertAllReleased(start);
+});

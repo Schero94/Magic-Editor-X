@@ -994,5 +994,7 @@
   "editor.mediaEdit.missing": "Esta imagen ya no está en la biblioteca de medios.",
   "editor.mediaEdit.refreshFailed": "No se pudo actualizar la imagen desde la biblioteca de medios.",
   "editor.tools.group.file": "Importar y exportar",
-  "editor.history.restoreVersion": "Restaurar la versión {version}"
+  "editor.history.restoreVersion": "Restaurar la versión {version}",
+  "editor.toolbar.presetHint": "¿Necesita más? Cambie este campo al ajuste predefinido Estándar",
+  "editor.toolbar.presetHint.description": "Abre el Content-Type Builder, donde se definen los ajustes predefinidos de los campos"
 }

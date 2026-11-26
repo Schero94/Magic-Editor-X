@@ -111,6 +111,8 @@ module.exports = ({ strapi }) => ({
           auditRead: can(ACTIONS.auditRead),
           suggestionsCreate: can(ACTIONS.suggestionsCreate),
           suggestionsReview: can(ACTIONS.suggestionsReview),
+          // 2.13: the "Need more?" entry of `simple` fields links to the Content-Type Builder.
+          contentTypeBuilder: can('plugin::content-type-builder.read'),
         },
         components: Object.keys(strapi.components || {})
           .sort()

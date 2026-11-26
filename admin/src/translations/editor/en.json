@@ -994,5 +994,7 @@
   "editor.mediaEdit.missing": "This image is no longer in the Media Library.",
   "editor.mediaEdit.refreshFailed": "The image could not be updated from the Media Library.",
   "editor.tools.group.file": "Import and export",
-  "editor.history.restoreVersion": "Restore version {version}"
+  "editor.history.restoreVersion": "Restore version {version}",
+  "editor.toolbar.presetHint": "Need more? Switch this field to the Standard preset",
+  "editor.toolbar.presetHint.description": "Opens the Content-Type Builder, where field presets are set"
 }

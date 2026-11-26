@@ -290,6 +290,82 @@ export function copyText(text: string): Promise<boolean>;
 export function renderText(value: unknown, options?: RenderOptions): string;
 /** Renders a stored value to Markdown (CommonMark + GFM tables and task lists). */
 export function renderMarkdown(value: unknown, options?: RenderOptions): string;
+
+/** 2.13: a Strapi Blocks text node (`@strapi/blocks-react-renderer` `TextInlineNode`). */
+export interface StrapiBlocksText {
+  type: 'text';
+  text: string;
+  bold?: true;
+  italic?: true;
+  underline?: true;
+  strikethrough?: true;
+  code?: true;
+}
+/** 2.13: a Strapi Blocks link (http, https, ftp, mailto, tel or a path starting with `/`). */
+export interface StrapiBlocksLink {
+  type: 'link';
+  url: string;
+  children: StrapiBlocksText[];
+}
+export type StrapiBlocksInline = StrapiBlocksText | StrapiBlocksLink;
+export interface StrapiBlocksListItem {
+  type: 'list-item';
+  children: StrapiBlocksInline[];
+}
+export interface StrapiBlocksList {
+  type: 'list';
+  format: 'ordered' | 'unordered';
+  children: Array<StrapiBlocksListItem | StrapiBlocksList>;
+}
+/**
+ * 2.13: an extension node (`?mex=blocks&mexExtensions=true`, `renderStrapiBlocks(value, {
+ * extensions: true })`): a block Strapi Blocks cannot hold, with its data and a plain-text child.
+ * Render it with a `blocks` component named like `type`.
+ */
+export interface StrapiBlocksExtension {
+  type: `magic-editor-x/${string}`;
+  id?: string;
+  data: Record<string, unknown>;
+  children: [StrapiBlocksText];
+}
+/** 2.13: a Strapi Blocks root node as the Content API serves a Blocks field. */
+export type StrapiBlocksNode =
+  | { type: 'paragraph'; children: StrapiBlocksInline[] }
+  | { type: 'heading'; level: 1 | 2 | 3 | 4 | 5 | 6; children: StrapiBlocksInline[] }
+  | { type: 'quote'; children: StrapiBlocksInline[] }
+  | { type: 'code'; language: string | null; children: StrapiBlocksText[] }
+  | StrapiBlocksList
+  | {
+      type: 'image';
+      image: {
+        url: string;
+        name?: string;
+        alternativeText: string | null;
+        caption: string | null;
+        width?: number;
+        height?: number;
+        size?: number;
+        hash?: string;
+        ext?: string;
+        mime?: string;
+        formats?: Record<string, unknown>;
+        id?: number | string;
+        documentId?: string;
+      };
+      children: [{ type: 'text'; text: '' }];
+    }
+  | StrapiBlocksExtension;
+/**
+ * 2.13: converts a stored or `?mex=json` value into Strapi Blocks JSON for
+ * `@strapi/blocks-react-renderer` (the same converter as `?mex=blocks`). Blocks without a Blocks
+ * form get the documented fallback (`BLOCKS_FALLBACKS`), or extension nodes with
+ * `extensions: true`. Invalid input gives `[]`.
+ */
+export function renderStrapiBlocks(value: unknown, options?: { extensions?: boolean }): StrapiBlocksNode[];
+/** 2.13: the fallback of each block type without a Strapi Blocks form (documentation strings). */
+export const BLOCKS_FALLBACKS: Readonly<Record<string, string>>;
+/** 2.13: `'magic-editor-x/'`, the type prefix of extension nodes. */
+export const EXTENSION_PREFIX: 'magic-editor-x/';
 export function escapeHtml(text: unknown): string;
 export function escapeMarkdown(text: string): string;
 export function inlineToHtml(html: unknown, options?: Pick<RenderOptions, 'links'>): string;
