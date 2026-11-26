@@ -49,6 +49,27 @@ export const p = (runs, options = {}) => {
 /** A hyperlink through a relationship id. */
 export const link = (rId, text) => `<w:hyperlink r:id="${rId}">${r(text)}</w:hyperlink>`;
 
+const A = 'http://schemas.openxmlformats.org/drawingml/2006/main';
+const PIC = 'http://schemas.openxmlformats.org/drawingml/2006/picture';
+
+/**
+ * An inline picture run as Word writes it (2.13): `wp:inline` with `wp:docPr`
+ * (description and title) and the `a:blip r:embed` that names the picture part.
+ * @param {string} rId - Relationship id of the picture (see `docxFiles` `pictures`).
+ * @param {{ descr?: string, title?: string, link?: boolean, anchor?: boolean }} [options] - Alt text; `link` writes `r:link` (a linked, not embedded picture); `anchor` a floating picture.
+ * @returns {string} Run XML.
+ */
+export const picture = (rId, options = {}) => {
+  const wrapper = options.anchor ? 'wp:anchor' : 'wp:inline';
+  const docPr = `<wp:docPr id="7" name="Picture 7"${options.descr !== undefined ? ` descr="${esc(options.descr)}"` : ''}${options.title !== undefined ? ` title="${esc(options.title)}"` : ''}/>`;
+  const blip = options.link ? `<a:blip r:link="${rId}"/>` : `<a:blip r:embed="${rId}"/>`;
+  return `<w:r><w:drawing><${wrapper}><wp:extent cx="952500" cy="952500"/>${docPr}<a:graphic xmlns:a="${A}"><a:graphicData uri="${PIC}"><pic:pic xmlns:pic="${PIC}"><pic:nvPicPr><pic:cNvPr id="0" name="image.png"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill>${blip}<a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr/></pic:pic></a:graphicData></a:graphic></${wrapper}></w:drawing></w:r>`;
+};
+
+/** A legacy VML picture (`w:pict` / `v:imagedata r:id`), as older Word files have. */
+export const vmlPicture = (rId, alt = '') =>
+  `<w:r><w:pict><v:shape xmlns:v="urn:schemas-microsoft-com:vml" alt="${esc(alt)}"><v:imagedata r:id="${rId}"/></v:shape></w:pict></w:r>`;
+
 /** An inline image run (only the drawing properties the reader looks at). */
 export const image = (descr) =>
   `<w:r><w:drawing><wp:inline><wp:docPr id="1" name="Picture 1" descr="${esc(descr)}"/></wp:inline></w:drawing></w:r>`;
@@ -108,11 +129,12 @@ const NUMBERING = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 /**
  * Builds the files of a .docx package.
  * @param {string} body - Body XML (paragraphs and tables).
- * @param {{ links?: Record<string, string>, extra?: Record<string, Uint8Array|string>, document?: string }} [options] - Hyperlink targets by relationship id, extra files, a replacement document part.
+ * @param {{ links?: Record<string, string>, pictures?: Record<string, { target: string, bytes?: Uint8Array, external?: boolean }>, extra?: Record<string, Uint8Array|string>, document?: string }} [options] - Hyperlink targets by relationship id; pictures by relationship id (target relative to `word/`, bytes stored at `word/<target>`); extra files; a replacement document part.
  * @returns {Record<string, Uint8Array>} Files.
  */
 export const docxFiles = (body, options = {}) => {
   const links = options.links || {};
+  const pictures = options.pictures || {};
   const relations = [
     `<Relationship Id="rIdStyles" Type="${REL}/styles" Target="styles.xml"/>`,
     `<Relationship Id="rIdNumbering" Type="${REL}/numbering" Target="numbering.xml"/>`,
@@ -120,7 +142,16 @@ export const docxFiles = (body, options = {}) => {
       ([id, target]) =>
         `<Relationship Id="${id}" Type="${REL}/hyperlink" Target="${esc(target)}" TargetMode="External"/>`
     ),
+    ...Object.entries(pictures).map(
+      ([id, picture]) =>
+        `<Relationship Id="${id}" Type="${REL}/image" Target="${esc(picture.target)}"${picture.external ? ' TargetMode="External"' : ''}/>`
+    ),
   ].join('');
+  const pictureParts = Object.fromEntries(
+    Object.values(pictures)
+      .filter((picture) => !picture.external && picture.bytes)
+      .map((picture) => [`word/${picture.target}`, picture.bytes])
+  );
   const files = {
     '[Content_Types].xml': `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>`,
@@ -134,6 +165,7 @@ export const docxFiles = (body, options = {}) => {
       options.document ||
       `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:document xmlns:w="${W}" xmlns:r="${R}" xmlns:wp="${WP}"><w:body>${body}<w:sectPr/></w:body></w:document>`,
+    ...pictureParts,
     ...(options.extra || {}),
   };
   return Object.fromEntries(

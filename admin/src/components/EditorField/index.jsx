@@ -694,6 +694,8 @@ const EditorFieldBody = ({
   const [importOpen, setImportOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [importHasContent, setImportHasContent] = useState(false);
+  // 2.13: the field has the image tool (its preset allows images) when the import dialog opens.
+  const [importImages, setImportImages] = useState(false);
   const toolNamesRef = useRef(new Set());
   // 2.7.8: translated tool names for the inline toolbar buttons.
   const toolTitlesRef = useRef({});
@@ -1449,6 +1451,30 @@ const EditorFieldBody = ({
       }
     },
     [post, t, toggleNotification]
+  );
+
+  // 2.13 Word import: one picture with its alt text, no notification per file (the import
+  // dialog names the pictures that failed in its summary).
+  const uploadImportImage = useCallback(
+    async (file, alt) => {
+      const body = new FormData();
+      body.append('image', file);
+      if (alt) body.append('alt', String(alt).slice(0, 500));
+      try {
+        const { data } = await post(API.imageByFile, body);
+        return data;
+      } catch (requestError) {
+        const message =
+          (requestError &&
+            requestError.response &&
+            requestError.response.data &&
+            requestError.response.data.message) ||
+          readApiError(requestError).message ||
+          '';
+        return { success: 0, message };
+      }
+    },
+    [post]
   );
 
   const uploadImageByUrl = useCallback(
@@ -3545,8 +3571,9 @@ const EditorFieldBody = ({
     const editor = editorRef.current;
     const saved = editor ? await editor.save().catch(() => null) : null;
     setImportHasContent(Boolean(saved) && !isEmptyDocument(saved));
+    setImportImages(hasBlockTool('image'));
     setImportOpen(true);
-  }, []);
+  }, [hasBlockTool]);
 
   /** 2.11 "Export file": the content as shown (unsaved changes included) and the sources of its synced blocks. */
   const readExportContent = useCallback(async () => {
@@ -4519,6 +4546,10 @@ const EditorFieldBody = ({
           hasContent={importHasContent}
           onImport={(blocks, { replace, title }) => insertReused(blocks, { replace, title })}
           onClose={closeImport}
+          canUpload={Boolean(permissions.upload)}
+          imagesAllowed={importImages}
+          maxImageBytes={config && config.uploads ? config.uploads.maxImageBytes : undefined}
+          uploadImage={uploadImportImage}
           allowRaw={allowRawPreview}
           lang={target.locale || undefined}
           dir={direction}
