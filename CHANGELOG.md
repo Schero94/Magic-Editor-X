@@ -1,6 +1,12 @@
 # Changelog
 
-## [Unreleased]
+# [2.13.0](https://github.com/Schero94/Magic-Editor-X/compare/v2.12.4...v2.13.0) (2026-11-26)
+
+
+### Features
+
+* **import:** keep pictures from Word imports, uploaded only on confirm, with alt text and limits ([#52](https://github.com/Schero94/Magic-Editor-X/issues/52)) ([223dd6c](https://github.com/Schero94/Magic-Editor-X/commit/223dd6cc5b50848025211f83a20cd33c12c854fc))
+
 
 ### Added (Word import keeps its pictures)
 
