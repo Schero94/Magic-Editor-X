@@ -267,7 +267,8 @@ const imageObject = (file, extra = {}) => {
     if (typeof file[key] === 'number' && Number.isFinite(file[key])) image[key] = file[key];
   for (const key of ['hash', 'ext', 'mime'])
     if (typeof file[key] === 'string' && file[key]) image[key] = file[key];
-  if (isPlainObject(file.formats)) image.formats = file.formats;
+  // Always an object: older Strapi Blocks validators (5.38) require `formats`; `{}` = no formats.
+  image.formats = isPlainObject(file.formats) ? file.formats : {};
   if (file.id !== undefined) image.id = file.id;
   if (typeof file.documentId === 'string') image.documentId = file.documentId;
   return image;
