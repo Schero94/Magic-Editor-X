@@ -1,6 +1,12 @@
 # Changelog
 
-## [Unreleased]
+# [2.14.0](https://github.com/Schero94/Magic-Editor-X/compare/v2.13.1...v2.14.0) (2026-11-26)
+
+
+### Features
+
+* Simple preset for new fields, Strapi Blocks output and a Migrate content wizard ([#54](https://github.com/Schero94/Magic-Editor-X/issues/54)) ([2d73d49](https://github.com/Schero94/Magic-Editor-X/commit/2d73d4931ec1e09b09bef75de21049a2ab17ef86))
+
 
 ### Added (start simple, grow, and move content between Magic Editor X and Strapi Blocks)
 
