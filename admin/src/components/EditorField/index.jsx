@@ -364,7 +364,15 @@ const Frame = styled(Box)`
     top: var(--mex-vv-top, 0px);
     bottom: auto;
     height: var(--mex-vv-height, 100%);
-    z-index: ${theme.zIndices.modal};
+    /*
+     * One step below the DS overlay layer. DS Modal and Dialog render their content inside the
+     * overlay (position: fixed, z-index: overlay), so the overlay is their stacking context and
+     * the content's own "modal" z-index only counts inside it. At zIndices.modal this frame
+     * covered every dialog opened from the full screen editor (AI, history, templates, import,
+     * export, shortcuts, confirmations, the Media Library). Popovers, menus, tooltips and
+     * notifications portal to higher layers and stay above it.
+     */
+    z-index: ${theme.zIndices.overlay - 1};
     border-radius: 0;
     display: flex;
     flex-direction: column;
