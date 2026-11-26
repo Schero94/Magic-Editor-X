@@ -99,11 +99,21 @@ export const editorStyles = css`
      * would reset; editor/footnote-blocks.mjs marks them) are left out. 4rem is
      * the estimated height of a block that has not been shown yet; once shown,
      * the browser keeps its real height.
+     *
+     * contain-intrinsic-size is set on every block, also the excluded ones: the
+     * browser keeps a block's last size only while the block has "auto" in it.
+     * With "auto" on the unfocused blocks only, the block the caret left (a tall
+     * table, for example) fell back to 4rem for one layout, the text below jumped
+     * up under the pointer and a fast double or triple click hit another block
+     * (the wrong paragraph was selected).
      */
+    .codex-editor__redactor > .ce-block {
+      contain-intrinsic-size: auto 4rem;
+    }
+
     .codex-editor__redactor
       > .ce-block:not(:focus-within):not(.ce-block--selected):not(.${FOOTNOTE_BLOCK_CLASS}) {
       content-visibility: auto;
-      contain-intrinsic-size: auto 4rem;
     }
 
     .ce-block__content,

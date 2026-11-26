@@ -25,7 +25,8 @@
  *
  * Options:
  *   --sizes 1000,2000,5000   document sizes
- *   --suite perf|touch|all   perf (default), touch checks (touch.mjs) or both
+ *   --suite perf|touch|regressions|all   perf (default), touch checks (touch.mjs),
+ *                            browser regression checks (regressions.mjs) or all three
  *   --browsers chromium,webkit   engines of the touch checks (default chromium):
  *                            chromium = Pixel 7 and iPhone 13 emulation in Chromium,
  *                            webkit = iPhone 13 and iPad (gen 7) in Playwright's
@@ -342,6 +343,13 @@ const markdown = (report) => {
         `| ${check.id} | ${check.device} | ${check.pass ? 'pass' : 'FAIL'} | ${String(check.detail || '').replace(/\|/g, '/')} |`
       );
   }
+  if (report.results.regressions) {
+    lines.push('', '| Regression check | Result | Detail |', '| --- | --- | --- |');
+    for (const check of report.results.regressions.checks)
+      lines.push(
+        `| ${check.id} | ${check.pass ? 'pass' : 'FAIL'} | ${String(check.detail || '').replace(/\|/g, '/')} |`
+      );
+  }
   lines.push('', '| Budget | Value | Max | Result |', '| --- | ---: | ---: | --- |');
   for (const check of report.budgets)
     lines.push(
@@ -411,6 +419,10 @@ const main = async () => {
         }
       }
     }
+    if (SUITE === 'regressions' || SUITE === 'all') {
+      const { runRegressions } = await import('./regressions.mjs');
+      report.results.regressions = await runRegressions({ browser, baseUrl, account, storageState, log });
+    }
   } finally {
     await browser.close();
     if (host) await host.destroy();
@@ -422,9 +434,13 @@ const main = async () => {
   const out = option('out', null);
   if (out) fs.writeFileSync(out, `${JSON.stringify(report, null, 2)}\n`);
   const touchFailed = report.results.touch && report.results.touch.checks.some((check) => !check.pass);
+  const regressionsFailed =
+    report.results.regressions && report.results.regressions.checks.some((check) => !check.pass);
   const enforcedFailed = report.budgets.filter((check) => check.enforce && check.pass === false);
-  if (flag('enforce') && (enforcedFailed.length || touchFailed)) {
-    log(`Failed: ${enforcedFailed.map((check) => check.id).join(', ')}${touchFailed ? ' touch checks' : ''}`);
+  if (flag('enforce') && (enforcedFailed.length || touchFailed || regressionsFailed)) {
+    log(
+      `Failed: ${enforcedFailed.map((check) => check.id).join(', ')}${touchFailed ? ' touch checks' : ''}${regressionsFailed ? ' regression checks' : ''}`
+    );
     process.exitCode = 1;
   }
 };
