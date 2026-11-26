@@ -26,6 +26,12 @@
  * Options:
  *   --sizes 1000,2000,5000   document sizes
  *   --suite perf|touch|all   perf (default), touch checks (touch.mjs) or both
+ *   --browsers chromium,webkit   engines of the touch checks (default chromium):
+ *                            chromium = Pixel 7 and iPhone 13 emulation in Chromium,
+ *                            webkit = iPhone 13 and iPad (gen 7) in Playwright's
+ *                            WebKit (Safari's engine); the perf suite is Chromium only
+ *   --devices "iPad (gen 7),Pixel 7"   touch suite: these Playwright device
+ *                            descriptors instead of the engine's defaults (to compare engines)
  *   --tarball <file.tgz>     install the plugin from an npm pack tarball
  *                            (default: the built working copy)
  *   --base-url <url> --creds <file>   use a running host instead (creds.json
@@ -40,7 +46,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execSync } from 'node:child_process';
-import { chromium } from 'playwright';
+import { chromium, webkit } from 'playwright';
 import { startHost, registerAdmin, loginAdmin, createArticle, publishThenEdit } from './host.mjs';
 import { makeDocument, makePasteHtml } from './documents.mjs';
 import { EDITOR_DATA_LIMITS } from '../../shared/editor-data.mjs';
@@ -75,6 +81,12 @@ const SIZES = option('sizes', '1000,2000,5000')
   .map((value) => Number(value.trim()))
   .filter((value) => Number.isInteger(value) && value > 0 && value <= 5000);
 const SUITE = option('suite', 'perf');
+const ENGINES = { chromium, webkit };
+const BROWSERS = option('browsers', 'chromium')
+  .split(',')
+  .map((value) => value.trim())
+  .filter((value, index, list) => ENGINES[value] && list.indexOf(value) === index);
+if (!BROWSERS.length) throw new Error('--browsers takes chromium, webkit or both');
 const PORT = Number(option('port', '1471'));
 const PANELS = ['quality', 'comments', 'history', 'find'];
 /** Blocks per field. */
@@ -222,7 +234,7 @@ const runSize = async (browser, { baseUrl, account, size, storageState }) => {
 
 /**
  * Environment notes for the report.
- * @param {import('playwright').Browser} browser - Browser.
+ * @param {import('playwright').Browser} browser - Browser (Chromium, or the first touch engine).
  * @returns {object} Metadata.
  */
 const metadata = (browser) => {
@@ -240,7 +252,7 @@ const metadata = (browser) => {
     plugin: JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version,
     strapi: pkg('@strapi/strapi'),
     editorjs: pkg('@editorjs/editorjs'),
-    chromium: browser.version(),
+    chromium: browser.browserType().name() === 'chromium' ? browser.version() : null,
     node: process.version,
     os: `${os.type()} ${os.release()} ${os.arch()}`,
     cpu: `${os.cpus().length}x ${(os.cpus()[0] && os.cpus()[0].model) || 'unknown'}`,
@@ -282,7 +294,7 @@ const markdown = (report) => {
   const lines = [
     `### Magic Editor X browser benchmark`,
     '',
-    `${report.meta.chromium} on ${report.meta.cpu}, ${report.meta.os}, Node ${report.meta.node}, commit ${report.meta.commit}`,
+    `${[report.meta.chromium && `Chromium ${report.meta.chromium}`, report.meta.webkit && `WebKit ${report.meta.webkit}`].filter(Boolean).join(', ')} on ${report.meta.cpu}, ${report.meta.os}, Node ${report.meta.node}, commit ${report.meta.commit}`,
     '',
   ];
   const sizes = Object.keys(report.results).filter((key) => /^\d+$/.test(key));
@@ -352,7 +364,8 @@ const main = async () => {
     baseUrl = host.baseUrl;
     account = await registerAdmin(baseUrl);
   }
-  const browser = await chromium.launch({ headless: true });
+  const needsChromium = SUITE !== 'touch' || BROWSERS.includes('chromium');
+  const browser = await (needsChromium ? chromium : ENGINES[BROWSERS[0]]).launch({ headless: true });
   const report = {
     meta: {
       ...metadata(browser),
@@ -372,14 +385,31 @@ const main = async () => {
         report.results[size] = await runSize(browser, { baseUrl, account, size, storageState });
     if (SUITE === 'touch' || SUITE === 'all') {
       const { runTouch } = await import('./touch.mjs');
-      report.results.touch = await runTouch({
-        browser,
-        baseUrl,
-        account,
-        storageState,
-        screenshots: option('screenshots', null),
-        log,
-      });
+      report.results.touch = { checks: [], notes: [] };
+      for (const engine of BROWSERS) {
+        // Each engine gets its own browser; the login state (cookies, local storage) carries over.
+        const engineBrowser =
+          engine === browser.browserType().name()
+            ? browser
+            : await ENGINES[engine].launch({ headless: true });
+        try {
+          if (engine === 'webkit') report.meta.webkit = engineBrowser.version();
+          const result = await runTouch({
+            browser: engineBrowser,
+            engine,
+            devices: option('devices', null),
+            baseUrl,
+            account,
+            storageState,
+            screenshots: option('screenshots', null),
+            log,
+          });
+          report.results.touch.checks.push(...result.checks);
+          report.results.touch.notes.push(...result.notes);
+        } finally {
+          if (engineBrowser !== browser) await engineBrowser.close();
+        }
+      }
     }
   } finally {
     await browser.close();
