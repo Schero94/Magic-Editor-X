@@ -164,6 +164,17 @@ export const editorStyles = css`
       cursor: grab;
     }
 
+    /* 2.13: hold and drag the handle with a finger (editor/tools/drag-drop.js): no scroll, callout or
+       text selection starts from it. */
+    @media (pointer: coarse) {
+      .ce-toolbar__settings-btn {
+        touch-action: none;
+        user-select: none;
+        -webkit-user-select: none;
+        -webkit-touch-callout: none;
+      }
+    }
+
     .ce-block--selected .ce-block__content,
     ::selection {
       background: ${c('primary100')};
@@ -2432,6 +2443,20 @@ export const editorStyles = css`
       .mex-table-tool__toolbar,
       .mex-columns-tool__toolbar {
         padding-inline-start: ${s(1)};
+      }
+    }
+
+    /* 2.13: on touch screens the "+" and "⋮⋮" handles are 44 px (components/ui/touch.js). Where they
+       sit beside the text (Editor.js' desktop layout, from 650 px), two 44 px handles are wider than
+       the gutter: on a tablet (iPad, WebKit and Chromium alike) a tap on the first letters of a block
+       hit "⋮⋮" and opened the block menu instead of placing the caret. From the DS small breakpoint up
+       the text starts after both handles (between 520 and 650 px Editor.js puts them below the block;
+       there the wider gutter only costs text width). */
+    @media (pointer: coarse) {
+      ${({ theme }) => theme.breakpoints.small} {
+        .ce-block__content {
+          padding-inline-start: calc(2 * ${({ theme }) => theme.sizes.button.M.initial} + ${s(2)});
+        }
       }
     }
   }

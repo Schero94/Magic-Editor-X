@@ -1,13 +1,22 @@
 /**
  * Touch checks of the editor field (`npm run bench:browser -- --suite touch`).
  *
- * Runs the real admin edit view with Playwright device emulation (Pixel 7
- * and iPhone 13 descriptors in Chromium: viewport, device scale factor,
- * `isMobile`, `hasTouch`, mobile user agent) and taps through the editor:
+ * Runs the real admin edit view with Playwright device emulation and taps
+ * through the editor, per engine (`--browsers`):
+ *
+ *   chromium   Pixel 7 and iPhone 13 descriptors in Chromium (viewport, device
+ *              scale factor, `isMobile`, `hasTouch`, mobile user agent)
+ *   webkit     iPhone 13 and iPad (gen 7) descriptors in Playwright's WebKit
+ *              build, the engine of Safari (2.13); WebKit on the runner's
+ *              desktop OS, not iOS Safari on a device
+ *
+ * Checks:
  *
  *   tap-caret        a tap puts the caret into the tapped paragraph
  *   toolbox          the "+" button opens the block toolbox; a tap inserts a heading
  *   block-menu       the block menu ("⋮⋮") opens by tap and Move up moves the block
+ *   block-drag       2.13: hold "⋮⋮" and drag moves the block (touch Pointer Events,
+ *                    dispatched by the script: Playwright cannot move a finger in WebKit)
  *   inline-toolbar   a text selection shows the inline toolbar; Bold applies by tap
  *   table            a tap edits a table cell; "Add row" works by tap
  *   more-tools       More tools opens inside the viewport, the Quality panel opens
@@ -18,12 +27,14 @@
  *   overflow         the page never scrolls sideways
  *   scroll           touch scroll through 2,000 blocks: long tasks, slow frames
  *
- * Emulation limits (stated in the report, not hidden): Chromium's emulation
- * does not open an on-screen keyboard, so `keyboard` resizes the visual
- * viewport through the DevTools protocol; long-press text selection is not
- * emulated, so `inline-toolbar` selects text with the Selection API; HTML
- * drag and drop is not started by touch, so blocks are moved with the block
- * menu (Editor.js core has no touch drag).
+ * Emulation limits (stated in the report, not hidden): emulation opens no
+ * on-screen keyboard, so `keyboard` replaces `window.visualViewport` with one
+ * whose height the check controls; long-press text selection is not
+ * emulated, so `inline-toolbar` selects text with the Selection API.
+ * Scrolling: Chromium synthesises a touch scroll gesture through the
+ * DevTools protocol (wheel steps where the headless shell ignores it);
+ * Playwright's mobile WebKit has neither (its touchscreen only taps and it
+ * refuses the mouse wheel), so `scroll` scrolls the page in steps there.
  */
 
 import { instrument, editUrl, openEditor } from './scenarios.mjs';
@@ -33,16 +44,32 @@ import { makeDocument } from './documents.mjs';
 /** Minimum touch target of the plugin's own controls (WCAG 2.5.5 Target Size, enhanced). */
 export const TOUCH_TARGET_PX = 44;
 
+/** Device descriptors per engine. */
+export const TOUCH_DEVICES = Object.freeze({
+  chromium: ['Pixel 7', 'iPhone 13'],
+  webkit: ['iPhone 13', 'iPad (gen 7)'],
+});
+
 /**
- * Device descriptors (Chromium; Playwright's iPhone descriptor defaults to WebKit).
+ * Device descriptors of one engine (the iPhone descriptor defaults to WebKit; Chromium runs it too).
  * @param {object} devices - Playwright `devices`.
- * @returns {Array<{ name: string, options: object }>} Devices.
+ * @param {'chromium'|'webkit'} engine - Browser engine.
+ * @param {string[]} [names] - Descriptor names (default: the engine's list).
+ * @returns {Array<{ name: string, options: object }>} Devices; WebKit names carry "(WebKit)".
  */
-const deviceList = (devices) =>
-  ['Pixel 7', 'iPhone 13'].map((name) => {
+const deviceList = (devices, engine, names = TOUCH_DEVICES[engine]) =>
+  names.map((name) => {
+    if (!devices[name]) throw new Error(`unknown Playwright device "${name}"`);
     const { defaultBrowserType: _ignored, ...options } = devices[name];
-    return { name, options };
+    return { name: engine === 'webkit' ? `${name} (WebKit)` : name, options };
   });
+
+/**
+ * Scrolls an element to the middle of the viewport. `scrollIntoViewIfNeeded` may leave it at the
+ * bottom edge, under the Content Manager's fixed Save/Publish bar on tablets, where a tap hits the bar.
+ * @param {Element} element - Element (runs in the page).
+ */
+const centre = (element) => element.scrollIntoView({ block: 'center' });
 
 /**
  * Taps the centre of the first element matching a selector (scrolls it into view first).
@@ -136,11 +163,13 @@ const smallTargets = (page, min) =>
 
 /**
  * Runs the touch checks.
- * @param {{ browser: import('playwright').Browser, baseUrl: string, account: object, storageState: object, screenshots?: string|null, log?: Function }} options - Browser, host, login and output.
+ * @param {{ browser: import('playwright').Browser, engine?: 'chromium'|'webkit', devices?: string|null, baseUrl: string, account: object, storageState: object, screenshots?: string|null, log?: Function }} options - Browser and its engine, host, login and output.
  * @returns {Promise<{ checks: Array<{ id: string, device: string, pass: boolean, detail: string }>, notes: string[] }>} Results.
  */
 export const runTouch = async ({
   browser,
+  engine = 'chromium',
+  devices: deviceNames = null,
   baseUrl,
   account,
   storageState,
@@ -155,7 +184,13 @@ export const runTouch = async ({
   const shortDoc = makeDocument(300);
   const longDoc = makeDocument(2000);
 
-  for (const device of deviceList(devices)) {
+  const names = deviceNames
+    ? String(deviceNames)
+        .split(',')
+        .map((name) => name.trim())
+        .filter(Boolean)
+    : undefined;
+  for (const device of deviceList(devices, engine, names)) {
     const editId = await createArticle(baseUrl, account.token, {
       title: `Touch ${device.name}`,
       body: shortDoc,
@@ -172,7 +207,10 @@ export const runTouch = async ({
     );
     await context.addInitScript(instrument);
     const page = await context.newPage();
-    const slug = device.name.toLowerCase().replace(/\s+/g, '-');
+    const slug = device.name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '');
     const shot = async (name) => {
       if (screenshots)
         await page.screenshot({
@@ -200,7 +238,7 @@ export const runTouch = async ({
 
     await step('tap-caret', async () => {
       const target = page.locator('.ce-block .ce-paragraph').nth(3);
-      await target.scrollIntoViewIfNeeded();
+      await target.evaluate(centre);
       await target.tap({ position: { x: 20, y: 8 } });
       await page.waitForTimeout(300);
       const state = await page.evaluate(() => {
@@ -239,7 +277,7 @@ export const runTouch = async ({
 
     await step('block-menu', async () => {
       const target = page.locator('.ce-block .ce-paragraph').nth(6);
-      await target.scrollIntoViewIfNeeded();
+      await target.evaluate(centre);
       await target.tap({ position: { x: 20, y: 8 } });
       await page.waitForTimeout(300);
       const id = await page.evaluate(() => {
@@ -261,6 +299,65 @@ export const runTouch = async ({
         'block-menu',
         menu.found && menu.inside && moved && /Paragraph/.test(text),
         `menu ${JSON.stringify(menu.rect)} inside=${menu.inside}, moved=${moved}`
+      );
+    });
+
+    await step('block-drag', async () => {
+      const target = page.locator('.ce-block .ce-paragraph').nth(10);
+      await target.evaluate(centre);
+      await target.tap({ position: { x: 20, y: 8 } });
+      await page.waitForTimeout(300);
+      const result = await page.evaluate(async () => {
+        const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+        const all = () => [...document.querySelectorAll('.ce-block')];
+        const block = document.activeElement && document.activeElement.closest('.ce-block');
+        const from = all().indexOf(block);
+        const text = block ? block.innerText.slice(0, 40) : '';
+        const handle = document.querySelector('.ce-toolbar__settings-btn');
+        if (!handle || from < 0) return { from, error: 'no handle or block' };
+        const hr = handle.getBoundingClientRect();
+        const below = all()[from + 2].getBoundingClientRect();
+        const point = (type, y) =>
+          handle.dispatchEvent(
+            new PointerEvent(type, {
+              bubbles: true,
+              cancelable: true,
+              pointerId: 41,
+              pointerType: 'touch',
+              isPrimary: true,
+              clientX: hr.left + hr.width / 2,
+              clientY: y,
+            })
+          );
+        point('pointerdown', hr.top + hr.height / 2);
+        await wait(450);
+        const dragging = Boolean(document.querySelector('.ce-block.mex-dragging'));
+        point('pointermove', below.top + below.height * 0.75);
+        await wait(50);
+        const line = Boolean(document.querySelector('.mex-drop-after, .mex-drop-before'));
+        point('pointerup', below.top + below.height * 0.75);
+        handle.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+        handle.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+        await wait(400);
+        const to = all().findIndex((node) => node.innerText.slice(0, 40) === text);
+        return {
+          from,
+          to,
+          dragging,
+          line,
+          menuOpen: Boolean(
+            document.querySelector(
+              '.ce-settings .ce-popover--opened, .ce-popover--opened[data-mex-tunes], .ce-toolbar .ce-popover--opened'
+            )
+          ),
+        };
+      });
+      await shot('block-drag');
+      await page.keyboard.press('Escape');
+      record(
+        'block-drag',
+        result.dragging && result.line && result.to === result.from + 2 && !result.menuOpen,
+        JSON.stringify(result)
       );
     });
 
@@ -305,7 +402,7 @@ export const runTouch = async ({
 
     await step('table', async () => {
       const cell = page.locator('.mex-table-tool [contenteditable="true"]').nth(2);
-      await cell.scrollIntoViewIfNeeded();
+      await cell.evaluate(centre);
       await cell.tap();
       await page.waitForTimeout(300);
       await page.keyboard.type(' touched');
@@ -366,7 +463,8 @@ export const runTouch = async ({
           menu.inside &&
           panel.found &&
           panel.inside &&
-          sheet.fixed &&
+          // Panels are bottom sheets below the DS small breakpoint (520 px); wider screens show them in the page.
+          (sheet.fixed || page.viewportSize().width >= 520) &&
           dialog.found &&
           dialog.inside &&
           closed,
@@ -407,7 +505,7 @@ export const runTouch = async ({
       await full.tap();
       await page.waitForTimeout(400);
       const target = page.locator('[data-mex-frame] .ce-block .ce-paragraph').nth(20);
-      await target.scrollIntoViewIfNeeded();
+      await target.evaluate(centre);
       await target.tap({ position: { x: 20, y: 8 } });
       await page.waitForTimeout(300);
       await page.evaluate(() => {
@@ -443,7 +541,8 @@ export const runTouch = async ({
     await step('scroll', async () => {
       await openEditor(page, editUrl(baseUrl, scrollId), longDoc.blocks.length);
       await page.waitForTimeout(800);
-      const cdp = await context.newCDPSession(page);
+      // The DevTools protocol exists in Chromium only.
+      const cdp = engine === 'chromium' ? await context.newCDPSession(page) : null;
       await page.evaluate(() => {
         const state = window.__mexBench;
         // The page scrolls in the document or in the nearest scrollable ancestor of the field.
@@ -465,21 +564,40 @@ export const runTouch = async ({
         state.scrollStart = performance.now();
       });
       const viewport = page.viewportSize();
-      await cdp.send('Input.synthesizeScrollGesture', {
-        x: Math.round(viewport.width / 2),
-        y: Math.round(viewport.height * 0.7),
-        yDistance: -6000,
-        speed: 3000,
-        gestureSourceType: 'touch',
-        repeatCount: 1,
-      });
-      // chromium-headless-shell (CI) ignores synthesized touch gestures: scroll with wheel steps then.
       let method = 'touch gesture';
+      if (cdp)
+        await cdp.send('Input.synthesizeScrollGesture', {
+          x: Math.round(viewport.width / 2),
+          y: Math.round(viewport.height * 0.7),
+          yDistance: -6000,
+          speed: 3000,
+          gestureSourceType: 'touch',
+          repeatCount: 1,
+        });
+      else {
+        // WebKit: no gesture API and no wheel in mobile emulation; 40 steps of 150 px, one per frame.
+        method = 'scripted scroll steps (WebKit has no touch scroll gesture in Playwright)';
+        await page.evaluate(
+          () =>
+            new Promise((resolve) => {
+              const state = window.__mexBench;
+              let step = 0;
+              const next = () => {
+                state.scroller.scrollTop += 150;
+                step += 1;
+                if (step < 40) requestAnimationFrame(next);
+                else setTimeout(resolve, 300);
+              };
+              requestAnimationFrame(next);
+            })
+        );
+      }
+      // chromium-headless-shell (CI) ignores synthesized touch gestures: scroll with wheel steps then.
       const moved = await page.evaluate(() => {
         const state = window.__mexBench;
         return state.scroller.scrollTop - state.scrollTop0;
       });
-      if (moved < 1000) {
+      if (cdp && moved < 1000) {
         method = 'wheel (touch gesture not supported by this browser build)';
         await page.mouse.move(Math.round(viewport.width / 2), Math.round(viewport.height * 0.6));
         for (let step = 0; step < 40; step += 1) {
@@ -517,11 +635,16 @@ export const runTouch = async ({
   }
   return {
     checks,
-    notes: [
-      'Chromium device emulation (Pixel 7, iPhone 13 descriptors); WebKit and real devices are not covered.',
-      'No on-screen keyboard in emulation: the keyboard check shrinks window.visualViewport.',
-      'Long-press selection is not emulated: the inline toolbar check selects text with the Selection API.',
-      'HTML drag and drop does not start from touch; blocks move with the block menu (Move up/Move down).',
-    ],
+    notes:
+      engine === 'webkit'
+        ? [
+            "WebKit (Safari's engine) in Playwright with the iPhone 13 and iPad (gen 7) descriptors, on the runner's OS; iOS Safari on real devices is not covered.",
+            'WebKit: the scroll check scrolls in scripted steps (Playwright has no touch scroll gesture and no mouse wheel for mobile WebKit).',
+          ]
+        : [
+            'Chromium device emulation (Pixel 7, iPhone 13 descriptors); real devices are not covered.',
+            'No on-screen keyboard in emulation: the keyboard check shrinks window.visualViewport.',
+            'Long-press selection is not emulated: the inline toolbar check selects text with the Selection API.',
+          ],
   };
 };

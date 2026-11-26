@@ -1,5 +1,21 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed (touch in WebKit and on tablets)
+
+- **A tap on the first letters of a block placed the caret again on tablets.** On a touch screen where Editor.js shows the handles beside the text (650 px and wider, for example an iPad), the two 44 px handles ("+" and "⋮⋮") sat over the start of the text, so a tap there opened the block menu. The text now starts after the handles on touch screens. Found in WebKit; Chromium at tablet width behaved the same.
+- **The inline toolbar stays on the screen.** With every inline tool it is about 600 px wide; on a tablet it ran past the right edge (Editor.js keeps it inside a content box it measures once). It is moved back into view while it is open.
+
+### Added
+
+- **Move blocks by touch.** Hold the "⋮⋮" handle for a moment, then drag; a line shows where the block lands, the page scrolls at the top and bottom edge, and lifting the finger moves the block through Editor.js' documented `blocks.move`, the same call as mouse drag and drop. A short tap still opens the block menu with Move up and Move down. Mouse drag and drop is unchanged.
+- **Touch checks in WebKit, the engine of Safari.** `npm run bench:browser -- --suite touch --browsers webkit` runs the touch checks with the iPhone 13 and iPad (gen 7) descriptors in Playwright's WebKit build; `--devices` picks other descriptors. The new CI job `browser-touch-webkit` runs them on every pull request; a failed check fails the job. A `block-drag` check joins the touch suite in both engines.
+
+### Notes
+
+- What still differs from real devices: WebKit runs on the runner's OS, not iOS; there is no on-screen keyboard (the visual viewport is simulated), long-press text selection uses the Selection API, and Playwright moves no finger in WebKit, so the block drag uses scripted Pointer Events and scrolling uses scripted steps.
+
 # [2.13.0](https://github.com/Schero94/Magic-Editor-X/compare/v2.12.4...v2.13.0) (2026-11-26)
 
 
