@@ -58,3 +58,29 @@ test('Configuration: frequent sections first, AI actions in their own section, s
     },
   });
 });
+
+test('Configuration: a footer after the last section links to the GitHub repository', async () => {
+  pluginRoutes();
+  network.on('GET', '/magic-editor-x/settings', { data: settingsDto() });
+  await checkStrictEntry(<ConfigurationPage />, {
+    path: '/settings/magic-editor-x/configuration',
+    permissions: ALL,
+    whileMounted: async () => {
+      await waitFor(() => h2s().includes('Server configuration'), 'the sections');
+      const link = document.querySelector('a[href="https://github.com/Schero94/Magic-Editor-X"]');
+      assert.ok(link, 'the GitHub link');
+      assert.ok(link.textContent.includes('Magic Editor X on GitHub'));
+      assert.equal(link.getAttribute('target'), '_blank');
+      assert.equal(link.getAttribute('rel'), 'noreferrer noopener');
+      const footer = link.closest('footer');
+      assert.ok(footer, 'the link sits in a footer');
+      assert.equal(footer.closest('section'), null, 'the footer is not a section');
+      assert.equal(
+        [...document.querySelectorAll('section, footer')].at(-1),
+        footer,
+        'after the last section'
+      );
+      assert.equal(h2s().at(-1), 'Server configuration', 'no extra section heading');
+    },
+  });
+});

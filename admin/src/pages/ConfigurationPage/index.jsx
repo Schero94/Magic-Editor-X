@@ -14,6 +14,7 @@ import { LanguageToolSection } from './LanguageToolSection';
 import { LinkScheduleSection } from './LinkScheduleSection';
 import { CoreBlocksSection } from './CoreBlocksSection';
 import { ContentChecksSection } from './ContentChecksSection';
+import { ProjectFooter } from './ProjectFooter';
 import { PAGE_HEADING, firstInvalidField } from '../focusTargets.mjs';
 import { activeElement, useFocusRestore } from '../useFocusRestore';
 
@@ -291,6 +292,7 @@ const ConfigurationPage = () => {
             : form.dto.environment
         }
       />
+      <ProjectFooter />
       <Form method="PUT" initialValues={form.saved}>
         <DraftSync values={form.draft} />
         <Blocker />
