@@ -346,6 +346,8 @@
   "settings.configuration.readOnly": "You can view these settings. Changing them needs the \"Update settings\" permission.",
   "settings.configuration.subtitle": "Set up the AI assistant, readability hints and grammar check for the editor. Server options are listed at the end.",
   "settings.configuration.title": "Configuration",
+  "settings.configuration.footer.text": "Magic Editor X is free and open source. If it is useful to you, a star on GitHub helps other Strapi developers find it.",
+  "settings.configuration.footer.github": "Magic Editor X on GitHub",
   "settings.blocks.code.title": "Defined in code",
   "settings.blocks.code.subtitle": "Blocks your app registers in code with the custom block SDK. They are changed in the code and cannot be edited here.",
   "settings.blocks.code.badge": "Defined in code",
