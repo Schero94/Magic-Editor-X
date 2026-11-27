@@ -1,5 +1,12 @@
 # Changelog
 
+# [2.15.0](https://github.com/Schero94/Magic-Editor-X/compare/v2.14.1...v2.15.0) (2026-11-27)
+
+
+### Features
+
+* **admin:** link to the GitHub repository below the Configuration page ([#57](https://github.com/Schero94/Magic-Editor-X/issues/57)) ([258c0a1](https://github.com/Schero94/Magic-Editor-X/commit/258c0a1b5c85e4f3337d6c6453d7489073e089fc))
+
 ## [2.14.1](https://github.com/Schero94/Magic-Editor-X/compare/v2.14.0...v2.14.1) (2026-11-26)
 
 
